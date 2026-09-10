@@ -40,6 +40,15 @@ Real definitions or code a reader can check against the proposal.
 What breaks, which CRD version carries the change, and the migration
 path for existing definitions and consumers.
 
+## Test plan
+
+Unit, integration, and migration coverage the implementation must land
+with. Name what each layer proves.
+
+## Risks and mitigations
+
+What can go wrong in operation, and what bounds it.
+
 ## Alternatives considered
 
 Each alternative with the reason it lost.
