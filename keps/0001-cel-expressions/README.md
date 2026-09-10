@@ -92,9 +92,16 @@ podTemplateSpec:
 - An accessor with only an `expression` is read-only. Writing through it
   fails with a clear error instead of guessing a location.
 
-Patches are constructed against the pre-write document and applied
-all-or-nothing with a snapshot rollback, so a multi-instance write can
-never land half of its changes.
+CEL only constructs the patch value; applying it is Karta's job, and
+the semantics applied are standard, not invented: a map is a JSON merge
+patch (RFC 7386, `kubectl patch --type merge`) and a list is RFC 6902
+operations (`kubectl patch --type json`) - the same pair a
+MutatingAdmissionPolicy offers as `applyConfiguration` and `jsonPatch`.
+Karta adds exactly three behaviors on top, all documented: `replace`
+runs the patch twice (null, then the value), an add creates its missing
+map parents, and patches are constructed against the pre-write document
+and applied all-or-nothing with a snapshot rollback, so a
+multi-instance write can never land half of its changes.
 
 ### Variables
 
@@ -183,28 +190,15 @@ spelling states it: `([dyn(X.orValue(null))].filter(v, v != null && v != false) 
 
 ### Conditional patches
 
-A patch is an expression, so a definition can already branch on the
-document and choose the shape of its own write:
+The design principle first: control flow belongs in the API shape, not
+inside expression strings. An expression that embeds branching becomes
+a small language of its own, which is exactly what this KEP is removing.
+Every CEL string in a definition should be one small expression.
 
-```yaml
-podTemplateSpec:
-  expression: ...
-  patch: >-
-    object.?spec.?jobTemplate.hasValue()
-      ? {"spec": {"jobTemplate": {"spec": {"template": value}}}}
-      : {"spec": {"template": value}}
-```
-
-"If this exists, patch this way, else patch that way" is one CEL
-conditional; else-if chains nest, conditions compose with `&&`, `||`,
-and `variables.<name>`, and the two branches may even produce different
-patch shapes (a merge patch on one side, an operation list on the
-other, each wrapped in `dyn()`).
-
-Nested ternaries stop reading well at three branches. Since this
-version breaks the CRD anyway, the accessor also gains a structured
-form, `patches`, mirroring the match-list idiom `statusMappings`
-already uses:
+Conditional writes are therefore structured: the accessor's `patches`
+list carries the branching, mirroring the match-list idiom
+`statusMappings` already uses and the `mutations` list a
+MutatingAdmissionPolicy carries:
 
 ```yaml
 podTemplateSpec:
@@ -228,10 +222,11 @@ Semantics:
   this document shape, and guessing a write location is exactly what
   this KEP removes.
 - Each `when` and `patch` is validated independently, which tooling and
-  review diffs benefit from; a nested ternary is one opaque string.
+  review diffs benefit from.
 
-The single `patch` stays the right tool for one or two branches; the
-list earns its place at three or more.
+A ternary inside a single `patch` remains legal CEL - the engine cannot
+prevent it - but it is discouraged beyond one trivial condition, and the
+catalog never uses it. If a write branches, it uses `patches`.
 
 ## Examples
 
@@ -292,11 +287,12 @@ examples.
   API grows a mode switch forever, and the two engines disagree exactly
   in the corners that matter (defaults on `false`, list typing).
 - Conditional writes through CEL ternaries only, with no structured
-  form. Rejected: nested ternaries stop reading at three branches, and
-  the CRD already carries the match-list idiom in `statusMappings`, so
-  `patches` adds no new grammar. Conversely, a richer combinator
-  language (`and`/`or` fields on the match) was also rejected: `when`
-  is CEL, and CEL already has `&&` and `||`.
+  form. Rejected: a nested ternary is control flow smuggled into a
+  string - a mini-language on top of CEL - and stops reading at three
+  branches. The CRD already carries the match-list idiom in
+  `statusMappings`, so `patches` adds no new grammar. Conversely, a
+  richer combinator language (`and`/`or` fields on the match) was also
+  rejected: `when` is CEL, and CEL already has `&&` and `||`.
 - Keeping `optimizationInstructions` as-is through the version bump.
   Rejected: a breaking release is the one cheap moment to remove a
   consumer-specific name from the API.
