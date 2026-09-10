@@ -3,182 +3,154 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 NVIDIA Corporation
 -->
 
-# KEP-0001: CEL expressions and value accessors
+# KEP-0001: CEL expressions in Karta definitions
 
 - Status: implementable
 - Authors: @AviadHayumi
 - Created: 2026-09-10
-- Last updated: 2026-09-10
 - Tracking issue: to be opened before this KEP merges
 
 ## Summary
 
-Karta definitions move from jq path strings to CEL, the expression language
-Kubernetes itself uses for CRD validation rules and admission policies. Every
-read becomes a CEL expression evaluated with the workload bound as `object`,
-and every write becomes a patch the definition constructs. The change breaks
-the CRD, so it ships as a new API version, `run.ai/v1alpha2`, and the version
-bump is used to decouple the scheduling section from any single scheduler.
-This document describes the target design; the Implementation status section
-states exactly what the prototype branches have and lack.
+Karta definitions stop using jq paths and start using CEL, the expression
+language Kubernetes already uses for CRD validation rules and admission
+policies. Reads become CEL expressions. Writes become patches the definition
+declares. This breaks the CRD, so it ships as a new version, `run.ai/v1alpha2`.
+Since the version breaks anyway, this KEP also uses the moment to bring the
+rest of the CRD closer to how Kubernetes upstream shapes its own APIs.
+
+This document is the proposal. A prototype of the CEL engine exists on
+development branches, but none of the `v1alpha2` shapes below are merged.
 
 ![the value accessor model](accessor-model.png)
 
 The diagram source is `accessor-model.excalidraw`; open it at excalidraw.com to edit.
 
-## Implementation status
-
-As inspected on 2026-09-10: the `cel-native` branch (052db5f2) implements CEL
-accessors, named variables, single patch expressions, and a converted catalog;
-the `cel-references` branch (cd91d670) adds reference declarations, resolution
-through a reader interface, and the `references` binding. Both branches still
-use the `v1alpha1` Go package and a CRD serving and storing `run.ai/v1alpha1`,
-and both retain `optimizationInstructions.gangScheduling`. Neither implements
-`run.ai/v1alpha2`, the `scheduling.podGroup` layout, the structured `patches`
-list, the discriminated patch union, boolean-only status expressions, or the
-renames in the naming table. Conditional writes on the prototype use CEL
-ternaries inside the single patch expression. Statements below describe the
-target design unless explicitly labeled as prototype behavior; prototype test
-results do not demonstrate completion of the proposed API version or its
-migration.
-
 ## Motivation
 
-Every value a Karta extracts today is a jq path. That served the first
-catalog well, but it has four structural costs.
+Today every value in a definition is a jq path:
 
-- jq is not the Kubernetes ecosystem's language. An author who writes a
-  ValidatingAdmissionPolicy or a CRD validation rule already knows CEL;
-  jq is one more dialect to learn and to review.
-- jq is untyped over a total order. `.status.active > 0` answers `true`
-  when `active` is a list of job references, silently producing a wrong
-  status. CEL refuses the comparison with a typed error.
-- A jq path doubles as an l-value: the engine writes through the same
-  string it reads. That makes reads and writes inseparable, which blocks
-  the resource-references design, where a value is read from another
-  object but written to the workload.
-- Evaluation has no cost model. CEL programs are compiled once, cached,
-  and charged a per-step budget, so a runaway expression fails fast
-  instead of stalling a reconcile.
+```yaml
+podTemplateSpecPath: .spec.template
+replicasPath: .status.ready // 0
+```
+
+Three problems keep coming back.
+
+First, jq is one more language to learn. Someone who writes admission
+policies or CRD validation rules already knows CEL. Nobody reviews jq at
+work.
+
+Second, jq answers wrong questions instead of refusing them. A CronJob's
+`status.active` is a list of job references, not a count. Ask jq
+`.status.active > 0` and it says `true`, because in jq a list is always
+"bigger" than a number. The workload shows Running when it is not. CEL
+refuses the comparison with a typed error, and the mistake dies in review
+instead of in production.
+
+Third, in jq the read path is also the write location: the engine writes
+through the same string it reads. Reads and writes cannot be separated,
+which blocks the references design, where a value is read from one object
+and written to another.
 
 ### Goals
 
-- One expression language, CEL, for every read in a definition.
-- Reads and writes separated: `expression` reads, a patch construct writes.
-- A new CRD version, `run.ai/v1alpha2`, carrying the change; the old
-  fields are removed, not deprecated in place.
-- A scheduler-agnostic scheduling section, decoupled from any single
-  scheduler's vocabulary.
-- The consumer-facing Go API (factory, accessor, component, tree) is
-  source-compatible for callers of the retained runtime interfaces.
-  This is not a guarantee for code importing the `v1alpha1` package,
-  constructing versioned structs, or registering schemes.
-- The catalog, the recorder fixtures, and the docs ship converted.
+- CEL becomes the only expression language in definitions.
+- Reads and writes are separate: reads are expressions, writes are
+  declared patches.
+- The change ships as `run.ai/v1alpha2`, and the break is used to align
+  the rest of the CRD with upstream naming and shapes.
+- The whole catalog is converted and proven against the recorded
+  fixtures.
 
 ### Non-goals
 
-- A jq compatibility layer or a dual-engine mode. Two engines means two
-  sets of semantics to verify per definition.
-- A conversion webhook. The migration is a documented maintenance
-  operation (see Migration and versioning).
-- Resource references. They build on this KEP and are owned by a
-  follow-on KEP; their appearance in the sketch below is a
-  non-normative preview.
+- Reading other objects (`references`). That is its own KEP.
+- Renaming the `Definition` suffix family. Its own, smaller KEP.
+- Graduating past alpha. The criteria are in the migration section.
+- Changing the consumer-facing Go interfaces.
 
-## Naming decisions
+## Proposal part 1: CEL
 
-Every name below was reviewed against Kubernetes API conventions and the
-admissionregistration, cluster-api ClusterClass, Gateway API, Kyverno, and
-Kueue precedents. Conflicts between reviewers are recorded, not averaged.
+### How a read looks
 
-| Name | Decision | Justification |
-|---|---|---|
-| `expression` | keep | The exact VAP field name for a CEL source string (`validations[].expression`, `variables[].expression`). |
-| `patch` (single CEL string) | reshape into a discriminated union `patch{patchType, expression}` | Inferring merge-vs-operations from the result's runtime type is the undiscriminated-union pattern the conventions forbid; MutatingAdmissionPolicy declares `patchType` for the same reason. Arm names are `MergePatch` and `JSONPatch`, not MAP's `ApplyConfiguration`, because Karta's merge is RFC 7386, not schema-aware apply. |
-| `patches` | keep (new list) | Plural list of its entry, mirroring MAP's `mutations` and ClusterClass `patches`; ordered, listType=atomic. |
-| `patches[].matchConditions[{name, expression}]` | adopt (over `when`) | No core API has a `when` field; `matchConditions` with a required `name` is the upstream named CEL gate and gives addressable failures. Conflict recorded: Kyverno uses `when`, cluster-api uses `enabledIf`; the admissionregistration family this KEP models itself on wins. |
-| `replace: true` | rename to `patchStrategy: Merge \| Replace` (default `Merge`) | Conventions prefer enums over booleans for strategies; `replace` collides with the RFC 6902 operation name. Applies to `MergePatch` only. |
-| `variables[{name, expression}]` | keep; listType=map keyed by `name` | Byte-for-byte the VAP `Variable` type and the `variables.<name>` access idiom. |
-| `byExpression` | keep the arm name; drop `expectedResult`; the expression must evaluate to a boolean | Unanimous across the review panel: every upstream CEL gate is a bare boolean (`MatchCondition`: "must evaluate to bool"). The arm name stays for family symmetry with `byPhase` and `byConditions`. Prototype note: the prototype still compares a stringified result to `expectedResult`. |
-| `references` (list and CEL binding) | keep | A named-binding list keyed by `name`, the plural analog of VAP's `params`. Conflict recorded: Gateway API prefers `refs`; the full word is kept because entries carry lookup semantics, not bare pointers. |
-| `references[].gvk{group,version,kind}` | flatten to `apiVersion` + `kind` on the entry | No user-facing Kubernetes API has a `gvk` field; `paramKind{apiVersion, kind}` and cluster-api's `PatchSelector` are the precedents. |
-| component `kind{group,version,kind}` | flatten to `apiVersion` + `kind` | Same verdict; also removes the `kind.kind` stutter the references design flags as unresolved. |
-| `references[].lookup{nameExpression}` | drop the wrapper; `nameExpression` sits on the entry, one-of with `selector` | `paramRef` models the same name-or-selector choice flat; the `nounExpression` suffix follows `messageExpression`. |
-| `references[].list` | rename to `selector` | `paramRef.selector` and every core selector field name the selecting thing `selector`; `list` names the consumer's verb. |
-| selector shape | `matchLabels` stays `map[string]string` verbatim; expression-sourced values move to a sibling `matchLabelExpressions[{key, expression}]` | Reuse upstream shapes verbatim or diverge loudly, never near-miss: redefining `matchLabels` values would break the most recognized selector shape in Kubernetes. `matchExpressions{key, operator, values}` stays byte-for-byte `metav1.LabelSelectorRequirement`. |
-| `scheduling` (was `optimizationInstructions`) | adopt | Consumer-neutral; `RuntimeClass.spec.scheduling` is a shipping core field of this name. |
-| `scheduling.podGroups` | rename to `podGroup` (singular, with `subGroups`) | The v1alpha1 code already deprecates the plural in favor of the singular mapping; Kueue and scheduling/v1alpha3 endorse the pod-group vocabulary. See the scheduling section for the full surviving field set. |
-| `members[{componentName, groupByExpressions}]` | keep | `componentName` follows the `fooName` string-reference convention (Gateway `sectionName`); `groupByExpressions` follows the plural `*Expressions` suffix. |
-| `instanceIds` | rename to `instanceIDs` | Conventions capitalize initialisms (`machineID`, `systemUUID`, `providerIDList`); no `Ids` spelling exists in staging API types. |
-| `suspendDefinition{suspendActions, resumeActions}` | keep, deferred | Pre-existing v1alpha1 surface kept under this KEP's shape-preservation rule. The panel flagged the `Definition` suffix and the suspend stutter; recorded in Alternatives as a pre-v1 skeleton-rename KEP. |
-| `conditionsDefinition{expression, typeFieldName, ...}` | keep; the four field names default to `type`, `status`, `message`, `reason` | The value each names is a single key, not a path, so `FieldName` is honest; defaults follow `metav1.Condition`. Conflict recorded: two seats preferred a `*Path` suffix. |
-| `structureDefinition` / `rootComponent` / `childComponents` | keep, `Definition` suffix deferred with the skeleton-rename KEP | Parent/child vocabulary matches upstream usage. |
-| `additionalChildKinds` | keep the name; entries become `{apiVersion, kind}` and the list map key becomes both fields | `additional*` matches `additionalPrinterColumns`; keying by `kind` alone collides across groups, and only a version bump can change a list key. |
-| CEL `object` | keep | The exact admission-policy binding. |
-| CEL `value` | keep | Reads naturally inside patch construction; no collision. A `self` alternative was rejected: `self` means the scoped object in CRD validation rules, not the incoming write. |
-| CEL `instance`, `index` | keep | No upstream analogue (an absence finding). Documented as reserved words; `instance` holds the instance id string, not an object. Renaming them would also break every existing prototype definition for no convention gain. |
-| CEL `variables`, `references` | keep | `variables` is the exact VAP binding; `references` distinguishes multiple named bindings from VAP's single `params`. |
+Every field that was a path becomes an expression. The workload is bound
+as `object`:
 
-## Proposal
+```yaml
+# before
+podTemplateSpecPath: .spec.template
 
-### The value accessor
+# after
+podTemplateSpec:
+  expression: object[?"spec"][?"template"].orValue(null)
+```
 
-Every field the old API addressed with a `*Path` string becomes a value
-accessor:
+The `[?"key"]` form means "this field may be missing". A missing field
+becomes a value you handle with `.orValue(...)`, instead of an error or a
+silent null. jq made that choice for you; CEL makes you write it down.
+One trap to know when converting: jq's `// 0` default also fires when the
+value is `false`. CEL's `orValue` fires only on absence. Where a
+definition relied on the jq behavior, spell it out:
+
+```yaml
+expression: ([dyn(object.?status.?ready.orValue(null))].filter(v, v != null && v != false) + [0])[0]
+```
+
+### How a write looks
+
+A write is not a path. It is a patch the definition declares, in the same
+shape MutatingAdmissionPolicy declares its mutations: a list of entries,
+each carrying its `patchType` and an expression that builds the patch.
 
 ```yaml
 podTemplateSpec:
   expression: object[?"spec"][?"template"].orValue(null)
-  patch:
-    patchType: MergePatch
-    expression: '{"spec": {"template": value}}'
+  patches:
+    - patchType: MergePatch
+      expression: '{"spec": {"template": value}}'
   patchStrategy: Replace
 ```
 
-- `expression` is CEL, evaluated with the workload bound as `object`.
-  Absence is explicit: `[?"key"]` and `.?field` make a missing field a
-  value, and `.orValue(...)` names its default.
-- `patch` declares its format and constructs the change. `patchType:
-  MergePatch` requires the expression to produce a map, applied as a
-  JSON merge patch (RFC 7386, null deletes). `patchType: JSONPatch`
-  requires an operation list (RFC 6902). Any other result is a typed
-  evaluation error; `{}` and `[]` mean no change. The expression sees
-  `value` (what Karta is writing), `instance` and `index` (which
-  instance of a multi-instance component), and `variables.<name>`.
-- `patchStrategy: Replace` evaluates the selected merge patch twice:
-  once with `value` bound to null to clear the field, then with the
-  real value. It clears only what the null pass actually sets to null;
-  it is not whole-object replacement, and it is restricted to
-  `MergePatch` (RFC 6902 authors state removals explicitly). Default
-  `Merge`. A pod template update wants `Replace`; an annotations merge
-  does not.
+- `patchType: MergePatch` means the expression builds a map, applied as a
+  JSON merge patch (RFC 7386, what `kubectl patch --type merge` does;
+  null deletes a field).
+- `patchType: JSONPatch` means the expression builds a list of RFC 6902
+  operations (`kubectl patch --type json`). Karta is a bit friendlier
+  than the RFC: an `add` creates the missing map parents on the way.
+- The expression sees `value` (what Karta is writing), `instance` and
+  `index` (which instance of a multi-instance component), and
+  `variables.<name>`.
+- The result must match the declared type. A map for `MergePatch`, an
+  operation list for `JSONPatch`, anything else is an error. `{}` and
+  `[]` mean no change.
+- `patchStrategy: Replace` clears the field first (the patch runs once
+  with `value` bound to null, then with the real value). Use it when the
+  new value must not merge into the old one, like a pod template.
+  Default is `Merge`. Only meaningful for `MergePatch`, because RFC 6902
+  authors write their removals explicitly.
 
-Prototype note: the prototype has a single string `patch` whose format
-is inferred from the result type, a boolean `replace`, and does not
-reject scalar results. The union, the enum, and the per-arm result
-typing are this KEP's target contract.
+Why one list and not a single `patch` field plus a list? Because upstream
+never does that. MutatingAdmissionPolicy has `mutations`, a list;
+ValidatingAdmissionPolicy has `validations`, a list; ClusterClass has
+`patches`, a list. One patch is a list with one entry. One field, one
+shape, nothing to choose between.
 
-### Accessor validity
+An accessor with no `patches` is read-only. Writing through it is a loud
+error, never a guessed location.
 
-- A present accessor requires a non-empty `expression`.
-- `patch` and `patches` are a one-of. Neither present means read-only;
-  writing through a read-only accessor is a loud error, never a guessed
-  location. An explicitly empty `patch.expression` or an empty
-  `patches` list is invalid.
-- In `patches`, an entry without `matchConditions` always matches and
-  may appear only last. Every entry requires a non-empty patch
-  expression.
-- `patchStrategy` is invalid on a read-only accessor.
-- `instanceIDs` is read-only by definition: a `patch` on it is
-  rejected.
+Patches are built against the document as it looked before the write
+started, and a multi-instance write lands all-or-nothing: if instance 3
+fails, instances 1 and 2 roll back. The rollback covers the in-memory
+document Karta hands back to the consumer; pushing it to the cluster is
+still the consumer's single update call.
 
-### Conditional patches
+### Conditional writes
 
-Control flow belongs in the API shape, not inside expression strings.
-An expression that embeds branching becomes a small language of its
-own, which is exactly what this KEP is removing. Conditional writes are
-therefore structured, mirroring the match-list idiom `statusMappings`
-already uses and the `mutations` list a MutatingAdmissionPolicy carries:
+Sometimes the right patch depends on the document. A CronJob keeps its
+pod template under `spec.jobTemplate`, a Deployment under `spec` - one
+definition serving a family of shapes needs "if this exists, patch here,
+else patch there". Entries take match conditions, first match wins:
 
 ```yaml
 podTemplateSpec:
@@ -187,460 +159,442 @@ podTemplateSpec:
     - matchConditions:
         - name: has-job-template
           expression: object.?spec.?jobTemplate.hasValue()
-      patch:
-        patchType: MergePatch
-        expression: '{"spec": {"jobTemplate": {"spec": {"template": value}}}}'
-    - patch:
-        patchType: MergePatch
-        expression: '{"spec": {"template": value}}'
-  patchStrategy: Replace
+      patchType: MergePatch
+      expression: '{"spec": {"jobTemplate": {"spec": {"template": value}}}}'
+    - patchType: MergePatch
+      expression: '{"spec": {"template": value}}'
 ```
 
-Semantics:
+The rules are short:
 
-- Entries are evaluated in declaration order against the pre-write
-  document, with the same bindings the selected patch will see. All of
-  an entry's `matchConditions` must hold (AND); the first matching
-  entry supplies the patch. Later conditions and unselected patch
-  expressions are not evaluated.
-- A condition must return a CEL boolean. `false` advances to the next
-  entry. Null, a non-boolean result, an evaluation error, cancellation,
-  or a spent cost budget fails the write; errors never mean false.
-- No entry matching fails the write loudly: the definition said nothing
-  about this document shape.
-- Selection happens once, before any `Replace` null pass; the selected
-  entry is reused for both passes.
-- This first-match list differs from admission `matchConditions`, which
-  collectively gate one policy, and from MAP's mutations, which all
-  apply in order. The difference is deliberate: exactly one write shape
-  is correct per document.
+- Entries are checked in order. All of an entry's conditions must hold.
+  The first entry that matches supplies the patch; the rest are not
+  evaluated.
+- An entry without conditions always matches, so a last entry without
+  them reads like `else`. It may only appear last.
+- A condition must return a CEL boolean. An error, a null, or a
+  non-boolean is a failed write, not a `false`. Errors never mean false.
+- If nothing matches, the write fails loudly. The definition said
+  nothing about this document shape, and guessing is what this KEP
+  removes.
+- With `patchStrategy: Replace`, the entry is picked once and reused for
+  both passes.
 
-A ternary inside a single `patch` expression remains legal CEL - the
-engine cannot prevent it - but it is discouraged beyond one trivial
-condition, and the catalog does not use it once `patches` exists.
-Suspend and resume entries carry the same optional `matchConditions`
-grammar, so a conditional suspend never needs a second grammar or a
-breaking change.
+The names come from upstream: `matchConditions` with a required `name`
+is how admission policies gate on CEL, and the name makes failures
+addressable ("condition has-job-template failed" instead of "condition 0
+failed"). Writing the same branch as a ternary inside one expression is
+legal CEL, but control flow belongs in the API, not smuggled into a
+string. The catalog uses `matchConditions`.
 
-Prototype note: `patches`, `matchConditions`, and the no-match error are
-not implemented; the prototype's conditional writes are ternaries.
+Suspend and resume actions use the same entry shape, so a conditional
+suspend needs no new grammar:
 
-### What a patch is, precisely
-
-CEL only constructs the patch value; applying it is Karta's job, and
-the semantics are cited standards, not invented. A `MergePatch` map is
-RFC 7386 (`kubectl patch --type merge`); a `JSONPatch` list is RFC 6902
-(`kubectl patch --type json`). The relationship to
-MutatingAdmissionPolicy is analogous, not identical: MAP's
-`applyConfiguration` performs schema-aware structural merging where
-keyed lists merge; without a schema, Karta's merge replaces lists
-wholesale. Karta's RFC 6902 processing extends `add` by creating
-missing map parents; it does not create missing arrays or array
-elements.
-
-Write boundaries, stated honestly: patches are constructed against the
-pre-write document and applied all-or-nothing with a snapshot rollback.
-That rollback covers one in-memory update of one workload document; it
-is not a transaction across resources or API requests. Prototype note:
-the prototype's suspend and resume action lists apply sequentially -
-each entry observes the previous entry's changes, and a mid-list error
-leaves earlier entries applied; aligning them with the all-or-nothing
-contract is part of implementing this KEP.
+```yaml
+suspendDefinition:
+  suspendActions:
+    - patchType: MergePatch
+      expression: '{"spec": {"suspend": true}}'
+  resumeActions:
+    - patchType: MergePatch
+      expression: '{"spec": {"suspend": false}}'
+```
 
 ### Variables
 
-`spec.variables` names CEL expressions once and makes them available to
-every expression and patch as `variables.<name>`:
+Long expressions get a name once and are reused everywhere as
+`variables.<name>`, the same way a ValidatingAdmissionPolicy composes:
 
 ```yaml
-variables:
-  - name: specReplicas
-    expression: ([dyn(object[?"spec"][?"replicas"].orValue(null))].filter(v, v != null && v != false) + [1])[0]
+spec:
+  variables:
+    - name: specReplicas
+      expression: ([dyn(object[?"spec"][?"replicas"].orValue(null))].filter(v, v != null && v != false) + [1])[0]
+  ...
+      scaleDefinition:
+        replicas:
+          expression: variables.specReplicas
 ```
 
-The shape is VAP's `Variable` exactly; the evaluation strategy is not
-VAP's, and the difference is stated rather than hidden: resolution is
-eager by static mention. Only the variables an expression syntactically
-references (transitively) are resolved, in declaration order, later
-variables seeing earlier ones; a mentioned variable runs even on a CEL
-branch evaluation would not take, and a dynamic access such as
-`variables[x]` falls back to resolving all of them. Name rules: unique,
-valid CEL identifiers, no shadowing of the reserved bindings (`object`,
-`value`, `instance`, `index`, `variables`, `references`). A variable's
-lifetime is one evaluation, or the frozen addressing context of one
-multi-pass write.
-
-### Expression environments
-
-The CEL environment is API surface. Per field group:
-
-| Field group | `object` is | Extra bindings |
-|---|---|---|
-| specDefinition, scaleDefinition, statusDefinition, suspendDefinition, variables | the workload manifest | `variables`; patch expressions and conditions also see `value`, `instance`, `index` |
-| podSelector, scheduling `groupByExpressions` | one Pod manifest | none |
-| references name and selector expressions (follow-on KEP) | the workload manifest | none |
-
-`instance` binds the selected instance id string, or null for a
-non-instanced component; `index` binds its zero-based position. During
-ordinary reads the write bindings are null. The enabled extension
-libraries are CEL optional types plus the list and string extensions
-Kubernetes also enables; extending the environment is an API change and
-needs a KEP. Every evaluation is charged a per-program cost budget
-(1,000,000 cost units on the prototype) and fails fast when the budget is spent -
-this bounds one program evaluation, not a whole reconcile, and the
-compiled-program cache has no eviction bound. Aggregate budgets and
-size limits (expression length, entry counts, constructed-result size)
-are deliberately unchosen here and listed as graduation work.
-
-Prototype note: the prototype declares one shared environment for all
-field groups, so an out-of-scope binding fails at evaluation rather
-than compilation.
+Rules: names are unique CEL identifiers, may not shadow the reserved
+words (`object`, `value`, `instance`, `index`, `variables`,
+`references`), and a variable may use earlier variables. Resolution is
+by mention: an expression only pays for the variables it names,
+transitively. One honest difference from VAP: a mentioned variable runs
+even if it sits on a branch the expression would not take, and a dynamic
+access like `variables[x]` resolves all of them.
 
 ### Status matching
 
-Matchers keep their family: `byPhase`, `byConditions`, `byExpression`.
-Within one matcher the clauses AND; across a status's matchers they OR.
-The precedence order when several statuses match is fixed and now
-documented: Resuming, Suspending, Suspended, Running, Failed,
-Completed, Initializing, Degraded.
-
-`byExpression` becomes a boolean predicate: the expression must
-evaluate to a CEL boolean, enforced at validation, and `expectedResult`
-is removed. Prototype note: the prototype compares
-`fmt.Sprintf("%v", result)` against the `expectedResult` string, which
-lets a boolean `true` and a string `"true"` match the same value; the
-catalog already writes boolean predicates with `expectedResult:
-"true"`, so its migration is dropping one line per matcher.
-
-### Condition normalization
-
-`conditionsDefinition.expression` reads the condition collection and is
-never writable. The `*FieldName` settings name literal keys inside each
-condition object, defaulting to `type`, `status`, `message`, `reason`.
-A missing, null, or empty collection means no observed conditions.
-Extracted types must be non-empty and unique; status is one of `True`,
-`False`, `Unknown`; missing optional fields produce no text; a
-wrong-shaped collection is an error, not an empty result.
-
-### The CRD, at a high level
+Status matchers keep their family: `byPhase`, `byConditions`,
+`byExpression`. What changes is that `byExpression` becomes a plain
+boolean, like every CEL gate upstream:
 
 ```yaml
+# before
+byExpression:
+  expression: (.status.active // 0) > 0
+  expectedResult: "true"
+
+# after
+byExpression:
+  expression: object.?status.?active.orValue(0) > 0
+```
+
+`expectedResult` goes away. It existed because jq answers were strings to
+compare; a CEL predicate just answers true or false. Within one matcher
+the clauses AND; across a status's matchers they OR. When several
+statuses match, the fixed order picks one: Resuming, Suspending,
+Suspended, Running, Failed, Completed, Initializing, Degraded.
+
+### What each expression sees
+
+| Where the expression lives | `object` is | extra bindings |
+|---|---|---|
+| specDefinition, scaleDefinition, statusDefinition, suspendDefinition, variables | the workload | `variables`; patch expressions and match conditions also see `value`, `instance`, `index` |
+| podSelector, `groupByExpressions` | one pod | none |
+
+`instance` holds the selected instance id string (null for a
+single-instance component), `index` its position. Every evaluation is
+compiled once, cached, and charged a per-run cost budget, so a runaway
+expression fails fast with a named error instead of stalling a
+reconcile. The extension functions available are CEL optional types plus
+the list and string helpers Kubernetes enables; adding more is an API
+change and needs a KEP.
+
+### A whole definition, before and after
+
+```yaml
+# v1alpha1 (jq)
+apiVersion: run.ai/v1alpha1
+kind: Karta
+metadata:
+  name: batch-job-v1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: job
+      kind: { group: batch, version: v1, kind: Job }
+      specDefinition:
+        podTemplateSpecPath: .spec.template
+      scaleDefinition:
+        replicasPath: .spec.parallelism // 1
+      statusDefinition:
+        statusMappings:
+          running:
+            - byExpression:
+                expression: (.status.active // 0) > 0 and (.status.ready // 0) > 0
+                expectedResult: "true"
+      suspendDefinition:
+        suspendActions:
+          - path: .spec.suspend
+            value: "true"
+        resumeActions:
+          - path: .spec.suspend
+            value: "false"
+```
+
+```yaml
+# v1alpha2 (CEL)
 apiVersion: run.ai/v1alpha2
 kind: Karta
 metadata:
   name: batch-job-v1
 spec:
-  variables: [ ... ]
+  variables:
+    - name: specParallelism
+      expression: ([dyn(object[?"spec"][?"parallelism"].orValue(null))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
-    references: [ ... ]      # non-normative preview; owned by the references KEP
     rootComponent:
       name: job
       apiVersion: batch/v1
       kind: Job
       specDefinition:
         podTemplateSpec:
-          expression: ...
-          patch: { patchType: MergePatch, expression: ... }
+          expression: object[?"spec"][?"template"].orValue(null)
+          patches:
+            - patchType: MergePatch
+              expression: '{"spec": {"template": value}}'
           patchStrategy: Replace
       scaleDefinition:
-        replicas: { expression: ... }
+        replicas:
+          expression: variables.specParallelism
       statusDefinition:
-        conditionsDefinition: { expression: ..., typeFieldName: type }
         statusMappings:
           running:
-            - byExpression: { expression: <boolean CEL> }
+            - byExpression:
+                expression: object.?status.?active.orValue(0) > 0 && object.?status.?ready.orValue(0) > 0
       suspendDefinition:
-        suspendActions: [ { patch: { patchType: MergePatch, expression: '{"spec": {"suspend": true}}' } } ]
-        resumeActions:  [ { patch: { patchType: MergePatch, expression: '{"spec": {"suspend": false}}' } } ]
-    childComponents: [ ... ]
-  scheduling:
-    podGroup: { ... }
+        suspendActions:
+          - patchType: MergePatch
+            expression: '{"spec": {"suspend": true}}'
+        resumeActions:
+          - patchType: MergePatch
+            expression: '{"spec": {"suspend": false}}'
 ```
 
-Removed or changed outright: every `*Path` field (24 across the spec),
-`filters`, `groupByKeyPaths`, `expressionLanguage`, the path-and-value
-suspend actions, the `gvk`/`kind` wrapper structs (now flat `apiVersion`
-+ `kind`), the deprecated `podGroups` plural, and `expectedResult`. The
-complete field-by-field mapping ships in the release notes; migration
-is reviewable, not blindly mechanical (jq streams, null-versus-false
-defaults, and write addressing all require a human decision).
-
-### Collection semantics
-
-`childComponents`, `references`, and variable-like named lists are
-list-map keyed by `name`; component names are unique across root and
-children; `members` are keyed by `componentName` and must name a
-declared component. `additionalChildKinds` is keyed by `(apiVersion,
-kind)`. `patches`, suspend and resume actions, `matchConditions`,
-`groupByExpressions` (an ordered tuple, not a set), and selector
-requirements are ordered atomic lists. The `scheduling` section is a
-pointer with omitempty, so definitions without it carry no empty
-stanza.
-
-### Decoupling the scheduling section
-
-`optimizationInstructions` was named for one consumer. The semantics it
-carries - pod grouping for gang scheduling - are consumed by KAI
-Scheduler, Kueue, and Volcano alike. The new version renames the
-section to `scheduling` and promotes the model v1alpha1 already
-declared as its successor:
-
-- `scheduling.podGroup` (singular) with `subGroups` replaces the
-  deprecated `podGroups` plural and drops the `gangScheduling` wrapper.
-- The topology fields (`topologyName`, `preferredTopologyLevel`,
-  `requiredTopologyLevel`) stay: their values are definition-supplied
-  strings, no scheduler CRD is referenced by kind, and the concepts are
-  scheduler-neutral. Any field that cannot be stated
-  scheduler-agnostically is dropped.
-- Grouping keys: each `groupByExpressions` entry evaluates once per
-  candidate Pod and contributes one element to an ordered tuple; group
-  equality compares tuple elements without concatenation or coercion,
-  scoped by workload and group name. An absent list falls back to
-  owner-reference grouping. Result types and null handling are settled
-  at implementation with the same errors-are-loud rule as everywhere
-  else.
-- Translating a Karta pod group into a scheduler's own object is the
-  consumer's job, exactly like resolving references.
-
-### CEL vs jq, the whole difference
-
-| Concern | jq (v1alpha1) | CEL (v1alpha2) |
-|---|---|---|
-| Read a field | `.spec.template` | `object[?"spec"][?"template"].orValue(null)` |
-| Default | `.status.ready // 0` (also fires on `false`) | `object.?status.?ready.orValue(0)` (absence only) |
-| Iterate | `.spec.jobs[].name` (stream) | `object.spec.jobs.map(x, x[?"name"].orValue(null))` (list) |
-| Filter and test | `.status.conditions[] \| select(.type == "Ready") \| .status == "True"` | `object.status.conditions.exists(c, c.type == "Ready" && c.status == "True")` |
-| Wrong-typed question | `[...] > 0` answers `true` | typed error: no matching overload |
-| Write | the read path is the l-value | a declared patch constructs the change |
-| Conditional write | not expressible | `patches` with `matchConditions` |
-| Compose | `$variables.name` (engine-specific) | `variables.<name>`, the VAP shape |
-| Cost | unbounded | compiled once, cached, per-program budget |
-
-The `//` default is the sharpest migration trap: jq falls through on
-`false` as well as null. Where a definition relied on that, the CEL
-spelling states it:
-`([dyn(X.orValue(null))].filter(v, v != null && v != false) + [D])[0]`.
-
-## Examples
-
-The same suspend action, both versions:
+A multi-instance component, where the patch addresses the instance by
+`index`:
 
 ```yaml
-# v1alpha1
-suspendActions:
-  - path: .spec.suspend
-    value: "true"
-
-# v1alpha2 (target)
-suspendActions:
-  - patch: { patchType: MergePatch, expression: '{"spec": {"suspend": true}}' }
-```
-
-A list-instanced component:
-
-```yaml
-# v1alpha1
-instanceIdPath: .spec.replicatedJobs[].name
-podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
-
-# v1alpha2 (target)
 instanceIDs:
   expression: object.spec.replicatedJobs.map(x, x[?"name"].orValue(null))
 podTemplateSpec:
   expression: object.spec.replicatedJobs.map(x, x[?"template"][?"spec"][?"template"].orValue(null))
-  patch:
-    patchType: JSONPatch
-    expression: '[{"op": "add", "path": "/spec/replicatedJobs/" + string(index) + "/template/spec/template", "value": value}]'
+  patches:
+    - patchType: JSONPatch
+      expression: '[{"op": "add", "path": "/spec/replicatedJobs/" + string(index) + "/template/spec/template", "value": value}]'
 ```
 
-An instanced accessor returns one outer entry per `instanceIDs` entry,
-in the same order; ids are unique non-empty strings. The prototype
-catalog under `docs/catalog/` demonstrates the CEL expressions in the
-prototype's `v1alpha1` single-patch shape and is the richest expression
-reference; target-shape examples are labeled as such above.
+An instanced read returns one entry per id, in the same order; ids are
+unique non-empty strings.
+
+### CEL vs jq at a glance
+
+| | jq (v1alpha1) | CEL (v1alpha2) |
+|---|---|---|
+| read a field | `.spec.template` | `object[?"spec"][?"template"].orValue(null)` |
+| default | `.status.ready // 0` (also fires on `false`) | `.?status.?ready.orValue(0)` (absence only) |
+| iterate | `.spec.jobs[].name` | `object.spec.jobs.map(x, x[?"name"].orValue(null))` |
+| filter and test | `.status.conditions[] \| select(.type == "Ready") \| .status == "True"` | `object.status.conditions.exists(c, c.type == "Ready" && c.status == "True")` |
+| wrong-typed question | `[...] > 0` answers `true` | typed error |
+| write | the read path is the write location | a declared patch |
+| conditional write | not expressible | `patches` with `matchConditions` |
+| shared sub-expression | `$variables.name` | `variables.<name>` |
+| cost | unbounded | compiled once, cached, budgeted |
+
+## Proposal part 2: a new version is the chance to go upstream
+
+Adopting CEL breaks the CRD, so `run.ai/v1alpha2` is a new version
+either way. A breaking version is the one cheap moment to fix names and
+shapes that drifted from how Kubernetes upstream does things. Each
+change below stands on an upstream precedent; expand for the details.
+
+<details>
+<summary><code>optimizationInstructions</code> becomes <code>scheduling</code>, and <code>podGroup</code> replaces the deprecated plural</summary>
+
+The section was named for one consumer. What it actually carries - pod
+grouping for gang scheduling - is consumed the same way by KAI
+Scheduler, Kueue, and Volcano. `scheduling` is neutral, and it is
+already a shipping core field name (`RuntimeClass.spec.scheduling`).
+
+Inside it, the v1alpha1 API had two models and had already deprecated
+one: the flat `podGroups` list carries a deprecation notice pointing at
+the singular `podGroup` mapping with `subGroups`. The new version
+finishes that move: `scheduling.podGroup` is the one model, the plural
+and the `gangScheduling` wrapper are gone. The topology fields stay
+(`topologyName`, `preferredTopologyLevel`, `requiredTopologyLevel`):
+their values are plain strings the definition supplies, no scheduler's
+CRD is referenced, so they pass the neutrality rule. Anything that
+cannot be said without naming a scheduler does not belong in the CRD.
+
+Grouping keys: each `groupByExpressions` entry runs once per pod and
+contributes one element to an ordered tuple; groups are equal when their
+tuples are equal, no string concatenation tricks. The section is a
+pointer with omitempty, so definitions without it carry no empty stanza.
+
+Translating a Karta pod group into a scheduler's own object stays the
+consumer's job.
+</details>
+
+<details>
+<summary><code>kind: {group, version, kind}</code> becomes flat <code>apiVersion</code> + <code>kind</code></summary>
+
+No user-facing Kubernetes API has a `gvk` field or a nested
+group/version/kind struct. The upstream way is `apiVersion` + `kind`,
+the same two lines every manifest starts with (admission policies'
+`paramKind`, cluster-api's patch selectors). It also removes the
+`kind.kind` stutter:
+
+```yaml
+# before
+kind: { group: batch, version: v1, kind: Job }
+
+# after
+apiVersion: batch/v1
+kind: Job
+```
+</details>
+
+<details>
+<summary><code>replace: true</code> becomes <code>patchStrategy: Merge | Replace</code></summary>
+
+Upstream prefers an enum over a boolean when the field names a strategy,
+because an enum can grow a third value without a breaking change. And
+`replace` collides with the RFC 6902 operation of the same name, which
+now legitimately appears inside `JSONPatch` expressions one line above.
+Default is `Merge`.
+</details>
+
+<details>
+<summary><code>byExpression.expectedResult</code> is removed</summary>
+
+Every CEL gate upstream is a bare boolean: admission `validations`,
+`matchConditions`, CRD validation rules. Comparing a stringified result
+against an expected string is a jq leftover, and it blurs types (`true`
+the boolean and `"true"` the string compare equal). A `byExpression` is
+a predicate now. Existing catalog matchers already are booleans, so
+their migration is deleting one line.
+</details>
+
+<details>
+<summary><code>instanceIds</code> becomes <code>instanceIDs</code></summary>
+
+Upstream capitalizes initialisms inside camelCase: `machineID`,
+`systemUUID`, `providerIDList`. There is no `Ids` spelling anywhere in
+the Kubernetes API types.
+</details>
+
+<details>
+<summary><code>additionalChildKinds</code> entries become <code>{apiVersion, kind}</code> and the list is keyed by both</summary>
+
+Same flattening as component kinds. Keying the list by `kind` alone
+collides when two groups define the same kind name, and a list key can
+only change on a version bump - so it changes now.
+</details>
+
+<details>
+<summary><code>conditionsDefinition</code> field names get metav1 defaults</summary>
+
+`typeFieldName`, `statusFieldName`, `messageFieldName`, and
+`reasonFieldName` stay - each names a literal key inside the workload's
+condition objects, which is exactly what a `FieldName` suffix means -
+but they now default to `type`, `status`, `message`, `reason`, the
+`metav1.Condition` spellings. A definition for a workload that follows
+the Kubernetes condition convention writes only the expression.
+</details>
+
+<details>
+<summary>Names that stay, on purpose</summary>
+
+- `expression` - the exact field name every admission policy uses for a
+  CEL string.
+- `variables[{name, expression}]` - byte-for-byte the VAP shape, with
+  the same `variables.<name>` access.
+- `patches` and `matchConditions` - the admission policy vocabulary.
+- The CEL bindings `object` and `variables` - identical to VAP.
+  `value`, `instance`, and `index` have no upstream analogue because
+  upstream has no instanced writes; they are documented reserved words.
+- `structureDefinition`, `rootComponent`, `childComponents`,
+  `suspendDefinition` - kept as-is so this KEP's diff stays about the
+  expression language. Whether the `Definition` suffix family should be
+  renamed is a separate, smaller KEP before v1.
+- `references` - reserved for the follow-on references KEP; it appears
+  in this document only as a reserved binding name. The follow-on KEP
+  owns its shape, and the flattening rules above (apiVersion + kind,
+  selectors kept verbatim) apply to it too.
+</details>
 
 ## Migration and versioning
 
-CRD versioning:
+- `run.ai/v1alpha2` is served and stored; no conversion webhook. Alpha
+  to alpha carries no compatibility promise, which is why the change
+  lands now and not at beta.
+- A stored version cannot just disappear. The operator procedure:
+  export the existing definitions; pause writers and consumers; apply
+  the transitional CRD (v1alpha1 served, v1alpha2 storage); apply the
+  rewritten definitions; confirm nothing is still stored as v1alpha1;
+  drop v1alpha1 from served versions and from `status.storedVersions`;
+  restart consumers. Rolling back is the same walk in reverse with the
+  exported originals.
+- The CRD, the catalog, admission validation, and the consuming
+  binaries move together. Mixed old-language consumers against
+  new-language definitions are not supported.
+- Rewriting a definition is table work, not magic: every `*Path` field
+  maps to an accessor as shown above, but jq streams, `//`-on-false
+  defaults, and write addressing each need a human look.
+  `hack/karta-verify` checks a rewritten definition against a real
+  manifest before it ships. The recorded fixtures replay every captured
+  operator state through the engine offline, so a catalog conversion
+  mistake fails a test, not a cluster.
+- Go consumers of the factory, accessor, component, and tree interfaces
+  recompile unchanged. Code importing the versioned API package moves
+  to `v1alpha2`.
 
-- `run.ai/v1alpha2` is added as the served and storage version; no
-  conversion webhook ships (`conversion.strategy: None`). Alpha-to-alpha
-  carries no compatibility promise, which is exactly why the change
-  lands now rather than at beta.
-- A stored version cannot simply vanish. The documented operator
-  procedure: export existing definitions; pause definition writers and
-  Karta consumers; apply the transitional CRD (v1alpha1 served,
-  v1alpha2 storage); apply reviewed v1alpha2 rewrites of every
-  definition; verify nothing remains stored as v1alpha1; remove
-  v1alpha1 from `status.storedVersions` and from served versions;
-  restart compatible consumers. Rollback is the same procedure in
-  reverse using the exported originals.
-- The CRD, catalog, admission validation, and consuming binaries roll
-  out as a compatible set; old-language consumers and new-language
-  definitions are not supported concurrently against one definition
-  store.
+Removed in v1alpha2: all 24 `*Path` fields, `filters`,
+`groupByKeyPaths`, `expressionLanguage`, path-and-value suspend
+actions, the `gvk`-style nested kind structs, the deprecated `podGroups`
+plural, and `expectedResult`. The release notes carry the complete
+field-by-field mapping.
 
-Definitions: every path field maps to an accessor per the table and
-examples above; the built-in catalog ships converted, and
-`hack/karta-verify` validates a rewritten definition against a real
-manifest before it is applied. Safety net: the recorded fixtures under
-`test/e2e/recorded_data/` replay every captured operator state through
-the engine offline, so a conversion mistake in the catalog fails a
-test, not a cluster - regression evidence for recorded states, not
-proof of the unimplemented target pieces.
+## Validation
 
-## Validation stages
+Three stages, kept distinct:
 
-Three distinct stages, never conflated:
-
-- Structural validation (CRD schema plus `KartaValidator`): required
-  fields, the one-ofs, list keys, name rules, the boolean-predicate
-  markers.
-- Compilation: every `expression`, patch expression, and condition
-  compiles against its declared environment at admission time. This is
-  part of the target design; the prototype does not compile expressions
-  at validation, so compile errors currently surface on first
-  evaluation.
-- Evaluation: dynamically-typed workload fields, result types, cost,
-  and constructed patches are checked at run time. Diagnostics name the
-  definition, component, field path, and entry or instance index,
-  without embedding workload contents.
+- Schema and `KartaValidator`: required fields, list keys, name rules,
+  the entry rules above (an unconditional entry only last, result type
+  matches `patchType`, no `patches` on `instanceIDs`).
+- Compilation: every expression compiles against its environment at
+  admission time, so a typo fails when the definition is applied, not on
+  first use.
+- Evaluation: types, cost, and constructed patches are checked at run
+  time. Errors name the definition, component, field, and entry, and do
+  not embed the workload's contents.
 
 ## Test plan
 
-- Unit: absence versus null versus false versus empty; the accessor
-  one-of matrix; first-match selection including error-is-not-false
-  guards; `patchStrategy: Replace` two-pass behavior; RFC 6902 parent
-  creation and pointer escaping; instance alignment and ordering;
-  rollback boundaries; variable dependency selection and shadowing
-  rejection.
+- Unit: absent vs null vs false vs empty; entry selection order and the
+  errors-never-mean-false rule; `Replace` two-pass behavior; RFC 6902
+  parent creation and pointer escaping; instance ordering; rollback
+  boundaries; variable dependency selection and shadowing rejection.
 - Integration: the generated v1alpha2 schema, defaults, list keys, and
-  validation with and without admission compilation; definitions loaded
-  from the API server and from raw YAML behave identically.
+  admission compilation on and off; definitions from the API server and
+  from raw YAML behave identically.
 - Migration: start from stored v1alpha1 definitions, run the documented
-  procedure, verify data preservation and `storedVersions` retirement.
-- Catalog: every definition converted, replayed against the recorded
-  fixtures, and spot-verified live (CronJob nested template and
-  suspend; JobSet instance-to-template alignment and grouping).
-- Results recorded with the tested commit and command.
-
-## Enablement and compatibility
-
-There is no per-definition language switch and no feature gate: the
-language is selected by the API version of the definition. Disabling
-CEL means rolling back the version migration, not flipping a field.
-Minimum supported Kubernetes and consumer versions are recorded before
-beta. Go source compatibility covers callers of the factory, accessor,
-component, and tree interfaces; importers of the versioned API package
-must move to `v1alpha2`.
-
-## Graduation criteria
-
-- v1alpha2 (this KEP): the target schema and semantics above
-  implemented and validated; the catalog converted; the migration
-  procedure demonstrated on a real cluster; the naming table applied.
-- v1beta1: at least one release of v1alpha2 feedback from at least two
-  independent consumers; measured limits (aggregate budgets, size
-  caps) chosen and enforced; no unresolved correctness or data-loss
-  issues; a decided conversion story for the beta bump.
-- v1: two beta releases of feedback and a frozen surface.
-
-KEP status moves to `implemented` only when the scoped work is merged
-and released.
-
-## User stories
-
-- A catalog author defines a CronJob's reads and writes independently:
-  the read tolerates a missing `jobTemplate`, the write replaces the
-  nested template wholesale, suspend and resume are two one-line merge
-  patches.
-- A platform consumer updates one JobSet instance's template without
-  touching its siblings, addressed by `index`, all-or-nothing.
-- An operator migrates a cluster's stored definitions to v1alpha2 with
-  the documented procedure and a verified way back.
-
-## Drawbacks
-
-- Definitions get longer: explicit absence handling and separate write
-  declarations cost lines that jq paths did not.
-- Reads and writes can disagree; nothing forces an accessor's
-  expression and patch to address the same field, and only review and
-  replay catch a mismatch.
-- Indexed JSONPatch writes depend on stable instance ordering.
-- Compiled programs and constructed patches consume memory beyond the
-  per-evaluation cost budget; the cache is unbounded until the beta
-  limits land.
+  procedure, verify the data and the `storedVersions` cleanup.
+- Catalog: every definition converted and replayed against the recorded
+  fixtures; CronJob (nested template, suspend) and JobSet (instances,
+  grouping) verified live.
 
 ## Risks and mitigations
 
-- A definition is trusted configuration that controls consumer
-  behavior; admission validation and the verify tool gate what enters
-  the store.
-- A hot reconcile loop can hit the per-evaluation budget; the failure
-  is a typed, named error rather than a stall, and budgets become
-  tunable at beta.
-- A constructed patch can be one the workload's controller fights;
-  recording and replay make the write's effect observable before it
-  ships in a definition.
-- Diagnostics separate schema, compilation, evaluation, patch
-  application, and (later) reference resolution failures, so an
-  on-call reader knows which layer to look at.
+- Definitions get longer. The explicit absence handling and the
+  separate write declaration cost lines jq did not. Variables keep the
+  worst of it out of every field.
+- Nothing forces a read and its patches to address the same field.
+  Review and fixture replay catch a mismatch; the schema cannot.
+- A hot loop can hit the evaluation budget. The failure is a named,
+  typed error, not a stall.
+- A patch can build something the workload's controller fights.
+  Recording a flow makes the write's effect visible before the
+  definition ships.
 
 ## Alternatives considered
 
-- Keep jq. Rejected: untyped total ordering produces silently wrong
-  statuses, the path-as-l-value model blocks references, and jq is not
-  the language the ecosystem reviews in.
-- Support both engines behind `spec.expressionLanguage`. Rejected after
-  being built: every definition doubles its verification surface, the
-  API grows a mode switch forever, and the engines disagree exactly in
-  the corners that matter (defaults on `false`, list typing).
-- Conditional writes through CEL ternaries only. Rejected: a nested
-  ternary is control flow smuggled into a string - a mini-language on
-  top of CEL - and stops reading at three branches. `patches` with
-  `matchConditions` adds no new grammar the ecosystem lacks.
-- A single untyped `patch` string with result-type dispatch (the
-  prototype's shape). Rejected for the target API: inferring semantics
-  from a value's runtime type is the undiscriminated-union pattern the
-  conventions warn against; MAP's `patchType` is the precedent.
-- `when` (Kyverno) or `enabledIf` (cluster-api) for the condition
-  field. Rejected in favor of `matchConditions`: the named-entry shape
-  is the admissionregistration precedent this KEP models itself on and
-  gives addressable failure messages.
-- Renaming `suspendDefinition`, `structureDefinition`, and the
-  `Definition` suffix family now. Deferred to a dedicated pre-v1
-  skeleton-rename KEP so this KEP's diff stays reviewable; recorded
-  here so the debt is visible.
-- A boolean `replace` (the prototype's shape). Rejected: conventions
-  prefer strategy enums, and the word collides with the RFC 6902
-  operation.
-- Keeping `optimizationInstructions` through the version bump.
-  Rejected: a breaking release is the one cheap moment to remove a
-  consumer-specific name from the API.
+- Keep jq. The typed-refusal, write-separation, and review-language
+  problems stay.
+- Both engines behind `spec.expressionLanguage`. Built and rejected:
+  every definition doubles its verification surface, and the engines
+  disagree exactly where it hurts (`//` on false, list typing).
+- A single `patch` field with `patches` as an alternative. Rejected:
+  upstream is list-only everywhere (`mutations`, `validations`,
+  ClusterClass `patches`); two ways to say one thing is API noise.
+- Inferring merge-vs-operations from whether the expression returned a
+  map or a list, with no `patchType`. Rejected: MAP declares
+  `patchType` as a union discriminator for a reason - readers and
+  validators should not have to run the expression to know what kind of
+  patch it is.
+- `when` (Kyverno) or `enabledIf` (cluster-api) instead of
+  `matchConditions`. The admission policy family is the model this KEP
+  follows, and its named conditions give addressable errors.
+- Renaming the `Definition` suffix family now. Deferred to its own
+  small KEP so this one stays reviewable.
 
 ## Future work
 
-- Resource references as their own KEP: `references[{name, apiVersion,
-  kind, nameExpression | selector}]` with the selector split decided
-  here, a `notFoundAction` enum per `paramRef`, and the reader
-  interface; namespace rules, freshness, and authorization behavior are
-  owned there.
-- Declaring `variables.<name>` and `references.<name>` per definition
-  in the CEL environment, the way VAP gates `params` on `paramKind`, so
-  an undeclared name fails at validation rather than evaluation.
-- Per-context CEL environments so out-of-scope bindings fail at
-  compilation.
-- The skeleton-rename KEP for the `Definition` suffix family.
+- The references KEP: reading other objects as `references.<name>`,
+  with a reader interface, permission checks, and recorder support.
+- Declaring `variables.<name>` per definition in the CEL environment,
+  the way VAP declares params, so an undeclared name fails at admission
+  instead of at evaluation.
+- Per-context CEL environments, so a pod-selector expression that names
+  `value` fails at compile time.
+- Aggregate evaluation budgets and size limits, chosen with beta.
 
 ## Implementation history
 
-- 2026-09-08: CEL engine, accessors, catalog, and docs prototyped on
-  the `cel-native` branch; recorded fixtures replay green.
-- 2026-09-09: references prototyped on top (`cel-references` branch).
-- 2026-09-10: KEP written; status `implementable`. Reviewed against
-  Kubernetes API conventions by a multi-reviewer naming and gap audit;
-  the naming table, the discriminated patch union, boolean status
-  predicates, `matchConditions`, `patchStrategy`, the `podGroup`
-  singular, and the v1alpha2 versioning and migration sections came out
-  of that review. None of the target-only pieces are implemented; see
-  Implementation status.
+- 2026-09-08: CEL engine and converted catalog prototyped; recorded
+  fixtures replay green.
+- 2026-09-09: references prototyped on top of the read/write split.
+- 2026-09-10: this KEP; status `implementable`. The `v1alpha2` shapes
+  are proposal only.

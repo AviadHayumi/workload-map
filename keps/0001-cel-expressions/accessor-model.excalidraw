@@ -7,9 +7,9 @@
       "id": "e377401600",
       "type": "rectangle",
       "x": 60,
-      "y": 300,
-      "width": 400,
-      "height": 235,
+      "y": 260,
+      "width": 440,
+      "height": 330,
       "angle": 0,
       "strokeColor": "#0ca678",
       "backgroundColor": "#e6fcf5",
@@ -100,10 +100,10 @@
     {
       "id": "e1937945600",
       "type": "arrow",
-      "x": 460,
+      "x": 500,
       "y": 175,
-      "width": 340,
-      "height": 175,
+      "width": 300,
+      "height": 145,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -129,8 +129,8 @@
           0
         ],
         [
-          340,
-          -175
+          300,
+          -145
         ]
       ],
       "lastCommittedPoint": null,
@@ -301,23 +301,23 @@
       "groupIds": [],
       "frameId": null,
       "roundness": null,
-      "text": "write\ncel expression that\nCONSTRUCTS the change",
+      "text": "write\nentries checked in order ,\nfirst match supplies the patch",
       "fontSize": 16,
       "fontFamily": 5,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "write\ncel expression that\nCONSTRUCTS the change",
+      "originalText": "write\nentries checked in order ,\nfirst match supplies the patch",
       "lineHeight": 1.25,
       "baseline": 16
     },
     {
       "id": "e1619630592",
       "type": "arrow",
-      "x": 460,
-      "y": 480,
-      "width": 340,
-      "height": 135,
+      "x": 500,
+      "y": 500,
+      "width": 300,
+      "height": 115,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -343,8 +343,8 @@
           0
         ],
         [
-          340,
-          135
+          300,
+          115
         ]
       ],
       "lastCommittedPoint": null,
@@ -571,7 +571,7 @@
       "id": "e1647876864",
       "type": "rectangle",
       "x": 800,
-      "y": 740,
+      "y": 760,
       "width": 340,
       "height": 110,
       "angle": 0,
@@ -600,7 +600,7 @@
       "id": "e1585571648",
       "type": "text",
       "x": 808,
-      "y": 766.875,
+      "y": 786.875,
       "width": 324,
       "height": 56.25,
       "angle": 0,
@@ -622,13 +622,13 @@
       "groupIds": [],
       "frameId": null,
       "roundness": null,
-      "text": "the patch sees:\nvalue , instance , index ,\nvariables.<name>",
+      "text": "each entry sees:\nvalue , instance , index ,\nvariables.<name>",
       "fontSize": 15,
       "fontFamily": 5,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": null,
-      "originalText": "the patch sees:\nvalue , instance , index ,\nvariables.<name>",
+      "originalText": "each entry sees:\nvalue , instance , index ,\nvariables.<name>",
       "lineHeight": 1.25,
       "baseline": 15
     },
@@ -638,7 +638,7 @@
       "x": 970,
       "y": 690,
       "width": 0,
-      "height": 50,
+      "height": 70,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -665,7 +665,7 @@
         ],
         [
           0,
-          -50
+          -70
         ]
       ],
       "lastCommittedPoint": null,

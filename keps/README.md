@@ -55,6 +55,8 @@ Every KEP has the same skeleton, defined in `TEMPLATE.md`:
 - Proposal: the design itself, including the API at a high level.
 - Examples: real definitions, before and after where relevant.
 - Migration and versioning: what breaks, and what a user does about it.
+- Test plan: what each layer of testing proves.
+- Risks and mitigations: what can go wrong in operation.
 - Alternatives considered: what was rejected and why.
 - Future work: what is deliberately left out.
 - Implementation history: dated milestones.
@@ -63,4 +65,4 @@ Every KEP has the same skeleton, defined in `TEMPLATE.md`:
 
 | KEP | Title | Status |
 |---|---|---|
-| [0001](0001-cel-expressions/README.md) | CEL expressions and value accessors | implementable |
+| [0001](0001-cel-expressions/README.md) | CEL expressions in Karta definitions | implementable |
