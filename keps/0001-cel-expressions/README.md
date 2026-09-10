@@ -184,7 +184,7 @@ spelling states it: `([dyn(X.orValue(null))].filter(v, v != null && v != false) 
 ### Conditional patches
 
 A patch is an expression, so a definition can already branch on the
-document and choose the shape of its own write. No new API is needed:
+document and choose the shape of its own write:
 
 ```yaml
 podTemplateSpec:
@@ -196,10 +196,42 @@ podTemplateSpec:
 ```
 
 "If this exists, patch this way, else patch that way" is one CEL
-conditional, and it composes with `&&`, `||`, and `variables.<name>`
-like any other expression. A structured `[{match: ..., patch: ...}]`
-list form was considered and rejected for this version; see
-Alternatives.
+conditional; else-if chains nest, conditions compose with `&&`, `||`,
+and `variables.<name>`, and the two branches may even produce different
+patch shapes (a merge patch on one side, an operation list on the
+other, each wrapped in `dyn()`).
+
+Nested ternaries stop reading well at three branches. Since this
+version breaks the CRD anyway, the accessor also gains a structured
+form, `patches`, mirroring the match-list idiom `statusMappings`
+already uses:
+
+```yaml
+podTemplateSpec:
+  expression: ...
+  patches:
+    - when: variables.hasJobTemplate       # CEL boolean; first match wins
+      patch: '{"spec": {"jobTemplate": {"spec": {"template": value}}}}'
+    - when: variables.hasTemplate
+      patch: '{"spec": {"template": value}}'
+    - patch: '{"spec": {"fallback": value}}'   # no when: always matches
+  replace: true
+```
+
+Semantics:
+
+- `patch` and `patches` are a one-of on the accessor.
+- Entries are evaluated in order against the pre-write document; the
+  first whose `when` holds supplies the patch. An entry without `when`
+  always matches, so a trailing default reads like `else`.
+- No entry matching is a loud error: the definition said nothing about
+  this document shape, and guessing a write location is exactly what
+  this KEP removes.
+- Each `when` and `patch` is validated independently, which tooling and
+  review diffs benefit from; a nested ternary is one opaque string.
+
+The single `patch` stays the right tool for one or two branches; the
+list earns its place at three or more.
 
 ## Examples
 
@@ -259,12 +291,12 @@ examples.
   being built: every definition doubles its verification surface, the
   API grows a mode switch forever, and the two engines disagree exactly
   in the corners that matter (defaults on `false`, list typing).
-- A structured conditional-mutation API, `[{match, pathExpression,
-  patch}]` with and/or combinators. Rejected for this version: a CEL
-  conditional inside the patch expresses the same logic with no new
-  fields, one language, and no combinator grammar to specify. Worth
-  revisiting only if authors demonstrate match lists too long to read
-  as expressions.
+- Conditional writes through CEL ternaries only, with no structured
+  form. Rejected: nested ternaries stop reading at three branches, and
+  the CRD already carries the match-list idiom in `statusMappings`, so
+  `patches` adds no new grammar. Conversely, a richer combinator
+  language (`and`/`or` fields on the match) was also rejected: `when`
+  is CEL, and CEL already has `&&` and `||`.
 - Keeping `optimizationInstructions` as-is through the version bump.
   Rejected: a breaking release is the one cheap moment to remove a
   consumer-specific name from the API.
@@ -286,4 +318,6 @@ examples.
 - 2026-09-08: engine, API, catalog, and docs implemented on the
   `cel-native` branch; recorded fixtures replay green.
 - 2026-09-09: references implemented on top (`cel-references` branch).
-- 2026-09-10: KEP written; status `implementable`.
+- 2026-09-10: KEP written; status `implementable`. The structured
+  `patches` form is proposed here and not yet on the implementation
+  branches; conditional ternary patches work on them today.
