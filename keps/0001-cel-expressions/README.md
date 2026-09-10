@@ -128,7 +128,9 @@ podTemplateSpec:
   with `value` bound to null, then with the real value). Use it when the
   new value must not merge into the old one, like a pod template.
   Default is `Merge`. Only meaningful for `MergePatch`, because RFC 6902
-  authors write their removals explicitly.
+  authors write their removals explicitly. It is an enum rather than a
+  boolean so a third strategy can be added later without a breaking
+  change.
 
 Why one list and not a single `patch` field plus a list? Because upstream
 never does that. MutatingAdmissionPolicy has `mutations`, a list;
@@ -388,6 +390,42 @@ their values are plain strings the definition supplies, no scheduler's
 CRD is referenced, so they pass the neutrality rule. Anything that
 cannot be said without naming a scheduler does not belong in the CRD.
 
+The PyTorchJob definition from the catalog, before and after:
+
+```yaml
+# before (v1alpha1)
+optimizationInstructions:
+  gangScheduling:
+    podGroups:
+      - name: job
+        members:
+          - componentName: master
+            groupByKeyPaths:
+              - .metadata.labels["training.kubeflow.org/job-name"]
+          - componentName: worker
+            groupByKeyPaths:
+              - .metadata.labels["training.kubeflow.org/job-name"]
+
+# after (v1alpha2)
+scheduling:
+  podGroup:
+    name: job
+    subGroups:
+      - componentName: master
+        groupByExpressions:
+          - object.metadata.labels["training.kubeflow.org/job-name"]
+      - componentName: worker
+        groupByExpressions:
+          - object.metadata.labels["training.kubeflow.org/job-name"]
+        topology:
+          topologyName: network
+          preferredTopologyLevel: rack
+          requiredTopologyLevel: zone
+```
+
+The `topology` blocks keep their v1alpha1 shape; the one above only
+shows where they sit in the new layout.
+
 Grouping keys: each `groupByExpressions` entry runs once per pod and
 contributes one element to an ordered tuple; groups are equal when their
 tuples are equal, no string concatenation tricks. The section is a
@@ -407,23 +445,13 @@ the same two lines every manifest starts with (admission policies'
 `kind.kind` stutter:
 
 ```yaml
-# before
+# before (v1alpha1)
 kind: { group: batch, version: v1, kind: Job }
 
-# after
+# after (v1alpha2)
 apiVersion: batch/v1
 kind: Job
 ```
-</details>
-
-<details>
-<summary><code>replace: true</code> becomes <code>patchStrategy: Merge | Replace</code></summary>
-
-Upstream prefers an enum over a boolean when the field names a strategy,
-because an enum can grow a third value without a breaking change. And
-`replace` collides with the RFC 6902 operation of the same name, which
-now legitimately appears inside `JSONPatch` expressions one line above.
-Default is `Merge`.
 </details>
 
 <details>
@@ -435,14 +463,36 @@ against an expected string is a jq leftover, and it blurs types (`true`
 the boolean and `"true"` the string compare equal). A `byExpression` is
 a predicate now. Existing catalog matchers already are booleans, so
 their migration is deleting one line.
+
+```yaml
+# before (v1alpha1)
+byExpression:
+  expression: (.status.active // 0) > 0
+  expectedResult: "true"
+
+# after (v1alpha2)
+byExpression:
+  expression: object.?status.?active.orValue(0) > 0
+```
 </details>
 
 <details>
-<summary><code>instanceIds</code> becomes <code>instanceIDs</code></summary>
+<summary><code>instanceIdPath</code> becomes <code>instanceIDs</code></summary>
 
-Upstream capitalizes initialisms inside camelCase: `machineID`,
-`systemUUID`, `providerIDList`. There is no `Ids` spelling anywhere in
-the Kubernetes API types.
+Dropping the `Path` suffix is the CEL change from part 1. The spelling
+is the upstream part: a mechanical rename would give `instanceIds`, but
+Kubernetes capitalizes initialisms inside camelCase (`machineID`,
+`systemUUID`, `providerIDList`). There is no `Ids` spelling anywhere in
+its API types. The JobSet definition from the catalog:
+
+```yaml
+# before (v1alpha1)
+instanceIdPath: .spec.replicatedJobs[].name
+
+# after (v1alpha2)
+instanceIDs:
+  expression: object.spec.replicatedJobs.map(x, x[?"name"].orValue(null))
+```
 </details>
 
 <details>
@@ -450,18 +500,21 @@ the Kubernetes API types.
 
 Same flattening as component kinds. Keying the list by `kind` alone
 collides when two groups define the same kind name, and a list key can
-only change on a version bump - so it changes now.
-</details>
+only change on a version bump - so it changes now. The Grove definition
+from the catalog:
 
-<details>
-<summary><code>conditionsDefinition</code> field names get metav1 defaults</summary>
+```yaml
+# before (v1alpha1)
+additionalChildKinds:
+  - group: grove.io
+    version: v1alpha1
+    kind: PodClique
 
-`typeFieldName`, `statusFieldName`, `messageFieldName`, and
-`reasonFieldName` stay - each names a literal key inside the workload's
-condition objects, which is exactly what a `FieldName` suffix means -
-but they now default to `type`, `status`, `message`, `reason`, the
-`metav1.Condition` spellings. A definition for a workload that follows
-the Kubernetes condition convention writes only the expression.
+# after (v1alpha2)
+additionalChildKinds:
+  - apiVersion: grove.io/v1alpha1
+    kind: PodClique
+```
 </details>
 
 <details>
@@ -475,6 +528,9 @@ the Kubernetes condition convention writes only the expression.
 - The CEL bindings `object` and `variables` - identical to VAP.
   `value`, `instance`, and `index` have no upstream analogue because
   upstream has no instanced writes; they are documented reserved words.
+- `conditionsDefinition` field names (`typeFieldName` and friends) and
+  their `metav1.Condition` defaults - already aligned in v1alpha1; only
+  its `path` becomes an `expression`, like every other read.
 - `structureDefinition`, `rootComponent`, `childComponents`,
   `suspendDefinition` - kept as-is so this KEP's diff stays about the
   expression language. Whether the `Definition` suffix family should be
@@ -512,7 +568,7 @@ the Kubernetes condition convention writes only the expression.
   to `v1alpha2`.
 
 Removed in v1alpha2: all 24 `*Path` fields, `filters`,
-`groupByKeyPaths`, `expressionLanguage`, path-and-value suspend
+`groupByKeyPaths`, path-and-value suspend
 actions, the `gvk`-style nested kind structs, the deprecated `podGroups`
 plural, and `expectedResult`. The release notes carry the complete
 field-by-field mapping.
@@ -563,7 +619,7 @@ Three stages, kept distinct:
 
 - Keep jq. The typed-refusal, write-separation, and review-language
   problems stay.
-- Both engines behind `spec.expressionLanguage`. Built and rejected:
+- Keeping both engines behind a selector field. Rejected:
   every definition doubles its verification surface, and the engines
   disagree exactly where it hurts (`//` on false, list typing).
 - A single `patch` field with `patches` as an alternative. Rejected:
