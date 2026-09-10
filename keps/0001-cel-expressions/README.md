@@ -205,7 +205,7 @@ Semantics:
   expressions are not evaluated.
 - A condition must return a CEL boolean. `false` advances to the next
   entry. Null, a non-boolean result, an evaluation error, cancellation,
-  or an exhausted cost budget fails the write; errors never mean false.
+  or a spent cost budget fails the write; errors never mean false.
 - No entry matching fails the write loudly: the definition said nothing
   about this document shape.
 - Selection happens once, before any `Replace` null pass; the selected
@@ -286,7 +286,7 @@ ordinary reads the write bindings are null. The enabled extension
 libraries are CEL optional types plus the list and string extensions
 Kubernetes also enables; extending the environment is an API change and
 needs a KEP. Every evaluation is charged a per-program cost budget
-(1,000,000 cost units on the prototype) and fails fast when exhausted -
+(1,000,000 cost units on the prototype) and fails fast when the budget is spent -
 this bounds one program evaluation, not a whole reconcile, and the
 compiled-program cache has no eviction bound. Aggregate budgets and
 size limits (expression length, entry counts, constructed-result size)
