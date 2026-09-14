@@ -67,3 +67,4 @@ Every KEP has the same skeleton, defined in `TEMPLATE.md`:
 |---|---|---|
 | [0001](0001-cel-expressions/README.md) | CEL expressions in Karta definitions | implementable |
 | [0002](0002-resource-references/README.md) | Resource references | implementable |
+| [0003](0003-runtime-rules/README.md) | Runtime rules | provisional |
