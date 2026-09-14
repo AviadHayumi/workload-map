@@ -66,3 +66,4 @@ Every KEP has the same skeleton, defined in `TEMPLATE.md`:
 | KEP | Title | Status |
 |---|---|---|
 | [0001](0001-cel-expressions/README.md) | CEL expressions in Karta definitions | implementable |
+| [0002](0002-resource-references/README.md) | Resource references | implementable |
