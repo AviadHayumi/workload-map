@@ -15,120 +15,45 @@ Copyright (c) 2026 NVIDIA Corporation
 
 ## Summary
 
-![one rule, any described workload](kep-rr-big-picture.png)
-
-A Karta definition already knows how to read a workload: which pods are
-its, what its status means, which field suspends it. The exporter
-(KEP-0004) publishes those facts as Prometheus series. This KEP adds the
-part that acts on them: one rule for every described type, act once per
-allowance, leave a receipt that survives the workload.
-
-Sections 1 and 2 happened; sections 3 and 4 are what broke and the
-proposal. Every measured number comes from
-[a lab we ran](https://github.com/AviadHayumi/workload-map/tree/exporter-integration-lab/labs/exporter-kyverno-rr);
-each section links its raw output in the fine print, and proposed things
-are labeled.
+One proposed rule that reads the exporter's series, suspends workloads
+whose definitions provide a suspend handle, and leaves a receipt.
+Everything measured below really ran; the raw files sit in one block at
+the end, and proposed things are labeled.
 
 ## 1. What the exporter gives us, on a real workload
 
-We took a real distributed inference workload: dynamo, one frontend, one
-decode worker, one prefill worker (the Llama-3.1-8B mocker), run by the
-real dynamo operator 1.2.1 on a kind cluster. All three pods were
-Running and the operator reported `successful`. The exporter read the
-catalog definition for this kind and published six metric families.
-Real values from that run, labels shortened:
+We ran a real dynamo on kind: frontend, decode worker, prefill worker
+(the Llama-3.1-8B mocker), real operator, all three pods Running, state
+`successful`. The exporter published six metric families about it:
 
-| Series | Type | What it says | For the dynamo above |
-|---|---|---|---|
-| `karta_workload_info` | gauge | the workload exists, and which definition read it (always 1) | `{workload="dynamo-smoke", karta="nvidia-com-dynamographdeployment-v1beta1"} 1` |
-| `karta_workload_status` | gauge | one 0/1 line per phase | `{workload="dynamo-smoke", phase="Running"} 1` and eight phases at 0 |
-| `karta_pod_workload_info` | gauge | this pod belongs to that workload and part (always 1, the join key) | `{pod="dynamo-smoke-prefill-...", component_instance="prefill"} 1`, one per pod |
-| `karta_workload_component_replicas` | gauge | wanted count per part | `{component_instance="decode"} 1`, same for prefill and Frontend |
-| `karta_workload_component_pods` | gauge | actual pods per part, by pod phase | `{component_instance="decode", phase="Running"} 1` |
-| `karta_workload_generation` | gauge | the workload's `metadata.generation` | `{workload="dynamo-smoke"} 1` |
+| Series | Type | What it says | Why it helps | From the dynamo run |
+|---|---|---|---|---|
+| `karta_workload_info` | gauge | this workload exists, and this definition read it. always 1 | find and count workloads, any kind, one query | `{workload="dynamo-smoke", karta="nvidia-com-dynamographdeployment-v1beta1"} 1` |
+| `karta_workload_status` | gauge | one line per phase. 1 = the workload is in that phase, 0 = it is not. more than one phase can be 1 at once | alert or act on state without knowing the kind | `{phase="Running"} 1`, the other eight at 0 |
+| `karta_pod_workload_info` | gauge | this pod belongs to that workload and that part. always 1 | the join key: brings any per-pod number (gpu, cpu) to the workload | `{pod="dynamo-smoke-prefill-...", component_instance="prefill"} 1`, one per pod |
+| `karta_workload_component_replicas` | gauge | how many the spec wants, per part | the wanted side of a shortfall check | `{component_instance="decode"} 1`, same for prefill and Frontend |
+| `karta_workload_component_pods` | gauge | how many pods exist, per part, by pod phase | the reality side: diff it against wanted | `{component_instance="decode", phase="Running"} 1` |
+| `karta_workload_generation` | gauge | the workload's `metadata.generation` | plot generation changes alongside other metrics | `{workload="dynamo-smoke"} 1` |
 
-- The operator wrote `state: successful`; the definition turns that into
-  `Running`, the same phase a Job gets, so one query fits both.
-- Each pod came out labeled with its part: `Frontend`, `decode`,
-  `prefill`. Nobody wrote dynamo code for this; the definition declares
-  where pods hang.
-- GPU and CPU metrics already exist per pod, and
-  `karta_pod_workload_info` ties them to the workload and its parts.
-  That join is the point.
-
-How it works: watch events update a cache; a scrape reads it and counts
-the pods. The always-1 series and the 0/1 phases are the same tricks
-kube-state-metrics uses, so queries look the way people already write
-them.
+A kind whose definition maps no status simply has no phase lines, and a
+part with no replica path has no wanted count.
 
 Things you could write with this, illustrative, not run in this lab:
 
 - Suspend on idle GPU (the rule in section 4).
 - Catch stuck starts: `Initializing` still 1 after 15 minutes.
-- Replica shortfall: wanted vs actually `Running`, per part.
+- A part is missing pods: the spec wants 2 decode workers, only 1 is
+  Running. Alert on the difference.
 - One `Failed` or `Degraded` alert across kinds.
 - Plot generation changes alongside the other series.
-
-<details>
-<summary>fine print: provenance, mechanics, the join, raw files</summary>
-
-Provenance: cluster kind-karta-e2e (Kubernetes v1.34.0), dynamo-platform
-1.2.1 installed by `hack/e2e/operators/dynamo/install.sh`, the smoke
-DynamoGraphDeployment from `hack/e2e/operators/dynamo/smoke.yaml`
-extended with a third service, prefill, running the mocker's
-`--is-prefill-worker` mode. The exporter is the metrics-exporter branch
-run with `--use-catalog`. The cluster view, edited (unrelated pods and
-the RESTARTS column trimmed):
-
-```console
-$ kubectl get dgd,pods -n default
-NAME           READY   BACKEND   AGE
-dynamo-smoke   True              89s
-
-NAME                                             READY   STATUS    AGE
-dynamo-smoke-decode-e03467c0-8568474b87-tdfr6    1/1     Running   89s
-dynamo-smoke-frontend-59d8d4c776-v7nx8           1/1     Running   88s
-dynamo-smoke-prefill-e03467c0-7bf477dcd9-n6l6b   1/1     Running   88s
-```
-
-Raw files:
-[the three-service scrape](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/61-dynamo-prefill-metrics.txt)
-and
-[the earlier two-service run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/60-dynamo-real-metrics.txt).
-They also show the operator's intermediate Deployments tracked as
-workloads of their own kind.
-
-Mechanics fine print: phase series exist for kinds whose definition maps
-status, and replica counts when the definition provides them (that also
-bounds the illustrative phase queries above). A phase-only pod update
-skips the attribution rules; a scrape renders the cache and counts its
-pod records. Inactive phases stay 0 while the workload is tracked;
-duration queries still need freshness and sample-coverage checks,
-including missing data. The six workload families are gauges; the
-exporter's own health series add counters
-(`karta_exporter_attribution_errors_total`) next to gauges for tracked
-workloads, unattributed pods, and the last event timestamp.
-
-The illustrative GPU join, not run in this dynamo test:
-
-```promql
-avg by (namespace, workload) (
-  DCGM_FI_DEV_GPU_UTIL
-  * on(namespace, pod) group_left(workload) karta_pod_workload_info
-)
-```
-
-</details>
 
 ## 2. Wiring the facts into Kyverno
 
 Prometheus scrapes the exporter every 5s, and a Kyverno mutate-existing
-policy reads the history. Our lab has no GPUs, so the tested rule used
-Running time as the stand-in for the GPU-idle join, same mechanism:
-suspend when every `Running` sample in the last two minutes is 1. This
-shortened yaml is not runnable; the one we ran also limits itself to
-jobs in one namespace and skips jobs that are already suspended (full
-yaml in the fine print):
+policy acts on the history; ours suspends a job when every available
+`Running` sample in the last two minutes is 1 (our lab had no GPUs, so
+this stands in for gpu-idle). Shortened, non-runnable yaml, the real one
+is in the raw files:
 
 ```yaml
 apiVersion: policies.kyverno.io/v1beta1
@@ -150,22 +75,15 @@ spec:
         expression: "[JSONPatch{op: 'add', path: '/spec/suspend', value: true}]"
 ```
 
-It worked, both ways we tried:
-
-- Direct query, above: policy applied at 17:45:19.049, job seen
-  suspended at 17:45:19.693, 644ms. Second cluster: applied
-  18:20:47.211, both trainers seen suspended at 18:20:50.608, 3.4s.
-- Through Kyverno's cache (a GlobalContextEntry polling the same API):
-  trainer-gce still unsuspended at 18:09:26, seen suspended at 18:09:59.
-
-And this is what success looks like inside the machinery. Kyverno files
-a work item per pass (an UpdateRequest), works it, marks it Completed,
-deletes it; the job flips to `suspend=true`, its pod goes away, the job
-controller writes a Suspended event. We captured one clean run:
-trainer-hp, policy applied 19:56:09, suspended 19:56:26.
+It worked through both a direct query and Kyverno's cache: 644ms from
+policy apply to suspended on one cluster, 3.4s on the other, and once
+more through a GlobalContextEntry instead of a direct call.
 
 <details>
-<summary>the raw happy-path run, and how to read it</summary>
+<summary>watch one run happen, end to end</summary>
+
+A fresh job, trainer-hp, and the policy scoped to it. Applied 19:56:09,
+suspended 19:56:26. What Kyverno created and what changed:
 
 ```text
 --- the work item lifecycle ---
@@ -177,7 +95,10 @@ MODIFIED   ur-g6lxv   metric-suspend-hp   cel-mutate   Completed
 DELETED    ur-g6lxv   metric-suspend-hp   cel-mutate   Completed
 (a second identical round follows on the next pass)
 
---- the job now ---
+--- first observed suspension ---
+t+ 19:56:26  trainer-hp suspend=true
+
+--- subsequent job check ---
 suspend=true active=
 
 --- events on the job ---
@@ -187,36 +108,48 @@ suspend=true active=
 9s     Normal   Suspended         Job suspended
 ```
 
-How to read the work item: ADDED with an empty status is the item being
+Reading the work item: ADDED with an empty status is the item being
 filed, Pending means waiting to be processed, Completed is processed,
 DELETED is cleanup. Keep this four-step shape in mind; the broken rule
 in section 3 shows the exact same one.
 
-One surprise worth knowing: the "mutation is not applied" warning fired
-here too, in a healthy run. It precedes the Suspended event by about 15
-seconds, which fits a reporting scan seeing the mutation before it was
-applied. The same message the broken rule produces. Raw file:
-[the happy path](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/62-happy-path.txt).
+The other two runs, timestamps as our checks first saw them: policy
+applied 17:45:19.049 and the job suspended 17:45:19.693 (644ms); on the
+second cluster applied 18:20:47.211, both trainers suspended
+18:20:50.608 (3.4s). The cache run (a GlobalContextEntry polling the
+same API): still unsuspended 18:09:26, suspended 18:09:59.
+
+One surprise worth knowing: the "mutation is not applied" warning above
+fired during this healthy run. It precedes the Suspended event by about
+15 seconds, which fits a reporting scan seeing the mutation before it
+was applied. The same message the broken rule produces.
 
 </details>
 
-Other conditions the same series hand to a policy author, none of them
-run in this lab:
+The same series hand a policy author more than suspend triggers. None of
+these ran in our lab:
 
-- A deploy grace: skip any workload whose generation changed in the
-  last 10 minutes.
-- Only workloads with multiple parts: count their component instances.
-- Do not kick something already hurt: skip when `Degraded` is 1.
-- A rollout guard: block acting while any part has `Pending` pods.
-- An activity guard: pause when the exporter has processed no events
-  recently.
-- Filter by definition: select the `karta` label on
-  `karta_workload_info` and join it into the condition.
+- Join gpu to workloads: dcgm publishes per pod, the join key turns it
+  into "this trainer sat under 5% gpu for an hour, suspend it".
+- Same trick for cpu: "this notebook used less than a tenth of a core
+  all day, tell its owner".
+- Split a bill: join pod gpu allocation-hours to workload and part,
+  then apply prices.
+- Investigate uneven load: compare prefill and decode utilization
+  before deciding what to resize.
+- Skip fresh deploys: generation changed in the last 10 minutes, leave
+  it alone.
+- Only multi-part workloads: count the parts.
+- Do not kick something already hurt: `Degraded` is 1, skip.
+- Wait out rollouts: a part still has `Pending` pods, not now.
+- Pause when the exporter goes quiet: no events processed recently.
+- Pick targets by definition instead of listing kinds: the `karta`
+  label.
 
 Reading the facts is not the gap.
 
 <details>
-<summary>fine print: what the query checks, raw files</summary>
+<summary>fine print: what the query checks</summary>
 
 The condition asks whether every `Running` sample in the trailing 2
 minutes equals 1. It does not check that 2 full minutes of samples
@@ -224,18 +157,12 @@ exist; a young series can pass early. The production contract in
 section 4 requires coverage checks. Timestamps are when our checks first
 saw each change, not exact mutation times.
 
-On the condition list above: the exporter's last-event timestamp is
-global, so other workloads can keep it recent and a quiet healthy
+Two caveats on the condition list: the exporter's last-event timestamp
+is global, so other workloads can keep it recent and a quiet healthy
 cluster can leave it old; it does not prove the target's data is fresh.
 And the `karta` label lives on `karta_workload_info`, not on every
 series or on the Kubernetes object; the policy still needs its own
 target scope and patch.
-
-Raw files:
-[the tested manifest](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/manifests/05b-kyverno-metric-suspend-http.yaml),
-[the 644ms run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/10-v2-http-timeline.txt),
-[the second-cluster run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/30-lab2-kyverno-phase.txt),
-[the cache run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/19-gce-corrected.txt).
 
 </details>
 
@@ -246,21 +173,23 @@ hides.
 
 ### Failures look like success
 
-We broke a rule on purpose: its expression fails at runtime, every time.
-Then we watched.
+We broke a rule on purpose. Its condition reads the job's name as a
+number, `int(object.metadata.name) > 0`, and the job is named
+`cel-error-job`, so the expression blows up on every single run. Then we
+watched what Kyverno tells us about it:
 
-- The work items ran the exact same four steps as the happy path:
-  filed, Pending, Completed, deleted. Completed means processed, not
+- The work items ran the same four steps as the happy path: filed,
+  Pending, Completed, deleted. Completed means processed, not
   succeeded.
-- The job: untouched. The policy: still ready.
-- The captured log search found no lines naming the policy.
-- The captured diagnostics: the same "mutation is not applied" warning
-  the healthy run produced mid-flight, and an error counter at 4.
-  Neither carries the actual error or points at the failing expression.
+- The job? Untouched. The policy? `ready: true`.
+- The logs? We grepped; not one line names the policy.
+- What did exist: the same "mutation is not applied" warning the
+  healthy run fired mid-flight, and an error counter now at 4. Neither
+  says what broke, or even that anything is broken for good.
 
-So the work items and the warning cannot tell a failed rule from one
-still in flight. The one thing that flags the failure is a counter, and
-it carries no error text.
+So watching the work items and the events, a rule that fails every time
+looks exactly like a rule mid-flight. The one tell is a counter, and it
+carries no error text.
 
 <details>
 <summary>the raw broken-rule run</summary>
@@ -273,8 +202,6 @@ DELETED    ur-97xsp   rr-cel-runtime-error   cel-mutate   Completed
 (4 rounds like this; job suspend=false; policy ready: true)
 ```
 
-Raw file:
-[the broken rule](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/31-cel-error-repro.txt).
 The counter that moved:
 `kyverno_mutating_policy_execution_duration_seconds_count{result="error"}`
 reached 4, with the policy name as a label but no error text.
@@ -304,15 +231,6 @@ and a state annotation held a user resume for 7 minutes under the 60s
 scan. So act-once is writable. But the state lived in an editable job
 annotation, that policy pack wrote no receipt, and the run did not
 resolve the known write races.
-
-<details>
-<summary>raw files for this section</summary>
-
-[The resume revert](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/30-lab2-kyverno-phase.txt),
-[the after-deletion search](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/17-kyverno-forensics.txt),
-[the annotation state machine](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/50-annotation-epoch-spike.txt).
-
-</details>
 
 ## 4. What runtime rules adds
 
@@ -399,7 +317,7 @@ proposed, and without a suspend handle in its definition they would only
 observe.
 
 <details>
-<summary>the proposed contract, in full, plus raw files</summary>
+<summary>the proposed contract, in full</summary>
 
 - Enforcement needs the global gate opened and the rule set to enforce.
   Gate closure stops new dispatches; accepted writes complete and stay
@@ -427,13 +345,6 @@ observe.
   observe-only. Its home (annotation, descriptor, or schema field) is
   decided at implementation review.
 
-Raw files:
-[observe mode](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/20-rr-observe.txt),
-[enforce and intent ordering](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/21-rr-enforce.txt),
-[the resume and escalation](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/22-rr-anti-trap.txt),
-[permission revoke and restore](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/23-rr-rbac.txt),
-[receipts after deletion](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/24-rr-forensics.txt).
-
 </details>
 
 <details>
@@ -457,10 +368,7 @@ Closest prior art: kueue (native suspend via compiled adapters; here
 the handle comes from definitions), karpenter (the disruption-budget
 cap shape), cloud custodian (mark-for-op state in editable tags, the
 argument for a real ledger), kube-green (scheduled suspension, fixed
-types). The
-[lab log](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/INTEGRATION-LOG.md)
-compares Kyverno with the rules prototype and records the policy
-workarounds tested.
+types).
 
 </details>
 
@@ -490,6 +398,43 @@ History: 2026-07-29 capability comparison against Kyverno v1.18.2;
 2026-09-11 this KEP; 2026-09-14 external review, leanness pass;
 2026-09-14 to 2026-09-16 the live integration lab, sections rebuilt from
 its captures, real dynamo and happy-path runs added 2026-09-16.
+
+</details>
+
+<details>
+<summary>raw outputs, all of them</summary>
+
+Everything ran in
+[the integration lab](https://github.com/AviadHayumi/workload-map/tree/exporter-integration-lab/labs/exporter-kyverno-rr)
+(kind, Kubernetes v1.34.0 and v1.34.3, Kyverno chart 3.9.1 with a 60s
+background scan, the exporter from the metrics-exporter branch with
+`--use-catalog`). The files behind each section:
+
+- Section 1:
+  [the three-service dynamo scrape](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/61-dynamo-prefill-metrics.txt)
+  and
+  [the earlier two-service run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/60-dynamo-real-metrics.txt).
+  The dynamo is the e2e smoke DynamoGraphDeployment plus a prefill
+  service running the mocker's `--is-prefill-worker` mode.
+- Section 2:
+  [the tested manifest](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/manifests/05b-kyverno-metric-suspend-http.yaml),
+  [the happy path](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/62-happy-path.txt),
+  [the 644ms run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/10-v2-http-timeline.txt),
+  [the second-cluster run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/30-lab2-kyverno-phase.txt),
+  [the cache run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/19-gce-corrected.txt).
+- Section 3:
+  [the broken rule](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/31-cel-error-repro.txt),
+  [the resume revert](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/30-lab2-kyverno-phase.txt),
+  [the after-deletion search](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/17-kyverno-forensics.txt),
+  [the annotation state machine](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/50-annotation-epoch-spike.txt).
+- Section 4:
+  [observe mode](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/20-rr-observe.txt),
+  [enforce and intent ordering](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/21-rr-enforce.txt),
+  [the resume and escalation](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/22-rr-anti-trap.txt),
+  [permission revoke and restore](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/23-rr-rbac.txt),
+  [receipts after deletion](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/24-rr-forensics.txt).
+- The whole story with every step:
+  [the lab log](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/INTEGRATION-LOG.md).
 
 </details>
 
