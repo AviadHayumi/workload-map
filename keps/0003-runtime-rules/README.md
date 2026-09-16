@@ -17,8 +17,8 @@ Copyright (c) 2026 NVIDIA Corporation
 
 ![one rule, any described workload](kep-rr-big-picture.png)
 
-The exporter mapped two dynamo pods to their workload and component
-instances with no dynamo-specific code (capture 60). This KEP proposes
+The exporter mapped three dynamo pods to their workload and component
+instances with no dynamo-specific code (capture 61). This KEP proposes
 rules that act on facts like these: one rule across every described
 type, one action per allowance window, with a receipt that survives the
 workload.
@@ -31,59 +31,102 @@ proposed examples are labeled.
 ## 1. What the exporter gives us, on a real workload
 
 We ran a real distributed inference workload: a DynamoGraphDeployment
-with a frontend and a decode worker (the Llama-3.1-8B mocker), driven by
-the real dynamo operator 1.2.1 on a kind cluster. Edited excerpt,
-unrelated pods trimmed:
+with a frontend, a decode worker and a prefill worker (disaggregated
+serving, the Llama-3.1-8B mocker), driven by the real dynamo operator
+1.2.1 on a kind cluster. Edited excerpt, unrelated pods and the RESTARTS
+column trimmed:
 
 ```console
 $ kubectl get dgd,pods -n default
-NAME                                            READY   AGE
-dynamographdeployment.nvidia.com/dynamo-smoke   True    2m6s
+NAME           READY   BACKEND   AGE
+dynamo-smoke   True              89s
 
-NAME                                                READY   STATUS    AGE
-pod/dynamo-smoke-decode-a7fcd167-6d77c98bfd-hc859   1/1     Running   2m5s
-pod/dynamo-smoke-frontend-59d8d4c776-t7c86          1/1     Running   2m5s
+NAME                                             READY   STATUS    AGE
+dynamo-smoke-decode-e03467c0-8568474b87-tdfr6    1/1     Running   89s
+dynamo-smoke-frontend-59d8d4c776-v7nx8           1/1     Running   88s
+dynamo-smoke-prefill-e03467c0-7bf477dcd9-n6l6b   1/1     Running   88s
 ```
 
 The exporter read the catalog definition for this kind and published
-(capture 60, labels trimmed for width):
+(capture 61, labels trimmed for width):
 
 ```text
 karta_workload_status{workload="dynamo-smoke",phase="Running",...} 1
-karta_pod_workload_info{pod="dynamo-smoke-frontend-59d8d4c776-t7c86",
+karta_pod_workload_info{pod="dynamo-smoke-frontend-59d8d4c776-v7nx8",
     component_instance="Frontend",workload="dynamo-smoke",...} 1
-karta_pod_workload_info{pod="dynamo-smoke-decode-a7fcd167-6d77c98bfd-hc859",
+karta_pod_workload_info{pod="dynamo-smoke-decode-e03467c0-8568474b87-tdfr6",
     component_instance="decode",workload="dynamo-smoke",...} 1
-karta_workload_component_replicas{component_instance="Frontend",...} 1
+karta_pod_workload_info{pod="dynamo-smoke-prefill-e03467c0-7bf477dcd9-n6l6b",
+    component_instance="prefill",workload="dynamo-smoke",...} 1
+karta_workload_component_replicas{component_instance="prefill",...} 1
 karta_workload_component_pods{component_instance="decode",phase="Running",...} 1
 ```
 
 - Status came out normalized: the operator wrote
   `.status.state: successful`, the definition maps that to `Running`, so
-  `phase="Running"` is 1 and the other eight phases are 0 (capture 60).
+  `phase="Running"` is 1 and the other eight phases are 0 (capture 61).
   Kinds with a status definition all get the same phase set, so one
   query works for a Job and for dynamo.
-- Both pods came out attributed: value 1, component instances `Frontend`
-  and `decode`, straight from the definition's instance and pod
-  selectors (capture 60).
+- All three pods came out attributed: value 1, component instances
+  `Frontend`, `decode` and `prefill`, straight from the definition's
+  instance and pod selectors (capture 61).
 - Desired vs observed per instance: `component_replicas` 1 and
-  `component_pods{phase="Running"}` 1 for each instance (capture 60).
-- Those two pod-to-workload mappings are a join key: GPU and CPU series
-  already exist per pod, and these labels tie them to workloads and
-  components. An illustrative join sits in the details below; it was not
-  run in this dynamo test.
+  `component_pods{phase="Running"}` 1 for each of the three instances
+  (capture 61).
+- Those three pod-to-workload mappings are a join key: GPU and CPU
+  series already exist per pod, and these labels tie them to workloads
+  and components. An illustrative join sits in the details below; it was
+  not run in this dynamo test.
+
+Six workload metric families, all gauges, plus exporter self-metrics:
+
+| Series | What it says |
+|---|---|
+| `karta_workload_info` | the workload exists, which definition governs it (value always 1) |
+| `karta_workload_status` | nine 0/1 phase series, for workloads whose definition maps status |
+| `karta_pod_workload_info` | this pod belongs to that workload, component, and instance (value always 1, the join key) |
+| `karta_workload_component_replicas` | desired count per component instance, when the definition provides it |
+| `karta_workload_component_pods` | observed pods per instance, split by pod phase |
+| `karta_workload_generation` | the workload's `metadata.generation`; 1 in capture 61 |
+
+How they work: watch handlers update cached workload state and pod
+attribution (a phase-only pod update skips the attribution rules), and a
+scrape renders the cache and counts its pod records. The value-1 info
+series are the kube-state-metrics convention (`kube_pod_info` joins the
+same way), and the 0/1 phase set is the `kube_pod_status_phase` shape:
+inactive phases stay 0 while the workload is tracked. Duration queries
+still need freshness and sample-coverage checks, including missing data.
+The exporter also publishes its own health (`karta_exporter_*`:
+tracked workloads, unattributed pods, last event timestamp).
+
+What the series let you write. Illustrative queries, not run in this
+lab:
+
+- Suspend on idle GPU: per-pod DCGM utilization joined to workload and
+  instance (the rule in section 4).
+- Find stuck starts: `Initializing` still 1 after 15 minutes, for kinds
+  whose definitions map that state.
+- Replica shortfall: desired replicas against observed Running pods,
+  per component instance.
+- One alert for `Failed` or `Degraded` across kinds whose definitions
+  map those states.
+- Generation changes: plot `metadata.generation` alongside the other
+  series.
 
 <details>
 <summary>provenance and the rest of the scrape</summary>
 
 Cluster kind-karta-e2e (Kubernetes v1.34.0), dynamo-platform 1.2.1
 installed by `hack/e2e/operators/dynamo/install.sh`, the smoke
-DynamoGraphDeployment from `hack/e2e/operators/dynamo/smoke.yaml`, the
-exporter from the metrics-exporter branch run with `--use-catalog`.
-[Capture 60](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/60-dynamo-real-metrics.txt)
-holds the scrape filtered to this workload. It also shows: the dense 0/1
-phase set, `karta_workload_generation` at 1,
-`karta_workload_info` naming the governing definition
+DynamoGraphDeployment from `hack/e2e/operators/dynamo/smoke.yaml`
+extended with a third service, prefill, running the mocker's
+`--is-prefill-worker` mode, the exporter from the metrics-exporter
+branch run with `--use-catalog`.
+[Capture 61](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/61-dynamo-prefill-metrics.txt)
+holds the scrape filtered to this workload (capture 60 is the earlier
+two-service run). It also shows: the dense 0/1 phase set,
+`karta_workload_generation` at 1, `karta_workload_info` naming the
+governing definition
 (`karta="nvidia-com-dynamographdeployment-v1beta1"`), and the operator's
 intermediate Deployments tracked as workloads of their own kind.
 
@@ -101,7 +144,10 @@ avg by (namespace, workload) (
 ## 2. Wiring the facts into Kyverno
 
 Prometheus scraped the exporter every 5s, and a Kyverno mutate-existing
-policy read the history. The tested rule: suspend a job whose `Running`
+policy read the history. The lab has no GPUs, so the tested condition
+uses Running history as the stand-in for the GPU-idle join; the
+mechanism is the same, a Prometheus fact deciding an action. The tested
+rule: suspend a job whose `Running`
 series held 1 across the samples in the trailing 2 minutes (the query
 does not check that 2 full minutes of samples exist). Abbreviated,
 non-runnable excerpt; the
@@ -168,7 +214,10 @@ DELETED    ur-97xsp   rr-cel-runtime-error   cel-mutate   Completed
 - Nothing durable ties an action to its evidence. After the acted-on
   job was deleted, zero reports and no work items remained; seven
   TTL-bound events survived, and none retained a record linking the
-  action to its evaluation and evidence (capture 17).
+  action to its evaluation and evidence (capture 17). Turning on more
+  reporting does not change this: mutate-existing report entries are
+  owned by the workload and collected with it, and a report is cluster
+  scoped only when the resource itself is.
 
 We tried closing the resume gap with authoring alone before proposing
 anything new: a two-policy state machine on an annotation kept a user
