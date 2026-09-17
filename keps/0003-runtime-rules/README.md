@@ -3,9 +3,12 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 NVIDIA Corporation
 -->
 
-# Runtime rules
+# Metrics exporter integration to Kyverno + runtime rules proposal
 
-## 1. What the exporter gives us, on a real workload
+## 1. How the metrics exporter works
+
+<details>
+<summary>the six metrics, real values from a dynamo run, and what you can build on them</summary>
 
 Tested with a real dynamo Llama-3.1-8B mocker (frontend, decode,
 prefill), real operator, all three pods Running, state `successful`.
@@ -47,7 +50,12 @@ Things you can build on these metrics. None of these ran in our lab:
 - Pick targets by definition instead of listing kinds: the `karta`
   label.
 
-## 2. Integrating with Kyverno
+if you want to see how metrics exporter works from inside
+https://aviadhayumi.github.io/workload-map/courses/karta-metrics/sequence/
+
+</details>
+
+## 2. How we connected it to Kyverno
 
 - Prometheus scrapes the exporter (every 5 seconds).
 - A Kyverno mutate-existing policy acts on the history.
@@ -77,9 +85,6 @@ spec:
       jsonPatch:
         expression: "[JSONPatch{op: 'add', path: '/spec/suspend', value: true}]"
 ```
-
-<details>
-<summary>watch one run happen, end to end</summary>
 
 We created a new job called trainer-one,
 created the policy as soon as its pod was Running,
@@ -149,14 +154,9 @@ worker picks it up.
 if we dont set it job will be suspended after resume even if the job is alive for 10 seceond
 user should be aware of this
 
-</details>
 
-<details>
-<summary>fine print: what the query checks</summary>
 
-</details>
-
-## 3. The gaps the runs hit
+## 3. The gaps
 
 Three gaps. For each one: what we did, what Kyverno showed, and whether
 upstream can fix it.
@@ -286,214 +286,18 @@ does not apply the target conditions.
 
 </details>
 
-## 4. What runtime rules adds
+## 4. What runtime rules gives you
 
-One rule, three parts: pick workloads, set a condition, choose an
-action. The definition tells the controller how to suspend each kind.
-Proposed API; the lab prototype tested the Running-history condition on
-Jobs:
-
-```yaml
-apiVersion: rules.run.ai/v1alpha1   # provisional group
-kind: RuntimeRule
-metadata:
-  name: reclaim-idle-training
-spec:
-  filter:
-    types:
-      - apiVersion: jobset.x-k8s.io/v1alpha2
-        kind: JobSet
-    namespaceSelector:
-      matchLabels: {team: research}
-  condition:
-    gpuIdle: {below: "5", for: 1h}
-  action: suspend
-```
-
-The proposed lifecycle; the lab tested the re-arm-off branch:
-
-![one allowance: act once, then the human owns it](kep-rr-allowance-flow.png)
-
-Lab timings in the diagram combine trainer-e's action and trainer-f's
-resume.
-
-In words: when the condition holds, write an Intended receipt, patch,
-write Executed. That allowance is now spent; the rule does not fire
-again on its own. When a human resumes, write ResumeDetected and reset:
-by default a full new condition window must pass before the rule may act
-again, or the rule escalates to a human instead.
-
-What the prototype actually did, on the same cluster and the same series
-Kyverno used:
-
-- With re-arming off, it left the resumed job running. It saw the resume
-  in 0.692s, and where Kyverno had re-suspended (123.947s, a different
-  job on the same cluster), it wrote an escalation receipt instead
-  (124.526s). The job was still running 300s after the resume:
-
-```text
-[18:28:44.598] receipt ResumeDetected      (0.692s after the resume)
-[18:30:48.432] receipt EscalatedNeedsHuman (instead of re-suspending)
-[18:33:44.053] trainer-f suspend=false active=1
-```
-
-- Receipts survive. Intent lands before the patch (Intended at
-  18:26:34.226, Executed at 18:26:34.539). We deleted the job: four
-  receipts stayed, Intended, Executed and two WouldAct. The Executed
-  one, selected fields (Executed means the patch was accepted, not that
-  the controller converged):
-
-```json
-{
-  "rule": "suspend-running-2m",
-  "phase": "Executed",
-  "workload": {"namespace": "ai-team", "name": "trainer-e", "kind": "Job"},
-  "evidence": {
-    "promql": "min_over_time(karta_workload_status{namespace=\"ai-team\",phase=\"Running\"}[2m]) == 1",
-    "value": "1"
-  },
-  "patchPointer": "/spec/suspend",
-  "patchValue": true
-}
-```
-
-- Not being able to act is a state you can see. Permission revoked:
-  SkippedNotReady. Restored: Intended, then Executed. Observe mode:
-  WouldAct, jobs untouched. A kind with no suspend handle:
-  SkippedNoHandle.
-
-Still to build: allowance epochs that re-arm on a user resume by default
-(the tested run had re-arming off), observe-by-default install with a
-global gate as the kill switch, and blast-radius caps. Kyverno keeps
-admission and compliance and can read the same series; this controller
-adds the acting contract. Dynamo: reading it works, rules over it are
-proposed, and without a suspend handle in its definition they would only
-observe.
-
-<details>
-<summary>the proposed contract, in full</summary>
-
-- Enforcement needs the global gate opened and the rule set to enforce.
-  Gate closure stops new dispatches; accepted writes complete and stay
-  in receipts.
-- A receipt is persisted before a destructive act. No receipt, no
-  action. Receipts are never silently rewritten; lost API responses
-  reconcile to Unknown before any retry. The full receipt also carries
-  uid, time, and operation identity.
-- Caps follow the disruption-budget shape: integer or percent, per
-  reason, most restrictive wins, misconfiguration fails closed to zero.
-- Metric conditions require fresh attribution and sample coverage over
-  the window; missing input produces Unknown and blocks action. A final
-  query re-checks the condition at dispatch.
-- Object conditions ride watches with deadline requeues; metric
-  conditions evaluate on a stated cadence.
-- Rule admission validates scope and caps and runs a best-effort
-  permission preflight with the executor's identity.
-- Several rules on one workload: first condition to fire acts, actions
-  apply serially, later rules see the post-action state.
-- Controller down means nothing is actioned; windows and in-flight
-  actions survive restart.
-- Suspend effects differ per type (RayJob suspension tears down its
-  cluster and reruns). A capability contract must classify action
-  effects per definition before enforcement; unclassified types stay
-  observe-only. Its home (annotation, descriptor, or schema field) is
-  decided at implementation review.
-
-</details>
-
-<details>
-<summary>non-goals, alternatives, prior art</summary>
-
-Non-goals: no replica management or autoscaling (HPA and KEDA own
-demand; this acts on waste), no admission control, no new telemetry
-pipeline, no process-state restoration promise. Actions are observe,
-suspend, delete.
-
-Alternatives: extending Kyverno reuses matching and distribution, but
-the acting contract is new work in either home and needs an upstream
-sponsor that has not appeared; the annotation state machine we built may
-ship as a reduced-contract policy pack, clearly labeled; KEDA cannot
-address non-scalable workloads and its suspendable-workloads request
-sits unassigned
-([keda#7548](https://github.com/kedacore/keda/issues/7548));
-exporter-only leaves the acting layer to scripts.
-
-Closest prior art: kueue (native suspend via compiled adapters; here
-the handle comes from definitions), karpenter (the disruption-budget
-cap shape), cloud custodian (mark-for-op state in editable tags, the
-argument for a real ledger), kube-green (scheduled suspension, fixed
-types).
-
-</details>
-
-<details>
-<summary>test plan, versioning, history</summary>
-
-- Unit: the allowance state machine (epoch transitions, restart
-  recovery, no double action), the action resolver (explicit verb,
-  skip-and-report), cap accounting including fail-closed, staleness and
-  coverage gates.
-- Integration on kind: observe to enforce promotion; suspend, user
-  resume, fresh window; receipt survives workload deletion; gate
-  closure stops dispatch; missing telemetry degrades to skip;
-  coexistence with a GitOps controller that re-applies specs.
-- Conformance per catalog type: suspend releases resources, resume
-  behaves as the definition documents, destructive effects classified
-  correctly, asserted by test.
-- The exporter's series names and labels are a public versioned
-  interface once they leave review (KEP-0004); renames are breaking.
-- RuntimeRule and RuntimeRulesConfig are new CRDs in their own group,
-  starting at v1alpha1. Definitions without a suspend handle stay valid
-  and observe-only.
-
-History: 2026-07-29 capability comparison against Kyverno v1.18.2;
-2026-08-19 exporter proof of concept (four types, one dashboard);
-2026-09-10 re-verified on v1.19.1, thirty adjacent projects read;
-2026-09-11 this KEP; 2026-09-14 external review, leanness pass;
-2026-09-14 to 2026-09-16 the live integration lab, sections rebuilt from
-its captures, real dynamo and happy-path runs added 2026-09-16.
-
-</details>
-
-<details>
-<summary>raw outputs, all of them</summary>
-
-Everything ran in
-[the integration lab](https://github.com/AviadHayumi/workload-map/tree/exporter-integration-lab/labs/exporter-kyverno-rr)
-(kind, Kubernetes v1.34.0 and v1.34.3, Kyverno chart 3.9.1 with a 60s
-background scan, the exporter from the metrics-exporter branch with
-`--use-catalog`). The files behind each section:
-
-- Section 1:
-  [the three-service dynamo scrape](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/61-dynamo-prefill-metrics.txt)
-  and
-  [the earlier two-service run](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/60-dynamo-real-metrics.txt).
-  The dynamo is the e2e smoke DynamoGraphDeployment plus a prefill
-  service running the mocker's `--is-prefill-worker` mode.
-- Section 2:
-  [the one test: new job, suspended, resumed by hand, suspended again](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/67-one-test.txt),
-  [its manifest](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/manifests/05e-kyverno-metric-suspend-offset.yaml),
-  [the original query's manifest](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/manifests/05b-kyverno-metric-suspend-http.yaml),
-  [the old-query new-job test, 8 seconds](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/63-resume-window.txt),
-  [the sample-count variant we dropped](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/65-happy-path-coverage.txt).
-- Section 3:
-  [the broken rule on stock 1.19.1](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/31-cel-error-repro.txt),
-  [the broken rule on 1.19.1 plus PR 17063](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/68-gap1-pr17063.txt),
-  [a healthy rule on the patched controller](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/70-healthy-on-pr17063.txt),
-  [the after-deletion search](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/17-kyverno-forensics.txt),
-  [every opt-in on, then delete](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/69-gap3-optins.txt),
-  [the annotation workaround](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/50-annotation-epoch-spike.txt).
-- Section 4:
-  [observe mode](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/20-rr-observe.txt),
-  [enforce and intent ordering](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/21-rr-enforce.txt),
-  [the resume and escalation](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/22-rr-anti-trap.txt),
-  [permission revoke and restore](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/23-rr-rbac.txt),
-  [receipts after deletion](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/captures/24-rr-forensics.txt).
-- The whole story with every step:
-  [the lab log](https://github.com/AviadHayumi/workload-map/blob/exporter-integration-lab/labs/exporter-kyverno-rr/INTEGRATION-LOG.md).
-
-</details>
-
-The exporter and a rules prototype ran in the lab. The production
-runtime rules API, the controller, and the action-effect contract remain
-proposed.
+- You write one rule and it covers every workload kind karta knows. No
+  per-kind code, no per-kind query.
+- It acts once. When someone resumes a job by hand, it stays resumed.
+  Nobody fights the human.
+- You always know what it did, when, and why. Delete the workload, the
+  record stays.
+- When it cannot act, it says so. No more "completed" that did nothing.
+- It starts by watching. You see what it would have done before you let
+  it touch anything.
+- One switch turns everything off, and a cap says how much it may touch
+  at once.
+- Kyverno stays where it is good, admission and compliance. This only
+  adds the acting part.
