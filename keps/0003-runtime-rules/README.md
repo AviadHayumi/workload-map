@@ -8,12 +8,12 @@ Copyright (c) 2026 NVIDIA Corporation
 ## 1. How the metrics exporter works
 
 <details>
-<summary>the six metrics, real values from a dynamo run, and what you can build on them</summary>
+<summary>the seven metrics, real values from a dynamo run, and what you can build on them</summary>
 
 Tested with a real dynamo Llama-3.1-8B mocker (frontend, decode,
 prefill), real operator, all three pods Running, state `successful`.
 
-The exporter published six metrics about it, all gauges:
+The exporter published seven metrics about it, all gauges:
 
 
 | Metric | On the labels | The value | What you can do with it | From the dynamo run |
@@ -24,6 +24,7 @@ The exporter published six metrics about it, all gauges:
 | `karta_workload_component_replicas` | workload + `component_instance` | how many pods the spec wants for that part | the "wanted" side: 2 decode workers wanted | `{component_instance="decode"} 1`, same for prefill and Frontend |
 | `karta_workload_component_pods` | workload + `component_instance` + pod `phase` | how many pods that part has right now | the "actual" side: only 1 decode Running, alert. or "a part still has Pending pods", wait | `{component_instance="decode", phase="Running"} 1` |
 | `karta_workload_generation` | workload | the `metadata.generation` number | draw a line on the graph every time the spec changed, so you can see if a gpu dip lines up with a deploy | `{workload="dynamo-smoke"} 1` |
+| `karta_workload_created_timestamp_seconds` | workload | when the object was created, unix seconds. delete it and create it again under the same name and the number jumps | `time() - value` is the age. a "for X hours" rule checks it first, so a new job with an old name is not judged on the old job's history | `{workload="dynamo-smoke"} 1.78964133e+09`, the creationTimestamp of the dgd to the second |
 
 Things you can build on these. None ran in our lab:
 
@@ -50,7 +51,59 @@ https://aviadhayumi.github.io/workload-map/courses/karta-metrics/sequence/
 
 </details>
 
-## 2. How we connected it to Kyverno
+## 2. The goals
+
+- Idle gpu: under N% for X minutes while Running, suspend it. dcgm gives
+  gpu per pod, the join key turns it into gpu per workload.
+- Running too long: Running on every sample for X hours, stop it.
+- Done for a while: Completed on every sample for X hours, delete it.
+- Later: warn before acting. "You are at 80% of your limit."
+
+Each rule fires only when three things hold at once: every sample in the
+window agrees, enough samples are there, and the workload is older than
+the window. Missing samples make it wait, not fire.
+
+<details>
+<summary>the queries, run against real series</summary>
+
+Lab scale: window 2m, scrape 5s, at least 23 of 24 samples, older than
+120s. The sample count follows the scrape interval, 23 of 24 allows one
+missing sample. Age and `offset` say nothing about gaps inside the
+window.
+
+```text
+--- running too long ---
+min_over_time(karta_workload_status{namespace="ai-team",phase="Running"}[2m]) == 1
+  and count_over_time(karta_workload_status{namespace="ai-team",phase="Running"}[2m]) >= 23
+  and on (namespace, workload, workload_kind, workload_group)
+    (time() - karta_workload_created_timestamp_seconds) > 120
+-> trainer-h        age 17.7 hours, Running    1
+   nightly-report   the CronJob itself         1
+   trainer-a, trainer-b, trainer-hp, trainer-new, ... suspended: nothing, their Running series is 0
+
+--- done for a while ---
+same query, phase="Completed"
+-> nightly-report-29826900   age 7.6 hours, Completed   1
+
+--- enough samples? ---
+count_over_time(karta_workload_status{namespace="ai-team",phase="Running"}[2m])  -> 24, all 12 workloads
+count_over_time(up{job="karta-exporter"}[5m])                                    -> 60
+
+--- the age anchor ---
+10:37:06Z  kubectl apply job trainer-again        -> karta_workload_created_timestamp_seconds 1789641426
+10:38:49Z  deleted, created again, same name      -> 1789641529
+10:42:16Z  exporter restarted
+10:43:06Z  trainer-again still 1789641529, up{job="karta-exporter"} 24 of 24 in the last 2m
+```
+
+The idle gpu rule did not run live: no gpu series to join in either lab. The exporter branch
+covers it with promtool fixtures: fires on dense idle samples, waits on a
+gap, waits on one busy sample, waits once suspended, waits for a
+recreated job.
+
+</details>
+
+## 3. How we connected it to Kyverno
 
 - Prometheus scrapes the exporter (every 5 seconds).
 - A Kyverno mutate-existing policy uses that history to change jobs
@@ -151,7 +204,49 @@ creation: every sample it has is `1`, so the rule is happy on the first
 sample. A resumed job never had that problem, its window still holds
 the 0s from the suspended time.
 
-## 3. The gaps
+Delete when done works the same way, with a DeletingPolicy instead. It
+runs on a schedule, asks Prometheus the "done for a while" query, and
+deletes the jobs that come back. We gave it a job that finishes in
+seconds. It waited for the window and removed it on the first tick that
+qualified.
+
+<details>
+<summary>the delete run</summary>
+
+```yaml
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+spec:
+  schedule: "*/1 * * * *"
+  matchConstraints:
+    namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ai-team}}
+    objectSelector: {matchLabels: {goal: c}}
+    resourceRules: [{apiGroups: [batch], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [jobs]}]
+  variables:
+    - name: completed
+      expression: >-
+        http.Get('http://prometheus...query=
+          min_over_time(karta_workload_status{namespace="ai-team",phase="Completed"}[2m]) == 1
+          and count_over_time(karta_workload_status{namespace="ai-team",phase="Completed"}[2m]) >= 23
+          and on (namespace, workload, workload_kind, workload_group)
+            (time() - karta_workload_created_timestamp_seconds) > 120')
+        .data.result.map(r, r.metric.workload)
+  conditions:
+    - name: completed-for-the-window
+      expression: object.metadata.name in variables.completed
+```
+
+```text
+10:38:51 job etl-done created, policy created
+10:38:54 Job completed                          (job-controller event)
+10:39:00 tick   age 9s     not yet
+10:40:00 tick   age 69s    not yet
+10:41:00 tick   age 129s   -> job gone
+```
+
+</details>
+
+## 4. The gaps
 
 ### 1. Failures look like success
 
@@ -243,10 +338,14 @@ their own.
 Then we turned on everything Kyverno offers, success events and
 mutate-existing reporting, and did it again. Before deletion: one report
 line, `pass`, `success`, owned by the job, and no Kyverno event on the
-job at all. After deletion: zero. Upstream closed this as done
+job at all. After deletion: zero. Keep the job and delete the policy
+instead: also zero, the job still suspended. Keep both: the line says
+nothing about what was changed or why, and the events expire after an
+hour. Upstream closed this as done
 ([#3837](https://github.com/kyverno/kyverno/issues/3837),
 [#2160](https://github.com/kyverno/kyverno/issues/2160)); done means a
-line that dies with the workload.
+report line that dies with the workload or the policy, and events that
+die within the hour.
 
 <details>
 <summary>what existed before and after, every opt-in on</summary>
@@ -271,12 +370,23 @@ work items:           0
 The rule targeted trainer-one, but the report scanner also warned about
 trainer-h. It does not apply the target conditions.
 
+The delete rule leaves even less. After it removed etl-done:
+
+```text
+policy status:        lastExecutionTime: "2026-09-17T10:41:00Z", message: ""
+controller log:       "updated deleting policy status", once a minute. no line names the job
+events on the job:    SuccessfulCreate, Completed   (job-controller, on an object that no longer exists)
+events on the policy: none
+reports:              0
+```
+
 </details>
 
-## 4. What runtime rules gives you
+## 5. What runtime rules gives you
 
 - You write one rule and it covers every kind whose karta definition
   has a suspend handle. No per-kind code, no per-kind query.
+- Each team sets its own limit and window. Still one rule.
 - It acts once. When someone resumes a job by hand, it stays resumed.
   Nobody fights the human.
 - You always know what it did, when, and why. Delete the workload, the
