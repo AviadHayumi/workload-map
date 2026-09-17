@@ -26,7 +26,8 @@ The exporter published seven metrics about it, all gauges:
 | `karta_workload_generation` | workload | the `metadata.generation` number | draw a line on the graph every time the spec changed, so you can see if a gpu dip lines up with a deploy | `{workload="dynamo-smoke"} 1` |
 | `karta_workload_created_timestamp_seconds` | workload | when the object was created, unix seconds. delete it and create it again under the same name and the number jumps | `time() - value` is the age. a "for X hours" rule checks it first, so a new job with an old name is not judged on the old job's history | `{workload="dynamo-smoke"} 1.78964133e+09`, the creationTimestamp of the dgd to the second |
 
-Things you can build on these. None ran in our lab:
+Things you can build on these. Only the first one ran in our lab, with
+fake gpus and a two minute window. The rest did not:
 
 - Suspend on idle gpu: dcgm publishes per pod, the join key turns it
   into "this trainer sat under 5% gpu for an hour, suspend it".
@@ -94,12 +95,21 @@ count_over_time(up{job="karta-exporter"}[5m])                                   
 10:38:49Z  deleted, created again, same name      -> 1789641529
 10:42:16Z  exporter restarted
 10:43:06Z  trainer-again still 1789641529, up{job="karta-exporter"} 24 of 24 in the last 2m
+
+--- idle gpu: the rule records every 30s, so 3 of 4 samples ---
+(max_over_time(karta:gpu_utilization:workload{namespace="ai-team"}[2m]) < 2
+ and count_over_time(karta:gpu_utilization:workload{namespace="ai-team"}[2m]) >= 3)
+  and on (namespace, workload, workload_kind, workload_group) karta_workload_status{phase="Running"} == 1
+  and on (namespace, workload, workload_kind, workload_group)
+    (time() - karta_workload_created_timestamp_seconds) > 120
+-> gpu-trainer   1
 ```
 
-The idle gpu rule did not run live: no gpu series to join in either lab. The exporter branch
-covers it with promtool fixtures: fires on dense idle samples, waits on a
-gap, waits on one busy sample, waits once suspended, waits for a
-recreated job.
+No real gpu in the lab. The fake gpu operator gives the node two fake
+gpus and publishes the real dcgm metric names, per pod, with the number
+you put in a pod annotation. The chart's recording rule joined those
+readings to the job: `karta:gpu_utilization:workload
+{workload="gpu-trainer"} 90`, join coverage 1.
 
 </details>
 
@@ -203,6 +213,37 @@ Without `offset 2m` a brand-new job gets suspended 8 seconds after
 creation: every sample it has is `1`, so the rule is happy on the first
 sample. A resumed job never had that problem, its window still holds
 the 0s from the suspended time.
+
+Idle gpu is the same policy with the idle query in it. We gave a job one
+fake gpu at 90% and let Kyverno look at it three times. Then we set the
+gpu to 1%. Once the last busy sample left the window, the next tick
+suspended it. Running went to 0, so the query stopped matching, and the
+pod's gpu series went away with the pod.
+
+<details>
+<summary>the idle gpu run</summary>
+
+```text
+11:02:23 job gpu-trainer created, one gpu, utilization 90
+11:04:35 policy created
+11:05:34 tick   busy, untouched
+11:06:34 tick   busy, untouched
+11:07:34 tick   busy, untouched
+11:07:41 kubectl annotate pod run.ai/simulated-gpu-utilization=1
+11:07:59 karta:gpu_utilization:workload{workload="gpu-trainer"} 1     (the 30s rule caught up)
+11:08:34 tick   max over the last 2m still 90, untouched
+11:09:31 max over the last 2m is 1
+11:09:34 tick   gpu-trainer suspend=true, pod deleted            <- suspended by the rule
+11:10:17 dcgm series for the pod gone
+11:10:32 karta:gpu_utilization:workload for the job gone
+11:10:34 tick   nothing to do
+11:11:34 tick   nothing to do
+```
+
+Same seven work items as before, one per tick, all Completed with an
+empty message. Nothing in them says which one patched.
+
+</details>
 
 Delete when done works the same way, with a DeletingPolicy instead. It
 runs on a schedule, asks Prometheus the "done for a while" query, and
