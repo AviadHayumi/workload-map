@@ -29,17 +29,124 @@ fixes ship without waiting on `main`.
 Releases are cut by project [maintainers](MAINTAINERS.md). Release artifacts are
 built by CI from the pushed tag, never from a local machine.
 
+## Synchronized modules and tags
+
+The root library, CLI, and operator are separate Go modules on one product
+release train:
+
+- `github.com/dsx-ai-factory/workload-map`
+- `github.com/dsx-ai-factory/workload-map/cli`
+- `github.com/dsx-ai-factory/workload-map/operator`
+
+Release `1.2.3` uses the tags `v1.2.3` and `cli/v1.2.3`. Both tags must point
+to the same commit. Only the root tag starts the release workflow. The operator
+ships as a container image and does not need its own module tag.
+
+The CLI and operator `go.mod` files must require the matching root module
+version. Update both requirements in the release preparation change:
+
+```bash
+go mod edit -modfile=cli/go.mod -require=github.com/dsx-ai-factory/workload-map@v1.2.3
+go mod edit -modfile=operator/go.mod -require=github.com/dsx-ai-factory/workload-map@v1.2.3
+go work edit -replace=github.com/dsx-ai-factory/workload-map@v1.2.3=.
+make release-validate VERSION=1.2.3
+```
+
+Do not add a relative `replace` directive to either nested `go.mod` file. The
+version-specific replacement in the root `go.work` file supplies the local root
+module during development and CI, and must be updated with the two requirements.
+The matching root version does not exist until the synchronized tags are pushed,
+so release preparation cannot run the nested modules with `GOWORK=off` or
+precompute their matching root-module checksums.
+
+The release-preparation change can still pass CI before those tags exist.
+License generation removes the Karta requirement only from a temporary copy of
+the CLI module metadata. Karta itself is excluded from the CLI license templates,
+so the third-party inventory does not change and the source `go.mod` remains
+untouched.
+
+## Local release validation
+
+The root Makefile is the release interface. GoReleaser is installed locally at
+the pinned version declared in the Makefile.
+
+```bash
+make goreleaser-check
+make release-build VERSION="$(git describe --tags --always --dirty --match 'v[0-9]*.[0-9]*.[0-9]*')"
+make release-snapshot VERSION=1.2.3
+make release-verify VERSION=1.2.3
+```
+
+`release-build` compiles both executable definitions only for the current
+runner target. `release-snapshot` builds the complete CLI release matrix
+without publishing. It does not need release credentials.
+
 ## How a release is cut
 
-The full steps live in [CONTRIBUTING.md](CONTRIBUTING.md#versioning). In short, a
-maintainer pushes a `vX.Y.Z` tag, which triggers the `push-artifacts` workflow to
-publish the Helm chart to GHCR and create the corresponding GitHub Release. No
-`Chart.yaml` bump is required; the tag is the source of truth for versions.
+Before tagging, add the version entry to [CHANGELOG.md](CHANGELOG.md), update the
+two root-module requirements, and run the checks above. After that preparation
+change is merged, create both tags from the same commit and push them in one
+operation:
 
-The one pre-tag step is the changelog: before pushing the tag, add the version's
-entry to [CHANGELOG.md](CHANGELOG.md) so the tagged source archive carries its own
-entry. Conventional Commits make this mechanical (a `git log` pass over the range
-since the previous tag); a generator script is tracked as a follow-up.
+```bash
+git tag v1.2.3
+git tag cli/v1.2.3
+git push origin v1.2.3 cli/v1.2.3
+```
+
+The root tag runs the coordinated workflow. The workflow builds and pushes the
+multi-architecture operator image from source and publishes the Helm chart.
+GoReleaser then builds the four CLI archives and checksum manifest, commits the
+Homebrew Cask to this repository, and creates the GitHub Release. Finally, the
+workflow generates the two image locks and attaches the chart and locks to the
+existing release.
+
+The guarded publishing command used by the workflow is:
+
+```bash
+make release VERSION=1.2.3
+```
+
+It fails unless the checkout is clean and at the matching root tag, both tags
+point to `HEAD`, the nested module requirements match, and the required
+credentials are present. It must normally run only in the release workflow.
+
+## Release credentials
+
+The normal workflow `GITHUB_TOKEN` is used for the Karta GitHub Release, GHCR
+packages, release attachments, and the Homebrew Cask commit. The release needs
+no other credential.
+
+The Homebrew tap is this repository rather than a separate `homebrew-*` one, so
+GoReleaser commits `Casks/kli.rb` to the default branch on every tagged release.
+The workflow passes its own `GITHUB_TOKEN` as `HOMEBREW_TAP_TOKEN`, which the
+job-level `permissions: contents: write` grants. Branch protection on the
+default branch must allow that push, or the Cask step fails after the image and
+chart are already published.
+
+Users tap the repository by URL, because the one-argument form of `brew tap`
+only resolves repositories named `homebrew-<name>`, and trust it, because
+Homebrew refuses to load casks from an unofficial tap until it is trusted:
+
+```bash
+brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
+brew trust --cask dsx-ai-factory/kli/kli
+brew install kli
+```
+
+Moving to a dedicated `homebrew-<name>` repository later would drop the URL from
+the first command. It would not drop the trust step, which applies to every
+unofficial tap.
+
+## Recovery after a partial release
+
+If a tagged workflow fails after publishing the operator image or Helm chart, do
+not create a second release or move any tag. Correct the failure and rerun the
+same workflow. A later attempt validates and reuses the chart and image from the
+first attempt instead of overwriting them. GoReleaser replaces matching assets
+on an existing GitHub Release and retries the Cask commit. After it succeeds,
+confirm that the workflow attached the chart and both image locks to the same
+release and that the assets match `checksums.txt`.
 
 ## Release notes and breaking changes
 

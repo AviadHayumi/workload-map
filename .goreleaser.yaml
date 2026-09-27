@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# yaml-language-server: $schema=https://raw.githubusercontent.com/goreleaser/goreleaser/v2.18.1/www/static/schema.json
+
+version: 2
+project_name: karta
+
+builds:
+  - id: karta
+    dir: cli
+    main: ./cmd/kli
+    binary: kli
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    ldflags:
+      - -X github.com/dsx-ai-factory/workload-map/pkg/version.version={{ .Env.VERSION }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: karta
+    ids:
+      - karta
+    formats:
+      - tar.gz
+    name_template: "karta_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    strip_binary_directory: true
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - THIRD_PARTY_LICENSES
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+  ids:
+    - karta
+
+source:
+  enabled: false
+
+sboms:
+  - disable: true
+
+# The tap is this repository itself, so there is no separate homebrew-* repo to
+# maintain. Users tap it by URL once, then install by bare token:
+#   brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
+#   brew install kli
+homebrew_casks:
+  - name: kli
+    ids:
+      - karta
+    binaries:
+      - kli
+    url:
+      template: https://github.com/dsx-ai-factory/workload-map/releases/download/v{{ .Version }}/{{ .ArtifactName }}
+    repository:
+      owner: dsx-ai-factory
+      name: workload-map
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/kli"]
+        end
+      end
+    homepage: https://github.com/dsx-ai-factory/workload-map
+    description: Workload-aware visibility for any Kubernetes workload type
+
+release:
+  github:
+    owner: dsx-ai-factory
+    name: workload-map
+  ids:
+    - karta
+  replace_existing_artifacts: true
+  include_meta: false
+  preflight:
+    fail_on_error: true
+
+snapshot:
+  version_template: "{{ .Env.VERSION }}"
+
+changelog:
+  sort: asc
