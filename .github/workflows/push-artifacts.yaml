@@ -109,10 +109,21 @@ jobs:
           make operator-image-buildx-push VERSION="$PACKAGE_VERSION" IMAGE_REGISTRY="$REGISTRY_NAMESPACE"
 
       - name: Build helm chart
+        if: steps.publication.outputs.published != 'true'
         run: |
           helm package ./charts/karta -d ./charts \
             --version "$PACKAGE_VERSION" \
             --app-version "$PACKAGE_VERSION"
+
+      - name: Pull published helm chart
+        if: steps.publication.outputs.published == 'true'
+        run: |
+          # A rerun attaches the chart the first attempt published rather than a
+          # fresh package of it. `helm package` records file times, so building
+          # the same chart again yields different bytes, and the release asset
+          # would stop matching the chart in the registry.
+          helm pull oci://${{ env.HELM_REGISTRY }}/karta \
+            --version "$PACKAGE_VERSION" -d ./charts
 
       - name: Push Helm Chart
         if: steps.publication.outputs.published != 'true'
