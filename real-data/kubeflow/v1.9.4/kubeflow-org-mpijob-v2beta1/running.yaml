@@ -1,0 +1,241 @@
+events:
+- kind: STATE
+  object:
+    apiVersion: kubeflow.org/v2beta1
+    kind: MPIJob
+    metadata:
+      creationTimestamp: "2026-09-17T07:05:12Z"
+      generation: 1
+      name: karta-e2e-mpi-running
+      namespace: test-xc2dd
+      uid: f0be66e7-da11-4b8a-945a-d6d84c2fbfbe
+    spec:
+      launcherCreationPolicy: AtStartup
+      mpiImplementation: OpenMPI
+      mpiReplicaSpecs:
+        Launcher:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sh
+                - -c
+                - sleep 300
+                image: busybox:1.36
+                name: mpi-launcher
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+        Worker:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sleep
+                - infinity
+                image: busybox:1.36
+                name: mpi-worker
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+      runLauncherAsWorker: false
+      runPolicy:
+        cleanPodPolicy: None
+        suspend: false
+      slotsPerWorker: 1
+      sshAuthMountPath: /root/.ssh
+    status:
+      conditions:
+      - lastTransitionTime: "2026-09-17T07:05:12Z"
+        lastUpdateTime: "2026-09-17T07:05:12Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-running is created.
+        reason: MPIJobCreated
+        status: "True"
+        type: Created
+      replicaStatuses:
+        Launcher: {}
+        Worker: {}
+      startTime: "2026-09-17T07:05:12Z"
+  phases:
+  - Initializing
+  resourceVersion: "1175525"
+  state: Initializing
+- kind: STATE
+  object:
+    apiVersion: kubeflow.org/v2beta1
+    kind: MPIJob
+    metadata:
+      creationTimestamp: "2026-09-17T07:05:12Z"
+      generation: 1
+      name: karta-e2e-mpi-running
+      namespace: test-xc2dd
+      uid: f0be66e7-da11-4b8a-945a-d6d84c2fbfbe
+    spec:
+      launcherCreationPolicy: AtStartup
+      mpiImplementation: OpenMPI
+      mpiReplicaSpecs:
+        Launcher:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sh
+                - -c
+                - sleep 300
+                image: busybox:1.36
+                name: mpi-launcher
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+        Worker:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sleep
+                - infinity
+                image: busybox:1.36
+                name: mpi-worker
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+      runLauncherAsWorker: false
+      runPolicy:
+        cleanPodPolicy: None
+        suspend: false
+      slotsPerWorker: 1
+      sshAuthMountPath: /root/.ssh
+    status:
+      conditions:
+      - lastTransitionTime: "2026-09-17T07:05:12Z"
+        lastUpdateTime: "2026-09-17T07:05:12Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-running is created.
+        reason: MPIJobCreated
+        status: "True"
+        type: Created
+      replicaStatuses:
+        Launcher: {}
+        Worker:
+          active: 1
+      startTime: "2026-09-17T07:05:12Z"
+  phases:
+  - Initializing
+  resourceVersion: "1175554"
+  state: Initializing
+- kind: STATE
+  object:
+    apiVersion: kubeflow.org/v2beta1
+    kind: MPIJob
+    metadata:
+      creationTimestamp: "2026-09-17T07:05:12Z"
+      generation: 1
+      name: karta-e2e-mpi-running
+      namespace: test-xc2dd
+      uid: f0be66e7-da11-4b8a-945a-d6d84c2fbfbe
+    spec:
+      launcherCreationPolicy: AtStartup
+      mpiImplementation: OpenMPI
+      mpiReplicaSpecs:
+        Launcher:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sh
+                - -c
+                - sleep 300
+                image: busybox:1.36
+                name: mpi-launcher
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+        Worker:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sleep
+                - infinity
+                image: busybox:1.36
+                name: mpi-worker
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+      runLauncherAsWorker: false
+      runPolicy:
+        cleanPodPolicy: None
+        suspend: false
+      slotsPerWorker: 1
+      sshAuthMountPath: /root/.ssh
+    status:
+      conditions:
+      - lastTransitionTime: "2026-09-17T07:05:12Z"
+        lastUpdateTime: "2026-09-17T07:05:12Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-running is created.
+        reason: MPIJobCreated
+        status: "True"
+        type: Created
+      - lastTransitionTime: "2026-09-17T07:05:14Z"
+        lastUpdateTime: "2026-09-17T07:05:14Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-running is running.
+        reason: MPIJobRunning
+        status: "True"
+        type: Running
+      replicaStatuses:
+        Launcher:
+          active: 1
+        Worker:
+          active: 1
+      startTime: "2026-09-17T07:05:12Z"
+  phases:
+  - Initializing
+  - Running
+  resourceVersion: "1175560"
+  state: Running
+flow: running
+kartaFile: docs/catalog/kubeflow-org-mpijob-v2beta1.yaml
+kartaName: kubeflow-org-mpijob-v2beta1
+operator: kubeflow
+result:
+  succeeded: true
+schemaVersion: 1
+summary:
+- amount: 2
+  phases:
+  - Initializing
+- amount: 1
+  phases:
+  - Initializing
+  - Running
+version: v1.9.4
+want: Running

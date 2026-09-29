@@ -15,6 +15,12 @@ main() {
   # mpi-operator (v2beta1) below. Drop the bundled MPIJob CRD before each apply:
   # kube will not re-point it to v2beta1 in place while v1 is still a stored version.
   echo "==> Kubeflow training-operator ${KUBEFLOW_VERSION}"
+
+  # training-operator releases before v1.8 never become ready on newer
+  # Kubernetes; they only run on their era clusters.
+  case "${KUBEFLOW_VERSION}" in
+    v1.[0-7].*) require_k8s_max 28 "training-operator ${KUBEFLOW_VERSION}" || exit 1 ;;
+  esac
   kubectl delete crd mpijobs.kubeflow.org --ignore-not-found --timeout=60s
   kubectl apply --server-side --force-conflicts -k "github.com/kubeflow/trainer/manifests/overlays/standalone?ref=${KUBEFLOW_VERSION}"
   kubectl patch deployment training-operator -n kubeflow \

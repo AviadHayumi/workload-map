@@ -149,3 +149,21 @@ ensure_secret() {
   kubectl create secret generic "${name}" -n "${ns}" "${args[@]}" \
     --dry-run=client -o yaml | kubectl apply -f -
 }
+
+# require_k8s_max <max-minor> <why>
+# Fail fast when the cluster's Kubernetes minor version is newer than the
+# newest one this operator version supports, and say which era-matched cluster
+# to provision instead. Old operator releases fall out of their support window
+# rather than the other way around, so only an upper bound is needed.
+require_k8s_max() {
+  local max="$1" why="$2" minor
+  minor="$(kubectl get --raw /version 2>/dev/null | sed -n 's/.*"minor": *"\([0-9]*\).*/\1/p')"
+  if [ -z "${minor}" ]; then
+    warn "cannot read the server version; skipping the compatibility check"
+    return 0
+  fi
+  if [ "${minor}" -gt "${max}" ]; then
+    fail "${why}: needs Kubernetes <= 1.${max} and this cluster runs 1.${minor}. Provision an era-matched cluster first: make e2e-up CLUSTER_NAME=karta-e2e-1${max} KIND_NODE_IMAGE=kindest/node:v1.${max}.9 WORKLOADS=\"<operator>\""
+    return 1
+  fi
+}

@@ -20,6 +20,9 @@ import (
 const (
 	repoRoot     = "../../.."
 	recordedGlob = "../recorded_data/*/*/*/*.yaml"
+	// The version matrix under real-data/ holds the same recording format for
+	// older operator versions; replay them through the same definitions.
+	matrixGlob = repoRoot + "/real-data/*/*/*/*.yaml"
 )
 
 // Each recording is a real flow the recorder captured. Walk it step by step through the recording reader:
@@ -33,10 +36,12 @@ var _ = Describe("Karta reads the recorded state", func() {
 		})
 		return
 	}
+	matrix, _ := filepath.Glob(matrixGlob)
+	recordings = append(recordings, matrix...)
 
 	for _, path := range recordings {
 		path := path
-		It(strings.TrimPrefix(path, "../recorded_data/"), func(ctx SpecContext) {
+		It(strings.TrimPrefix(strings.TrimPrefix(path, repoRoot+"/"), "../recorded_data/"), func(ctx SpecContext) {
 			r, err := recorder.OpenRecording(path)
 			Expect(err).NotTo(HaveOccurred())
 

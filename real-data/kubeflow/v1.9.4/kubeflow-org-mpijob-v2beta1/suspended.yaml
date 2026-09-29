@@ -1,0 +1,96 @@
+events:
+- kind: STATE
+  object:
+    apiVersion: kubeflow.org/v2beta1
+    kind: MPIJob
+    metadata:
+      creationTimestamp: "2026-09-17T07:05:24Z"
+      generation: 1
+      name: karta-e2e-mpi-suspended
+      namespace: test-xc2dd
+      uid: 67673573-46ac-4480-bcb4-0283f68f4424
+    spec:
+      launcherCreationPolicy: AtStartup
+      mpiImplementation: OpenMPI
+      mpiReplicaSpecs:
+        Launcher:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - "true"
+                image: busybox:1.36
+                name: mpi-launcher
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+        Worker:
+          replicas: 1
+          template:
+            spec:
+              containers:
+              - command:
+                - sleep
+                - infinity
+                image: busybox:1.36
+                name: mpi-worker
+                resources:
+                  limits:
+                    cpu: 50m
+                    memory: 64Mi
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+      runLauncherAsWorker: false
+      runPolicy:
+        cleanPodPolicy: None
+        suspend: true
+      slotsPerWorker: 1
+      sshAuthMountPath: /root/.ssh
+    status:
+      conditions:
+      - lastTransitionTime: "2026-09-17T07:05:24Z"
+        lastUpdateTime: "2026-09-17T07:05:24Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-suspended is created.
+        reason: MPIJobCreated
+        status: "True"
+        type: Created
+      - lastTransitionTime: "2026-09-17T07:05:24Z"
+        lastUpdateTime: "2026-09-17T07:05:24Z"
+        message: MPIJob suspended
+        reason: MPIJobSuspended
+        status: "True"
+        type: Suspended
+      - lastTransitionTime: "2026-09-17T07:05:24Z"
+        lastUpdateTime: "2026-09-17T07:05:24Z"
+        message: MPIJob test-xc2dd/karta-e2e-mpi-suspended is suspended.
+        reason: MPIJobSuspended
+        status: "False"
+        type: Running
+      replicaStatuses:
+        Launcher: {}
+        Worker: {}
+  phases:
+  - Initializing
+  - Suspended
+  resourceVersion: "1175799"
+  state: Suspended
+flow: suspended
+kartaFile: docs/catalog/kubeflow-org-mpijob-v2beta1.yaml
+kartaName: kubeflow-org-mpijob-v2beta1
+operator: kubeflow
+result:
+  succeeded: true
+schemaVersion: 1
+summary:
+- amount: 1
+  phases:
+  - Initializing
+  - Suspended
+version: v1.9.4
+want: Suspended

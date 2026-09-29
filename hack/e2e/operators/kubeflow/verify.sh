@@ -9,6 +9,11 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${MODULE_DIR}/../_common.sh"
 
+# training-operator releases before v1.8 only run on their era clusters (see install.sh).
+case "${KUBEFLOW_VERSION}" in
+  v1.[0-7].*) require_k8s_max 28 "training-operator ${KUBEFLOW_VERSION}" || exit 1 ;;
+esac
+
 echo "==> smoke: pytorchjob/pytorch-smoke"
 run_smoke "${MODULE_DIR}/smoke.yaml" "pytorchjob/pytorch-smoke" "condition=Running" "240s" default
 

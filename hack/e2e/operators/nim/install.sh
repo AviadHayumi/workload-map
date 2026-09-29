@@ -42,7 +42,9 @@ main() {
       echo "error: k8s-nim-operator Helm chart not found in the ${NIM_OPERATOR_VERSION} tarball (upstream layout changed?)" >&2
       exit 1
     fi
-    helm install k8s-nim-operator "${chart}" -n nim-operator --create-namespace >/dev/null
+    # --dependency-update: v3.1+ charts declare conditional dynamo subcharts that
+    # helm requires fetched even when disabled; a no-op for older dependency-free charts.
+    helm install k8s-nim-operator "${chart}" -n nim-operator --create-namespace --dependency-update >/dev/null
   fi
   rollout_wait nim-operator deploy/k8s-nim-operator
   # Dummy NGC secret: the operator injects NGC_API_KEY from it; the fictive image ignores it.
