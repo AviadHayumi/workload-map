@@ -7,11 +7,16 @@
 # the fixtures under real-data/<operator>/<version>/. A version that cannot
 # install or record is appended to real-data/SKIPPED.md with the reason.
 #
-#   hack/e2e/record-matrix.sh <operator> <version> [<kourier-version>]
+#   hack/e2e/record-matrix.sh [--fresh-cluster] <operator> <version> [<kourier-version>]
+#   hack/e2e/record-matrix.sh [--fresh-cluster] <operator> all
 #   hack/e2e/record-matrix.sh <operator> pin
 #
-# "pin" reinstalls the version pinned in global.env without recording, to
-# leave the cluster back on the supported set after a matrix run. Operators
+# "all" walks the operator's list in supported-versions.env, newest first, and
+# reinstalls the pin at the end. "pin" reinstalls the version pinned in
+# global.env without recording, to leave the cluster back on the supported set
+# after a matrix run. --fresh-cluster provisions a throwaway
+# karta-matrix-<operator> kind cluster for the run and deletes it afterwards,
+# so no state from other operators can leak into the recordings. Operators
 # whose old releases need an older Kubernetes fail fast with the era-cluster
 # hint (see require_k8s_max in operators/_common.sh); point KUBECONFIG and
 # CLUSTER_NAME at that cluster and re-run.
@@ -20,27 +25,62 @@ cd "$(dirname "$0")/../.." || exit 1
 OPERATORS_DIR="hack/e2e/operators"
 # shellcheck source=/dev/null
 source "${OPERATORS_DIR}/../global.env"
+# shellcheck source=/dev/null
+source "${OPERATORS_DIR}/../supported-versions.env"
 
-OP="${1:?usage: record-matrix.sh <operator> <version> [kourier-version]}"
-VER="${2:?usage: record-matrix.sh <operator> <version> [kourier-version]}"
+FRESH=0
+if [ "${1:-}" = "--fresh-cluster" ]; then
+  FRESH=1
+  shift
+fi
+OP="${1:?usage: record-matrix.sh [--fresh-cluster] <operator> <version> [kourier-version]}"
+VER="${2:?usage: record-matrix.sh [--fresh-cluster] <operator> <version> [kourier-version]}"
 KOURIER="${3:-}"
 VFILE="${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
 SKIP="real-data/SKIPPED.md"
 
-# Label and version variable per operator (bash 3.2, so no associative arrays).
+# Label, version variable, and matrix list per operator (bash 3.2, so no
+# associative arrays).
 case "${OP}" in
-  jobset)   LABEL=jobset   VAR=JOBSET_VERSION          PIN="${JOBSET_VERSION}" ;;
-  lws)      LABEL=lws      VAR=LWS_VERSION             PIN="${LWS_VERSION}" ;;
-  kuberay)  LABEL=kuberay  VAR=KUBERAY_VERSION         PIN="${KUBERAY_VERSION}" ;;
-  kubeflow) LABEL=kubeflow VAR=KUBEFLOW_VERSION        PIN="${KUBEFLOW_VERSION}" ;;
-  knative)  LABEL=knative  VAR=KNATIVE_VERSION         PIN="${KNATIVE_VERSION}" ;;
-  kserve)   LABEL=kserve   VAR=KSERVE_VERSION          PIN="${KSERVE_VERSION}" ;;
-  milvus)   LABEL=milvus   VAR=MILVUS_OPERATOR_VERSION PIN="${MILVUS_OPERATOR_VERSION}" ;;
-  grove)    LABEL=grove    VAR=GROVE_VERSION           PIN="${GROVE_VERSION}" ;;
-  dynamo)   LABEL=dynamo   VAR=DYNAMO_VERSION          PIN="${DYNAMO_VERSION}" ;;
-  nim)      LABEL=nim      VAR=NIM_OPERATOR_VERSION    PIN="${NIM_OPERATOR_VERSION}" ;;
+  jobset)   LABEL=jobset   VAR=JOBSET_VERSION          PIN="${JOBSET_VERSION}"          MATRIX="${JOBSET_MATRIX}" ;;
+  lws)      LABEL=lws      VAR=LWS_VERSION             PIN="${LWS_VERSION}"             MATRIX="${LWS_MATRIX}" ;;
+  kuberay)  LABEL=kuberay  VAR=KUBERAY_VERSION         PIN="${KUBERAY_VERSION}"         MATRIX="${KUBERAY_MATRIX}" ;;
+  kubeflow) LABEL=kubeflow VAR=KUBEFLOW_VERSION        PIN="${KUBEFLOW_VERSION}"        MATRIX="${KUBEFLOW_MATRIX}" ;;
+  knative)  LABEL=knative  VAR=KNATIVE_VERSION         PIN="${KNATIVE_VERSION}"         MATRIX="${KNATIVE_MATRIX}" ;;
+  kserve)   LABEL=kserve   VAR=KSERVE_VERSION          PIN="${KSERVE_VERSION}"          MATRIX="${KSERVE_MATRIX}" ;;
+  milvus)   LABEL=milvus   VAR=MILVUS_OPERATOR_VERSION PIN="${MILVUS_OPERATOR_VERSION}" MATRIX="${MILVUS_MATRIX}" ;;
+  grove)    LABEL=grove    VAR=GROVE_VERSION           PIN="${GROVE_VERSION}"           MATRIX="${GROVE_MATRIX}" ;;
+  dynamo)   LABEL=dynamo   VAR=DYNAMO_VERSION          PIN="${DYNAMO_VERSION}"          MATRIX="${DYNAMO_MATRIX}" ;;
+  nim)      LABEL=nim      VAR=NIM_OPERATOR_VERSION    PIN="${NIM_OPERATOR_VERSION}"    MATRIX="${NIM_MATRIX}" ;;
   *) echo "error: unknown operator ${OP}" >&2; exit 1 ;;
 esac
+
+if [ "${FRESH}" = "1" ]; then
+  export CLUSTER_NAME="karta-matrix-${OP}"
+  export KUBECONFIG="${HOME}/.kube/kind-${CLUSTER_NAME}.kubeconfig"
+  echo "==> ${OP}: fresh cluster ${CLUSTER_NAME}"
+  if ! make e2e-up CLUSTER_NAME="${CLUSTER_NAME}" WORKLOADS="${OP}" > "/tmp/matrix-${OP}-cluster-up.log" 2>&1; then
+    echo "error: fresh cluster provisioning failed (/tmp/matrix-${OP}-cluster-up.log)" >&2
+    make e2e-down CLUSTER_NAME="${CLUSTER_NAME}" >/dev/null 2>&1
+    exit 1
+  fi
+  rc=0
+  "$0" "${OP}" "${VER}" "${KOURIER}" || rc=$?
+  make e2e-down CLUSTER_NAME="${CLUSTER_NAME}" >/dev/null 2>&1
+  exit "${rc}"
+fi
+
+if [ "${VER}" = "all" ]; then
+  rc=0
+  for entry in ${MATRIX}; do
+    v="${entry%%:*}"
+    kourier=""
+    [ "${entry}" != "${v}" ] && kourier="${entry#*:}"
+    "$0" "${OP}" "${v}" "${kourier}" || rc=$?
+  done
+  "$0" "${OP}" pin || rc=$?
+  exit "${rc}"
+fi
 
 # Version jumps need a cleanup the plain installs never do: controller
 # deployment selectors are immutable across some releases, helm refuses to
