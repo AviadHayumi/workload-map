@@ -96,10 +96,11 @@ git push origin v1.2.3 cli/v1.2.3
 
 The root tag runs the coordinated workflow. The workflow builds and pushes the
 multi-architecture operator image from source and publishes the Helm chart.
-GoReleaser then builds the four CLI archives and checksum manifest, commits the
-Homebrew Cask to this repository, and creates the GitHub Release. Finally, the
+GoReleaser then builds the four CLI archives and checksum manifest, opens a pull
+request with the Homebrew Cask, and creates the GitHub Release. Finally, the
 workflow generates the two image locks and attaches the chart and locks to the
-existing release.
+existing release. The Cask reaches users when that pull request merges, so the
+release is not complete until someone reviews it.
 
 The guarded publishing command used by the workflow is:
 
@@ -114,15 +115,26 @@ credentials are present. It must normally run only in the release workflow.
 ## Release credentials
 
 The normal workflow `GITHUB_TOKEN` is used for the Karta GitHub Release, GHCR
-packages, release attachments, and the Homebrew Cask commit. The release needs
-no other credential.
+packages, release attachments, and the Homebrew Cask pull request. The release
+needs no other credential.
 
-The Homebrew tap is this repository rather than a separate `homebrew-*` one, so
-GoReleaser commits `Casks/kli.rb` to the default branch on every tagged release.
-The workflow passes its own `GITHUB_TOKEN` as `HOMEBREW_TAP_TOKEN`, which the
-job-level `permissions: contents: write` grants. Branch protection on the
-default branch must allow that push, or the Cask step fails after the image and
-chart are already published.
+The Homebrew tap is this repository rather than a separate `homebrew-*` one. The
+default branch requires pull requests and signed commits, with no bypass actors,
+so GoReleaser pushes `Casks/kli.rb` to a `kli-cask-<version>` branch and opens a
+pull request against the default branch instead of committing to it directly.
+The workflow passes its own `GITHUB_TOKEN` as `HOMEBREW_TAP_TOKEN`; the branch
+push comes from `permissions: contents: write` and the pull request from
+`permissions: pull-requests: write`.
+
+Merging that pull request is the last step of a release. Until it merges, the
+published Cask still points at the previous version.
+
+The repository setting that allows GitHub Actions to create pull requests must
+stay enabled. With it off, GitHub answers the create call with `403 GitHub
+Actions is not permitted to create or approve pull requests`, and the release
+fails after the image, the chart and the GitHub Release are already published.
+The Cask branch is pushed before the pull request is opened, so a rerun after
+enabling the setting completes the release.
 
 Users tap the repository by URL, because the one-argument form of `brew tap`
 only resolves repositories named `homebrew-<name>`, and trust it, because
@@ -144,9 +156,10 @@ If a tagged workflow fails after publishing the operator image or Helm chart, do
 not create a second release or move any tag. Correct the failure and rerun the
 same workflow. A later attempt validates and reuses the chart and image from the
 first attempt instead of overwriting them. GoReleaser replaces matching assets
-on an existing GitHub Release and retries the Cask commit. After it succeeds,
-confirm that the workflow attached the chart and both image locks to the same
-release and that the assets match `checksums.txt`.
+on an existing GitHub Release and reopens the Cask pull request. After it
+succeeds, confirm that the workflow attached the chart and both image locks to
+the same release, that the assets match `checksums.txt`, and that a Cask pull
+request is open.
 
 ## Release notes and breaking changes
 

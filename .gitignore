@@ -34,8 +34,9 @@ config/crd/_.yaml
 # Packaged Helm charts
 /charts/*.tgz
 
-# built imagelock tool binary
+# built hack tool binaries, named after their directory by `go build`
 /hack/imagelock/imagelock
+/hack/release/release
 
 # Generated WASM engine build artifacts (make headlamp-plugin-wasm)
 /karta-wasm/karta.wasm
