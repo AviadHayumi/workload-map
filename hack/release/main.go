@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
 )
 
 const rootModule = "github.com/dsx-ai-factory/workload-map"
@@ -71,6 +72,9 @@ func runValidateVersion(args []string) error {
 		return fmt.Errorf("version %q must match X.Y.Z without a leading v", *version)
 	}
 	if err := validateModuleVersions(*root, *version); err != nil {
+		return err
+	}
+	if err := validateVersionIsUnreleased(*root, *version); err != nil {
 		return err
 	}
 	if *requireTags {
@@ -125,6 +129,44 @@ func validateModuleVersions(root, version string) error {
 		}
 	}
 	return fmt.Errorf("go.work must replace %s %s with the local root module", rootModule, want)
+}
+
+// validateVersionIsUnreleased fails when the synchronized version is not ahead
+// of every released one. The pin names the next release, so a version that has
+// already shipped means the requirement went stale while the change waited, and
+// its module path can no longer resolve. Tags at HEAD are skipped: during the
+// release the tag being cut is the version under validation.
+func validateVersionIsUnreleased(root, version string) error {
+	head, err := commandOutput("git", "-C", root, "rev-parse", "HEAD")
+	if err != nil {
+		// No repository metadata, so there is no release history to compare
+		// against. The tag checks below cover the cases that must have it.
+		return nil
+	}
+	listed, err := commandOutput("git", "-C", root, "tag", "--list", "v[0-9]*.[0-9]*.[0-9]*")
+	if err != nil {
+		return err
+	}
+	newest := ""
+	for _, tag := range strings.Fields(listed) {
+		if !semver.IsValid(tag) || semver.Prerelease(tag) != "" {
+			continue
+		}
+		commit, err := commandOutput("git", "-C", root, "rev-list", "-n", "1", tag)
+		if err != nil {
+			return fmt.Errorf("resolve tag %s: %w", tag, err)
+		}
+		if commit == head {
+			continue
+		}
+		if newest == "" || semver.Compare(tag, newest) > 0 {
+			newest = tag
+		}
+	}
+	if newest != "" && semver.Compare("v"+version, newest) <= 0 {
+		return fmt.Errorf("version v%s is not newer than the released %s; bump the requirement in cli/go.mod, operator/go.mod and go.work", version, newest)
+	}
+	return nil
 }
 
 func validateTags(root, version string) error {

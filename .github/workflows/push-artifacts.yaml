@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
   packages: write
+  # GoReleaser opens the Homebrew Cask update as a pull request, because the
+  # default branch does not accept direct pushes.
+  pull-requests: write
 
 
 jobs:
@@ -60,6 +63,17 @@ jobs:
           echo "HELM_REGISTRY=$REGISTRY_NAMESPACE" >> $GITHUB_ENV
           echo "Publishing artifacts to $REGISTRY_NAMESPACE"
 
+      # Before the publication check: helm reads the Docker credential store, and
+      # a ghcr package is private until someone makes it public. Unauthenticated,
+      # a published private chart reads as absent and the guard would let the run
+      # overwrite it.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check published version
         id: publication
         run: |
@@ -95,13 +109,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push operator image
         if: steps.publication.outputs.published != 'true'

@@ -33,11 +33,23 @@ archives:
       - tar.gz
     name_template: "karta_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     strip_binary_directory: true
+    # Every file carries the commit time rather than its checkout time, so a
+    # rerun of the same tag rebuilds byte-identical archives. Otherwise the
+    # checksums move and the Cask sha256 from the first attempt stops matching
+    # what Homebrew downloads.
     files:
-      - LICENSE
-      - NOTICE
-      - README.md
-      - THIRD_PARTY_LICENSES
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: NOTICE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: THIRD_PARTY_LICENSES
+        info:
+          mtime: "{{ .CommitDate }}"
     builds_info:
       mtime: "{{ .CommitDate }}"
 
@@ -57,6 +69,11 @@ sboms:
 # maintain. Users tap it by URL once, then install by bare token:
 #   brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
 #   brew install kli
+#
+# The Cask arrives as a pull request rather than a direct commit. The default
+# branch requires pull requests and signed commits, with no bypass actors, so a
+# release that pushed straight to it would fail after publishing the image, the
+# chart and the GitHub Release. The Cask is live once that pull request merges.
 homebrew_casks:
   - name: kli
     ids:
@@ -68,6 +85,11 @@ homebrew_casks:
     repository:
       owner: dsx-ai-factory
       name: workload-map
+      branch: "kli-cask-{{ .Version }}"
+      pull_request:
+        enabled: true
+        base:
+          branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     custom_block: |
       postflight_steps do

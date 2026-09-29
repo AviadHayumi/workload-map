@@ -26,12 +26,12 @@ GO_MODULES := . cli karta-wasm operator test/e2e hack/imagelock \
 	docs/examples/quickstart docs/examples/controller-runtime \
 	hack/e2e/operators/nim/image
 
-# cli and operator require the synchronized root version, which is not on the
-# proxy until the release tags are pushed. go.work resolves it locally, but
-# `go mod tidy` ignores the workspace and would try to fetch it, so tidying them
-# here would fail on every commit between two releases. Their requirements are
-# set deliberately by the release preparation change and checked by
-# `make release-validate`, which is what actually guards them.
+# cli and operator require the synchronized root version, which the proxy cannot
+# serve for this module path until the release tags are pushed. go.work resolves
+# it locally, but `go mod tidy` ignores the workspace and would try to fetch it,
+# so tidying them here would fail on every commit between two releases. Their
+# requirements are set deliberately by the release preparation change and
+# checked by `make release-validate`, which is what actually guards them.
 TIDY_MODULES := $(filter-out cli operator,$(GO_MODULES))
 
 KARTA_CHART_DIR := $(PROJECT_DIR)/charts/karta

@@ -45,22 +45,22 @@ The same code in `main.go` runs over two completely different CRD types — **no
 
 From the `docs/examples/quickstart` directory:
 
-The repository workspace contains only the synchronized product modules. Use
-`GOWORK=off` when running this standalone example so its local `replace`
-directive selects the repository library.
+This example is a standalone module with its own `go.work`, so the commands
+below run as written. Its local `replace` directive selects the repository
+library.
 
 ```bash
 # Default — injects kai-scheduler
-GOWORK=off go run .
+go run .
 
 # Use a different scheduler
-GOWORK=off go run . --scheduler volcano
+go run . --scheduler volcano
 
 # Also print the full mutated CRD YAML
-GOWORK=off go run . --scheduler my-scheduler --print-mutated
+go run . --scheduler my-scheduler --print-mutated
 
 # Help
-GOWORK=off go run . --help
+go run . --help
 ```
 
 Default expected output:
