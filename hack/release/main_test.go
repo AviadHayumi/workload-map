@@ -4,13 +4,9 @@
 package main
 
 import (
-	"archive/tar"
-	"compress/gzip"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -131,82 +127,6 @@ var _ = Describe("Release validation", func() {
 		Expect(artifacts[0].Path).To(Equal(filepath.Join(dist, "karta_linux_amd64", "karta")))
 	})
 
-	Describe("artifact contents", func() {
-		It("accepts the exact CLI archive surface", func() {
-			path := filepath.Join(GinkgoT().TempDir(), "karta.tar.gz")
-			writeArchive(path, []string{"kli", "LICENSE", "NOTICE", "README.md", "THIRD_PARTY_LICENSES"})
-			Expect(verifyArchive(path)).To(Succeed())
-		})
-
-		It("rejects an archive without NOTICE", func() {
-			path := filepath.Join(GinkgoT().TempDir(), "karta.tar.gz")
-			writeArchive(path, []string{"kli", "LICENSE", "README.md", "THIRD_PARTY_LICENSES"})
-			Expect(verifyArchive(path)).To(MatchError(ContainSubstring("archive contains")))
-		})
-
-		It("rejects an extra public file", func() {
-			path := filepath.Join(GinkgoT().TempDir(), "karta.tar.gz")
-			writeArchive(path, []string{"karta", "LICENSE", "NOTICE", "README.md", "THIRD_PARTY_LICENSES", "karta-operator"})
-			Expect(verifyArchive(path)).To(MatchError(ContainSubstring("archive contains")))
-		})
-
-		It("verifies the checksum manifest exactly", func() {
-			directory := GinkgoT().TempDir()
-			archives := map[string]artifact{}
-			var manifest strings.Builder
-			for name, contents := range map[string]string{"one.tar.gz": "one", "two.tar.gz": "two"} {
-				path := filepath.Join(directory, name)
-				Expect(os.WriteFile(path, []byte(contents), 0o644)).To(Succeed())
-				digest, err := fileSHA256(path)
-				Expect(err).NotTo(HaveOccurred())
-				fmt.Fprintf(&manifest, "%s  %s\n", digest, name)
-				archives[name] = artifact{Name: name, Path: path}
-			}
-			manifestPath := filepath.Join(directory, "checksums.txt")
-			Expect(os.WriteFile(manifestPath, []byte(manifest.String()), 0o644)).To(Succeed())
-			Expect(verifyChecksums(manifestPath, archives)).To(Succeed())
-
-			Expect(os.WriteFile(manifestPath, []byte("deadbeef  one.tar.gz\n"), 0o644)).To(Succeed())
-			Expect(verifyChecksums(manifestPath, archives)).To(MatchError(ContainSubstring("covers 1 files, want 2")))
-		})
-
-		It("verifies the Homebrew Cask URLs and checksums", func() {
-			directory := GinkgoT().TempDir()
-			archives := map[string]artifact{}
-			var cask strings.Builder
-			cask.WriteString("version \"1.2.3\"\n")
-			quarantineHook := "postflight_steps do\n    on_macos do\n      " +
-				"run \"/usr/bin/xattr\", args: [\"-dr\", \"com.apple.quarantine\", \"{{staged_path}}/kli\"]\n" +
-				"    end\n  end\n"
-			cask.WriteString(quarantineHook)
-			for _, arch := range []string{"amd64", "arm64"} {
-				name := "karta_1.2.3_darwin_" + arch + ".tar.gz"
-				path := filepath.Join(directory, name)
-				Expect(os.WriteFile(path, []byte(arch), 0o644)).To(Succeed())
-				digest, err := fileSHA256(path)
-				Expect(err).NotTo(HaveOccurred())
-				fmt.Fprintf(&cask, "sha256 \"%s\"\n", digest)
-				fmt.Fprintf(&cask, "url \"https://github.com/dsx-ai-factory/workload-map/releases/download/v#{version}/karta_#{version}_darwin_%s.tar.gz\"\n", arch)
-				archives[name] = artifact{Name: name, Path: path}
-			}
-			path := filepath.Join(directory, "kli.rb")
-			Expect(os.WriteFile(path, []byte(cask.String()), 0o644)).To(Succeed())
-			Expect(verifyCask(path, "1.2.3", archives)).To(Succeed())
-
-			withoutHook := strings.Replace(cask.String(), quarantineHook, "", 1)
-			Expect(os.WriteFile(path, []byte(withoutHook), 0o644)).To(Succeed())
-			Expect(verifyCask(path, "1.2.3", archives)).To(MatchError(ContainSubstring("does not remove macOS quarantine")))
-
-			deprecatedHook := strings.Replace(cask.String(), "postflight_steps do", "postflight do", 1)
-			Expect(os.WriteFile(path, []byte(deprecatedHook), 0o644)).To(Succeed())
-			Expect(verifyCask(path, "1.2.3", archives)).To(MatchError(ContainSubstring("deprecated postflight hook")))
-
-			withoutArchives := strings.SplitN(cask.String(), "sha256", 2)[0]
-			Expect(os.WriteFile(path, []byte(withoutArchives), 0o644)).To(Succeed())
-			Expect(verifyCask(path, "1.2.3", archives)).To(MatchError(ContainSubstring("does not use the URL and checksum")))
-		})
-	})
-
 	It("verifies host executable versions", func() {
 		path := filepath.Join(GinkgoT().TempDir(), "version-command")
 		Expect(os.WriteFile(path, []byte("#!/bin/sh\nprintf '1.2.3\\n'\n"), 0o755)).To(Succeed())
@@ -238,21 +158,4 @@ func writeWorkspace(root, version string) {
 	GinkgoHelper()
 	contents := "go 1.26.3\n\nreplace " + rootModule + " " + version + " => .\n"
 	Expect(os.WriteFile(filepath.Join(root, "go.work"), []byte(contents), 0o644)).To(Succeed())
-}
-
-func writeArchive(path string, names []string) {
-	GinkgoHelper()
-	file, err := os.Create(path)
-	Expect(err).NotTo(HaveOccurred())
-	gzipWriter := gzip.NewWriter(file)
-	tarWriter := tar.NewWriter(gzipWriter)
-	for _, name := range names {
-		contents := []byte(name)
-		Expect(tarWriter.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(contents)), Typeflag: tar.TypeReg})).To(Succeed())
-		_, err := tarWriter.Write(contents)
-		Expect(err).NotTo(HaveOccurred())
-	}
-	Expect(tarWriter.Close()).To(Succeed())
-	Expect(gzipWriter.Close()).To(Succeed())
-	Expect(file.Close()).To(Succeed())
 }

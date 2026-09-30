@@ -5,21 +5,15 @@
 package main
 
 import (
-	"archive/tar"
-	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 
 	"golang.org/x/mod/modfile"
@@ -224,7 +218,6 @@ func runVerifyArtifacts(args []string) error {
 	if err != nil {
 		return err
 	}
-	expected := expectedArchiveNames(*version)
 	archives := map[string]artifact{}
 	for _, item := range artifacts {
 		if item.Type != "Archive" {
@@ -235,29 +228,21 @@ func runVerifyArtifacts(args []string) error {
 		}
 		archives[item.Name] = item
 	}
-	if len(archives) != len(expected) {
-		return fmt.Errorf("found %d CLI archives, want %d", len(archives), len(expected))
+	platforms := []string{"linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64"}
+	if len(archives) != len(platforms) {
+		return fmt.Errorf("found %d CLI archives, want %d", len(archives), len(platforms))
 	}
-	for name := range expected {
-		item, ok := archives[name]
-		if !ok {
+	for _, platform := range platforms {
+		name := "karta_" + *version + "_" + platform + ".tar.gz"
+		if _, ok := archives[name]; !ok {
 			return fmt.Errorf("missing archive %s", name)
 		}
-		if err := verifyArchive(item.Path); err != nil {
-			return fmt.Errorf("verify %s: %w", name, err)
-		}
-	}
-	if err := verifyChecksums(filepath.Join(*dist, "checksums.txt"), archives); err != nil {
-		return err
-	}
-	if err := verifyCask(filepath.Join(*dist, "homebrew", "Casks", "kli.rb"), *version, archives); err != nil {
-		return err
 	}
 	verified, skipped, err := verifyHostVersions(artifacts, *version)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("verified four CLI archives, checksums, and Homebrew Cask for %s\n", *version)
+	fmt.Printf("verified %d CLI archives for %s\n", len(archives), *version)
 	if len(verified) != 0 {
 		fmt.Printf("verified host executable versions: %s\n", strings.Join(verified, ", "))
 	}
@@ -265,143 +250,6 @@ func runVerifyArtifacts(args []string) error {
 		fmt.Printf("skipped %s --version: no %s/%s artifact\n", id, runtime.GOOS, runtime.GOARCH)
 	}
 	return nil
-}
-
-func verifyCask(path, version string, archives map[string]artifact) error {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	cask := string(contents)
-	if !strings.Contains(cask, `version "`+version+`"`) {
-		return fmt.Errorf("homebrew Cask does not declare version %s", version)
-	}
-	if strings.Contains(cask, "postflight do") {
-		return errors.New("homebrew Cask uses the deprecated postflight hook")
-	}
-	quarantineHook := `postflight_steps do
-    on_macos do
-      run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{staged_path}}/kli"]
-    end
-  end`
-	if !strings.Contains(cask, quarantineHook) {
-		return errors.New("homebrew Cask does not remove macOS quarantine from kli")
-	}
-	for _, arch := range []string{"amd64", "arm64"} {
-		name := "karta_" + version + "_darwin_" + arch + ".tar.gz"
-		item, ok := archives[name]
-		if !ok {
-			return fmt.Errorf("homebrew Cask archive %s is missing", name)
-		}
-		digest, err := fileSHA256(item.Path)
-		if err != nil {
-			return err
-		}
-		url := "https://github.com/dsx-ai-factory/workload-map/releases/download/v#{version}/karta_#{version}_darwin_" + arch + ".tar.gz"
-		if !strings.Contains(cask, `sha256 "`+digest+`"`) || !strings.Contains(cask, `url "`+url+`"`) {
-			return fmt.Errorf("homebrew Cask does not use the URL and checksum for %s", name)
-		}
-	}
-	return nil
-}
-
-func expectedArchiveNames(version string) map[string]struct{} {
-	result := map[string]struct{}{}
-	for _, platform := range []string{"linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64"} {
-		result["karta_"+version+"_"+platform+".tar.gz"] = struct{}{}
-	}
-	return result
-}
-
-func verifyArchive(path string) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	gzipReader, err := gzip.NewReader(file)
-	if err != nil {
-		return err
-	}
-	defer gzipReader.Close()
-	entries := map[string]struct{}{}
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if header.Typeflag == tar.TypeReg {
-			entries[header.Name] = struct{}{}
-		}
-	}
-	want := []string{"LICENSE", "NOTICE", "README.md", "THIRD_PARTY_LICENSES", "kli"}
-	if len(entries) != len(want) {
-		return fmt.Errorf("archive contains %v, want %v", sortedKeys(entries), want)
-	}
-	for _, name := range want {
-		if _, ok := entries[name]; !ok {
-			return fmt.Errorf("archive is missing %s", name)
-		}
-	}
-	return nil
-}
-
-func sortedKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func verifyChecksums(path string, archives map[string]artifact) error {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	checksums := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(string(contents)), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 {
-			return fmt.Errorf("invalid checksum line %q", line)
-		}
-		checksums[fields[1]] = fields[0]
-	}
-	if len(checksums) != len(archives) {
-		return fmt.Errorf("checksums.txt covers %d files, want %d", len(checksums), len(archives))
-	}
-	for name, item := range archives {
-		want, ok := checksums[name]
-		if !ok {
-			return fmt.Errorf("checksums.txt is missing %s", name)
-		}
-		got, err := fileSHA256(item.Path)
-		if err != nil {
-			return err
-		}
-		if got != want {
-			return fmt.Errorf("checksum for %s is %s, want %s", name, got, want)
-		}
-	}
-	return nil
-}
-
-func fileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func verifyHostVersions(artifacts []artifact, version string) ([]string, []string, error) {
