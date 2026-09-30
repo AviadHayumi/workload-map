@@ -26,12 +26,9 @@ GO_MODULES := . cli karta-wasm operator test/e2e hack/imagelock \
 	docs/examples/quickstart docs/examples/controller-runtime \
 	hack/e2e/operators/nim/image
 
-# cli and operator require the synchronized root version, which the proxy cannot
-# serve for this module path until the release tags are pushed. go.work resolves
-# it locally, but `go mod tidy` ignores the workspace and would try to fetch it,
-# so tidying them here would fail on every commit between two releases. Their
-# requirements are set deliberately by the release preparation change and
-# checked by `make release-validate`, which is what actually guards them.
+# cli and operator pin a root version the proxy cannot serve until the release
+# tags are pushed. modules-check-cli and modules-check-operator tidy them
+# out of tree instead.
 TIDY_MODULES := $(filter-out cli operator,$(GO_MODULES))
 
 KARTA_CHART_DIR := $(PROJECT_DIR)/charts/karta
@@ -237,8 +234,22 @@ cli-verify-version: build-cli ## Assert the CLI binary reports the stamped versi
 	[ "$$out" = "$(VERSION)" ] || { \
 		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
 
+# go mod tidy ignores the workspace, so it cannot resolve the unpublished root
+# pin. Tidy a copy carrying a local replace; its go.sum must travel with it.
+.PHONY: modules-check-cli modules-check-operator
+modules-check-cli: MODULE := cli
+modules-check-operator: MODULE := operator
+modules-check-cli modules-check-operator: $(LOCALBIN) ## Verify the module's third-party requirements are tidy
+	@set -e; \
+	cp $(MODULE)/go.mod $(LOCALBIN)/$(MODULE)-tidy.mod; \
+	cp $(MODULE)/go.sum $(LOCALBIN)/$(MODULE)-tidy.sum; \
+	cd $(MODULE); \
+	GOWORK=off go mod edit -modfile=$(LOCALBIN)/$(MODULE)-tidy.mod \
+		-replace github.com/dsx-ai-factory/workload-map=../; \
+	GOWORK=off go mod tidy -diff -modfile=$(LOCALBIN)/$(MODULE)-tidy.mod
+
 .PHONY: check-cli
-check-cli: fmt-check-cli vet-cli lint-cli test-cli cli-verify-version ## Full CLI presubmit
+check-cli: fmt-check-cli vet-cli lint-cli test-cli modules-check-cli cli-verify-version ## Full CLI presubmit
 
 ##@ Operator
 
@@ -275,7 +286,7 @@ test-operator-integration: envtest ## Run the operator envtest suite (downloads 
 test-operator: test-operator-unit test-operator-integration ## Run the operator unit and envtest suites
 
 .PHONY: check-operator
-check-operator: fmt-check-operator vet-operator lint-operator build-operator-e2e test-operator operator-version-smoke ## Full operator presubmit
+check-operator: fmt-check-operator vet-operator lint-operator modules-check-operator build-operator-e2e test-operator operator-version-smoke ## Full operator presubmit
 
 .PHONY: build-operator
 build-operator: $(LOCALBIN) ## Build the karta-operator binary for the host OS/arch
