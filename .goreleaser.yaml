@@ -70,10 +70,11 @@ sboms:
 #   brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
 #   brew install kli
 #
-# The Cask arrives as a pull request rather than a direct commit. The default
-# branch requires pull requests and signed commits, with no bypass actors, so a
-# release that pushed straight to it would fail after publishing the image, the
-# chart and the GitHub Release. The Cask is live once that pull request merges.
+# The Cask lands on its own branch, never on the default branch, which requires
+# pull requests and signed commits with no bypass actors. GoReleaser does not
+# open the pull request: a GITHUB_TOKEN cannot, and a pull request it opened
+# would not trigger the required CI check, so it could never merge. The workflow
+# prints a prefilled link and a person opens it. The Cask is live once it merges.
 homebrew_casks:
   - name: kli
     ids:
@@ -86,10 +87,6 @@ homebrew_casks:
       owner: dsx-ai-factory
       name: workload-map
       branch: "kli-cask-{{ .Version }}"
-      pull_request:
-        enabled: true
-        base:
-          branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     custom_block: |
       postflight_steps do
