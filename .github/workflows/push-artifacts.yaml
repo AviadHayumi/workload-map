@@ -7,6 +7,9 @@ on:
     branches: [ main ]
     tags:
       - 'v[0-9]*.[0-9]*.[0-9]*'
+      # The release is built for exact X.Y.Z versions. A prerelease tag would
+      # otherwise run the whole presubmit and then fail the version check.
+      - '!v*-*'
 
 permissions:
   contents: write
