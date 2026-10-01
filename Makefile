@@ -71,6 +71,7 @@ CONTAINER_TOOL ?= docker
 BUILD_ARGS     ?=
 DIST_DIR       ?= $(PROJECT_DIR)/dist
 RELEASE_HELPER_DIR := $(PROJECT_DIR)/hack/release
+ROOT_MODULE         := github.com/dsx-ai-factory/workload-map
 
 # Architectures for build-operator-all and operator-image-buildx-push.
 PLATFORMS ?= linux/amd64 linux/arm64
@@ -352,6 +353,26 @@ release-snapshot: goreleaser release-validate ## Build the complete release loca
 .PHONY: release-verify
 release-verify: ## Verify the CLI archives and stamped executable versions in dist/
 	cd $(RELEASE_HELPER_DIR) && GOWORK=off go run . verify-artifacts --dist $(DIST_DIR) --version $(VERSION)
+
+# Not part of `check`: main carries the released pin until the bump lands, so
+# gating pushes on it would redden main. Pull-request only, and needs the tags.
+.PHONY: pin-check
+pin-check: ## Check the synchronized pin is consistent and still unreleased
+	cd $(RELEASE_HELPER_DIR) && GOWORK=off go run . validate-version --root $(PROJECT_DIR)
+
+.PHONY: pin-bump
+pin-bump: ## Set the synchronized pin in both modules and go.work to VERSION
+	@set -eu; \
+	printf '%s\n' "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { \
+		echo "VERSION must be X.Y.Z without a leading v, for example make pin-bump VERSION=0.3.0" >&2; \
+		echo "got '$(VERSION)', which is the default derived from git describe" >&2; exit 1; }; \
+	old="$$(sed -n 's|^replace $(subst .,\.,$(ROOT_MODULE)) \(v[^ ]*\) => \.|\1|p' $(PROJECT_DIR)/go.work)"; \
+	[ -n "$$old" ] || { echo "no $(ROOT_MODULE) replace found in go.work" >&2; exit 1; }; \
+	cd $(PROJECT_DIR); \
+	GOWORK=off go mod edit -require=$(ROOT_MODULE)@v$(VERSION) cli/go.mod; \
+	GOWORK=off go mod edit -require=$(ROOT_MODULE)@v$(VERSION) operator/go.mod; \
+	go work edit -dropreplace=$(ROOT_MODULE)@$$old -replace=$(ROOT_MODULE)@v$(VERSION)=. go.work; \
+	echo "pin $$old -> v$(VERSION) in cli/go.mod, operator/go.mod and go.work"
 
 .PHONY: release-validate
 release-validate: ## Validate the synchronized module requirements for VERSION

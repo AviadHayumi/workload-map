@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          # pin-check compares the pin against the release tags.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -57,6 +60,10 @@ jobs:
 
       - name: Validate GoReleaser configuration
         run: make goreleaser-check
+
+      - name: Check the synchronized pin
+        if: github.event_name == 'pull_request'
+        run: make pin-check
 
       - name: Run checks and build release executables
         run: |

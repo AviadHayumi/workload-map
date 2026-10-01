@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -112,6 +113,63 @@ var _ = Describe("Release validation", func() {
 		_, err := commandOutput("git", "-C", root, "-c", "tag.gpgSign=false", "tag", "v1.2.4")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(validateVersionIsUnreleased(root, "1.2.4")).To(Succeed())
+	})
+
+	It("scopes the released comparison to this line and older", func() {
+		root := GinkgoT().TempDir()
+		git := func(args ...string) {
+			GinkgoHelper()
+			_, err := commandOutput("git", append([]string{"-C", root}, args...)...)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Expect(os.WriteFile(filepath.Join(root, "tracked"), []byte("one"), 0o644)).To(Succeed())
+		git("init", "-b", "main")
+		git("add", "-A")
+		git("-c", "user.name=Karta Test", "-c", "user.email=karta@example.com",
+			"-c", "commit.gpgsign=false", "commit", "-m", "history")
+		for _, tag := range []string{"v0.2.9", "v0.3.0"} {
+			git("-c", "tag.gpgSign=false", "tag", tag)
+		}
+		// A second commit, so neither tag sits on HEAD and is mistaken for the
+		// release being cut.
+		Expect(os.WriteFile(filepath.Join(root, "tracked"), []byte("two"), 0o644)).To(Succeed())
+		git("add", "-A")
+		git("-c", "user.name=Karta Test", "-c", "user.email=karta@example.com",
+			"-c", "commit.gpgsign=false", "commit", "-m", "next")
+
+		// A maintenance release of the older line clears the newer one.
+		Expect(validateVersionIsUnreleased(root, "0.2.10")).To(Succeed())
+
+		// Its own line still constrains it.
+		Expect(validateVersionIsUnreleased(root, "0.2.9")).To(
+			MatchError(ContainSubstring("not newer than the released v0.2.9")))
+
+		// A pin left behind while the line shipped on is still caught, which
+		// reachability would miss: release tags are cut from the release
+		// branch, not from main.
+		Expect(validateVersionIsUnreleased(root, "0.2.1")).To(
+			MatchError(ContainSubstring("not newer than the released v0.2.9")))
+
+		// The newer line constrains itself as usual.
+		Expect(validateVersionIsUnreleased(root, "0.3.1")).To(Succeed())
+		Expect(validateVersionIsUnreleased(root, "0.3.0")).To(
+			MatchError(ContainSubstring("not newer than the released v0.3.0")))
+	})
+
+	It("falls back to the cli pin when no version is given", func() {
+		root := GinkgoT().TempDir()
+		writeModuleFiles(root, "require "+rootModule+" v1.2.3\n")
+		Expect(pinnedVersion(root)).To(Equal("1.2.3"))
+		Expect(runValidateVersion([]string{"--root", root})).To(Succeed())
+
+		// A module that drifts from the pin is what presubmit must catch.
+		operator := filepath.Join(root, "operator", "go.mod")
+		contents, err := os.ReadFile(operator)
+		Expect(err).NotTo(HaveOccurred())
+		stale := strings.Replace(string(contents), "v1.2.3", "v1.2.2", 1)
+		Expect(os.WriteFile(operator, []byte(stale), 0o644)).To(Succeed())
+		Expect(runValidateVersion([]string{"--root", root})).To(
+			MatchError(ContainSubstring("v1.2.2, want v1.2.3")))
 	})
 
 	It("resolves GoReleaser artifact paths from the project root", func() {

@@ -57,10 +57,17 @@ func run(args []string) error {
 func runValidateVersion(args []string) error {
 	flags := flag.NewFlagSet("validate-version", flag.ContinueOnError)
 	root := flags.String("root", ".", "repository root")
-	version := flags.String("version", "", "normalized product version")
+	version := flags.String("version", "", "normalized product version, defaults to the cli/go.mod pin")
 	requireTags := flags.Bool("require-tags", false, "require all synchronized tags at HEAD")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *version == "" {
+		pinned, err := pinnedVersion(*root)
+		if err != nil {
+			return err
+		}
+		*version = pinned
 	}
 	if !semanticVersion.MatchString(*version) {
 		return fmt.Errorf("version %q must match X.Y.Z without a leading v", *version)
@@ -78,6 +85,24 @@ func runValidateVersion(args []string) error {
 	}
 	fmt.Printf("synchronized module version v%s is valid\n", *version)
 	return nil
+}
+
+func pinnedVersion(root string) (string, error) {
+	path := filepath.Join(root, "cli", "go.mod")
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := modfile.Parse(path, contents, nil)
+	if err != nil {
+		return "", fmt.Errorf("parse %s: %w", path, err)
+	}
+	for _, require := range parsed.Require {
+		if require.Mod.Path == rootModule {
+			return strings.TrimPrefix(require.Mod.Version, "v"), nil
+		}
+	}
+	return "", fmt.Errorf("%s does not require %s", path, rootModule)
 }
 
 func validateModuleVersions(root, version string) error {
@@ -141,9 +166,15 @@ func validateVersionIsUnreleased(root, version string) error {
 	if err != nil {
 		return err
 	}
+	// A newer line does not constrain this one. Reachability cannot stand in:
+	// release tags are cut from the release branch, not from main.
+	line := semver.MajorMinor("v" + version)
 	newest := ""
 	for _, tag := range strings.Fields(listed) {
 		if !semver.IsValid(tag) || semver.Prerelease(tag) != "" {
+			continue
+		}
+		if semver.Compare(semver.MajorMinor(tag), line) > 0 {
 			continue
 		}
 		commit, err := commandOutput("git", "-C", root, "rev-list", "-n", "1", tag)
