@@ -96,11 +96,9 @@ git push origin v1.2.3 cli/v1.2.3
 
 The root tag runs the coordinated workflow. The workflow builds and pushes the
 multi-architecture operator image from source and publishes the Helm chart.
-GoReleaser then builds the four CLI archives and checksum manifest, pushes the
-Homebrew Cask to its own branch, and creates the GitHub Release. Finally, the
-workflow generates the two image locks and attaches the chart and locks to the
-existing release. The Cask reaches users when someone opens and merges the pull
-request for that branch, so the release is not complete until they do.
+GoReleaser then builds the four CLI archives and checksum manifest and creates
+the GitHub Release. Finally, the workflow generates the two image locks and
+attaches the chart and locks to the existing release.
 
 The guarded publishing command used by the workflow is:
 
@@ -115,39 +113,7 @@ credentials are present. It must normally run only in the release workflow.
 ## Release credentials
 
 The normal workflow `GITHUB_TOKEN` is used for the Karta GitHub Release, GHCR
-packages, release attachments, and the Homebrew Cask branch. The release needs
-no other credential.
-
-The Homebrew tap is this repository rather than a separate `homebrew-*` one. The
-default branch requires pull requests and signed commits, with no bypass actors,
-so GoReleaser pushes `Casks/kli.rb` to a `kli-cask-<version>` branch instead of
-committing to the default branch directly. No branch rule applies to
-`kli-cask-*`, so the workflow's own `GITHUB_TOKEN`, passed as
-`HOMEBREW_TAP_TOKEN`, pushes it with `permissions: contents: write` alone.
-
-GoReleaser does not open the pull request. A workflow token cannot: the
-repository setting that permits it is off, and a pull request opened by
-`GITHUB_TOKEN` does not trigger workflows, so the required `CI` check would
-never report and the pull request could never merge. The run summary prints a
-prefilled link instead, and whoever cuts the release opens it from there. A pull
-request opened by a person runs `CI` normally.
-
-Opening and merging that pull request is the last step of a release. Until it
-merges, the published Cask still points at the previous version.
-
-Users tap the repository by URL, because the one-argument form of `brew tap`
-only resolves repositories named `homebrew-<name>`, and trust it, because
-Homebrew refuses to load casks from an unofficial tap until it is trusted:
-
-```bash
-brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
-brew trust --cask dsx-ai-factory/kli/kli
-brew install kli
-```
-
-Moving to a dedicated `homebrew-<name>` repository later would drop the URL from
-the first command. It would not drop the trust step, which applies to every
-unofficial tap.
+packages, and release attachments. The release needs no other credential.
 
 ## Recovery after a partial release
 
@@ -155,11 +121,9 @@ If a tagged workflow fails after publishing the operator image or Helm chart, do
 not create a second release or move any tag. Correct the failure and rerun the
 same workflow. A later attempt validates and reuses the chart and image from the
 first attempt instead of overwriting them. GoReleaser replaces matching assets
-on an existing GitHub Release, and updates `Casks/kli.rb` in place on the
-existing `kli-cask-<version>` branch rather than failing on it. After it
-succeeds, confirm that the workflow attached the chart and both image locks to
-the same release, that the assets match `checksums.txt`, and that the Cask
-branch carries the version being released.
+on an existing GitHub Release. After it succeeds, confirm that the workflow
+attached the chart and both image locks to the same release, and that the assets
+match `checksums.txt`.
 
 ## Release notes and breaking changes
 

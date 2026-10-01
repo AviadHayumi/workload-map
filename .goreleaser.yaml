@@ -34,9 +34,8 @@ archives:
     name_template: "karta_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     strip_binary_directory: true
     # Every file carries the commit time rather than its checkout time, so a
-    # rerun of the same tag rebuilds byte-identical archives. Otherwise the
-    # checksums move and the Cask sha256 from the first attempt stops matching
-    # what Homebrew downloads.
+    # rerun of the same tag rebuilds byte-identical archives instead of moving
+    # the published checksums.
     files:
       - src: LICENSE
         info:
@@ -64,38 +63,6 @@ source:
 
 sboms:
   - disable: true
-
-# The tap is this repository itself, so there is no separate homebrew-* repo to
-# maintain. Users tap it by URL once, then install by bare token:
-#   brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
-#   brew install kli
-#
-# The Cask lands on its own branch, never on the default branch, which requires
-# pull requests and signed commits with no bypass actors. GoReleaser does not
-# open the pull request: a GITHUB_TOKEN cannot, and a pull request it opened
-# would not trigger the required CI check, so it could never merge. The workflow
-# prints a prefilled link and a person opens it. The Cask is live once it merges.
-homebrew_casks:
-  - name: kli
-    ids:
-      - karta
-    binaries:
-      - kli
-    url:
-      template: https://github.com/dsx-ai-factory/workload-map/releases/download/v{{ .Version }}/{{ .ArtifactName }}
-    repository:
-      owner: dsx-ai-factory
-      name: workload-map
-      branch: "kli-cask-{{ .Version }}"
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    custom_block: |
-      postflight_steps do
-        on_macos do
-          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/kli"]
-        end
-      end
-    homepage: https://github.com/dsx-ai-factory/workload-map
-    description: Workload-aware visibility for any Kubernetes workload type
 
 release:
   github:

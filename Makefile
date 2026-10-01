@@ -382,7 +382,6 @@ release-validate: ## Validate the synchronized module requirements for VERSION
 release: goreleaser ## Publish a guarded root-tag release
 	@set -eu; \
 	[ -n "$${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required" >&2; exit 1; }; \
-	[ -n "$${HOMEBREW_TAP_TOKEN:-}" ] || { echo "HOMEBREW_TAP_TOKEN is required" >&2; exit 1; }; \
 	status="$$(git status --porcelain)"; \
 	[ -z "$$status" ] || { echo "the working tree must be clean" >&2; exit 1; }; \
 	tag="$$(git describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"; \

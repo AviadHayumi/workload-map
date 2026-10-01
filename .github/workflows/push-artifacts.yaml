@@ -141,21 +141,7 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The Homebrew tap is this repository, so the job's own token pushes
-          # the Cask branch. `permissions.contents: write` above is what grants
-          # it; no branch rule applies to kli-cask-*.
-          HOMEBREW_TAP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make release VERSION="$PACKAGE_VERSION"
-
-      - name: Link the Homebrew Cask pull request
-        if: github.ref_type == 'tag'
-        run: |
-          # GoReleaser pushes the Cask branch but does not open the pull
-          # request, so surface the prefilled compare link on the run summary.
-          printf '### Homebrew Cask\n\n[Open the pull request for kli %s](%s/compare/main...kli-cask-%s?expand=1)\n' \
-            "$PACKAGE_VERSION" \
-            "${{ github.server_url }}/${{ github.repository }}" \
-            "$PACKAGE_VERSION" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate air-gap image lock
         if: github.ref_type == 'tag'
