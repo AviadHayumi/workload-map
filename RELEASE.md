@@ -43,14 +43,25 @@ to the same commit. Only the root tag starts the release workflow. The operator
 ships as a container image and does not need its own module tag.
 
 The CLI and operator `go.mod` files must require the matching root module
-version. Update both requirements in the release preparation change:
+version, and `go.work` must replace that same version with the local root
+module. Set all three in the release preparation change with one command:
 
 ```bash
-go mod edit -modfile=cli/go.mod -require=github.com/dsx-ai-factory/workload-map@v1.2.3
-go mod edit -modfile=operator/go.mod -require=github.com/dsx-ai-factory/workload-map@v1.2.3
-go work edit -replace=github.com/dsx-ai-factory/workload-map@v1.2.3=.
+make pin-bump VERSION=1.2.3
 make release-validate VERSION=1.2.3
 ```
+
+Do not edit the three files by hand. `pin-bump` drops the previous `go.work`
+replacement before adding the new one. A bare
+`go work edit -replace=...@v1.2.3=.` does not: it keys on the version, so the
+old entry stays and a second one is added. Nothing rejects that, because the
+validation returns on the first matching replacement, so the stale entries
+accumulate one per release.
+
+`pin-check` validates the pin on every pull request. Once a release ships, the
+pin names a version that is now released, so pull requests fail until the bump
+for the next version lands. Make that bump the first change merged after a
+release.
 
 Do not add a relative `replace` directive to either nested `go.mod` file. The
 version-specific replacement in the root `go.work` file supplies the local root
