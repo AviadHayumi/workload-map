@@ -64,10 +64,6 @@ jobs:
       - name: Validate GoReleaser configuration
         run: make goreleaser-check
 
-      - name: Check the synchronized pin
-        if: github.event_name == 'pull_request'
-        run: make pin-check
-
       - name: Run checks and build release executables
         run: |
           build_version="0.0.0-main-${GITHUB_SHA:0:7}"

@@ -26,10 +26,7 @@ GO_MODULES := . cli karta-wasm operator test/e2e hack/imagelock \
 	docs/examples/quickstart docs/examples/controller-runtime \
 	hack/e2e/operators/nim/image
 
-# cli and operator pin a root version the proxy cannot serve until the release
-# tags are pushed. modules-check-cli and modules-check-operator tidy them
-# out of tree instead.
-TIDY_MODULES := $(filter-out cli operator,$(GO_MODULES))
+TIDY_MODULES := $(GO_MODULES)
 
 KARTA_CHART_DIR := $(PROJECT_DIR)/charts/karta
 KARTA_CRDS_DIR := $(KARTA_CHART_DIR)/crds
@@ -237,20 +234,8 @@ cli-verify-version: build-cli ## Assert the CLI binary reports the stamped versi
 
 # go mod tidy ignores the workspace, so it cannot resolve the unpublished root
 # pin. Tidy a copy carrying a local replace; its go.sum must travel with it.
-.PHONY: modules-check-cli modules-check-operator
-modules-check-cli: MODULE := cli
-modules-check-operator: MODULE := operator
-modules-check-cli modules-check-operator: $(LOCALBIN) ## Verify the module's third-party requirements are tidy
-	@set -e; \
-	cp $(MODULE)/go.mod $(LOCALBIN)/$(MODULE)-tidy.mod; \
-	cp $(MODULE)/go.sum $(LOCALBIN)/$(MODULE)-tidy.sum; \
-	cd $(MODULE); \
-	GOWORK=off go mod edit -modfile=$(LOCALBIN)/$(MODULE)-tidy.mod \
-		-replace github.com/dsx-ai-factory/workload-map=../; \
-	GOWORK=off go mod tidy -diff -modfile=$(LOCALBIN)/$(MODULE)-tidy.mod
-
 .PHONY: check-cli
-check-cli: fmt-check-cli vet-cli lint-cli test-cli modules-check-cli cli-verify-version ## Full CLI presubmit
+check-cli: fmt-check-cli vet-cli lint-cli test-cli cli-verify-version ## Full CLI presubmit
 
 ##@ Operator
 
@@ -287,7 +272,7 @@ test-operator-integration: envtest ## Run the operator envtest suite (downloads 
 test-operator: test-operator-unit test-operator-integration ## Run the operator unit and envtest suites
 
 .PHONY: check-operator
-check-operator: fmt-check-operator vet-operator lint-operator modules-check-operator build-operator-e2e test-operator operator-version-smoke ## Full operator presubmit
+check-operator: fmt-check-operator vet-operator lint-operator build-operator-e2e test-operator operator-version-smoke ## Full operator presubmit
 
 .PHONY: build-operator
 build-operator: $(LOCALBIN) ## Build the karta-operator binary for the host OS/arch
@@ -347,7 +332,7 @@ goreleaser-check: goreleaser ## Validate the GoReleaser configuration
 release-build: build-cli build-operator ## Build both executable definitions for the current runner architecture
 
 .PHONY: release-snapshot
-release-snapshot: goreleaser release-validate ## Build the complete release locally without publishing
+release-snapshot: goreleaser ## Build the complete release locally without publishing
 	VERSION=$(VERSION) $(GORELEASER) release --snapshot --clean
 
 .PHONY: release-verify
@@ -356,38 +341,16 @@ release-verify: ## Verify the CLI archives and stamped executable versions in di
 
 # Not part of `check`: main carries the released pin until the bump lands, so
 # gating pushes on it would redden main. Pull-request only, and needs the tags.
-.PHONY: pin-check
-pin-check: ## Check the synchronized pin is consistent and still unreleased
-	cd $(RELEASE_HELPER_DIR) && GOWORK=off go run . validate-version --root $(PROJECT_DIR)
-
-.PHONY: pin-bump
-pin-bump: ## Set the synchronized pin in both modules and go.work to VERSION
-	@set -eu; \
-	printf '%s\n' "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { \
-		echo "VERSION must be X.Y.Z without a leading v, for example make pin-bump VERSION=0.3.0" >&2; \
-		echo "got '$(VERSION)', which is the default derived from git describe" >&2; exit 1; }; \
-	old="$$(sed -n 's|^replace $(subst .,\.,$(ROOT_MODULE)) \(v[^ ]*\) => \.|\1|p' $(PROJECT_DIR)/go.work)"; \
-	[ -n "$$old" ] || { echo "no $(ROOT_MODULE) replace found in go.work" >&2; exit 1; }; \
-	cd $(PROJECT_DIR); \
-	GOWORK=off go mod edit -require=$(ROOT_MODULE)@v$(VERSION) cli/go.mod; \
-	GOWORK=off go mod edit -require=$(ROOT_MODULE)@v$(VERSION) operator/go.mod; \
-	go work edit -dropreplace=$(ROOT_MODULE)@$$old -replace=$(ROOT_MODULE)@v$(VERSION)=. go.work; \
-	echo "pin $$old -> v$(VERSION) in cli/go.mod, operator/go.mod and go.work"
-
-.PHONY: release-validate
-release-validate: ## Validate the synchronized module requirements for VERSION
-	cd $(RELEASE_HELPER_DIR) && GOWORK=off go run . validate-version --root $(PROJECT_DIR) --version $(VERSION)
-
 .PHONY: release
 release: goreleaser ## Publish a guarded root-tag release
 	@set -eu; \
 	[ -n "$${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required" >&2; exit 1; }; \
+	[ -n "$${HOMEBREW_TAP_TOKEN:-}" ] || { echo "HOMEBREW_TAP_TOKEN is required" >&2; exit 1; }; \
 	status="$$(git status --porcelain)"; \
 	[ -z "$$status" ] || { echo "the working tree must be clean" >&2; exit 1; }; \
 	tag="$$(git describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"; \
 	printf '%s\n' "$$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "current ref is not a root vX.Y.Z tag" >&2; exit 1; }; \
 	[ "$${tag#v}" = "$(VERSION)" ] || { echo "VERSION $(VERSION) must be $${tag#v} (the tag without the leading v)" >&2; exit 1; }; \
-	(cd $(RELEASE_HELPER_DIR) && GOWORK=off go run . validate-version --root $(PROJECT_DIR) --version $(VERSION) --require-tags); \
 	GORELEASER_CURRENT_TAG="$$tag" VERSION=$(VERSION) $(GORELEASER) release --clean
 
 ##@ Headlamp plugin

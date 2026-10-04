@@ -61,12 +61,33 @@ checksum:
 source:
   enabled: false
 
+homebrew_casks:
+  - name: kli
+    ids:
+      - karta
+    binaries:
+      - kli
+    url:
+      template: https://github.com/AviadHayumi/workload-map/releases/download/v{{ .Version }}/{{ .ArtifactName }}
+    repository:
+      owner: AviadHayumi
+      name: workload-map
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/kli"]
+        end
+      end
+    homepage: https://github.com/AviadHayumi/workload-map
+    description: Workload-aware visibility for any Kubernetes workload type
+
 sboms:
   - disable: true
 
 release:
   github:
-    owner: dsx-ai-factory
+    owner: AviadHayumi
     name: workload-map
   ids:
     - karta

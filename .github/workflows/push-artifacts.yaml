@@ -99,10 +99,6 @@ jobs:
       - name: Lint and validate helm chart
         run: make helm-lint helm-validate
 
-      - name: Validate synchronized module version
-        if: github.ref_type == 'tag'
-        run: make release-validate VERSION="$PACKAGE_VERSION"
-
       - name: Run checks
         if: github.ref_type == 'tag'
         run: make check VERSION="$PACKAGE_VERSION"
@@ -141,6 +137,7 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make release VERSION="$PACKAGE_VERSION"
 
       - name: Generate air-gap image lock
