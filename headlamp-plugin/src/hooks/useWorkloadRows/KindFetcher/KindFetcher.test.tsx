@@ -4,14 +4,20 @@
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { useListMock, evaluatePhases } = vi.hoisted(() => ({
+const { useListMock, evaluatePhases, useThrottleMock } = vi.hoisted(() => ({
   useListMock: vi.fn(),
   evaluatePhases: vi.fn(),
+  // Identity here: the throttle's own behaviour is Headlamp's, and delaying
+  // every rerender by a second would only make these tests slow.
+  useThrottleMock: vi.fn((value: unknown) => value),
 }));
 vi.mock('@kinvolk/headlamp-plugin/lib', () => ({
   K8s: { crd: { makeCustomResourceClass: vi.fn(() => ({ useList: useListMock })) } },
 }));
 vi.mock('../../../lib/karta/kartaUtil', () => ({ evaluatePhases }));
+vi.mock('@kinvolk/headlamp-plugin/lib/CommonComponents', () => ({
+  useThrottle: useThrottleMock,
+}));
 
 import type { Definition } from '../../../lib/karta/definitions';
 import { KindFetcher } from './KindFetcher';
@@ -54,6 +60,8 @@ describe('KindFetcher', () => {
   beforeEach(() => {
     evaluatePhases.mockReset();
     useListMock.mockReset();
+    useThrottleMock.mockReset();
+    useThrottleMock.mockImplementation((value: unknown) => value);
   });
 
   // Without the cluster, useList spans every selected cluster, and those
@@ -73,6 +81,75 @@ describe('KindFetcher', () => {
     );
 
     expect(useListMock).toHaveBeenCalledWith({ cluster: 'cluster-a' });
+  });
+
+  // Narrowing the request, not the rendered rows, is the point: an unselected
+  // namespace is never fetched and never evaluated.
+  it('asks only for the chosen namespaces', () => {
+    useListMock.mockReturnValue([[], null]);
+
+    render(
+      <KindFetcher
+        definition={definition()}
+        cluster="cluster-a"
+        plural="reactors"
+        namespaced
+        namespaces={['default', 'kube-system']}
+        onRows={vi.fn()}
+        onError={vi.fn()}
+      />
+    );
+
+    expect(useListMock).toHaveBeenCalledWith({
+      cluster: 'cluster-a',
+      namespace: ['default', 'kube-system'],
+    });
+  });
+
+  // undefined means every namespace, where [] would ask for none.
+  it('asks for every namespace when none are chosen', () => {
+    useListMock.mockReturnValue([[], null]);
+
+    render(<KindFetcher definition={definition()} cluster="cluster-a" plural="reactors" namespaced onRows={vi.fn()} onError={vi.fn()} />);
+
+    expect(useListMock).toHaveBeenCalledWith({ cluster: 'cluster-a', namespace: undefined });
+  });
+
+  // A watch can deliver events faster than the table can usefully repaint, and
+  // every repaint reprojects every row.
+  it('throttles the list before projecting rows', () => {
+    const items = [item('1')];
+    useListMock.mockReturnValue([items, null]);
+
+    render(<KindFetcher definition={definition()} cluster="cluster-a" plural="reactors" namespaced onRows={vi.fn()} onError={vi.fn()} />);
+
+    expect(useThrottleMock).toHaveBeenCalledWith({ items, namespaceKey: '' }, 1000);
+  });
+
+  // The throttle holds the previous value for up to an interval, so a
+  // selection whose list resolves inside that window would otherwise publish
+  // the old namespaces' rows as the new ones.
+  it('withholds rows held over from a previous namespace selection', async () => {
+    const held = [item('1')];
+    // Stuck on the previous selection, as the throttle is between intervals.
+    useThrottleMock.mockReturnValue({ items: held, namespaceKey: 'default' });
+    useListMock.mockReturnValue([held, null]);
+    const onRows = vi.fn();
+
+    render(
+      <KindFetcher
+        definition={definition()}
+        cluster="cluster-a"
+        plural="reactors"
+        namespaced
+        namespaces={['kube-system']}
+        onRows={onRows}
+        onError={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(useThrottleMock).toHaveBeenCalled());
+    expect(onRows).not.toHaveBeenCalled();
   });
 
   it('computes status once per workload and reuses it when resourceVersion is unchanged', async () => {
