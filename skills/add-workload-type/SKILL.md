@@ -69,7 +69,11 @@ Offline sources, when no cluster or user is at hand:
 - The controller code that writes status. Grep the repository for the condition
   type constants and the sites that set the phase (`markRunning`,
   `markCompleted`, `SetPhase`, and the like). This is where the real condition
-  types, reason strings, and pod labels come from.
+  types, reason strings, and pod labels come from. When the phase is computed
+  from several inputs rather than set in one place, grep for the function that
+  returns the phase type (`func Calculate.*Phase` in Argo Rollouts) and copy its
+  order of checks into the mapping comments. That order is what keeps the
+  mapped statuses apart.
 
 A shallow clone of the operator repository at the pinned release tag
 (`git clone --depth 1 --branch <tag>`) is the normal way to confirm condition
@@ -172,6 +176,12 @@ workload's own conditions or phases into Karta's normalized statuses:
 - `byConditions` matches only a condition that exists. To match "not yet written
   or not True", use `byExpression` over `.status.conditions // []`:
   `([.status.conditions // [] | .[] | select(.type == "PodRunning" and .status == "True")] | length) == 0`.
+- The same holds for a phase not yet written. When the controller derives the
+  phase from a spec field (it reports Paused whenever `.spec.paused` is set),
+  the frames before the first phase write still carry that field. Mirror the
+  controller: let `Suspended` also match the field with an empty phase,
+  `(.spec.paused // false) and (.status.phase // "") == ""`, and AND
+  `(.spec.paused // false) | not` into `Initializing`.
 - When suspending does not change the phase or conditions (the controller keeps
   the phase at Running while `.spec.suspend` is true), AND an expression such as
   `(.spec.suspend // false) | not` into the `Running` and `Initializing`
@@ -258,7 +268,12 @@ talked away.
    file: the status, and per component instance the replica count and container
    names. Derive them from the CR's own numbers, never by reading them back out
    of an existing definition. A component key is `name`, `name[instanceId]` for
-   a multi-instance component, and `owner/child` when nested:
+   a multi-instance component, and `owner/child` when nested. The root component
+   is never listed: its status is the `status:` line, and its scale and spec
+   paths are not extracted, so a prediction keyed on the root fails as `predicted
+   but not extracted`. Check root paths with jq against the CR instead (for a
+   Deployment-shaped root, `.spec.replicas` and
+   `.spec.template.spec.containers[].name`):
 
    ```yaml
    status: [Running]
@@ -280,9 +295,11 @@ talked away.
    anything, and never edit the prediction just to make the run pass.
 
 The definition is done when the command exits 0 with `--strict`: the status
-resolved, every component declaring a spec pattern extracted a pod spec with
-containers, every `instanceIdPath` produced the instance keys the CR contains,
-and every predicted number matched.
+resolved, every child component declaring a spec pattern extracted a pod spec
+with containers, every `instanceIdPath` produced the instance keys the CR
+contains, and every predicted number matched. A child declared only for
+ownership (no spec or scale definition, like the Deployment's `replicaset`)
+prints `replicas=<none> podSpec=n/a containers=<none>`; `--strict` accepts it.
 
 Run `--strict` against a CR that defines its items inline. A CR that only
 references them (a PipelineRun by `pipelineRef`, a Workflow by template
@@ -354,6 +371,12 @@ Operator install under `hack/e2e/`:
   webhook certs, `kubectl wait --for=condition=Complete job.batch/<init-job>`
   before `rollout_wait` on the webhook, or the rollout times out on a pod waiting
   for the secret.
+- Grep the manifest for `kind: Namespace` and `namespace:`. Some release
+  manifests (Argo Rollouts) carry neither, so a plain `kubectl apply -f` lands
+  the controller in `default` while its ClusterRoleBinding names a ServiceAccount
+  in the intended namespace. Create the namespace and apply with `-n <ns>`, as
+  upstream documents. After a failed install on a reused cluster, delete what
+  landed in the wrong namespace before running `make e2e-up` again.
 - `make lint-shell` must pass on the new scripts.
 
 Flow under `test/e2e/flows/`:
@@ -375,7 +398,10 @@ Flow under `test/e2e/flows/`:
   controller that reports one condition and tells states apart by reason while
   it is Unknown needs generic helpers (status plus reason, condition absent,
   any-of); add them to `predicates.go` rather than writing a workload-specific
-  one.
+  one. The same goes for a state reported two ways (any-of), a negation, or a
+  count that `omitempty` drops at zero (at-most, absent read as 0). The flow
+  files dot-import ginkgo and gomega, so a helper named `Not`, `And`, `Or`, or
+  `Equal` fails vet; pick another name such as `Negate` or `AnyOf`.
 - A reason mapped from the controller source that no recording can show (the
   controller overwrites it within the same reconcile, or a kind cluster cannot
   reach it) stays mapped. Leave it out of the predicate and name it as unproven
@@ -390,6 +416,18 @@ Flow under `test/e2e/flows/`:
   label or finalizer patch with no status, so a no-conditions `Initializing`
   rule matches it. Read `test/e2e/recorder/README.md` before writing the first
   flow.
+- Actions are merge patches. A `Do()` step fires on the first frame judged to
+  be its state, which can be that pre-status frame when the predicate reads a
+  spec field (a `Suspended` that matches `spec.paused`). Gate such a step on a
+  field only the controller writes, for example
+  `Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("Paused", "status", "phase")).Do(...)`.
+- The recorder skips frames written before the controller observed the current
+  spec, but only when `status.observedGeneration` is an integer. A controller
+  that stores it as a string (Argo Rollouts writes `"1"`) disables that guard,
+  and a late write computed from the old spec lands in the checked walk after a
+  `Do()`. The `With()` gate above is then the only protection: it makes the
+  action land after the controller's first real status, so a late write of the
+  same state stays in order.
 - The run ends on the first frame that matches the terminal state. When an
   in-flight phase maps to the same status as the final one (step 5), gate the
   terminal step on the CR field, for example
