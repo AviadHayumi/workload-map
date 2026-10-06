@@ -99,7 +99,12 @@ From those inputs, establish:
 - The real statuses the controller reports: the exact condition types and their
   status and reason values, or the phase strings it writes to `.status`. Use the
   names the controller actually sets. Inventing condition types produces a
-  definition that validates but never resolves a status.
+  definition that validates but never resolves a status. When documentation, a
+  user, or a task brief names a condition the controller never sets (a
+  `Running` condition on a CRD that only writes `Complete` and `Failed`), drop
+  it, derive the state from the fields the controller does write (counters,
+  conditions copied from a child), and say so in the builder comment and the
+  final answer.
 - Where the pod template lives in the spec, and whether the workload has one
   role or several (for example master and worker, or head and worker groups).
 - How replicas are expressed, if at all.
@@ -305,7 +310,12 @@ Run `--strict` against a CR that defines its items inline. A CR that only
 references them (a PipelineRun by `pipelineRef`, a Workflow by template
 reference) correctly reports zero instances, which `--strict` counts as a
 warning. Run that case without `--strict` and state the expected zero in the
-final answer.
+final answer. The same holds for a `fragmentedPodSpecDefinition` with no
+`containersPath` or `containerPath` (a CRD that only exposes image and
+resources overrides): on a child it always warns `extracted a pod spec with no
+containers`. Put the spec on the component whose pods it describes, not on the
+root only because the root is not extracted, run without `--strict`, state the
+expected warning, and check its paths with jq against the CR.
 
 Show the user the run output alongside the definition. Keep the predictions file
 and any scratch copies out of the repository. When something comes back empty or
@@ -357,7 +367,13 @@ Operator install under `hack/e2e/`:
   end. When the upstream release manifest grants the workload's pods no
   permissions (every pod ends in error until a role exists), add a co-located
   RBAC manifest, apply it from `install.sh`, and say in a comment that it is
-  scoped to the test cluster.
+  scoped to the test cluster. Any other cluster-scoped or shared object the
+  flows need (a runtime, a class, a template the CR references by name) goes
+  the same way: the recorder creates only the one flow object, in its own
+  namespace. Apply it with `apply_with_retry` and name its users in a comment.
+  When the CR has no pod template of its own, the pod-template conventions
+  below (`automountServiceAccountToken: false`, requests and limits, pinned
+  image, `sleep 300`) go into that object instead.
 - When the CRD kind collides with a builtin (a `Job` outside `batch`), use the
   fully qualified resource, for example `jobs.batch.volcano.sh/<name>-smoke` as
   the `run_smoke` target and `job.batch/<name>` for a builtin Job. A bare `job/`
@@ -366,8 +382,16 @@ Operator install under `hack/e2e/`:
   asset `https://github.com/<org>/<repo>/releases/download/<tag>/<asset>`
   (jobset, lws, kserve), a raw manifest at the tag
   `https://raw.githubusercontent.com/<org>/<repo>/<tag>/<path>` (mpi-operator),
-  then a Helm chart. Project storage buckets often lag the newest tag. Run
-  `curl -fsSIL <url>` before writing `install.sh`. If the manifest ships a one-shot Job that generates
+  a kustomize base at the tag,
+  `kubectl apply --server-side -k "github.com/<org>/<repo>/<path>?ref=<tag>"`
+  (kubeflow), then a Helm chart. Project storage buckets often lag the newest
+  tag. Run `curl -fsSIL <url>` before writing `install.sh`. A remote kustomize
+  resource must be a directory, so a single upstream file (a Namespace) is
+  copied locally. When the upstream overlay or chart bundles an operator the
+  suite installs on its own (a JobSet), do not install it twice: render a
+  co-located kustomization that lists the same upstream bases minus the bundled
+  one (`sed` the version pin in), or turn it off in the chart values, and add
+  the dependency to `deps_of`. If the manifest ships a one-shot Job that generates
   webhook certs, `kubectl wait --for=condition=Complete job.batch/<init-job>`
   before `rollout_wait` on the webhook, or the rollout times out on a pod waiting
   for the secret.
@@ -377,6 +401,16 @@ Operator install under `hack/e2e/`:
   in the intended namespace. Create the namespace and apply with `-n <ns>`, as
   upstream documents. After a failed install on a reused cluster, delete what
   landed in the wrong namespace before running `make e2e-up` again.
+- A temp dir in `install.sh` must not be `local`: the EXIT trap fires after
+  `main` returns, and under `set -u` it fails on an unbound variable. Assign it
+  without `local` before `trap 'rm -rf "${tmp}"' EXIT`, as `dynamo/install.sh`
+  and `nim/install.sh` do.
+- `make e2e-up` on a reused cluster re-runs every selected install and smoke,
+  dependencies included. While fixing one operator, run
+  `bash hack/e2e/operators/<name>/install.sh` and `verify.sh` directly (with the
+  test cluster's `KUBECONFIG` exported); they are standalone. Run `make e2e-up`
+  once at the end: it writes the `.installed-versions-<cluster>` entry the
+  recorder needs.
 - `make lint-shell` must pass on the new scripts.
 
 Flow under `test/e2e/flows/`:
@@ -387,7 +421,14 @@ Flow under `test/e2e/flows/`:
   mismatch silently files the recording under the Kubernetes version instead of
   the operator version. Recordings land under
   `test/e2e/recorded_data/<operator>/<version>/<kartaName>/<flow>.yaml`; check
-  the path the recorder prints on save.
+  the path the recorder prints on save. The fixtures already in the repository
+  all sit under the Kubernetes version (`v1.34.0`), operators included. Do not
+  copy that: a new operator's fixtures go under its pin from `global.env`.
+- The operator name is the first `Label` (it is what `WORKLOADS` selects). When
+  the operator ships several kinds, add the kind as a second label
+  (`Label("kubeflow", "mpijob")`). Name the testdata directory after the kind in
+  lowercase (`pytorch`, `mpijob`, `rayjob`); single-kind operators may use the
+  operator name (`nim`, `milvus`). Use that same name in the object names.
 - State predicates read the CR's own fields, never Karta, and mirror the status
   mapping: each `AddState` predicate must hold on exactly the frames the
   corresponding `statusMappings` rule matches, including any not-suspended AND
@@ -401,7 +442,11 @@ Flow under `test/e2e/flows/`:
   one. The same goes for a state reported two ways (any-of), a negation, or a
   count that `omitempty` drops at zero (at-most, absent read as 0). The flow
   files dot-import ginkgo and gomega, so a helper named `Not`, `And`, `Or`, or
-  `Equal` fails vet; pick another name such as `Negate` or `AnyOf`.
+  `Equal` fails vet; pick another name such as `Negate` or `AnyOf`. When a
+  named predicate already reads the same fields under another path (a CR that
+  copies the JobSet counters `JobsetRunning` reads), give it the path as a
+  parameter, keep the existing callers on the old path, and compose any extra
+  guard (the not-suspended AND from step 5) with `AllOf` rather than copying it.
 - A reason mapped from the controller source that no recording can show (the
   controller overwrites it within the same reconcile, or a kind cluster cannot
   reach it) stays mapped. Leave it out of the predicate and name it as unproven
@@ -436,7 +481,8 @@ Flow under `test/e2e/flows/`:
   values in the fixture: a flow that stops one frame early still reports
   `succeeded: true`.
 
-Manifests under `test/e2e/flows/testdata/<workload>/`:
+Manifests under `test/e2e/flows/testdata/<workload>/` (`<workload>` as chosen
+above):
 
 - Name objects `karta-e2e-<workload>-<flow>` and set `namespace: default`, as
   every existing manifest does. The recorder overrides the namespace with its

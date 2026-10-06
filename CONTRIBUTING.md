@@ -203,7 +203,11 @@ Adding one means, in order:
    the version pin in `global.env`, `ALL_WORKLOADS` and `version_of` in
    `up.sh`) so `make e2e-up` still provisions everything. `Fixture.Operator`
    in the flow must equal the directory name under `hack/e2e/operators/`;
-   that is how the recording is filed under the operator version.
+   that is how the recording is filed under the operator version. The operator
+   name is also the first `Label`; add the kind as a second label when the
+   operator ships several kinds. Name the testdata directory and the
+   `<workload>` in object names after the kind in lowercase (`pytorch`,
+   `mpijob`); single-kind operators may use the operator name (`nim`).
 3. The recorded fixtures from a live run, committed under
    `test/e2e/recorded_data/<operator>/<version>/<kartaName>/`:
 
@@ -217,7 +221,8 @@ Adding one means, in order:
    both commands: the recorder reads
    `hack/e2e/operators/.installed-versions-<cluster>` to pick the version
    directory, and without it files the fixtures under the Kubernetes version.
-   Fixtures are recorder output and
+   The fixtures already committed sit under `v1.34.0`; a new operator's go
+   under its pin from `hack/e2e/global.env`. Fixtures are recorder output and
    carry no SPDX header.
 4. `make test-replay` and `make verify-recordings` green. Commit the new files
    before `make check`: the `validate` target treats untracked files as stale
