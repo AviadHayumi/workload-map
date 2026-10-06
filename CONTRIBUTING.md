@@ -207,7 +207,10 @@ Adding one means, in order:
    name is also the first `Label`; add the kind as a second label when the
    operator ships several kinds. Name the testdata directory and the
    `<workload>` in object names after the kind in lowercase (`pytorch`,
-   `mpijob`); single-kind operators may use the operator name (`nim`).
+   `mpijob`); single-kind operators may use the operator name (`nim`). When the
+   kind collides with a builtin or another catalog entry (a Volcano `Job`), use
+   the upstream short name (`vcjob`) for the label, the directory, and the
+   object names alike.
 3. The recorded fixtures from a live run, committed under
    `test/e2e/recorded_data/<operator>/<version>/<kartaName>/`:
 

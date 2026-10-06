@@ -238,12 +238,17 @@ statusMappings:
 
 ```yaml
 scaleDefinition:
-  replicasPath: .spec.parallelism // 1
+  replicasPath: .spec.parallelism
   minReplicasPath: .spec.minReplicas
   maxReplicasPath: .spec.maxReplicas
 ```
 
-All three paths are optional. Keep them null-safe.
+All three paths are optional. Write them as plain assignable paths, even when
+the field is `omitempty`: an absent field reads as null, and `//` defaults
+belong only in status expressions. Older catalog entries such as
+`.spec.replicas // 1` predate this rule; do not copy the fallback. A count
+derived from several fields (see Two numbers, two levels) is the exception: it
+has no plain path, so it stays a read-only formula.
 
 Omit the whole `scaleDefinition` when the spec carries no count for the
 component. A workflow template or pipeline step runs any number of pods, and
@@ -284,6 +289,14 @@ are easy to miss because they usually live somewhere other than the replica fiel
 itself, for example PyTorchJob's `.spec.elasticPolicy.minReplicas` or Grove's
 `.spec.template.cliques[].spec.autoScalingConfig.minReplicas`. Search the CRD for
 an autoscaling or elastic policy block before deciding the workload has none.
+
+`minReplicasPath` is also the gang minimum. Gang scheduling sizes a component
+from its min replicas when set and above zero, else from its replicas
+(`getEffectiveMinReplicas` in `pkg/instructions/gang_scheduling.go`). A
+per-role gang minimum the CRD declares (Volcano `.spec.tasks[].minAvailable`)
+therefore belongs in `minReplicasPath`. A workload-wide minimum (Volcano
+`.spec.minAvailable`) belongs to no single component; leave it out and say so
+in a comment.
 
 ## Suspend definition
 
@@ -419,10 +432,13 @@ passes either way; test with a CR whose array has two entries, and with one that
 has zero if the CRD allows it (a workflow built from a template reference has no
 inline templates, and the component should then report zero instances, not fail).
 
-Put a default inside the per-element pipeline, `.spec.tasks[] | .replicas // 0`,
-not after the iterator. `.spec.tasks[].replicas // 0` yields only the elements
-that carry the field (or a single `0` when none do), so one task that omits
-`replicas` breaks the count. Integer fields marked `omitempty` make this common.
+Keep a per-element field a plain path, `.spec.tasks[].replicas`. It yields one
+value per element, null where the field is absent, so the count stays aligned.
+Never put a default after the iterator: `.spec.tasks[].replicas // 0` yields
+only the elements that carry the field (or a single `0` when none do), so one
+task that omits `replicas` breaks the count. Integer fields marked `omitempty`
+make this common. A default inside the pipeline,
+`.spec.tasks[] | .replicas // 0`, keeps the count but is not assignable.
 
 ## Additional child kinds
 
@@ -507,7 +523,8 @@ Every path is validated statically. These constructs are rejected:
 Rules for correct paths:
 
 - Absolute, starting with `.`.
-- Null-safe with `//` defaults for any field that may be absent.
+- Null-safe with `//` defaults for any field that may be absent, in status
+  expressions only. Spec and scale paths stay plain and assignable.
 - Evaluated against the correct resource (workload object vs pod manifest).
 
 ## Validation checklist

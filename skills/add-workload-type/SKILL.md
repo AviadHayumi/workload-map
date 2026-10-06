@@ -79,7 +79,11 @@ A shallow clone of the operator repository at the pinned release tag
 (`git clone --depth 1 --branch <tag>`) is the normal way to confirm condition
 and label names. Do not guess them from documentation alone. The controller code
 that assigns the phase or conditions is the source of truth for step 5, not the
-enum in the CRD schema.
+enum in the CRD schema. Pin the newest release tag that is not a prerelease
+(`git ls-remote --tags --refs <repo-url> | sort -V -k2`); it becomes the
+`<NAME>_VERSION` in step 8. A checkout already on another branch gets the tag
+with `git fetch --depth 1 origin tag <tag>`; read files with
+`git show <tag>:<path>`, not from the working tree.
 
 Proceed either way. Without a CR the definition can still be written and
 validated; it just cannot be exercised, which step 7 covers. When the definition
@@ -147,8 +151,11 @@ ownership or scale. See `reference/technical-guide.md` for the full field list.
 ### 4. Write null-safe jq paths against the correct resource
 
 - Use absolute paths from the resource root, starting with `.`.
-- Supply a default for any field that can be absent, so evaluation never fails on
-  null. Examples: `(.status.active // 0)`, `.spec.parallelism // 1`.
+- Supply a default for any field that can be absent in a status expression, so
+  evaluation never fails on null, for example `(.status.active // 0)`. Spec and
+  scale paths are the exception: they stay plain paths (`.spec.parallelism`,
+  `.spec.tasks[].replicas`) so they can be written through. An absent field
+  reads as null, which is the honest value.
 - Confirm the resource: spec, scale, and status paths read the workload object;
   selector and optimization paths read a pod manifest.
 - Karta rejects jq that can mutate or explode. Do not use assignment or update
@@ -199,9 +206,24 @@ workload's own conditions or phases into Karta's normalized statuses:
   needs `(.status.readyInstances // 0) >= (.spec.instances // 1)` as well.
 - Karta has no in-flight status except `Suspending` and `Resuming`. A phase the
   controller writes while it finishes a transition it always completes (draining
-  pods before Completed, Aborted, or Terminated, or before going back to Pending
-  on a restart) maps to the status it ends in. Say so in a comment. Do not leave
-  it unmapped: the workload then reads `Undefined` mid-transition.
+  pods before Completed, Aborted, or Terminated) maps to the status it ends in.
+  Say so in a comment. Do not leave it unmapped: the workload then reads
+  `Undefined` mid-transition.
+- An in-flight phase can have two exits. When the controller picks the exit
+  from fields already on the object (Volcano's Restarting goes to Failed when
+  `status.retryCount >= spec.maxRetry`, else back to Pending), split the phase:
+  one matcher per exit, `byPhase` plus a `byExpression` on those fields, each
+  under the status it ends in. Use the controller's default for an absent
+  field. Mirror the split in the flow predicates. Do not absorb the frame with
+  an extra `Optional()` step instead.
+- A controller can pause a workload without a spec field: Volcano suspends
+  through a separate Command object (AbortJob, ResumeJob) and reports Aborting,
+  then Aborted. Map the resumable paused phase to `Suspended` and its draining
+  phase to `Suspending` even though no `suspendDefinition` can be written, and
+  say why in a comment. Leave `Resuming` unmapped when its phase is the same
+  one another transition writes (a resume that writes Restarting, like a
+  restart policy does). The recorder only patches the workload, so reach the
+  paused state through an in-CR trigger such as a lifecycle policy.
 - A component whose spec carries no count (a template that runs any number of
   pods) gets no `scaleDefinition`. Do not write `replicasPath: 1` to fill the
   gap; karta-verify prints `replicas=<none>` for it, and that is not a warning.
@@ -266,6 +288,11 @@ real object, and report nothing.
 When no CR is available, skip the step and say so in the final answer. The
 definition is structurally valid and never exercised, and which parts are
 unverified should be stated plainly rather than left for someone to discover.
+A CR written by hand from the controller source (the status its first sync
+writes, the fields the admission webhook defaults) is a useful stand-in, one
+per mapped phase plus one with no status. Every run on such a CR counts as
+unverified. A catalog definition runs this step again in step 8 on a CR the
+controller wrote.
 
 The same command does it, with `--workload` added. It builds the workload tree
 from the manifest and prints the extracted status, replica counts, and containers
@@ -375,8 +402,12 @@ each unexpected change is a warning. Read the output this way:
 - `skipped: no instances extracted` means the component extracted nothing from
   this CR; fix the read side first.
 
-Scale paths are read today, but the same rules apply to them: write them as
-plain paths so they stay writable.
+Scale paths are read today and `--write` does not probe them, but the same
+rules apply: write them as plain paths so they stay writable, even when the
+field is `omitempty`. Use `.spec.tasks[].replicas`, not
+`.spec.tasks[] | .replicas // 0`. A count derived from several fields
+(LeaderWorkerSet workers, JobSet replicas times parallelism) has no plain
+path; it stays a formula, read-only.
 
 ### 8. Ship the recorded flow
 
@@ -401,7 +432,9 @@ Operator install under `hack/e2e/`:
   `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, a
   `<NAME>_VERSION` pin in `hack/e2e/global.env`, a `version_of` case and an
   `ALL_WORKLOADS` entry (in install order) in `hack/e2e/up.sh`, plus a `deps_of`
-  entry only when the operator needs another one installed first.
+  entry only when the operator needs another one installed first. An operator
+  with no `deps_of` entry, which no other operator depends on, goes at the end
+  of `ALL_WORKLOADS`.
 - `verify.sh` drives `smoke.yaml` to its terminal state through `run_smoke`. That
   is its purpose: it proves the controller, its RBAC, and the pod path end to
   end. When the upstream release manifest grants the workload's pods no
@@ -469,6 +502,10 @@ Flow under `test/e2e/flows/`:
   (`Label("kubeflow", "mpijob")`). Name the testdata directory after the kind in
   lowercase (`pytorch`, `mpijob`, `rayjob`); single-kind operators may use the
   operator name (`nim`, `milvus`). Use that same name in the object names.
+  When the lowercase kind collides with a builtin or another catalog entry (a
+  Volcano `Job`), use the upstream short name (`vcjob`) for the second label,
+  the testdata directory, the object names, and the root component name
+  (otherwise the lowercase kind, as in every catalog builder) alike.
 - State predicates read the CR's own fields, never Karta, and mirror the status
   mapping: each `AddState` predicate must hold on exactly the frames the
   corresponding `statusMappings` rule matches, including any not-suspended AND
@@ -499,13 +536,24 @@ Flow under `test/e2e/flows/`:
   The create response is recorded only when it already reaches the terminal
   state. Otherwise the first frame is the controller's first write, often a
   label or finalizer patch with no status, so a no-conditions `Initializing`
-  rule matches it. Read `test/e2e/recorder/README.md` before writing the first
-  flow.
+  rule matches it. Check the first frame of each fixture after the first run.
+  When it already carries a phase or condition, no recording proves the
+  no-status rule; keep it and say so in the builder comment. Read
+  `test/e2e/recorder/README.md` before writing the first flow.
+- When a run fails with `required state ... missing or out of order`, the
+  `observed [...]` list in the error is the real walk. Fix the mapping (step 5)
+  when a frame reads the wrong status. Change the journey only when the frame
+  is real and correctly mapped.
 - Actions are merge patches. A `Do()` step fires on the first frame judged to
   be its state, which can be that pre-status frame when the predicate reads a
   spec field (a `Suspended` that matches `spec.paused`). Gate such a step on a
   field only the controller writes, for example
   `Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("Paused", "status", "phase")).Do(...)`.
+- A step with `With()` or `Do()` is one the run must reach, in order: the run
+  ends only after every such step was reached (`actionSteps` in
+  `recorder.go`), and a gated step whose frame the watch misses stalls the run
+  until the timeout. Gate only the terminal step or a step whose frame is
+  certain, and never pair `With()` with `Optional()`.
 - The recorder skips frames written before the controller observed the current
   spec, but only when `status.observedGeneration` is an integer. A controller
   that stores it as a string (Argo Rollouts writes `"1"`) disables that guard,
@@ -556,11 +604,23 @@ test cluster too. Use the same `CLUSTER_NAME` on every `make` call. `WORKLOADS=<
 those two and leaves the other fixtures untouched, which is the normal loop after
 fixing a flow. See Record in `test/e2e/README.md`.
 
+With `KUBECONFIG` exported, `make e2e-down` deletes the cluster but leaves the
+kubeconfig file; remove it yourself.
+
+After recording, run step 7 again, `--write` included, on a CR the controller
+wrote. Each fixture holds one: extract the last Running frame with
+`yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > /tmp/cr.yaml`
+and pass it as `--workload`. Before `make e2e-down`, also check the
+`podSelector` and `groupByKeyPaths` paths with jq against a real pod
+(`kubectl get pod -l <owner label> -o json`), as step 7 describes.
+
 Before `make check`:
 
 - Run `make lint-shell`, `make test-replay`, and `make verify-recordings` first;
   they take seconds. The first `make check` on a fresh checkout downloads
-  golangci-lint and stays silent for minutes in the lint phase.
+  golangci-lint, then goreleaser in the cli and operator phases, and stays
+  silent for minutes in each. The whole check can outlast a tool timeout, so
+  run it in the background with its output in a log file and poll the log.
 - Commit the new files, fixtures included, before `make check`. The `validate`
   target requires a clean tree and reports untracked files as `generated files
   or module manifests are stale or untracked`, which reads like a broken
