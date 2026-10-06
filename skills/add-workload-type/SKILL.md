@@ -346,6 +346,38 @@ Two more runs are needed when they apply:
   `idPath` must return one of the instance ids karta-verify printed for the
   component. A selector that returns null here maps the pod to nothing.
 
+Then prove the writes. Reading is half of a definition; a consumer also writes
+through it, and a path that reads fine can write somewhere else or drop fields.
+Run the same command with `--write`:
+
+```bash
+go run ./hack/karta-verify --karta <definition.yaml> \
+  --workload <real-cr.yaml> --write --strict
+```
+
+Per component it writes the pod spec back unchanged (nothing may change), sets
+one probe field and writes again (exactly one leaf per instance may change),
+and applies the suspend actions then the resume actions (only the action paths
+may change). It prints every changed path with its before and after value, and
+each unexpected change is a warning. Read the output this way:
+
+- A changed path on the identity write names a field the write path drops or
+  materializes. When it is `{}` or `null` for a field the CR did not carry, the
+  write engine is at fault, not the definition; say so in the final answer. When
+  it is a field the CR did carry, the read path and the write path do not
+  address the same location.
+- A probe that landed in fewer places than there are instances, or in another
+  path, means the spec path is a formula: a `//` fallback, arithmetic, or a
+  filter after an iterator. Rewrite it as a plain path (see the assignable path
+  rules in `reference/technical-guide.md`).
+- A suspend or resume that changed a path outside its actions means an action
+  path is a formula too.
+- `skipped: no instances extracted` means the component extracted nothing from
+  this CR; fix the read side first.
+
+Scale paths are read today, but the same rules apply to them: write them as
+plain paths so they stay writable.
+
 ### 8. Ship the recorded flow
 
 The definition is not done until a recorded flow proves it. The run in step 7
