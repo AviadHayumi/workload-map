@@ -83,7 +83,10 @@ will ship to the catalog, step 8 needs a cluster with the operator anyway, so ge
 the CR from it: do the operator install side of step 8 first, run
 `make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>`, `kubectl apply` a
 running manifest by hand, and save the CR with `kubectl get <kind> <name> -o yaml`
-and one of its pods with `kubectl get pod <pod> -o json`.
+and one of its pods with `kubectl get pod <pod> -o json`. Export the cluster's
+kubeconfig first (see Record on an isolated cluster in step 8), and delete the
+hand-applied object before `make record-e2e`: it lives in `default`, the
+recorder uses its own namespace, and its pods compete with the recording.
 
 From those inputs, establish:
 
@@ -182,6 +185,10 @@ workload's own conditions or phases into Karta's normalized statuses:
 - A component whose spec carries no count (a template that runs any number of
   pods) gets no `scaleDefinition`. Do not write `replicasPath: 1` to fill the
   gap; karta-verify prints `replicas=<none>` for it, and that is not a warning.
+  A count the API only implies (one TaskRun per task) is left out the same way.
+- A suspend that writes a string or clears a field on resume, or a hold honored
+  only before start, is covered under Suspend definition in
+  `reference/technical-guide.md`.
 
 ### 6. Validate the definition
 
@@ -277,6 +284,12 @@ resolved, every component declaring a spec pattern extracted a pod spec with
 containers, every `instanceIdPath` produced the instance keys the CR contains,
 and every predicted number matched.
 
+Run `--strict` against a CR that defines its items inline. A CR that only
+references them (a PipelineRun by `pipelineRef`, a Workflow by template
+reference) correctly reports zero instances, which `--strict` counts as a
+warning. Run that case without `--strict` and state the expected zero in the
+final answer.
+
 Show the user the run output alongside the definition. Keep the predictions file
 and any scratch copies out of the repository. When something comes back empty or
 wrong, do not adjust the checklist; look the symptom up in
@@ -332,9 +345,12 @@ Operator install under `hack/e2e/`:
   fully qualified resource, for example `jobs.batch.volcano.sh/<name>-smoke` as
   the `run_smoke` target and `job.batch/<name>` for a builtin Job. A bare `job/`
   resolves to `batch/v1` and waits on the wrong object.
-- Without a release asset, pin a raw manifest at the tag:
-  `https://raw.githubusercontent.com/<org>/<repo>/<tag>/<path>` (the kubeflow
-  MPI install does this). If the manifest ships a one-shot Job that generates
+- Pin the install manifest in this order of preference: the GitHub release
+  asset `https://github.com/<org>/<repo>/releases/download/<tag>/<asset>`
+  (jobset, lws, kserve), a raw manifest at the tag
+  `https://raw.githubusercontent.com/<org>/<repo>/<tag>/<path>` (mpi-operator),
+  then a Helm chart. Project storage buckets often lag the newest tag. Run
+  `curl -fsSIL <url>` before writing `install.sh`. If the manifest ships a one-shot Job that generates
   webhook certs, `kubectl wait --for=condition=Complete job.batch/<init-job>`
   before `rollout_wait` on the webhook, or the rollout times out on a pod waiting
   for the secret.
@@ -355,12 +371,25 @@ Flow under `test/e2e/flows/`:
   from step 5. Reuse the helpers in `test/e2e/flows/predicates.go` (`CondTrue`,
   `CondNotTrue`, `CondStatus`, `CondReason`, `PhaseEq`, `PhaseAny`, `IntAtLeast`,
   `BoolTrue`, `Absent`, `AllOf`) and add a named predicate only when none fits.
+  `CondReason` requires status True and `CondNotTrue` also matches Unknown. A
+  controller that reports one condition and tells states apart by reason while
+  it is Unknown needs generic helpers (status plus reason, condition absent,
+  any-of); add them to `predicates.go` rather than writing a workload-specific
+  one.
+- A reason mapped from the controller source that no recording can show (the
+  controller overwrites it within the same reconcile, or a kind cluster cannot
+  reach it) stays mapped. Leave it out of the predicate and name it as unproven
+  in a comment in the builder.
 - `AddState` order is the precedence: declare states least to most advanced,
   and the last match is the strongest. Sibling flows put `Suspended` first so a
   lingering Suspended condition never masks progress after a resume.
 - Mark a step `Optional()` when the controller may skip it: a watch can miss a
   short frame, and a fast pod can go from Initializing straight to Completed.
-  Read `test/e2e/recorder/README.md` before writing the first flow.
+  The create response is recorded only when it already reaches the terminal
+  state. Otherwise the first frame is the controller's first write, often a
+  label or finalizer patch with no status, so a no-conditions `Initializing`
+  rule matches it. Read `test/e2e/recorder/README.md` before writing the first
+  flow.
 - The run ends on the first frame that matches the terminal state. When an
   in-flight phase maps to the same status as the final one (step 5), gate the
   terminal step on the CR field, for example
@@ -390,12 +419,14 @@ make record-e2e CLUSTER_NAME=<name> WORKLOADS=<operator>
 make e2e-down CLUSTER_NAME=<name>
 ```
 
-The default `CLUSTER_NAME` (`karta-e2e`) runs `kubectl config use-context` and
-`kind export kubeconfig` against the shared `~/.kube/config`, so following the
-default commands with a production context selected switches that shell's
-context. Any other `CLUSTER_NAME` gets its own kubeconfig file under `~/.kube/`,
-and an explicit `KUBECONFIG=<file>` wins over both. Use the same `CLUSTER_NAME`
-on every `make` call. `WORKLOADS=<operator>` selects the flow by label;
+`hack/e2e/up.sh` always runs `kind export kubeconfig` and `kubectl config
+use-context`, against whatever `KUBECONFIG` resolves to. An explicit
+`KUBECONFIG=<file>` wins. Otherwise a non-default `CLUSTER_NAME` resolves to
+`~/.kube/kind-<name>.kubeconfig`, and the default (`karta-e2e`) resolves to the
+shared `~/.kube/config`, which switches the shell's context away from whatever
+was selected. Export `KUBECONFIG=~/.kube/kind-<name>.kubeconfig` once for the
+whole session, alongside `CLUSTER_NAME`, so hand-run `kubectl` commands hit the
+test cluster too. Use the same `CLUSTER_NAME` on every `make` call. `WORKLOADS=<operator>` selects the flow by label;
 `E2E_LABELS` takes a raw Ginkgo label expression. `FLOW` is a Ginkgo focus regex:
 `FLOW=<name>` narrows to one flow, and `FLOW="aborted|terminated"` re-records just
 those two and leaves the other fixtures untouched, which is the normal loop after

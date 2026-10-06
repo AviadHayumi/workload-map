@@ -213,7 +213,11 @@ Adding one means, in order:
    ```
 
    A non-default `CLUSTER_NAME` keeps the run on its own kubeconfig, so the
-   shared current-context is never switched. Fixtures are recorder output and
+   shared current-context is never switched. Use the same `CLUSTER_NAME` on
+   both commands: the recorder reads
+   `hack/e2e/operators/.installed-versions-<cluster>` to pick the version
+   directory, and without it files the fixtures under the Kubernetes version.
+   Fixtures are recorder output and
    carry no SPDX header.
 4. `make test-replay` and `make verify-recordings` green. Commit the new files
    before `make check`: the `validate` target treats untracked files as stale

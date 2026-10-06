@@ -123,10 +123,27 @@ consequence is explicit: mutating that component's pod spec fails. Say so in a
 comment next to the path so the limitation is not rediscovered later. The catalog
 does this for the Grove standalone-clique paths and the NIMCache resources path.
 
+An assignable path can still be the wrong one. When the container-like objects
+are not `corev1.Container` (a Tekton Step keeps its resources under
+`computeResources` and adds `script` and other step-only fields), a plain
+`containersPath: .taskSpec.steps` reads without resources and a write-back
+drops the step-only fields. Use a deliberate read-only projection instead,
+`[.taskSpec.steps[]? | . + {resources: .computeResources}]`, so reads carry the
+right fields and a write fails with `Invalid path expression` rather than
+corrupting the spec. Say so in a comment.
+
+A field shared by every instance (a workload-level scheduler name or affinity)
+returns one value against N instances and fails the count check. Repeat it per
+instance with a read-only path that walks the same iterator:
+`. as $root | (.spec.a[]?, .spec.b[]?) | $root.spec.podTemplate.schedulerName`.
+An absent field yields null per instance and reads as unset. Writes through it
+fail by design.
+
 Variable bindings are allowed. `as $name` is not on the rejected-construct list,
 and the corrected Grove definition relies on it to exclude cliques that belong to
 a scaling group. Bindings keep a path readable when a filter has to reference a
-sibling field, at the cost of assignability.
+sibling field, at the cost of assignability. The optional iterator `[]?`, the
+comma operator, object construction, and `+` are allowed too.
 
 ## Status definition
 
@@ -232,7 +249,10 @@ Omit the whole `scaleDefinition` when the spec carries no count for the
 component. A workflow template or pipeline step runs any number of pods, and
 nothing in the spec says how many. Do not write `replicasPath: 1` to fill the
 gap: it is a number the CRD never declared. karta-verify prints
-`replicas=<none>` for such a component, and that is not a warning.
+`replicas=<none>` for such a component, and that is not a warning. The same
+holds for a count the API only implies (one TaskRun per Tekton task unless a
+matrix fans it out): the catalog models counts a spec field states, so leave it
+out and say so in a comment.
 
 A component's replica count is the number of units at that component's level of
 the tree, counted across the whole workload. It is not the number of API objects
@@ -280,7 +300,22 @@ suspendDefinition:
     value: "false"
 ```
 
-`value` is a JSON-encoded string (`"true"`, `"0"`, `"paused"`, `"null"`).
+`value` is a JSON-encoded string (`"true"`, `"0"`, `"paused"`, `"null"`). A
+string field is quoted inside the YAML string, and `"null"` clears a field on
+resume. Tekton holds a run through `.spec.status`:
+
+```yaml
+suspendActions:
+- path: .spec.status
+  value: '"PipelineRunPending"'
+resumeActions:
+- path: .spec.status
+  value: "null"
+```
+
+A hold the controller honors only before the run starts is still modeled as
+suspend. Say in a comment that the controller rejects it on a started run, and
+record it with a manifest created in the held state.
 
 ## Pod selectors (paths run against pod manifests)
 
@@ -357,7 +392,13 @@ When one component holds several specs (an array or a map), give it an
 instanceIdPath: .spec.workerGroupSpecs[].groupName
 # map of specs
 instanceIdPath: .spec.services | to_entries[] | .key
+# two sibling lists of the same shape feeding one component
+instanceIdPath: (.spec.pipelineSpec.tasks[]?, .spec.pipelineSpec.finally[]?) | .name
 ```
+
+For the union form, every fragmented and scale path on the component starts
+with the same `(... , ...)` iterator so the counts align. `[]?` on a missing list
+yields nothing rather than an error.
 
 This is not only a mutation concern. Reading breaks too: a component without
 `instanceIdPath` has one implicit instance, and a fragmented or scale path that
