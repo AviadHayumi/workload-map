@@ -117,3 +117,46 @@ Install side (this directory):
 
 Before pushing: `make lint-shell` (shellcheck), then provision just that operator to
 confirm it installs and smoke-tests clean, for example `make e2e-up WORKLOADS=<name>`.
+
+## What CI proves on a pull request
+
+A pull request that changes an install path gets an `Operator install` job per
+affected operator: a fresh kind cluster, `make e2e-up WORKLOADS=<name>`, teardown.
+`changed-operators.sh <base> [head]` reads the diff and prints the job inputs:
+
+```text
+operators=["knative","kserve"]
+karta=false
+```
+
+- `operators/<name>/**` changed, or a `global.env` pin that one of that
+  operator's scripts reads: that operator, plus the operators installed on top
+  of it (`deps_of` in `up.sh`, read from the other side: knative adds kserve,
+  grove adds dynamo). A new pin needs no table entry; the script finds the
+  consumer with `git grep`.
+- `up.sh` changed: the canary (jobset), every operator added to `ALL_WORKLOADS`,
+  and every operator a changed line names, so adding an operator proves the new
+  one and the provisioner. Reordering the kept operators selects them all,
+  since that changes every plan's install order.
+- `_common.sh` or the kind node image changed: every operator in `ALL_WORKLOADS`,
+  since every install goes through them.
+- Any other file under `hack/e2e/` (`down.sh`, `kind-config.yaml`,
+  `changed-operators.sh`, a `global.env` value no operator script reads): the
+  canary. Markdown selects nothing.
+- `karta=true`, which runs the `Operator E2E` job in its three webhook modes on
+  the pull request: `karta-operator/**`, `charts/karta/**`,
+  `operator/Dockerfile`, a `global.env` value the karta-operator scripts read,
+  the kind node image, the cert-manager pin, or a changed `up.sh` line that
+  mentions cert-manager. The cert-manager cases also select kserve, the one
+  workload whose plan installs it.
+
+An operator that is not in `ALL_WORKLOADS` at the head commit is dropped. The
+`Operator install gate` job is the one fixed-name check to require in branch
+protection: it fails when the detector fails or any selected install fails, and
+passes when nothing was selected.
+
+Run it locally to see what a branch would trigger:
+
+```sh
+./hack/e2e/changed-operators.sh origin/main
+```

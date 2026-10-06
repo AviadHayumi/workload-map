@@ -612,9 +612,10 @@ verify-recordings: ## Fail if any recorded fixture ended with succeeded false (r
 	if [ -n "$$bad" ]; then echo "recordings that did not succeed:"; echo "$$bad"; exit 1; fi; \
 	echo "all recordings succeeded"
 
-# The e2e shell scripts to shellcheck: the provisioner, teardown, the karta-operator
-# scripts, the shared helpers, and every per-operator install.sh/verify.sh.
-E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh \
+# The e2e shell scripts to shellcheck: the provisioner, teardown, the change detector
+# CI runs, the karta-operator scripts, the shared helpers, and every per-operator
+# install.sh/verify.sh.
+E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh hack/e2e/changed-operators.sh \
 	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \
 	$(wildcard hack/e2e/operators/*/install.sh) \
