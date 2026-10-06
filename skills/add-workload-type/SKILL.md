@@ -73,10 +73,17 @@ Offline sources, when no cluster or user is at hand:
 
 A shallow clone of the operator repository at the pinned release tag
 (`git clone --depth 1 --branch <tag>`) is the normal way to confirm condition
-and label names. Do not guess them from documentation alone.
+and label names. Do not guess them from documentation alone. The controller code
+that assigns the phase or conditions is the source of truth for step 5, not the
+enum in the CRD schema.
 
 Proceed either way. Without a CR the definition can still be written and
-validated; it just cannot be exercised, which step 7 covers.
+validated; it just cannot be exercised, which step 7 covers. When the definition
+will ship to the catalog, step 8 needs a cluster with the operator anyway, so get
+the CR from it: do the operator install side of step 8 first, run
+`make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>`, `kubectl apply` a
+running manifest by hand, and save the CR with `kubectl get <kind> <name> -o yaml`
+and one of its pods with `kubectl get pod <pod> -o json`.
 
 From those inputs, establish:
 
@@ -167,6 +174,11 @@ workload's own conditions or phases into Karta's normalized statuses:
   `(.spec.suspend // false) | not` into the `Running` and `Initializing`
   matchers. Otherwise `Running` and `Suspended` both match on every suspended
   frame and the recorded flow cannot tell them apart.
+- Karta has no in-flight status except `Suspending` and `Resuming`. A phase the
+  controller writes while it finishes a transition it always completes (draining
+  pods before Completed, Aborted, or Terminated, or before going back to Pending
+  on a restart) maps to the status it ends in. Say so in a comment. Do not leave
+  it unmapped: the workload then reads `Undefined` mid-transition.
 - A component whose spec carries no count (a template that runs any number of
   pods) gets no `scaleDefinition`. Do not write `replicasPath: 1` to fill the
   gap; karta-verify prints `replicas=<none>` for it, and that is not a warning.
@@ -238,7 +250,17 @@ talked away.
 1. From the CR, write the values the definition should produce into a predictions
    file: the status, and per component instance the replica count and container
    names. Derive them from the CR's own numbers, never by reading them back out
-   of an existing definition.
+   of an existing definition. A component key is `name`, `name[instanceId]` for
+   a multi-instance component, and `owner/child` when nested:
+
+   ```yaml
+   status: [Running]
+   components:
+   - key: task[worker]
+     replicas: 2
+     containers: [worker]
+     podSpec: true
+   ```
 2. Run it, from the repository root:
 
    ```bash
@@ -306,6 +328,16 @@ Operator install under `hack/e2e/`:
   permissions (every pod ends in error until a role exists), add a co-located
   RBAC manifest, apply it from `install.sh`, and say in a comment that it is
   scoped to the test cluster.
+- When the CRD kind collides with a builtin (a `Job` outside `batch`), use the
+  fully qualified resource, for example `jobs.batch.volcano.sh/<name>-smoke` as
+  the `run_smoke` target and `job.batch/<name>` for a builtin Job. A bare `job/`
+  resolves to `batch/v1` and waits on the wrong object.
+- Without a release asset, pin a raw manifest at the tag:
+  `https://raw.githubusercontent.com/<org>/<repo>/<tag>/<path>` (the kubeflow
+  MPI install does this). If the manifest ships a one-shot Job that generates
+  webhook certs, `kubectl wait --for=condition=Complete job.batch/<init-job>`
+  before `rollout_wait` on the webhook, or the rollout times out on a pod waiting
+  for the secret.
 - `make lint-shell` must pass on the new scripts.
 
 Flow under `test/e2e/flows/`:
@@ -329,6 +361,13 @@ Flow under `test/e2e/flows/`:
 - Mark a step `Optional()` when the controller may skip it: a watch can miss a
   short frame, and a fast pod can go from Initializing straight to Completed.
   Read `test/e2e/recorder/README.md` before writing the first flow.
+- The run ends on the first frame that matches the terminal state. When an
+  in-flight phase maps to the same status as the final one (step 5), gate the
+  terminal step on the CR field, for example
+  `Reaches(kartav1alpha1.FailedStatus).With(PhaseEq("Aborted", "status", "state", "phase"))`,
+  so the recording holds both frames. After the first run, check the `phase:`
+  values in the fixture: a flow that stops one frame early still reports
+  `succeeded: true`.
 
 Manifests under `test/e2e/flows/testdata/<workload>/`:
 
@@ -339,6 +378,9 @@ Manifests under `test/e2e/flows/testdata/<workload>/`:
 - Pin image tags, declare resource requests and limits, add the SPDX header,
   and keep the pod alive well past the Running check (`sleep 300`) so the state
   is stable when the watch sees it.
+- Set `automountServiceAccountToken: false` on the pod template unless the
+  workload's pods call the API server, as the pod, batch-job, deployment, and
+  statefulset manifests do.
 
 Record on an isolated cluster:
 
@@ -354,14 +396,20 @@ default commands with a production context selected switches that shell's
 context. Any other `CLUSTER_NAME` gets its own kubeconfig file under `~/.kube/`,
 and an explicit `KUBECONFIG=<file>` wins over both. Use the same `CLUSTER_NAME`
 on every `make` call. `WORKLOADS=<operator>` selects the flow by label;
-`E2E_LABELS` takes a raw Ginkgo label expression and `FLOW=<name>` narrows to one
-flow. See Record in `test/e2e/README.md`.
+`E2E_LABELS` takes a raw Ginkgo label expression. `FLOW` is a Ginkgo focus regex:
+`FLOW=<name>` narrows to one flow, and `FLOW="aborted|terminated"` re-records just
+those two and leaves the other fixtures untouched, which is the normal loop after
+fixing a flow. See Record in `test/e2e/README.md`.
 
 Before `make check`:
 
-- Commit the new files first. The `validate` target requires a clean tree and
-  reports untracked files as `generated files or module manifests are stale or
-  untracked`, which reads like a broken generator but is not.
+- Run `make lint-shell`, `make test-replay`, and `make verify-recordings` first;
+  they take seconds. The first `make check` on a fresh checkout downloads
+  golangci-lint and stays silent for minutes in the lint phase.
+- Commit the new files, fixtures included, before `make check`. The `validate`
+  target requires a clean tree and reports untracked files as `generated files
+  or module manifests are stale or untracked`, which reads like a broken
+  generator but is not.
 - The recorded fixtures are recorder output and carry no SPDX header, like
   every existing fixture. Do not add one.
 - `make test-replay` and `make verify-recordings` must be green, and every

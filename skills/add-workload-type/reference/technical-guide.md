@@ -374,6 +374,11 @@ passes either way; test with a CR whose array has two entries, and with one that
 has zero if the CRD allows it (a workflow built from a template reference has no
 inline templates, and the component should then report zero instances, not fail).
 
+Put a default inside the per-element pipeline, `.spec.tasks[] | .replicas // 0`,
+not after the iterator. `.spec.tasks[].replicas // 0` yields only the elements
+that carry the field (or a single `0` when none do), so one task that omits
+`replicas` breaks the count. Integer fields marked `omitempty` make this common.
+
 ## Additional child kinds
 
 List GVKs the workload creates or manages that are not modeled as components.

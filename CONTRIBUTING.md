@@ -194,7 +194,8 @@ Adding one means, in order:
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
    definition maps that a kind cluster can reach. Manifests pin image tags,
    declare resource requests and limits, set `namespace: default` (the recorder
-   overrides it), and name objects `karta-e2e-<workload>-<flow>`. State
+   overrides it), set `automountServiceAccountToken: false` unless the pods call
+   the API server, and name objects `karta-e2e-<workload>-<flow>`. State
    predicates read the CR's own fields, never Karta; `AddState` order is the
    precedence, least to most advanced. See `test/e2e/recorder/README.md`. If
    the operator is new or its install needs new pieces, follow Adding an
