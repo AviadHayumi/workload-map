@@ -69,6 +69,9 @@ pins in one step. Available helpers:
 - `run_smoke <manifest> <target> <wait-expr> [timeout] [ns]` - apply a throwaway
   resource, wait for the state, delete it. Used by every verify.sh.
 - `preload_image <src-ref> <local-tag>` - pull an image and load it into kind.
+  With Docker Desktop's containerd image store, `kind load docker-image` can fail
+  on a multi-arch image with `ctr: content digest ... not found`. Skip the preload
+  then and let the nodes pull the pinned image.
 - `build_and_load_image <context-dir> <local-tag>` - build an image and load it.
 - `ensure_secret <ns> <name> <k=v>...` - idempotently create/update a secret.
 - Logging: `group`/`endgroup`, `notice`/`warn`/`fail`, `summary`. When to use each
@@ -97,6 +100,10 @@ Install side (this directory):
 
    main "$@"
    ```
+
+   Apply upstream manifests with `kubectl apply --server-side` (plus
+   `--force-conflicts` for a reused cluster). Large CRDs exceed the annotation
+   size limit of a client-side apply.
 
 2. Create `operators/<name>/smoke.yaml` (a throwaway workload) and
    `operators/<name>/verify.sh`:

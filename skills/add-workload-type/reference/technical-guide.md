@@ -313,6 +313,10 @@ resumeActions:
   value: "null"
 ```
 
+The path may also target an annotation when the controller suspends through
+one: `.metadata.annotations["example.io/hibernation"]` with `'"on"'` to suspend
+and `'"off"'` to resume.
+
 A hold the controller honors only before the run starts is still modeled as
 suspend. Say in a comment that the controller rejects it on a started run, and
 record it with a manifest created in the held state.

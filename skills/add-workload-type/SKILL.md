@@ -191,7 +191,12 @@ workload's own conditions or phases into Karta's normalized statuses:
   the phase at Running while `.spec.suspend` is true), AND an expression such as
   `(.spec.suspend // false) | not` into the `Running` and `Initializing`
   matchers. Otherwise `Running` and `Suspended` both match on every suspended
-  frame and the recorded flow cannot tell them apart.
+  frame and the recorded flow cannot tell them apart. Check every pair that
+  should be exclusive (Running and Suspended, Running and Degraded) this way:
+  find what the controller leaves unchanged in the other state and guard on a
+  field it does change. A controller that hibernates by annotation can keep its
+  healthy phase and `Ready=True` while it clears the ready count, so `Running`
+  needs `(.status.readyInstances // 0) >= (.spec.instances // 1)` as well.
 - Karta has no in-flight status except `Suspending` and `Resuming`. A phase the
   controller writes while it finishes a transition it always completes (draining
   pods before Completed, Aborted, or Terminated, or before going back to Pending
@@ -237,7 +242,10 @@ The validator cannot check these. Confirm each one:
   of that kind; different selector kinds may coexist on a component. Verify
   role-label keys against the controller's real pod labels (they are
   operator-specific), and when two roles share a label, disambiguate by matching
-  a key only one role carries (key existence). karta-verify takes only the
+  a key only one role carries (key existence). Prefer a label the controller
+  sets when it creates the pod. A label written later by status reconciliation
+  (a primary or replica role) leaves new pods unmapped until it appears and
+  moves pods between components on failover. karta-verify takes only the
   workload object, so selector paths stay unproven until the pod check in step 7.
 - Status conditions and phases match the workload's real API.
 - Every gang-scheduling `componentName` names a defined component. The validator
