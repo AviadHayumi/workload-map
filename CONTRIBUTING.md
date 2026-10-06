@@ -192,7 +192,7 @@ Adding one means, in order:
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
    definition maps that a kind cluster can reach. Manifests pin image tags and
-   declare resource limits. If the operator install needs new pieces, extend
+   declare resource requests and limits. If the operator install needs new pieces, extend
    the operator's script under `hack/e2e/operators/` so `make e2e-up` still
    provisions everything.
 3. The recorded fixtures from a live run: `make record-e2e

@@ -225,3 +225,14 @@ wrong, do not adjust the checklist; look the symptom up in
 `reference/troubleshooting.md`, fix the path, and run again. If a second example
 CR in a different state is available (completed or failed), run against it too to
 confirm the other status rules fire.
+
+### 8. Ship the recorded flow
+
+The definition is not done until a recorded flow proves it. Follow Catalog
+Definitions in `CONTRIBUTING.md`: extend the operator script under
+`hack/e2e/operators/` if the install needs new pieces, add a flow under
+`test/e2e/flows/` with its manifests under `test/e2e/flows/testdata/`, record
+it with `make record-e2e E2E_LABELS="<label>"` against a `make e2e-up` cluster,
+and keep `make test-replay` and `make verify-recordings` green. The run in
+step 7 checks one object once; the recording checks every status frame the
+controller writes, on every CI run.

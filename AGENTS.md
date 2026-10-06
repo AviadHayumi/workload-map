@@ -96,6 +96,7 @@ Makefile already sets this for its targets.
 ### Comments and Markdown
 
 - Self-documenting code; add a comment only when the *why* is non-obvious. No first-person pronouns (`I`, `we`).
+- No ticket, issue, PR or CVE identifiers in code or comments; tracker references go in the PR description.
 - Markdown: short sentences, no bold for emphasis, no emojis, no em-dash (U+2014), ASCII only.
 
 ## Commits and Pull Requests
