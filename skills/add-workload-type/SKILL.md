@@ -50,7 +50,8 @@ Load these as needed. Do not guess field names or rules; confirm them here.
 Do not write anything until these facts are known. Read the target CRD source or
 documentation to get them right.
 
-Ask the user for two inputs up front:
+Two inputs are needed up front. Ask the user for them when there is a user and
+a cluster; otherwise get them from the offline sources below.
 
 - The CRD schema (`kubectl get crd <name> -o yaml`, or the operator's API types).
   This is what the definition is written from.
@@ -58,6 +59,21 @@ Ask the user for two inputs up front:
   that is running and one that has finished. This is optional but valuable: it
   unlocks step 7, which is the only way to prove the paths resolve. A jq path can
   be structurally valid and still point at a field no real object carries.
+
+Offline sources, when no cluster or user is at hand:
+
+- The operator's release manifest (the `install.yaml` or Helm chart CRDs). It
+  carries the CRD schemas, often in full.
+- The API types in the operator repository, usually under `pkg/apis/` or
+  `api/`. They name every status field and the condition type constants.
+- The controller code that writes status. Grep the repository for the condition
+  type constants and the sites that set the phase (`markRunning`,
+  `markCompleted`, `SetPhase`, and the like). This is where the real condition
+  types, reason strings, and pod labels come from.
+
+A shallow clone of the operator repository at the pinned release tag
+(`git clone --depth 1 --branch <tag>`) is the normal way to confirm condition
+and label names. Do not guess them from documentation alone.
 
 Proceed either way. Without a CR the definition can still be written and
 validated; it just cannot be exercised, which step 7 covers.
@@ -98,6 +114,14 @@ The three patterns are mutually exclusive. Set exactly one per component:
   (`instanceIdPath`) rather than reaching for a fallback. See
   `reference/technical-guide.md`.
 
+Any path that iterates an array (`.spec.templates[]`, `.spec.workerGroupSpecs[]`)
+can return several values. A component whose spec or scale paths can return more
+than one value, or zero, needs an `instanceIdPath` plus a
+`componentInstanceSelector`. Without them the tree build fails at runtime with
+`instance ids count (1) does not match results count (N)`, and a CR with one
+array entry hides the problem. See Multi-instance components in
+`reference/technical-guide.md`.
+
 A component may also have no spec definition when it exists only to model
 ownership or scale. See `reference/technical-guide.md` for the full field list.
 
@@ -135,6 +159,17 @@ workload's own conditions or phases into Karta's normalized statuses:
   status. A single matcher may also combine `byPhase`, `byConditions`, and
   `byExpression`, in which case all of them must hold (AND). Map only the
   statuses the workload actually reports.
+- `byConditions` matches only a condition that exists. To match "not yet written
+  or not True", use `byExpression` over `.status.conditions // []`:
+  `([.status.conditions // [] | .[] | select(.type == "PodRunning" and .status == "True")] | length) == 0`.
+- When suspending does not change the phase or conditions (the controller keeps
+  the phase at Running while `.spec.suspend` is true), AND an expression such as
+  `(.spec.suspend // false) | not` into the `Running` and `Initializing`
+  matchers. Otherwise `Running` and `Suspended` both match on every suspended
+  frame and the recorded flow cannot tell them apart.
+- A component whose spec carries no count (a template that runs any number of
+  pods) gets no `scaleDefinition`. Do not write `replicasPath: 1` to fill the
+  gap; karta-verify prints `replicas=<none>` for it, and that is not a warning.
 
 ### 6. Validate the definition
 
@@ -168,7 +203,8 @@ The validator cannot check these. Confirm each one:
   of that kind; different selector kinds may coexist on a component. Verify
   role-label keys against the controller's real pod labels (they are
   operator-specific), and when two roles share a label, disambiguate by matching
-  a key only one role carries (key existence).
+  a key only one role carries (key existence). karta-verify takes only the
+  workload object, so selector paths stay unproven until the pod check in step 7.
 - Status conditions and phases match the workload's real API.
 - Every gang-scheduling `componentName` names a defined component. The validator
   checks this only for the deprecated `podGroups` format; references under
@@ -226,13 +262,107 @@ wrong, do not adjust the checklist; look the symptom up in
 CR in a different state is available (completed or failed), run against it too to
 confirm the other status rules fire.
 
+Two more runs are needed when they apply:
+
+- Multi-instance components: run against a CR whose array has two entries, not
+  only one. One entry makes a missing `instanceIdPath` look correct; two entries
+  expose it as `instance ids count (1) does not match results count (2)`. A
+  scratch CR written by hand is fine for this.
+- Pod selectors: karta-verify never sees a pod, so check the pod side with jq.
+  Fetch one pod of the running workload (`kubectl get pod -l <owner label> -o json`,
+  or a pod manifest saved earlier) and evaluate every `podSelector` path and
+  every gang-scheduling `groupByKeyPaths` entry against it with `jq`. The
+  `componentTypeSelector` must match, and the `componentInstanceSelector`
+  `idPath` must return one of the instance ids karta-verify printed for the
+  component. A selector that returns null here maps the pod to nothing.
+
 ### 8. Ship the recorded flow
 
-The definition is not done until a recorded flow proves it. Follow Catalog
-Definitions in `CONTRIBUTING.md`: extend the operator script under
-`hack/e2e/operators/` if the install needs new pieces, add a flow under
-`test/e2e/flows/` with its manifests under `test/e2e/flows/testdata/`, record
-it with `make record-e2e E2E_LABELS="<label>"` against a `make e2e-up` cluster,
-and keep `make test-replay` and `make verify-recordings` green. The run in
-step 7 checks one object once; the recording checks every status frame the
-controller writes, on every CI run.
+The definition is not done until a recorded flow proves it. The run in step 7
+checks one object once; the recording checks every status frame the controller
+writes, on every CI run. Catalog Definitions in `CONTRIBUTING.md` lists the
+deliverables; the conventions each one follows are below.
+
+Catalog entry:
+
+- The source of a catalog definition is a Go builder under
+  `pkg/catalog/kartas/<name>.go`, registered in `pkg/catalog/catalog.go`.
+  `make generate-samples` writes the YAML under `docs/catalog/`; never hand-edit
+  that file. Port the YAML validated in steps 6 and 7 into the builder, generate,
+  and run step 6 and step 7 again on the generated file.
+- Add a row for the workload to the Pre-built Karta Definitions table in
+  `README.md`.
+
+Operator install under `hack/e2e/`:
+
+- Follow Adding an operator in `hack/e2e/README.md`. The wiring is:
+  `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, a
+  `<NAME>_VERSION` pin in `hack/e2e/global.env`, a `version_of` case and an
+  `ALL_WORKLOADS` entry (in install order) in `hack/e2e/up.sh`, plus a `deps_of`
+  entry only when the operator needs another one installed first.
+- `verify.sh` drives `smoke.yaml` to its terminal state through `run_smoke`. That
+  is its purpose: it proves the controller, its RBAC, and the pod path end to
+  end. When the upstream release manifest grants the workload's pods no
+  permissions (every pod ends in error until a role exists), add a co-located
+  RBAC manifest, apply it from `install.sh`, and say in a comment that it is
+  scoped to the test cluster.
+- `make lint-shell` must pass on the new scripts.
+
+Flow under `test/e2e/flows/`:
+
+- One Ginkgo file, `Label("<name>")`, with a `recorder.Fixture` whose `Operator`
+  equals the directory name under `hack/e2e/operators/`. `operatorVersion()`
+  reads `hack/e2e/operators/.installed-versions-<cluster>` keyed by that name; a
+  mismatch silently files the recording under the Kubernetes version instead of
+  the operator version. Recordings land under
+  `test/e2e/recorded_data/<operator>/<version>/<kartaName>/<flow>.yaml`; check
+  the path the recorder prints on save.
+- State predicates read the CR's own fields, never Karta, and mirror the status
+  mapping: each `AddState` predicate must hold on exactly the frames the
+  corresponding `statusMappings` rule matches, including any not-suspended AND
+  from step 5. Reuse the helpers in `test/e2e/flows/predicates.go` (`CondTrue`,
+  `CondNotTrue`, `CondStatus`, `CondReason`, `PhaseEq`, `PhaseAny`, `IntAtLeast`,
+  `BoolTrue`, `Absent`, `AllOf`) and add a named predicate only when none fits.
+- `AddState` order is the precedence: declare states least to most advanced,
+  and the last match is the strongest. Sibling flows put `Suspended` first so a
+  lingering Suspended condition never masks progress after a resume.
+- Mark a step `Optional()` when the controller may skip it: a watch can miss a
+  short frame, and a fast pod can go from Initializing straight to Completed.
+  Read `test/e2e/recorder/README.md` before writing the first flow.
+
+Manifests under `test/e2e/flows/testdata/<workload>/`:
+
+- Name objects `karta-e2e-<workload>-<flow>` and set `namespace: default`, as
+  every existing manifest does. The recorder overrides the namespace with its
+  own generated one; `default` keeps the manifest usable by hand with a plain
+  `kubectl apply` while debugging.
+- Pin image tags, declare resource requests and limits, add the SPDX header,
+  and keep the pod alive well past the Running check (`sleep 300`) so the state
+  is stable when the watch sees it.
+
+Record on an isolated cluster:
+
+```bash
+make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>
+make record-e2e CLUSTER_NAME=<name> WORKLOADS=<operator>
+make e2e-down CLUSTER_NAME=<name>
+```
+
+The default `CLUSTER_NAME` (`karta-e2e`) runs `kubectl config use-context` and
+`kind export kubeconfig` against the shared `~/.kube/config`, so following the
+default commands with a production context selected switches that shell's
+context. Any other `CLUSTER_NAME` gets its own kubeconfig file under `~/.kube/`,
+and an explicit `KUBECONFIG=<file>` wins over both. Use the same `CLUSTER_NAME`
+on every `make` call. `WORKLOADS=<operator>` selects the flow by label;
+`E2E_LABELS` takes a raw Ginkgo label expression and `FLOW=<name>` narrows to one
+flow. See Record in `test/e2e/README.md`.
+
+Before `make check`:
+
+- Commit the new files first. The `validate` target requires a clean tree and
+  reports untracked files as `generated files or module manifests are stale or
+  untracked`, which reads like a broken generator but is not.
+- The recorded fixtures are recorder output and carry no SPDX header, like
+  every existing fixture. Do not add one.
+- `make test-replay` and `make verify-recordings` must be green, and every
+  fixture must end with `succeeded: true`.

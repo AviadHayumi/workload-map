@@ -39,6 +39,7 @@ multi-instance or nested pattern (for example Ray worker groups needing
 | Status reported through both a phase and conditions | `docs/catalog/milvus-io-milvus-v1beta1.yaml` | Declares both `phaseDefinition` and `conditionsDefinition`; maps statuses `byPhase`. |
 | Multi-service inference, each service its own component | `docs/catalog/serving-kserve-io-inferenceservice-v1beta1.yaml` | Predictor and transformer children mix `fragmentedPodSpecDefinition` and `podSpecPath` plus `metadataPath`; `componentTypeSelector` per service. |
 | Nested pod cliques and scaling groups | `docs/catalog/grove-io-podcliqueset-v1alpha1.yaml` | Multiple multi-instance children (`clique`, `scalinggroup`) each with `instanceIdPath` plus instance and replica selectors. This CRD has no aggregate phase, so status is mapped with `byExpression` over replica counts, not `byPhase`. |
+| Templates or steps that each run a pod (Argo Workflows, Tekton), where no pod label carries the template name | Start from `docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml` for the multi-instance shape, then follow Instance ids carried outside labels in `technical-guide.md` | One `Pod` child with `fragmentedPodSpecDefinition` paths iterating `.spec.templates[]`, `instanceIdPath` on the template name, and a `componentInstanceSelector` whose `idPath` reads the pod spec itself (an env value or annotation the controller sets). No `scaleDefinition`: a template runs any number of pods and the spec carries no count. |
 
 ## Pattern quick reference
 

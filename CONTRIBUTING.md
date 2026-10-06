@@ -188,17 +188,35 @@ Adding one means, in order:
 
 1. The builder under `pkg/catalog/kartas/`, registered in
    `pkg/catalog/catalog.go`, then `make generate-samples` for the generated
-   file under `docs/catalog/`. Never hand-edit the generated file.
+   file under `docs/catalog/`. Never hand-edit the generated file. Add the
+   workload to the Pre-built Karta Definitions table in `README.md`.
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
-   definition maps that a kind cluster can reach. Manifests pin image tags and
-   declare resource requests and limits. If the operator install needs new pieces, extend
-   the operator's script under `hack/e2e/operators/` so `make e2e-up` still
-   provisions everything.
-3. The recorded fixtures from a live run: `make record-e2e
-   E2E_LABELS="<label>"` against a `make e2e-up` cluster, committed under
-   `test/e2e/recorded_data/`.
-4. `make test-replay` and `make verify-recordings` green.
+   definition maps that a kind cluster can reach. Manifests pin image tags,
+   declare resource requests and limits, set `namespace: default` (the recorder
+   overrides it), and name objects `karta-e2e-<workload>-<flow>`. State
+   predicates read the CR's own fields, never Karta; `AddState` order is the
+   precedence, least to most advanced. See `test/e2e/recorder/README.md`. If
+   the operator is new or its install needs new pieces, follow Adding an
+   operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`, `smoke.yaml`,
+   the version pin in `global.env`, `ALL_WORKLOADS` and `version_of` in
+   `up.sh`) so `make e2e-up` still provisions everything. `Fixture.Operator`
+   in the flow must equal the directory name under `hack/e2e/operators/`;
+   that is how the recording is filed under the operator version.
+3. The recorded fixtures from a live run, committed under
+   `test/e2e/recorded_data/<operator>/<version>/<kartaName>/`:
+
+   ```sh
+   make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>
+   make record-e2e CLUSTER_NAME=<name> WORKLOADS=<operator>
+   ```
+
+   A non-default `CLUSTER_NAME` keeps the run on its own kubeconfig, so the
+   shared current-context is never switched. Fixtures are recorder output and
+   carry no SPDX header.
+4. `make test-replay` and `make verify-recordings` green. Commit the new files
+   before `make check`: the `validate` target treats untracked files as stale
+   generator output.
 
 ## Versioning
 

@@ -163,6 +163,33 @@ Matcher semantics (`StatusMatcher`):
   conditions or a phase.
 - Rules under one status are OR'd: any matching rule resolves the status.
 - Several statuses can match at once. Map only what the workload reports.
+- `byConditions` can only match a condition that exists. A frame written before
+  the controller adds the condition matches neither `status: "True"` nor
+  `status: "False"`. For "not yet written or not True" use `byExpression` over
+  `.status.conditions // []`:
+  `([.status.conditions // [] | .[] | select(.type == "PodRunning" and .status == "True")] | length) == 0`.
+
+Suspend that does not change the phase. Some controllers keep the phase at
+Running and leave the conditions alone while `.spec.suspend` is true; the pods
+simply stop being created. `Running` and `Suspended` then both match on every
+suspended frame, and the recorded flow cannot tell them apart. AND an expression
+into the non-suspended matchers so `Suspended` is exclusive:
+
+```yaml
+running:
+- byPhase: Running
+  byExpression:
+    expression: (.spec.suspend // false) | not
+    expectedResult: "true"
+suspended:
+- byExpression:
+    expression: (.spec.suspend // false) and ((.status.phase // "") | IN("", "Pending", "Running"))
+    expectedResult: "true"
+```
+
+On the test side the recorder's `AddState` order decides which of several
+matching states is the strongest (last match wins), so the flow mirrors this by
+declaring states least to most advanced.
 
 One matcher may combine kinds. A single `StatusMatcher` can set more than one of
 `byPhase`, `byConditions`, and `byExpression` at once, and then all of them must
@@ -200,6 +227,12 @@ scaleDefinition:
 ```
 
 All three paths are optional. Keep them null-safe.
+
+Omit the whole `scaleDefinition` when the spec carries no count for the
+component. A workflow template or pipeline step runs any number of pods, and
+nothing in the spec says how many. Do not write `replicasPath: 1` to fill the
+gap: it is a number the CRD never declared. karta-verify prints
+`replicas=<none>` for such a component, and that is not a warning.
 
 A component's replica count is the number of units at that component's level of
 the tree, counted across the whole workload. It is not the number of API objects
@@ -294,6 +327,25 @@ componentTypeSelector:
   keyPath: .metadata.annotations["leaderworkerset.sigs.k8s.io/leader-name"]
 ```
 
+Instance ids carried outside labels. Some controllers label pods only with the
+workload name and never with the instance (template, step) they belong to. Argo
+Workflows is the example: pods carry `workflows.argoproj.io/workflow` and
+`workflows.argoproj.io/completed`, and the template name exists only inside the
+`ARGO_TEMPLATE` env value of the executor container, as JSON. When no label
+carries the instance id, an `idPath` may read the pod spec itself: env values,
+annotations, or container names. `fromjson` is allowed, and the path must
+return exactly one value. Say in a comment under which conditions it returns
+null (for example a pod created by a different executor), because a null id maps
+the pod to no instance.
+
+```yaml
+componentInstanceSelector:
+  idPath: '[.spec.initContainers[]?, .spec.containers[]? | .env[]? | select(.name == "ARGO_TEMPLATE") | .value | fromjson | .name] | first'
+```
+
+Verify such a path against a real pod with `kubectl get pod <name> -o json | jq`
+before shipping it. karta-verify never sees a pod.
+
 ## Multi-instance components
 
 When one component holds several specs (an array or a map), give it an
@@ -306,6 +358,21 @@ instanceIdPath: .spec.workerGroupSpecs[].groupName
 # map of specs
 instanceIdPath: .spec.services | to_entries[] | .key
 ```
+
+This is not only a mutation concern. Reading breaks too: a component without
+`instanceIdPath` has one implicit instance, and a fragmented or scale path that
+iterates an array yields one result per element. The tree build then fails with
+`instance ids count (1) does not match results count (N)`
+(`zipWithInstanceIds` in `pkg/resource/component.go`). The rule: any
+fragmented or scale path that can return more than one value, or zero, requires
+`instanceIdPath` plus a `componentInstanceSelector`.
+
+The counts must also line up. `instanceIdPath` and every fragmented path must
+agree on which elements they visit, so when one uses a filter
+(`select(.container != null)`) all of them use the same filter. A one-element CR
+passes either way; test with a CR whose array has two entries, and with one that
+has zero if the CRD allows it (a workflow built from a template reference has no
+inline templates, and the component should then report zero instances, not fail).
 
 ## Additional child kinds
 
@@ -404,7 +471,9 @@ Rules for correct paths:
 - Pod selectors reference pod fields; selectors of the same kind are mutually exclusive across components.
 - Status conditions and phases match the workload's real API.
 - Every declared `conditionsDefinition` or `phaseDefinition` is referenced by at least one matcher, and every matcher has the definition it needs.
-- Replica counts describe the component's level, siblings at the same level agree, and nested levels multiply by the parent count.
+- Replica counts describe the component's level, siblings at the same level agree, and nested levels multiply by the parent count. A component whose spec carries no count has no `scaleDefinition`.
+- Every component whose paths can return several values has `instanceIdPath` plus `componentInstanceSelector`, and all its paths share the same `select(...)` filter.
+- When suspend does not change the phase, the `Running` and `Initializing` matchers AND a not-suspended expression so `Suspended` is exclusive.
 - Autoscaling bounds were looked for, not assumed absent.
 - Every `fragmentedPodSpecDefinition` path is assignable, or is documented as read-only.
 - No redundant duplicate kinds in `additionalChildKinds` (duplicates are allowed only when needed for RBAC or owner traversal).

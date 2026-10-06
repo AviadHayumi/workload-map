@@ -54,6 +54,7 @@ Raised by the Go Component API when reading a definition.
 |---|---|---|---|
 | `DefinitionNotFoundError` | `component <name> does not have suspendDefinition` | Code asked for a part the component does not define. | Add the missing definition, or guard the call with `errors.As` against `DefinitionNotFoundError`. |
 | `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id matches no instance from `instanceIdPath`. | Confirm the `componentInstanceSelector` reads the same id the `instanceIdPath` produces. |
+| tree build error | `instance ids count (1) does not match results count (N)` | A fragmented or scale path iterates an array on a component with no `instanceIdPath`, so N results meet one implicit instance. Also raised when the instance path and the fragmented paths disagree on their `select(...)` filter. | Add `instanceIdPath` and a `componentInstanceSelector`, or make every path share the same `select(...)` so the counts align. Test with a CR that has two array entries; one entry hides the bug. |
 
 ## Silent mistakes (valid but wrong)
 
@@ -92,6 +93,20 @@ These pass validation but behave incorrectly. Check them first when a definition
   over the real fields instead.
 - Mapping to `Undefined`. It is the implicit no-match result, not a target to
   map. Map only the statuses the workload reports.
+- `byConditions` with `status: "False"` for a condition the controller has not
+  written yet. The matcher only sees conditions that exist, so the early frame
+  reads `Undefined`. Use `byExpression` over `.status.conditions // []` and test
+  for the absence of a `True` entry.
+- `Running` and `Suspended` both matching on a suspended frame. A controller
+  that keeps the phase at Running while `.spec.suspend` is true needs a
+  not-suspended expression ANDed into the `Running` and `Initializing` matchers.
+- A multi-instance component that works on a one-element CR. A missing
+  `instanceIdPath` is invisible until the array has two entries. See the
+  runtime error above.
+- A recording filed under the Kubernetes version (`recorded_data/<op>/v1.34.0/`)
+  instead of the operator version. `Fixture.Operator` does not equal the
+  directory name under `hack/e2e/operators/`, so `operatorVersion()` found no
+  entry in `.installed-versions-<cluster>` and fell back to the server version.
 - A non-assignable jq path in a `fragmentedPodSpecDefinition`. These paths are
   used to mutate the pod spec, not only to read it, so each must be a path jq can
   assign through. A `//` fallback such as
