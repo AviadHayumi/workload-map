@@ -99,6 +99,39 @@ The structure in this view comes from Karta path expressions: the group, leader,
 
 ## Quick Start
 
+### Install the CLI
+
+Install the latest synchronized Go module release:
+
+```bash
+go install github.com/dsx-ai-factory/workload-map/cli/cmd/kli@latest
+```
+
+Or download a prebuilt archive for your platform from the
+[releases page](https://github.com/dsx-ai-factory/workload-map/releases) and put
+the `kli` executable on your `PATH`. Run `kli --version` to print the release
+version.
+
+Each release also publishes prebuilt `kli` archives for Linux and macOS on
+amd64 and arm64, with a `checksums.txt` manifest, on the
+[GitHub Releases page](https://github.com/dsx-ai-factory/workload-map/releases).
+
+To complete commands, workload types, workload names, and namespaces on TAB,
+load the completion script from your shell rc file:
+
+```bash
+# ~/.zshrc (after compinit)
+eval "$(kli completion zsh)"
+
+# ~/.bashrc, or ~/.bash_profile on macOS (needs the bash-completion package)
+eval "$(kli completion bash)"
+```
+
+In a clone of this repository, `make cli-completion-install` builds `kli` into
+`bin/` and loads its completion from your rc file instead.
+`make cli-completion-uninstall` removes it.
+`kli completion --help` lists the other shells and setup details.
+
 ### Install the CRD
 
 ```bash
