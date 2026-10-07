@@ -53,6 +53,36 @@ components:
   replicas: 9
 ```
 
+## Round-trip the writes
+
+Reading proves half of a definition. The other half is that a consumer can
+write through it without touching anything else, and that cannot be seen by
+reading the paths. `--write` exercises every write path in memory, on copies of
+the object, and prints what each write changed:
+
+```bash
+go run ./hack/karta-verify --karta ./mydef.yaml --workload ./real-cr.yaml --write
+```
+
+Per component it runs, each on its own copy:
+
+- Identity write: extract the pod spec through the definition and write it back
+  unchanged. It must change nothing. A changed path here means the write path
+  drops fields or materializes defaults the object never had, or the read path
+  and the write path do not address the same location.
+- Change probe: set one field (`nodeSelector["karta-verify/probe"]` for a pod
+  spec or pod template, otherwise the scheduler name, a label or the image of a
+  fragmented spec) to `karta-verify-probe` and write it back. Exactly one leaf
+  per instance must change, with that value. A `//` fallback or a filter in the
+  path shows up here as a write that landed somewhere else or nowhere.
+- Suspend, then resume: apply the suspend actions, then the resume actions.
+  Only the action paths may change. After resume the object should be back to
+  the original, except where the actions set a field the object did not carry.
+
+Every unexpected change is a warning, so `--strict` fails on it. A write path
+cannot be probed when the component extracts no instances from this object;
+the run says so and skips it.
+
 ## Flags
 
 | Flag | Purpose |
@@ -61,9 +91,10 @@ components:
 | `--workload` | Path to a real workload manifest. Without it, validation only. |
 | `--predict` | Predictions file to check the extraction against. Requires `--workload`. |
 | `--dump` | Write the observed extraction, in predictions format. Requires `--workload`. |
+| `--write` | Round-trip every write path in memory and report what changed. Requires `--workload`. |
 | `--strict` | Exit non-zero when the run reports warnings. Requires `--workload`. |
 
-The three extraction flags cannot do anything without a workload, so passing one
+The extraction flags cannot do anything without a workload, so passing one
 without it is an error rather than a pass. A dropped `--workload` must not look
 like success.
 
@@ -82,6 +113,11 @@ validator cannot see:
   path missed.
 - A component extracted a pod spec with no containers.
 - A component produced no instances, so `instanceIdPath` matched nothing.
+
+With `--write`, each write that did not do exactly what it should is a warning
+too: an identity write that changed something, a change probe that changed more
+than its field or landed in fewer places than there are instances, a suspend or
+resume that changed a path outside its actions, or a write the engine refused.
 
 ## Example
 
