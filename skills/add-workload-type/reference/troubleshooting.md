@@ -5,7 +5,8 @@
 
 Match the error text to a row and apply the fix. Messages come from the
 validator (`pkg/api/runai/v1alpha1/validation.go`), the jq validator
-(`pkg/jq/validation.go`), or the Go accessor API at runtime. The prose version
+(`pkg/jq/validation.go`), the Go accessor API at runtime, or a
+`hack/karta-verify` run against a CR. The prose version
 is `docs/Troubleshooting.md`.
 
 ## Structure validation errors
@@ -55,6 +56,14 @@ Raised by the Go Component API when reading a definition.
 | `DefinitionNotFoundError` | `component <name> does not have suspendDefinition` | Code asked for a part the component does not define. | Add the missing definition, or guard the call with `errors.As` against `DefinitionNotFoundError`. |
 | `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id matches no instance from `instanceIdPath`. | Confirm the `componentInstanceSelector` reads the same id the `instanceIdPath` produces. |
 | tree build error | `instance ids count (1) does not match results count (N)` | A fragmented or scale path iterates an array on a component with no `instanceIdPath`, so N results meet one implicit instance. Also raised when the instance path and the fragmented paths disagree on their `select(...)` filter. | Add `instanceIdPath` and a `componentInstanceSelector`, or make every path share the same `select(...)` so the counts align. Test with a CR that has two array entries; one entry hides the bug. |
+
+## karta-verify output
+
+| Message | Cause | Fix |
+|---|---|---|
+| `extracted a pod spec with no containers`, with `replicas=<none>` on the same line | A fixed child for a role the CR omits (TFJob PS or Evaluator, PyTorchJob Worker). Its probe write also creates the role. | Model the roles as one multi-instance child keyed by the map (step 3 in `SKILL.md`). |
+| `extracted a pod spec with no containers`, with a replica count | The spec path points at the wrong level, or a `fragmentedPodSpecDefinition` has no `containersPath`. | Check the path with jq against the CR. For a fragmented spec with no container field, run without `--strict` (step 7). |
+| `status: Running,Initializing` (two or more statuses) | Two rules match the same object, often one on a condition the controller never clears. | Make the rules exclusive (step 5 in `SKILL.md`). Do not widen the prediction. |
 
 ## Silent mistakes (valid but wrong)
 

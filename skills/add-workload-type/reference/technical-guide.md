@@ -179,7 +179,9 @@ Matcher semantics (`StatusMatcher`):
   the state lives in status fields (for example replica counts) rather than
   conditions or a phase.
 - Rules under one status are OR'd: any matching rule resolves the status.
-- Several statuses can match at once. Map only what the workload reports.
+- Several statuses can match at once, and all of them land in the workload's
+  phases list. Keep the rules exclusive so each frame reads one status (step 5
+  in `SKILL.md`). Map only what the workload reports.
 - `byConditions` can only match a condition that exists. A frame written before
   the controller adds the condition matches neither `status: "True"` nor
   `status: "False"`. For "not yet written or not True" use `byExpression` over

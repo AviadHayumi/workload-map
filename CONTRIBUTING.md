@@ -201,7 +201,11 @@ Adding one means, in order:
    the operator is new or its install needs new pieces, follow Adding an
    operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`, `smoke.yaml`,
    the version pin in `global.env`, `ALL_WORKLOADS` and `version_of` in
-   `up.sh`) so `make e2e-up` still provisions everything. `Fixture.Operator`
+   `up.sh`) so `make e2e-up` still provisions everything. A new kind for an
+   operator already installed keeps its directory, pin, and `up.sh` entries;
+   it extends any flag in `install.sh` that gates which kinds the controller
+   serves and adds a `<kind>-smoke.yaml` plus a `run_smoke` line in
+   `verify.sh`. `Fixture.Operator`
    in the flow must equal the directory name under `hack/e2e/operators/`;
    that is how the recording is filed under the operator version. The operator
    name is also the first `Label`; add the kind as a second label when the
@@ -224,9 +228,13 @@ Adding one means, in order:
    both commands: the recorder reads
    `hack/e2e/operators/.installed-versions-<cluster>` to pick the version
    directory, and without it files the fixtures under the Kubernetes version.
-   The fixtures already committed sit under `v1.34.0`; a new operator's go
-   under its pin from `hack/e2e/global.env`. Fixtures are recorder output and
-   carry no SPDX header.
+   The fixtures already committed sit under `v1.34.0`; new ones go under the
+   operator's `version_of` string from `hack/e2e/up.sh`, which can be
+   composite (`v1.9.0+mpiv0.8.2` for kubeflow). For a new kind on an operator
+   that ships several, pass the kind label to `record-e2e`
+   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded. Fixtures are
+   recorder output and carry no SPDX header. Every recorded state frame should
+   list one status in `phases`; two mean the status rules overlap.
 4. `make test-replay` and `make verify-recordings` green. Commit the new files
    before `make check`: the `validate` target treats untracked files as stale
    generator output.
