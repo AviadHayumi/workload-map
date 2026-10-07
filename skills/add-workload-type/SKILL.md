@@ -100,8 +100,9 @@ Establish:
 - The real statuses: exact condition types with their status and reason
   values, or the phase strings, as the controller sets them. Never invent one.
   A condition named by documentation, a user, or a task brief that the
-  controller never sets is dropped: derive the state from fields the controller
-  writes, and say so in the builder comment and the final answer.
+  controller never sets (a `Running` condition on a CRD that only writes
+  `Complete` and `Failed`) is dropped: derive the state from fields the
+  controller writes, and say so in the builder comment and the final answer.
 - Where the pod template lives, and one role or several. Take the role list
   from the controller loop that walks the roles, not the documentation. It
   includes deprecated aliases, whose pods need a component too.
@@ -194,8 +195,9 @@ One status per frame:
 - A phase derived from a spec field: let `Suspended` also match the field with
   an empty phase, and AND the field's negation into `Initializing`. A flag read
   before the phase switch, with the controller's own Suspending and Resuming
-  phases: map the flag-set frame to `Suspending` and the paused phase with the
-  flag cleared to `Resuming`, and mirror both in the flow with `AnyOf`.
+  phases: map a frame with the flag set and a phase it will suspend from to
+  `Suspending`, and the paused phase with the flag cleared to `Resuming`, and
+  mirror both in the flow with `AnyOf`.
 - A rule that negates a phase list (`IN(...) | not`) also matches the empty
   phase; say so in the builder comment.
 - A condition set once and never cleared: AND the absence of every later
@@ -277,6 +279,7 @@ Scale and suspend:
 - Bounds on how many child objects run go on that child with no
   `replicasPath`. Never put bounds in one unit next to a `replicasPath` in
   another.
+
 Detail: Status definition, Status mapping patterns, Scale definition, and
 Suspend definition (string values, a field cleared on resume, a hold honored
 only before start) in `reference/technical-guide.md`.
@@ -343,11 +346,12 @@ unverified.
   references them reports zero instances: run it without `--strict` and state
   the expected zero in the final answer.
 - A `fragmentedPodSpecDefinition` with no `containersPath` or `containerPath`
-  goes on the component whose pods it describes, not the root. Check its paths
-  with jq, run without `--strict` (`--write` too), and predict `podSpec: true`
-  with no `containers`. One `no containers` warning per such child is the only
-  expected warning; any other is a defect. Do not point `containerPath` at the
-  role spec to silence it.
+  goes on the component whose pods it describes, not on the root only because
+  the root is not extracted. Check its paths with jq, run without `--strict`
+  (`--write` too), and predict `podSpec: true` with no `containers`. One
+  `no containers` warning per such child is the only expected warning; any
+  other is a defect. Do not point `containerPath` at the role spec to silence
+  it.
 - Multi-instance: run against a CR whose array has two entries (a hand-written
   scratch CR is fine). Run against a CR in another state when one exists.
 - Run `--write --strict` against a CR that omits each optional role.
@@ -366,8 +370,10 @@ go run ./hack/karta-verify --karta <definition.yaml> \
 
 Each unexpected change is a warning. A `{}` or `null` identity-write change for
 a field the CR did not carry is the write engine's fault; say so in the final
-answer. A probe that lands short or elsewhere, or a suspend or resume that
-changes a path outside its actions, is a formula path: rewrite it plain. On
+answer. For a field the CR did carry, the read and write paths address
+different locations: fix the path. A probe that lands short or elsewhere, or
+a suspend or resume that changes a path outside its actions, is a formula
+path: rewrite it plain. On
 `skipped: no instances extracted`, fix the read side first.
 
 Output and scratch:
@@ -418,16 +424,21 @@ Operator install under `hack/e2e/`:
   which kinds the controller serves. Add `<kind>-smoke.yaml` and a second
   `run_smoke` line in `verify.sh`.
 - `verify.sh` drives the smoke manifest to a terminal or stable state with
-  `run_smoke`, given `<plural>.<group>/<name>-smoke`; required when the kind
-  collides with a builtin (a builtin Job is `job.batch/<name>`). A workload
-  that never settles and proves pods on an object it creates gets a hand-written
-  sequence (`apply_with_retry`, `kubectl wait` on the condition, `retry` until
-  the child exists, `kubectl wait` on the child by owner label,
+  `run_smoke`. Give it the fully qualified resource,
+  `<plural>.<group>/<name>-smoke`, which `kubectl wait` always resolves. It is
+  required when the kind collides with a builtin: a bare `job/` resolves to
+  `batch/v1` and waits on the wrong object, so a Volcano Job uses
+  `jobs.batch.volcano.sh/<name>-smoke` and a builtin Job `job.batch/<name>`. A
+  workload that never settles and proves pods on an object it creates gets a
+  hand-written sequence (`apply_with_retry`, `kubectl wait` on the condition,
+  `retry` until the child exists, `kubectl wait` on the child by owner label,
   `kubectl delete`), each step captured in `rc` so the delete always runs, and
   a comment saying why `run_smoke` is not used.
-- Make the install watch every namespace the controller and its webhooks
-  watch (chart: a co-located `values.yaml`); the recorder uses a generated
-  namespace.
+- Check which namespaces the controller and its webhooks watch (a
+  `--namespaces` flag, a `jobNamespaces` chart value, a webhook
+  `namespaceSelector`) and widen each to cover the recorder's generated
+  namespace (chart: a co-located `values.yaml`). Otherwise the run times out
+  with no frames.
 - Pods with no permissions upstream: a co-located RBAC manifest applied from
   `install.sh`, with a comment that it is scoped to the test cluster. Other
   cluster-scoped or shared objects the flows need: same way, with
@@ -516,14 +527,15 @@ Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
   is optional.
 - A write through an exposed path that makes the controller rerun the
   workload needs a flow that patches it from Running and walks back to Running.
-- Gates. A `With()` or `Do()` step must be reached: gate only the terminal step
-  or a certain one, and never pair `With()` with `Optional()`. A `Do()` whose
-  predicate reads a spec field is gated on a field only the controller writes.
-  A terminal status shared with an in-flight phase is gated on the CR field. A
-  `Do()` state that is also terminal gets a terminal `With()` on a field the
-  action changes and the controller echoes; confirm `STATE` frames follow the
-  `ACTION`. With a string or absent `observedGeneration`, the `With()` gate is
-  the only protection against a late write.
+- Gates. A `With()` or `Do()` step must be reached, in order: gate only the
+  terminal step or a certain one, and never pair `With()` with `Optional()`. A
+  `Do()` whose predicate reads a spec field is gated on a field only the
+  controller writes. A terminal status shared with an in-flight phase is gated
+  on the CR field. A `Do()` state that is also terminal gets a terminal
+  `With()` on a field the action changes and the controller echoes; confirm
+  `STATE` frames follow the `ACTION`. With a string or absent
+  `observedGeneration`, the `With()` gate is the only protection against a
+  late write.
 
 Manifests under `test/e2e/flows/testdata/<workload>/`:
 
@@ -557,14 +569,16 @@ make e2e-down CLUSTER_NAME=<name>
 - On `required state ... missing or out of order`, the `observed [...]` list is
   the real walk. Fix the mapping when a frame reads the wrong status; change
   the journey only when the frame is real and correctly mapped. When an action
-  step never reaches its next state, dump the frames and check for a stale
-  writer before dropping the flow.
+  step never reaches its next state, dump the frames (Reading fixtures in
+  `reference/recorded-flow.md`) and check for a stale writer before dropping
+  the flow.
 - After a failure, compare `Ran N of M Specs` with the `It` count and re-run
   the skipped flows with `FLOW`.
 - `make e2e-down` leaves the kubeconfig file and
   `hack/e2e/operators/.installed-versions-<cluster>`; remove both.
 
-After recording:
+After recording (yq commands for each check: Reading fixtures in
+`reference/recorded-flow.md`):
 
 - Rerun step 7, `--write` included, on the last frame of the flow's terminal
   state.
@@ -575,9 +589,11 @@ After recording:
   or mark it unproven. A reset or clear claim needs a frame where the field was
   set before the action. Trace pod claims to the code and check them on the
   hand-applied pod.
-- Before `make e2e-down`, `kubectl apply -f` one testdata manifest, wait until
-  it settles, and check selectors and `groupByKeyPaths` (or the owner chain)
-  with jq on its pod. Use its CR as a second `--write` input, then delete it.
+- Before `make e2e-down`, `kubectl apply -f` one testdata manifest and wait
+  until it settles. A pod that another pod creates appears later: loop on
+  `kubectl get` until it exists, then `kubectl wait`. Check selectors and
+  `groupByKeyPaths` (or the owner chain) with jq on its pod. Use its CR as a
+  second `--write` input, then delete it.
 
 Before `make check`:
 

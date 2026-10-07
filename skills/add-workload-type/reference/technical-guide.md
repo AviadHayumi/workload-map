@@ -377,9 +377,10 @@ scaleDefinition:
 ```
 
 All three paths are optional. Write them as plain assignable paths, even when
-the field is `omitempty`: an absent field reads as null, and `//` defaults
-belong only in status expressions. Older catalog entries such as
-`.spec.replicas // 1` predate this rule; do not copy the fallback. A count
+the field is `omitempty`: an absent field reads as null, which is the honest
+value, and `//` defaults belong only in status expressions. Older catalog
+entries such as `.spec.replicas // 1` predate this rule; do not copy the
+fallback. A count
 derived from several fields (see Two numbers, two levels) is the exception: it
 has no plain path, so it stays a read-only formula.
 

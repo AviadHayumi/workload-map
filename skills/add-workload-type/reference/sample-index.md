@@ -6,7 +6,8 @@
 Pick the definition whose shape is closest to the target workload, copy it, and
 adapt the GVK, paths, and status mapping. Every definition below lives in
 `docs/catalog/`, which also holds minimal, suspend-aware definitions for the
-built-in kinds.
+built-in kinds. Adapting a working sample is faster and safer than starting
+from an empty file.
 
 ## How to choose
 

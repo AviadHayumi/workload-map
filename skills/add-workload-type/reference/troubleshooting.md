@@ -82,7 +82,7 @@ Raised by the Go Component API when reading a definition.
 |---|---|---|
 | `required state ... missing or out of order` | The `observed [...]` list in the error is the real walk. | Fix the mapping when a frame reads the wrong status. Change the journey only when the frame is real and correctly mapped. |
 | An action step never reaches its next state | A stale writer (a polling loop) or a wrong mapping. | Dump the frames (Reading fixtures in `recorded-flow.md`) and check for a stale writer (step 5) before dropping the flow. |
-| The run times out with no frames | The controller or a webhook does not watch the recorder's generated namespace. | Make the install watch every namespace the controller and its webhooks watch. |
+| The run times out with no frames | The controller or a webhook does not watch the recorder's generated namespace. | Widen each namespace setting the controller and its webhooks read (a `--namespaces` flag, a `jobNamespaces` chart value, a webhook `namespaceSelector`) to cover the generated namespace (Namespaces the controller watches in `recorded-flow.md`). |
 | Every workload pod ends in error | The upstream manifest grants the pods no permissions. | Add a co-located RBAC manifest applied from `install.sh`. |
 | The webhook rollout times out | A one-shot Job that generates webhook certs has not finished. | `kubectl wait --for=condition=Complete job.batch/<init-job>` before `rollout_wait`. |
 | `install.sh` fails at exit on an unbound variable | The temp dir is `local`; the EXIT trap fires after `main` returns, under `set -u`. | Assign it without `local` before the `trap`. |
