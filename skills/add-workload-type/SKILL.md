@@ -96,6 +96,9 @@ and fetch the controller at the Kubernetes version of `KIND_NODE_IMAGE` in
 `curl -fsSL https://raw.githubusercontent.com/kubernetes/kubernetes/v1.34.0/pkg/controller/daemon/daemon_controller.go`.
 Grep it for `Status.Conditions` before mapping any condition. The DaemonSet
 and StatefulSet controllers write counters and `observedGeneration` only.
+Fetch the helpers a counter comes from as well, under
+`pkg/controller/<name>/util/` (the DaemonSet updated count comes from
+`IsPodUpdated` in `daemon/util/daemonset_util.go`).
 
 Proceed either way. Without a CR the definition can still be written and
 validated; it just cannot be exercised, which step 7 covers. When the definition
@@ -300,12 +303,23 @@ workload's own conditions or phases into Karta's normalized statuses:
   declares the dip `Optional()` in its flows; do not copy that. Every builder
   comment says whether `Degraded` is mapped. When it is not, name the fault
   signals the controller does write and the status each one reads (Kubeflow
-  `Restarting` reads `Initializing`).
+  `Restarting` reads `Initializing`). When it writes none to status (DaemonSet
+  pod failures are events only), say so, and name any counter a reader could
+  take for one. Read the controller branch before saying why it is not one:
+  DaemonSet `numberMisscheduled` also counts pods that a NoSchedule taint
+  lets keep running, so the controller does not always clear it.
+- A settled state that owes no pods (replicas 0, a node selector no node
+  matches) reads `Running`, as the StatefulSet and Grove rules do. Do not add
+  a desired > 0 guard that leaves it `Undefined`. Record it when the kind
+  cluster can reach it (a `nodeSelector` no node carries); otherwise name it
+  as unrecorded in the builder comment.
 - Read the spec fields that choose how the controller progresses (an update
   strategy such as `OnDelete`, a rollout `partition`) and check every rule
-  under each value, with the controller's default for an absent field
-  (`(.spec.updateStrategy.type // "RollingUpdate")`). Under `OnDelete` the
-  controller never replaces old pods by itself, so an updated count below the
+  under each value, with the default for an absent field
+  (`(.spec.updateStrategy.type // "RollingUpdate")`). Say where that default
+  comes from: API defaulting (`SetDefaults_DaemonSet`), a webhook, or the
+  controller. Under `OnDelete` the controller never replaces old pods by
+  itself, so an updated count below the
   desired one is a settled state. A rule that waits for it leaves a healthy
   workload in `Initializing` forever.
 - A condition the controller writes while it recreates pods needs no rule of
@@ -321,9 +335,9 @@ workload's own conditions or phases into Karta's normalized statuses:
   from fields already on the object (Volcano's Restarting goes to Failed when
   `status.retryCount >= spec.maxRetry`, else back to Pending), split the phase:
   one matcher per exit, `byPhase` plus a `byExpression` on those fields, each
-  under the status it ends in. Use the controller's default for an absent
-  field. Mirror the split in the flow predicates. Do not absorb the frame with
-  an extra `Optional()` step instead.
+  under the status it ends in. Use the default for an absent field. Mirror
+  the split in the flow predicates. Do not absorb the frame with an extra
+  `Optional()` step instead.
 - A controller can pause a workload without a spec field: Volcano suspends
   through a separate Command object (AbortJob, ResumeJob) and reports Aborting,
   then Aborted. Map the resumable paused phase to `Suspended` and its draining
@@ -487,12 +501,10 @@ a pod spec with no containers` next to `replicas=<none>`, and its probe write
 creates the role. That is the shape problem from step 3, not a CR to skip.
 
 Show the user the run output alongside the definition. Keep the predictions file
-and any scratch copies out of the repository. The default is a sibling
-directory next to the checkout; `<scratch>` below means that directory.
-Otherwise use a directory the clone ignores through its exclude file. In a
-linked worktree `.git` is a file, so find the exclude file with
-`git -C <checkout> rev-parse --git-path info/exclude`. karta-verify takes
-absolute paths. `go run` turns every non-zero exit into 1, so build once with
+and any scratch copies out of the repository, in a directory outside every
+checkout, such as one from `mktemp -d`. A sibling of a linked worktree can be
+another checkout. `<scratch>` below means that directory, and karta-verify
+takes absolute paths. `go run` turns every non-zero exit into 1, so build once with
 `go build -o <scratch>/verify ./hack/karta-verify` when the exit code matters
 (2 mismatch, 3 warnings). When something comes back empty or
 wrong, do not adjust the checklist; look the symptom up in
@@ -574,7 +586,7 @@ Catalog entry:
   of checks, why each guard exists, what is unproven, and what an action does
   not do (a pause that stops new work only and leaves running pods alive, so a
   consumer that suspends to free capacity gets none back). Do not restate the
-  paths. Existing builders run 3 to 26 comment lines.
+  paths. Existing builders run 3 to 26 comment lines; stay within that.
 - Add a row for the workload to the Pre-built Karta Definitions table in
   `README.md`. The table lists operator-backed kinds only. A Kubernetes builtin
   (apps, batch, core) gets no row; the `docs/catalog/` link covers it.
@@ -834,7 +846,12 @@ above):
 - The kind cluster has a tainted control-plane and two workers
   (`hack/e2e/kind-config.yaml`). Do not tolerate the taint. When one pod of a
   per-node workload must behave differently, read `spec.nodeName` through the
-  downward API and branch on one worker (`*-worker2`).
+  downward API and branch on one worker (`*-worker2`). To keep that pod
+  unready, fail its readiness probe (an exec probe sees the container env)
+  rather than exit: a crash loop flips Ready on every restart and the counters
+  never settle. The settled partial frame can carry the same counters as a
+  transient frame of a normal start, and the controller writes nothing after
+  it. Say in the flow comment that the recording cannot tell the two apart.
 - Set `automountServiceAccountToken: false` on the pod template unless the
   workload's pods call the API server, as the pod, batch-job, deployment, and
   statefulset manifests do.
@@ -870,25 +887,31 @@ kubeconfig file. It always leaves the ignored
 `hack/e2e/operators/.installed-versions-<cluster>`. Remove both yourself.
 
 After recording, run step 7 again, `--write` included, on a CR the controller
-wrote. Each fixture holds one: extract the last Running frame with
+wrote. Each fixture holds one: extract the last frame of the flow's terminal
+state with
 `yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml`
-and pass it as `--workload`. Read each fixture with yq:
+(`Initializing` for a flow that ends there) and pass it as `--workload`.
+Read each fixture with yq:
 `yq '.result.succeeded' <fixture>` for the outcome,
-`yq '.events[0].object.status.conditions' <fixture>` for the first frame, and
+`yq '.events[0].object.status' <fixture>` for the first frame, and
 `yq '[.events[] | .state + "=" + ((.phases // []) | join(","))] | join(" -> ")' <fixture>`
 for the walk. Action frames show an empty state. Every `STATE` frame must list
 one status in `phases`; `Running=Initializing,Running` is the overlap from
 step 5. Fix the rule and re-record. Before `make e2e-down`, also check the
-`podSelector` and `groupByKeyPaths` paths with jq against a real pod
-(`kubectl get pod -l <owner label> -o json`), as step 7 describes.
+`podSelector` and `groupByKeyPaths` paths, or the owner chain when there are
+none, with jq against a real pod (`kubectl get pod -l <owner label> -o json`),
+as step 7 describes.
 
 Before `make check`:
 
 - Run `make lint-shell`, `make test-replay`, and `make verify-recordings` first;
-  they take seconds. The first `make check` on a fresh checkout downloads
-  golangci-lint, then goreleaser in the cli and operator phases, and stays
-  silent for minutes in each. The whole check can outlast a tool timeout, so
-  run it in the background with its output in a log file and poll the log.
+  they take seconds. `make check` does not vet or lint the `test/e2e` module,
+  so also run `GOWORK=off go vet ./...` and `gofmt -l .` there. Then run
+  `make check`; do not skip it. When `bin/` already holds the pinned
+  `golangci-lint-<version>` and `goreleaser-<version>`, it finishes in the
+  foreground within a 10 minute timeout. Otherwise it downloads both and stays
+  silent for minutes, so run it in the background with its output in a log
+  file and poll the log.
 - Commit the new files, fixtures included, before `make check`. The `validate`
   target requires a clean tree and reports untracked files as `generated files
   or module manifests are stale or untracked`, which reads like a broken

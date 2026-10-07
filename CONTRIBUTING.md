@@ -244,9 +244,10 @@ Adding one means, in order:
    the normal loop after a failure. Fixtures are
    recorder output and carry no SPDX header. Every recorded state frame should
    list one status in `phases`; two mean the status rules overlap.
-4. `make test-replay` and `make verify-recordings` green. Commit the new files
-   before `make check`: the `validate` target treats untracked files as stale
-   generator output.
+4. `make test-replay` and `make verify-recordings` green, and
+   `GOWORK=off go vet ./...` clean in `test/e2e`, which `make check` does not
+   cover. Commit the new files before `make check`: the `validate` target
+   treats untracked files as stale generator output.
 
 ## Versioning
 
