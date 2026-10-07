@@ -298,6 +298,9 @@ are easy to miss because they usually live somewhere other than the replica fiel
 itself, for example PyTorchJob's `.spec.elasticPolicy.minReplicas` or Grove's
 `.spec.template.cliques[].spec.autoScalingConfig.minReplicas`. Search the CRD for
 an autoscaling or elastic policy block before deciding the workload has none.
+When a flag turns the bounds on (Spark `spec.dynamicAllocation.enabled`), Karta
+still reads them with the flag off, and the gang minimum below uses them. Say
+so in the builder comment.
 
 `minReplicasPath` is also the gang minimum. Gang scheduling sizes a component
 from its min replicas when set and above zero, else from its replicas
@@ -535,6 +538,18 @@ Both are pod-level paths, not workload paths. When copying a catalog definition
 as a skeleton, copy the format it uses rather than converting it, and check the
 `groupByKeyPaths` label keys against the target controller's real pod labels the
 same way as `podSelector` keys.
+
+Gang scheduling and creator pods. When one role's pods are created by another
+role's running pod (a Spark driver creates its executors through the API), the
+creator must schedule alone first. A gang over both with a minimum above 1
+holds the creator until pods that cannot exist yet appear, and the workload
+never starts. Read the minimum of the operator's own PodGroup integration
+before writing a gang: spark-operator sets `MinMember` 1 so the driver
+schedules first. Gang only the roles the controller creates together, or leave the
+gang out and say why in the builder comment. The tree has the same trap: a
+creator with no `scaleDefinition` and the created role as its child gets its
+children's count from `CalculateSubtreeScale`
+(`pkg/instructions/gang_scheduling.go`), not 1. Name that in the comment too.
 
 ## jq safety rules
 

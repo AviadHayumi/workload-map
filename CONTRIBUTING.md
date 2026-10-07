@@ -194,8 +194,8 @@ Adding one means, in order:
    kinds only.
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
-   definition maps, and each update strategy value a rule branches on
-   (`OnDelete`, paused, a partition), that a kind cluster can reach. When the
+   definition maps, and each spec value a rule branches on (`OnDelete`,
+   paused, a partition, a restart policy), that a kind cluster can reach. When the
    definition can suspend a running workload, one flow fires the suspend
    action from Running; a CR created suspended does not prove it. Manifests pin image tags,
    declare resource requests and limits, set `namespace: default` (the recorder

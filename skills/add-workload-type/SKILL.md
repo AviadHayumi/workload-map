@@ -81,7 +81,10 @@ and label names. Do not guess them from documentation alone. The controller code
 that assigns the phase or conditions is the source of truth for step 5, not the
 enum in the CRD schema. Pin the newest release tag that is not a prerelease
 (`git ls-remote --tags --refs <repo-url> | sort -V -k2`); it becomes the
-`<NAME>_VERSION` in step 8. When the operator is already in
+`<NAME>_VERSION` in step 8. For an operator installed from a Helm chart, the
+pin is the chart version instead (kuberay `1.6.2`, milvus `1.3.7`); check that
+the chart's `appVersion` is the tag the source was read at, and note any
+difference next to the pin. When the operator is already in
 `hack/e2e/global.env` (a new kind for Kubeflow), read the source at that pinned
 tag instead and leave the pin alone: a bump re-records every flow of that
 operator. A checkout already on another branch gets the tag
@@ -154,7 +157,11 @@ The three patterns are mutually exclusive. Set exactly one per component:
   the field, not only read it, so it must be a path jq can assign through: a `//`
   fallback reads fine but breaks on write. When a field has a default plus an
   override, model the varying items as a multi-instance component
-  (`instanceIdPath`) rather than reaching for a fallback. See
+  (`instanceIdPath`) rather than reaching for a fallback. When the CRD offers
+  an optional full template next to the scattered fields (Spark
+  `spec.driver.template`), use the scattered fields: an absent template reads
+  null, and a write through it creates a template with no containers. Say in
+  the builder comment that the template is not read. See
   `reference/technical-guide.md`.
 
 Any path that iterates an array (`.spec.templates[]`, `.spec.workerGroupSpecs[]`)
@@ -243,7 +250,14 @@ workload's own conditions or phases into Karta's normalized statuses:
   the frames before the first phase write still carry that field. Mirror the
   controller: let `Suspended` also match the field with an empty phase,
   `(.spec.paused // false) and (.status.phase // "") == ""`, and AND
-  `(.spec.paused // false) | not` into `Initializing`.
+  `(.spec.paused // false) | not` into `Initializing`. When the controller
+  reads the flag before its phase switch and writes its own Suspending and
+  Resuming phases (Spark `spec.suspend`), a frame with the flag set and a
+  phase it will suspend from reads `Suspending`, and the paused phase with the
+  flag cleared reads `Resuming`: the status of the phase it writes next. Mirror
+  both in the flow with `AnyOf` over the phase and the flag. A rule that
+  negates a phase list (`IN(...) | not`) also matches the empty phase, so it
+  maps the object with no status too; say so in the builder comment.
 - When suspending does not change the phase or conditions (the controller keeps
   the phase at Running while `.spec.suspend` is true), AND an expression such as
   `(.spec.suspend // false) | not` into the `Running` and `Initializing`
@@ -332,7 +346,8 @@ workload's own conditions or phases into Karta's normalized statuses:
   itself, so an updated count below the
   desired one is a settled state. A rule that waits for it leaves a healthy
   workload in `Initializing` forever. Record one flow per value a rule branches
-  on (`OnDelete`, `paused`, a partition) when the kind cluster can reach it,
+  on (`OnDelete`, `paused`, a partition, a restart policy) when the kind
+  cluster can reach it,
   and name any branch left unrecorded in the builder comment. Check the
   operator's feature gates the same way (a gate that changes how the
   controller moves pods) and name any that a rule does not cover.
@@ -350,8 +365,9 @@ workload's own conditions or phases into Karta's normalized statuses:
   `status.retryCount >= spec.maxRetry`, else back to Pending), split the phase:
   one matcher per exit, `byPhase` plus a `byExpression` on those fields, each
   under the status it ends in. Use the default for an absent field. Mirror
-  the split in the flow predicates. Do not absorb the frame with an extra
-  `Optional()` step instead.
+  the split in the flow predicates, and record each exit the kind cluster can
+  reach (a retry policy with one retry and a short interval reaches the retry
+  exit). Do not absorb the frame with an extra `Optional()` step instead.
 - A controller can pause a workload without a spec field: Volcano suspends
   through a separate Command object (AbortJob, ResumeJob) and reports Aborting,
   then Aborted. Map the resumable paused phase to `Suspended` and its draining
@@ -414,7 +430,10 @@ The validator cannot check these. Confirm each one:
 - Status conditions and phases match the workload's real API.
 - Every gang-scheduling `componentName` names a defined component. The validator
   checks this only for the deprecated `podGroups` format; references under
-  `podGroup.subGroups` are not checked, so verify those by hand.
+  `podGroup.subGroups` are not checked, so verify those by hand. A gang holds
+  only pods that can exist together: never gang a role with the role whose
+  running pod creates it (a Spark driver creates its executors). See Gang
+  scheduling and creator pods in `reference/technical-guide.md`.
 - Replica counts describe the right level of the tree, and siblings at the same
   level agree. See the scale section of `reference/technical-guide.md`.
 
@@ -506,8 +525,13 @@ final answer. The same holds for a `fragmentedPodSpecDefinition` with no
 `containersPath` or `containerPath` (a CRD that only exposes image and
 resources overrides): on a child it always warns `extracted a pod spec with no
 containers`. Put the spec on the component whose pods it describes, not on the
-root only because the root is not extracted, run without `--strict`, state the
-expected warning, and check its paths with jq against the CR.
+root only because the root is not extracted, and check its paths with jq
+against the CR. Run without `--strict`, the `--write` runs included, and
+predict such a component with `podSpec: true` and no `containers` line. One
+`no containers` warning per such child is the only expected one (Milvus warns
+the same way); any other warning is still a defect. Do not point
+`containerPath` at the role spec to silence it: the write stores a whole
+container there and drops the role's other fields.
 
 Also run `--write --strict` against a CR that omits each optional role, not only
 one that carries every role. A fixed child for an absent role warns `extracted
@@ -545,7 +569,9 @@ Two more runs are needed when they apply:
   definition with no selectors (the CronJob shape) relies on the rules in
   Component or additional kind in `reference/technical-guide.md`; check the
   pod's owner chain instead,
-  `kubectl get pod <pod> -o json | jq '.metadata.ownerReferences'`.
+  `kubectl get pod -l <label> -o json | jq -r '.items[] | .metadata.name + " " + ([.metadata.ownerReferences[]? | .kind + "/" + .name + "(controller=" + ((.controller // false) | tostring) + ")"] | join(","))'`.
+  A pod can carry several owners; the component `ownerRef` names the one with
+  `controller=true`.
 
 Then prove the writes. Reading is half of a definition; a consumer also writes
 through it, and a path that reads fine can write somewhere else or drop fields.
@@ -558,7 +584,9 @@ go run ./hack/karta-verify --karta <definition.yaml> \
 
 Per component, the root included, it writes the pod spec back unchanged
 (nothing may change), sets one probe field and writes again (exactly one leaf
-per instance may change),
+per instance may change; the probe is a `nodeSelector` entry, or for a
+fragmented spec the scheduler name when `schedulerNamePath` is set, else a
+label, else the image),
 and applies the suspend actions then the resume actions (only the action paths
 may change). It prints every changed path with its before and after value, and
 each unexpected change is a warning. Read the output this way:
@@ -603,7 +631,11 @@ Catalog entry:
   of checks, why each guard exists, what is unproven, and what an action does
   not do (a pause that stops new work only and leaves running pods alive, so a
   consumer that suspends to free capacity gets none back). Do not restate the
-  paths. Existing builders run 3 to 26 comment lines; stay within that.
+  paths. Existing builders run 3 to 26 comment lines; stay within that. When
+  the required items do not fit, first cut what the fixtures and flow comments
+  already show (the recorded phase sequence) and merge sentences. Keep the
+  unproven branches, the unmapped fault signals, and what an action does not
+  do.
 - Add a row for the workload to the Pre-built Karta Definitions table in
   `README.md`. The table lists operator-backed kinds only. A Kubernetes builtin
   (apps, batch, core) gets no row; the `docs/catalog/` link covers it.
@@ -642,16 +674,34 @@ Operator install under `hack/e2e/`:
   condition on the workload, a `retry` until the child exists (`kubectl wait`
   with a label selector fails while nothing matches), `kubectl wait` on the
   child by its owner label, then `kubectl delete`. Capture each step in `rc`
-  so the delete always runs, and say in a comment why `run_smoke` is not used. When the upstream release manifest grants the workload's pods no
+  so the delete always runs, and say in a comment why `run_smoke` is not used.
+- The recorder creates only the one flow object, in a namespace it generates.
+  Check which namespaces the controller and its webhooks watch (a
+  `--namespaces` flag, a `jobNamespaces` chart value, a webhook
+  `namespaceSelector`) and make the install watch all of them, in a
+  co-located `values.yaml` for a chart (`grove/values.yaml`). Otherwise the
+  flow object is never reconciled and the run times out with no frames.
+- When the upstream release manifest grants the workload's pods no
   permissions (every pod ends in error until a role exists), add a co-located
   RBAC manifest, apply it from `install.sh`, and say in a comment that it is
   scoped to the test cluster. Any other cluster-scoped or shared object the
   flows need (a runtime, a class, a template the CR references by name) goes
-  the same way: the recorder creates only the one flow object, in its own
-  namespace. Apply it with `apply_with_retry` and name its users in a comment.
+  the same way. Apply it with `apply_with_retry` and name its users in a
+  comment. A namespaced object the pods need (a ServiceAccount, its
+  RoleBinding, a Secret) must live in the generated namespace, which a chart
+  that creates it per configured namespace cannot reach. Put a ClusterRole in
+  the RBAC manifest, and create the namespaced objects in the flow's
+  `BeforeAll` through a helper in `test/e2e/flows/setup_test.go`, as
+  `ensureSecret` does; register any new API group in `suite_test.go`.
   When the CR has no pod template of its own, the pod-template conventions
   below (`automountServiceAccountToken: false`, requests and limits, pinned
   image, `sleep 300`) go into that object instead.
+- To preload a large workload image, pass the pinned upstream reference as
+  both arguments, `preload_image "${img}" "${img}" || warn "..."`, and keep
+  testdata on that reference. `kind load` can fail on a multi-arch image under
+  Docker Desktop's containerd store (Shared helpers in `hack/e2e/README.md`);
+  the nodes then pull the same reference. A local tag (`ray-e2e:local`) works
+  only when the load does.
 - Give `run_smoke` the fully qualified resource,
   `<plural>.<group>/<name>-smoke` (`clonesets.apps.kruise.io/kruise-smoke`);
   `kubectl wait` always resolves it. It is required when the kind collides with
@@ -822,9 +872,13 @@ Flow under `test/e2e/flows/`:
   name. A pod template annotation patch drives a rollout on any kind that
   rolls its template. Use `AnnotatePodTemplate(key, value)` with
   `ActionRollout` (`"Rollout"`) for it, and add both under those names when
-  they are missing. A `Do()` step fires on the first frame judged to
-  be its state, which can be that pre-status frame when the predicate reads a
-  spec field (a `Suspended` that matches `spec.paused`). Gate such a step on a
+  they are missing. When a write through a path the definition exposes makes
+  the controller rerun or invalidate the workload (spark-operator resubmits on
+  any spec change other than suspend and TTL), record a flow that patches one
+  of those paths from Running and walks the rerun phases back to Running. A
+  `Do()` step fires on the first frame judged to be its state, which can be
+  that pre-status frame when the predicate reads a spec field (a `Suspended`
+  that matches `spec.paused`). Gate such a step on a
   field only the controller writes, for example
   `Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("Paused", "status", "phase")).Do(...)`.
 - A step with `With()` or `Do()` is one the run must reach, in order: the run
@@ -922,7 +976,8 @@ With `KUBECONFIG` exported, `make e2e-down` deletes the cluster but leaves the
 kubeconfig file. It always leaves the ignored
 `hack/e2e/operators/.installed-versions-<cluster>`. Remove both yourself.
 
-After recording, run step 7 again, `--write` included, on a CR the controller
+After recording, run step 7 again, `--write` included (without `--strict` for
+the no-containers case there), on a CR the controller
 wrote. Each fixture holds one: extract the last frame of the flow's terminal
 state with
 `yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml`
@@ -943,11 +998,17 @@ conditions are set, which are never cleared, which defaults the webhook
 stores. `yq '.events[-1].object.status.conditions' <fixture>` shows the
 settled frame, and the frame dump from the `required state` bullet above
 shows when each condition appears and drops. Rewrite each claim as an
-observed fact or mark it unproven.
+observed fact or mark it unproven. A claim that the controller resets or
+clears a field needs a frame where the field was set before the action; a
+fixture that starts from zero proves nothing about a reset. The fixtures hold
+only the CR, so a claim about pods (owner references, labels) is traced to the
+code that writes it and checked on the hand-applied pod below.
 
 The recorder deletes each flow object after its run, so no recorded pod is
 left. Before `make e2e-down`, `kubectl apply -f` one testdata manifest by hand
-(it lands in `default`), `kubectl wait` until it settles, and check the
+(it lands in `default`), `kubectl wait` until it settles (a pod that another
+pod creates appears later, so loop on `kubectl get` until it exists first, as
+the `verify.sh` bullet does), and check the
 `podSelector` and `groupByKeyPaths` paths, or the owner chain when there are
 none, with jq against its pod (`kubectl get pod -l <owner label> -o json`),
 as step 7 describes. Its `kubectl get <kind> <name> -o yaml` is a second
