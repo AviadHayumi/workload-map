@@ -194,9 +194,10 @@ Adding one means, in order:
    kinds only.
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
-   definition maps that a kind cluster can reach. When the definition can
-   suspend a running workload, one flow fires the suspend action from Running;
-   a CR created suspended does not prove it. Manifests pin image tags,
+   definition maps, and each update strategy value a rule branches on
+   (`OnDelete`, paused, a partition), that a kind cluster can reach. When the
+   definition can suspend a running workload, one flow fires the suspend
+   action from Running; a CR created suspended does not prove it. Manifests pin image tags,
    declare resource requests and limits, set `namespace: default` (the recorder
    overrides it), set `automountServiceAccountToken: false` unless the pods call
    the API server, and name objects `karta-e2e-<workload>-<flow>`. State

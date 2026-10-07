@@ -293,9 +293,19 @@ workload's own conditions or phases into Karta's normalized statuses:
   `Degraded`: the work already started keeps running, and a consumer that reads
   `Failed` as final may delete it. When one condition carries both kinds, split
   it by reason and mirror the split in the flow with a status-plus-reason
-  predicate.
-- Map `Degraded` only on a field that a fault sets and normal progress does
-  not (a failure condition, an error reason, a restart count). A controller
+  predicate. A progress deadline is `Degraded` too:
+  `Progressing=False/ProgressDeadlineExceeded` goes back to True by itself once
+  the pods become available, in the Deployment and the OpenKruise CloneSet
+  alike. Read how the controller times the deadline as well. The CloneSet keeps
+  the last write time of an unchanged condition, so a healthy scale-up of a
+  CloneSet settled longer than the deadline hits it on the first reconcile.
+  The Deployment sample maps it to `Failed`; do not copy that.
+- Map `Degraded` only on a field that a fault sets, normal progress does not,
+  and the controller clears on recovery (a failure condition, an error reason,
+  a restart count). A condition the controller never clears (CloneSet
+  `FailedScale` and `FailedUpdate`, which a pod update conflict also raises on
+  a healthy rollout) does not qualify: leave it unmapped and say in the
+  builder comment that a consumer wanting the fault reads it directly. A controller
   that reports only counters cannot tell one stuck pod from one that is
   starting: some-but-not-all ready also holds on every create, the last pod of
   every rollout, and every node join. Map that partial to `Initializing`, as
@@ -321,7 +331,11 @@ workload's own conditions or phases into Karta's normalized statuses:
   controller. Under `OnDelete` the controller never replaces old pods by
   itself, so an updated count below the
   desired one is a settled state. A rule that waits for it leaves a healthy
-  workload in `Initializing` forever.
+  workload in `Initializing` forever. Record one flow per value a rule branches
+  on (`OnDelete`, `paused`, a partition) when the kind cluster can reach it,
+  and name any branch left unrecorded in the builder comment. Check the
+  operator's feature gates the same way (a gate that changes how the
+  controller moves pods) and name any that a rule does not cover.
 - A condition the controller writes while it recreates pods needs no rule of
   its own when the guarded rule above already maps the frame (Kubeflow
   `Restarting` evicts `Running`, and the frame reads `Initializing`). Say which
@@ -503,7 +517,10 @@ creates the role. That is the shape problem from step 3, not a CR to skip.
 Show the user the run output alongside the definition. Keep the predictions file
 and any scratch copies out of the repository, in a directory outside every
 checkout, such as one from `mktemp -d`. A sibling of a linked worktree can be
-another checkout. `<scratch>` below means that directory, and karta-verify
+another checkout. When the editing tool cannot write outside the workspace,
+use a git-ignored directory that is not itself a checkout
+(`<workspace>/.context/<name>-scratch`), never one inside the worktree being
+changed. `<scratch>` below means that directory, and karta-verify
 takes absolute paths. `go run` turns every non-zero exit into 1, so build once with
 `go build -o <scratch>/verify ./hack/karta-verify` when the exit code matters
 (2 mismatch, 3 warnings). When something comes back empty or
@@ -635,10 +652,12 @@ Operator install under `hack/e2e/`:
   When the CR has no pod template of its own, the pod-template conventions
   below (`automountServiceAccountToken: false`, requests and limits, pinned
   image, `sleep 300`) go into that object instead.
-- When the CRD kind collides with a builtin (a `Job` outside `batch`), use the
-  fully qualified resource, for example `jobs.batch.volcano.sh/<name>-smoke` as
-  the `run_smoke` target and `job.batch/<name>` for a builtin Job. A bare `job/`
-  resolves to `batch/v1` and waits on the wrong object.
+- Give `run_smoke` the fully qualified resource,
+  `<plural>.<group>/<name>-smoke` (`clonesets.apps.kruise.io/kruise-smoke`);
+  `kubectl wait` always resolves it. It is required when the kind collides with
+  a builtin (a `Job` outside `batch`): a bare `job/` resolves to `batch/v1` and
+  waits on the wrong object, so use `jobs.batch.volcano.sh/<name>-smoke`, and
+  `job.batch/<name>` for a builtin Job.
 - Pin the install manifest in this order of preference: the GitHub release
   asset `https://github.com/<org>/<repo>/releases/download/<tag>/<asset>`
   (jobset, lws, kserve), a raw manifest at the tag
@@ -649,7 +668,13 @@ Operator install under `hack/e2e/`:
   (`v2.21.0`); a Helm chart version has no `v`. When the asset name drops the
   `v` (`keda-2.21.0.yaml`), derive it in `install.sh` with `${<NAME>_VERSION#v}`
   and say so next to the pin. Project storage buckets often lag the newest
-  tag. Run `curl -fsSIL <url>` before writing `install.sh`. A remote kustomize
+  tag. List the release assets first,
+  `gh release view <tag> -R <org>/<repo> --json assets -q '.assets[].name'`;
+  a guessed URL that returns 404 does not tell a missing asset from a wrong
+  name. Then run `curl -fsSIL` on the listed asset before writing
+  `install.sh`. A Helm chart installs with
+  `helm upgrade -i <release> <repo>/<chart> --version "${<NAME>_VERSION}"`
+  (kuberay, milvus). A remote kustomize
   resource must be a directory, so a single upstream file (a Namespace) is
   copied locally. When the upstream overlay or chart bundles an operator the
   suite installs on its own (a JobSet), do not install it twice: render a
@@ -659,12 +684,20 @@ Operator install under `hack/e2e/`:
   webhook certs, `kubectl wait --for=condition=Complete job.batch/<init-job>`
   before `rollout_wait` on the webhook, or the rollout times out on a pod waiting
   for the secret.
-- Grep the manifest for `kind: Namespace` and `namespace:`. Some release
+- Grep the manifest (for a chart, `helm template` output) for
+  `kind: Namespace` and `namespace:`. Some release
   manifests (Argo Rollouts) carry neither, so a plain `kubectl apply -f` lands
   the controller in `default` while its ClusterRoleBinding names a ServiceAccount
   in the intended namespace. Create the namespace and apply with `-n <ns>`, as
   upstream documents. After a failed install on a reused cluster, delete what
-  landed in the wrong namespace before running `make e2e-up` again.
+  landed in the wrong namespace before running `make e2e-up` again. A chart
+  that renders its own Namespace owns it: install it as upstream documents,
+  usually with no `-n` and no `--create-namespace` (that flag would make two
+  owners). Do not turn the
+  chart's Namespace off instead. Its labels are lost, and a webhook
+  `namespaceSelector` can key on them: OpenKruise exempts
+  `control-plane: openkruise` from its fail-closed pod webhook, so without the
+  label its own manager pods must pass a webhook that is not up yet.
 - A temp dir in `install.sh` must not be `local`: the EXIT trap fires after
   `main` returns, and under `set -u` it fails on an unbound variable. Assign it
   without `local` before `trap 'rm -rf "${tmp}"' EXIT`, as `dynamo/install.sh`
@@ -726,7 +759,9 @@ Flow under `test/e2e/flows/`:
   `FullyAvailable`, `ReplicasDegraded`, and `ReplicasInitializing` do.
 - Prove the predicates offline before the cluster run. Write a scratch
   `func TestX(t *testing.T)` in `test/e2e/flows` that decodes each step 7 CR
-  with `yaml.YAMLToJSON` then `Unstructured.UnmarshalJSON`, and asserts that
+  with `yaml.YAMLToJSON` (import `sigs.k8s.io/yaml`) then
+  `Unstructured.UnmarshalJSON`
+  (`k8s.io/apimachinery/pkg/apis/meta/v1/unstructured`), and asserts that
   exactly one predicate holds and that it names the status karta-verify
   printed. A plain `yaml.Unmarshal` into a map yields float64, so
   `NestedInt64` reads 0 and every counter predicate passes or fails silently.
@@ -785,7 +820,9 @@ Flow under `test/e2e/flows/`:
   An action that is not a suspend, resume, or scale needs a new `ActionType`
   constant in `test/e2e/recorder/flow.go`; it is only the recorded action
   name. A pod template annotation patch drives a rollout on any kind that
-  rolls its template. A `Do()` step fires on the first frame judged to
+  rolls its template. Use `AnnotatePodTemplate(key, value)` with
+  `ActionRollout` (`"Rollout"`) for it, and add both under those names when
+  they are missing. A `Do()` step fires on the first frame judged to
   be its state, which can be that pre-status frame when the predicate reads a
   spec field (a `Suspended` that matches `spec.paused`). Gate such a step on a
   field only the controller writes, for example
@@ -827,8 +864,7 @@ Flow under `test/e2e/flows/`:
   at least 2 after a template patch, the new ready count after a scale.
   Without it the run ends on the frame that fired the action, and the order
   check still passes because a revisit may be absent. After the first run,
-  confirm `STATE` events follow the `ACTION` event:
-  `yq '[.events[] | .kind + ":" + (.state // "")] | join(" -> ")' <fixture>`.
+  confirm in the walk below that `STATE` frames follow the `ACTION`.
 
 Manifests under `test/e2e/flows/testdata/<workload>/` (`<workload>` as chosen
 above):
@@ -894,13 +930,28 @@ state with
 Read each fixture with yq:
 `yq '.result.succeeded' <fixture>` for the outcome,
 `yq '.events[0].object.status' <fixture>` for the first frame, and
-`yq '[.events[] | .state + "=" + ((.phases // []) | join(","))] | join(" -> ")' <fixture>`
-for the walk. Action frames show an empty state. Every `STATE` frame must list
+`yq '[.events[] | (.state // "ACTION") + "=" + ((.phases // []) | join(",")) + ((.staleObservedGeneration // false) | tostring | sub("true", "(stale)") | sub("false", ""))] | join(" -> ")' <fixture>`
+for the walk. Every `STATE` frame must list
 one status in `phases`; `Running=Initializing,Running` is the overlap from
-step 5. Fix the rule and re-record. Before `make e2e-down`, also check the
+step 5. Fix the rule and re-record. When the controller stores
+`observedGeneration` as an integer, the first frame after an `ACTION`
+usually carries `(stale)`; that frame is what proves the
+`observedGeneration != generation` rule.
+
+Then check every claim in the builder comment against the frames: which
+conditions are set, which are never cleared, which defaults the webhook
+stores. `yq '.events[-1].object.status.conditions' <fixture>` shows the
+settled frame, and the frame dump from the `required state` bullet above
+shows when each condition appears and drops. Rewrite each claim as an
+observed fact or mark it unproven.
+
+The recorder deletes each flow object after its run, so no recorded pod is
+left. Before `make e2e-down`, `kubectl apply -f` one testdata manifest by hand
+(it lands in `default`), `kubectl wait` until it settles, and check the
 `podSelector` and `groupByKeyPaths` paths, or the owner chain when there are
-none, with jq against a real pod (`kubectl get pod -l <owner label> -o json`),
-as step 7 describes.
+none, with jq against its pod (`kubectl get pod -l <owner label> -o json`),
+as step 7 describes. Its `kubectl get <kind> <name> -o yaml` is a second
+controller-written CR for `--write`. Delete it afterwards.
 
 Before `make check`:
 
