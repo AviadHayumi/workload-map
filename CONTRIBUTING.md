@@ -189,7 +189,9 @@ Adding one means, in order:
 1. The builder under `pkg/catalog/kartas/`, registered in
    `pkg/catalog/catalog.go`, then `make generate-samples` for the generated
    file under `docs/catalog/`. Never hand-edit the generated file. Add the
-   workload to the Pre-built Karta Definitions table in `README.md`.
+   workload to the Pre-built Karta Definitions table in `README.md`, unless it
+   is a Kubernetes builtin (apps, batch, core): the table lists operator-backed
+   kinds only.
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
    definition maps that a kind cluster can reach. Manifests pin image tags,
@@ -232,7 +234,10 @@ Adding one means, in order:
    operator's `version_of` string from `hack/e2e/up.sh`, which can be
    composite (`v1.9.0+mpiv0.8.2` for kubeflow). For a new kind on an operator
    that ships several, pass the kind label to `record-e2e`
-   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded.
+   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded. A Kubernetes
+   builtin has no operator: run `e2e-up` with `WORKLOADS=none` (`up.sh`
+   rejects other names) and `record-e2e` with the flow label; its fixtures
+   land under the cluster's Kubernetes version.
    `FLOW=<name>` (or `FLOW="<a>|<b>"`) re-records only those flows, which is
    the normal loop after a failure. Fixtures are
    recorder output and carry no SPDX header. Every recorded state frame should
