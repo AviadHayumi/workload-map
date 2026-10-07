@@ -507,7 +507,7 @@ flow's terminal state; use `Initializing` for a flow that ends there):
 
 ```bash
 yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml
-<scratch>/verify --karta <definition.yaml> --workload <scratch>/cr.yaml --write --strict > <scratch>/out.txt; echo $?
+<scratch>/verify --karta <definition.yaml> --workload <scratch>/cr.yaml --strict > <scratch>/out.txt; echo $?
 ```
 
 Use the strictness step 7 settled on. A fragmented spec with no container path

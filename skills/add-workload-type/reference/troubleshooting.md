@@ -61,7 +61,7 @@ Raised by the Go Component API when reading a definition.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `extracted a pod spec with no containers`, with `replicas=<none>` on the same line | A fixed child for a role the CR omits (TFJob PS or Evaluator, PyTorchJob Worker); its probe write also creates the role. Or, expected, a `fragmentedPodSpecDefinition` child with no container path and no `scaleDefinition`. | For an omitted role, model the roles as one multi-instance child keyed by the map (step 3 in `SKILL.md`). For the fragmented child, run without `--strict` (step 7). |
+| `extracted a pod spec with no containers`, with `replicas=<none>` on the same line | A fixed child for a role the CR omits (TFJob PS or Evaluator, PyTorchJob Worker). Or, expected, a `fragmentedPodSpecDefinition` child with no container path and no `scaleDefinition`. | For an omitted role, model the roles as one multi-instance child keyed by the map (step 3 in `SKILL.md`). For the fragmented child, run without `--strict` (step 7). |
 | `extracted a pod spec with no containers`, with a replica count | The spec path points at the wrong level, or a `fragmentedPodSpecDefinition` has no `containersPath`. | Check the path with jq against the CR. For a fragmented spec with no container field, run without `--strict` (step 7). |
 | `status: Running,Initializing` (two or more statuses) | Two rules match the same object, often one on a condition the controller never clears. | Make the rules exclusive (step 5 in `SKILL.md`). Do not widen the prediction. |
 | `predicted but not extracted` for the root key | The read side does not extract the root's scale and spec paths. | Never list the root. Predict `status:` alone for a root-only definition and check root read paths with jq. |
@@ -70,11 +70,6 @@ Raised by the Go Component API when reading a definition.
 | Zero instances warning under `--strict` | The CR references its items (`pipelineRef`, a template reference) instead of defining them inline. | Run without `--strict` and state the expected zero in the summary. |
 | Every failure exits 1 | `go run` turns every non-zero exit into 1. | Build with `go build -o <scratch>/verify ./hack/karta-verify`, run `<scratch>/verify` unpiped, and read `$?`: 2 mismatch, 3 warnings. |
 | `function not defined` at runtime | `keys_unsorted`, which passes the validator. | Use `keys`. |
-| `--write`: a changed path on the identity write is `{}` or `null` for a field the CR did not carry | The engine, not the definition, is at fault: it materializes the field. | Not a definition defect. Say so in the summary. |
-| `--write`: a changed path on the identity write for a field the CR did carry | The read path and the write path do not address the same location, or the field sits in an object that is not the type the path expects (a Tekton step read as a container), which the write drops. | Fix the path, or use a read-only projection (An assignable path can still be the wrong one in `technical-guide.md`). |
-| `--write`: an identity write or change probe warning with `invalid path against: ...` | The path is not assignable: a fallback to a literal, arithmetic, a value-producing projection, or a variable binding. | Rewrite it as a plain path. For a read-only projection with no assignable alternative (step 3), the warning is expected: run `--write` without `--strict` and say so in the summary. |
-| `--write`: the probe landed in fewer places than there are instances, or in another path | The spec path has a `//` fallback: the write lands in whichever branch the read resolved, and after an iterator it also drops the elements without the field. A path-preserving `select(...)` is assignable and is not the cause. | Rewrite it as a plain path (Fragmented paths must be assignable in `technical-guide.md`). |
-| `--write`: a suspend or resume changed a path outside its actions | An action path is a formula. | Rewrite the action path as a plain path. |
 | `skipped: no instances extracted` | The component extracted nothing from this CR. | Fix the read side first. |
 
 ## Recorder and e2e

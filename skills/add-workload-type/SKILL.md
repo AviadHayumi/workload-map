@@ -375,15 +375,15 @@ pod label code are stand-ins; every run on them counts as unverified.
   the expected zero in the summary.
 - A `fragmentedPodSpecDefinition` with no container path goes on the
   component whose pods it describes, even when the root is not extracted. Check
-  its paths with jq, run without `--strict` (`--write` too), and predict
+  its paths with jq, run without `--strict`, and predict
   `podSpec: true` with no `containers`. Expect one `no containers` warning per
   such child and no other; never point `containerPath` at the role spec to
   silence it.
 - Run against a CR in another state (completed or failed) when one exists.
 - Multi-instance: run against a CR whose array has two entries (a hand-written
   scratch CR is fine).
-- Run `--write --strict` against a CR that omits each optional role (without
-  `--strict` when a no-container child exists).
+- Run against a CR that omits each optional role, with `--strict` unless a
+  no-container child exists.
 - Pod selectors: evaluate every `podSelector` path and `groupByKeyPaths` entry
   with jq on a real pod
   (`kubectl get pod -l <owner label> -o json | jq '.items[] | <path>'`, or the
@@ -392,16 +392,15 @@ pod label code are stand-ins; every run on them counts as unverified.
   check the owner chain; the component `ownerRef` names the `controller=true`
   owner.
 
-Then prove the writes:
-
-```bash
-go run ./hack/karta-verify --karta <definition.yaml> \
-  --workload <real-cr.yaml> --write --strict
-```
-
-Look up every unexpected changed path, and `skipped: no instances extracted`,
-in the karta-verify output table of `reference/troubleshooting.md` and apply
-its fix.
+TODO, the write round trip. karta-verify proves the read side only. Nothing
+yet proves that a consumer can write through the definition without touching
+anything else: writing a pod spec back unchanged, writing one probe field,
+applying the suspend and resume actions, and checking that only the expected
+leaves changed. Until that check exists, keep every spec, scale and suspend
+path a plain assignable path (step 4), keep the CR from this step for the day
+the check lands, and say in the summary that the writes are unproven. What the
+check must do, where it belongs, and how to read it: The write round trip
+(planned) in `reference/technical-guide.md`.
 
 Output and scratch:
 
@@ -611,8 +610,7 @@ make e2e-down CLUSTER_NAME=<name>
 After recording (yq commands for each check: Reading fixtures in
 `reference/recorded-flow.md`):
 
-- Rerun step 7, `--write` included, on the last frame of the flow's terminal
-  state.
+- Rerun step 7 on the last frame of the flow's terminal state.
 - Every fixture ends with `succeeded: true`. `phases` lists the predicates that
   matched a frame; in a new fixture every `STATE` frame lists one. Two mean the
   predicates overlap: run karta-verify on that frame, fix the overlap (step 5),
@@ -624,8 +622,8 @@ After recording (yq commands for each check: Reading fixtures in
   hand-applied pod.
 - Before `make e2e-down`, `kubectl apply -f` one testdata manifest and wait
   until it settles. Check selectors and
-  `groupByKeyPaths` (or the owner chain) with jq on its pod. Use its CR as a
-  second `--write` input, then delete it.
+  `groupByKeyPaths` (or the owner chain) with jq on its pod. Save its CR as a
+  second step 7 input, then delete it.
 
 Before `make check`:
 

@@ -801,9 +801,8 @@ components:
 The read side does not extract the root's scale and spec paths, so a prediction
 keyed on the root fails as `predicted but not extracted`. For a
 Deployment-shaped root, check `.spec.replicas` and
-`.spec.template.spec.containers[].name` with jq instead. `--write` does probe
-the root's spec. `status` is compared as a set against every status that
-matched.
+`.spec.template.spec.containers[].name` with jq instead. `status` is compared
+as a set against every status that matched.
 
 Done. With `--strict` the run exits 0 when the status resolved, every child
 component declaring a spec pattern extracted a pod spec with containers, every
@@ -824,9 +823,9 @@ role spec stores a whole container there on write and drops the role's other
 fields.
 
 Optional roles. A fixed child for a role the CR omits warns
-`extracted a pod spec with no containers` next to `replicas=<none>`, and its
-probe write creates the role. That is the map-keyed shape problem (Roles keyed
-by a map above), not a CR to skip.
+`extracted a pod spec with no containers` next to `replicas=<none>`, and a
+write through it would create the role. That is the map-keyed shape problem
+(Roles keyed by a map above), not a CR to skip.
 
 Exit codes. karta-verify exits 0 on success, 2 on a mismatch, and 3 on
 warnings. `go run` turns every non-zero exit into 1, hence the built binary when
@@ -838,23 +837,89 @@ Scratch directory. A sibling of a linked worktree can be another checkout, so
 `mktemp -d` is the safe default. A git-ignored directory inside the worktree
 works too: neither `git status` nor `make validate` sees it.
 
-The write probe. With `--write`, per component, the root included,
-karta-verify:
+### The write round trip (planned)
 
-1. Writes the pod spec back unchanged. Nothing may change.
-2. Sets one probe field and writes again. Exactly one leaf per instance may
-   change. The probe is a `nodeSelector` entry, or for a fragmented spec the
-   scheduler name when `schedulerNamePath` is set, else a label, else the
-   image.
-3. Applies the suspend actions, then the resume actions. Only the action paths
-   may change.
+TODO. This check does not exist yet. This section records what it must do, so
+that it is built the same way it was designed and so that step 7 can point at
+it the day it lands.
 
-It prints every changed path with its before and after value, and each
-unexpected change is a warning. Reading it is in the karta-verify output table
-of `troubleshooting.md`. Scale paths are read today and not probed, but they are
-written as plain paths so they stay writable. A count derived from several
-fields (LeaderWorkerSet workers, JobSet replicas times parallelism) has no plain
-path.
+Why. karta-verify proves the read side: a path resolves and the extraction
+matches the prediction. A definition is also written through. A consumer sets
+a node selector, bumps a resource request, or suspends the workload, and the
+library writes the changed pod spec or the suspend value back through the same
+paths. Two things can go wrong there, and neither is visible from reading:
+
+- The write engine can change more than the one field. The pod spec travels
+  through typed Go structs, so fields the type does not model are dropped and
+  zero values the object never carried appear, for example
+  `template.metadata: {}` or `containers[].resources: {}`. On the current
+  engine six catalog definitions change on an identity write (pod, mpijob,
+  pytorchjob, raycluster, knative service, kserve inferenceservice), all in
+  that way. The fix is a write engine that produces a minimal merge patch
+  instead of replacing the struct; it is a separate change to the library.
+- The definition path can be wrong for writing while reading fine. A `//`
+  fallback writes into whichever branch the read resolved, which can be the
+  wrong field; a fallback to a literal, arithmetic, or a value-producing
+  projection has no path to write to and fails with
+  `invalid path against: ...`; a fragmented `containerPath` pointed at a
+  role spec stores a whole container there and drops the role's other fields.
+
+What it must do. Per component, the root included, each on its own copy of
+the object:
+
+1. Identity write: extract the pod spec (template, bare spec, or fragmented)
+   through the definition and write it back unchanged. Nothing may change.
+2. Change probe: set one field to a marker value and write again. The probe
+   is a `nodeSelector` entry for a pod spec or template, and for a fragmented
+   spec the scheduler name when `schedulerNamePath` is set, else a label, else
+   the image. Exactly one leaf per instance may change, with the marker value.
+3. Suspend, then resume: apply the suspend actions, then the resume actions.
+   Only the action paths may change, and after resume the object is back to
+   the original except where an action set a field the object did not carry.
+
+It prints every changed path with its before and after value. Every
+unexpected change is a warning, so `--strict` exits 3 on it. A component that
+extracts no instances from the CR is reported as skipped, never as clean.
+
+How to read it, once it exists:
+
+- A changed path on the identity write that is `{}` or `null` for a field the
+  CR did not carry: the engine is at fault, not the definition. Say so in the
+  summary.
+- A changed path on the identity write for a field the CR did carry: the read
+  path and the write path do not address the same location, or the field sits
+  in an object that is not the type the path expects. Fix the path, or use a
+  read-only projection (An assignable path can still be the wrong one, above).
+- The probe landed in fewer places than there are instances, or in another
+  path: the spec path is a formula. Rewrite it as a plain path.
+- A suspend or resume changed a path outside its actions: the action path is a
+  formula. Rewrite it as a plain path.
+- `invalid path against: ...` on a read-only projection that has no assignable
+  alternative (step 3): expected; run without `--strict` and say so.
+
+Where it belongs. In the CLI, as flags of `kli validate`:
+`kli validate <definition> --workload <cr> --write --strict`, next to a
+`--predict` flag for the read-side prediction, with the same exit codes as
+karta-verify (0 success, 2 mismatch, 3 warnings). `kli` is the released binary,
+so a definition author outside this repository gets the check without a
+checkout, and the skill then names one command for steps 6 and 7. The
+`hack/karta-verify` harness becomes a thin wrapper or goes away.
+
+Order of work. The engine fix lands first; until then the identity write
+reports the engine's own defects on every definition that carries a pod
+template, and the check cannot separate a definition defect from an engine one
+by itself. Then the CLI flags, with the probe and diff code as a library
+package shared by `kli validate` and the harness. Then step 7 of `SKILL.md`
+replaces its TODO with the command, and the Recorder and e2e table of
+`troubleshooting.md` gains one row per warning above.
+
+Until then. Write every spec, scale and suspend path as a plain path (step 4),
+keep the controller-written CR from step 7 and the live CR from step 8 so the
+check can run on them later, and state in the summary that the writes are
+unproven. Scale paths are read today and would not be probed by this check
+either, but they stay plain for the same reason. A count derived from several
+fields (LeaderWorkerSet workers, JobSet replicas times parallelism) has no
+plain path and is read-only.
 
 The pod check. karta-verify never sees a pod. A selector that returns null on a
 real pod maps the pod to nothing. A definition with no selectors (the CronJob
