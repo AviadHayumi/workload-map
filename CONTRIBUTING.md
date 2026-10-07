@@ -194,8 +194,9 @@ Adding one means, in order:
    kinds only.
 2. A flow under `test/e2e/flows/` with its workload manifests under
    `test/e2e/flows/testdata/<workload>/`, covering at least the states the
-   definition maps, and each spec value a rule branches on (`OnDelete`,
-   paused, a partition, a restart policy), that a kind cluster can reach. When the
+   definition maps, and each spec value a rule branches on that the kind's
+   webhook accepts (a StatefulSet's `OnDelete`, paused, a partition, a restart
+   policy), that a kind cluster can reach. When the
    definition can suspend a running workload, one flow fires the suspend
    action from Running; a CR created suspended does not prove it. Manifests pin image tags,
    declare resource requests and limits, set `namespace: default` (the recorder
@@ -242,7 +243,8 @@ Adding one means, in order:
    rejects other names) and `record-e2e` with the flow label; its fixtures
    land under the cluster's Kubernetes version.
    `FLOW=<name>` (or `FLOW="<a>|<b>"`) re-records only those flows, which is
-   the normal loop after a failure. Fixtures are
+   the normal loop after a failure in a flow or its manifest. A change to a
+   status rule or a predicate re-records every flow of the kind. Fixtures are
    recorder output and carry no SPDX header. Every recorded state frame should
    list one status in `phases`; two mean the status rules overlap.
 4. `make test-replay` and `make verify-recordings` green, and

@@ -98,6 +98,8 @@ Raised by the Go Component API when reading a definition.
 | The run ends on the frame that fired the action | The `Do()` state is also the terminal state. | Gate the terminal step with `With()` on a field the action changes and the controller echoes. |
 | `succeeded: true`, but the fixture stops one frame early | An in-flight phase maps to the same status as the final one. | Gate the terminal step on the CR field and check the `phase:` values. |
 | A late write lands in the checked walk after a `Do()` | `observedGeneration` is a string or absent, so stale frames are not marked. | Gate the action step with `With()` on the controller's first real status. |
+| A flow fails at create with `admission webhook ... denied the request` | The webhook rejects a spec value the Go types declare (CloneSet `OnDelete`). | Drop the rule branch, flow, and testdata for that value, then re-record every flow of the kind. Check manifests with `kubectl apply --dry-run=server` first. |
+| Every exit code reads empty or 0 in a loop over frames | A pipeline reports its last command, and zsh has no `PIPESTATUS`. | Run the built `verify` unpiped, redirect its output, and read `$?`. |
 | `Ran N of M Specs` with N below the number of `It`s | The flow file is `Ordered`; the first failure skipped the rest. | Re-run the skipped flows with `FLOW="<a>\|<b>"`. |
 | A walk frame reads `Running=Initializing,Running` | Two status rules overlap. | Fix the rule (step 5) and re-record. |
 | `generated files or module manifests are stale or untracked` | `validate` requires a clean tree and sees untracked files. | Commit the new files, fixtures included, before `make check`. |

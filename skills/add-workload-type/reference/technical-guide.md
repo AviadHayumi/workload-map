@@ -309,15 +309,26 @@ it is `Degraded`. KEDA shows both: `ScaledJobCheckFailed` (the scale loop never
 started) is `Failed`, and `TriggerError` is `Degraded`.
 
 A progress deadline, `Progressing=False/ProgressDeadlineExceeded`, goes back to
-True by itself once the pods become available, in the Deployment and the
-OpenKruise CloneSet alike. The CloneSet keeps the last write time of an
-unchanged condition, so a healthy scale-up of a CloneSet settled longer than the
-deadline hits it on the first reconcile. The Deployment sample maps it to
-`Failed`.
+True by itself once the pods become available, so it is never `Failed`; the
+Deployment sample maps it to `Failed`. It marks a fault only when the
+controller restarts the clock. The Deployment controller moves
+`lastUpdateTime` on every progress write and writes a new reason for a new
+rollout. The OpenKruise CloneSet does neither: it checks the deadline against
+the condition copied from the old status and keeps the last update time of an
+unchanged condition. A CloneSet settled longer than the deadline therefore
+trips it on the first reconcile of a healthy scale-up or rollout, and so does a
+slow rollout that keeps progressing. Left unmapped, such a frame reads by the
+counters: `Initializing` while pods are missing, `Running` once they are
+available, which is where the controller clears the condition.
 
 A condition the controller never clears does not mark a fault. CloneSet
-`FailedScale` and `FailedUpdate` are also raised by a pod update conflict on a
-healthy rollout.
+`FailedScale` and `FailedUpdate` are set once; a pod update conflict right
+after creation raised `FailedUpdate` in most CloneSet recordings.
+
+A `Degraded` flow proves the clear: `Reaches(Degraded).Do(<fix>)`, then a
+terminal `Running` gated on `observedGeneration`. A `nodeSelector` no node
+carries is a generic fault, and a merge patch that sets it to `null` is the
+generic fix, since a container list cannot be merge-patched.
 
 A controller that reports only counters cannot tell one stuck pod from one that
 is starting: some-but-not-all ready also holds on every create, the last pod of
@@ -341,10 +352,26 @@ Spec fields that choose how the controller progresses include an update
 strategy such as `OnDelete`, a rollout `partition`, `paused`, and a restart
 policy. The default for an absent field goes into the rule,
 `(.spec.updateStrategy.type // "RollingUpdate")`, and comes from API defaulting
-(`SetDefaults_DaemonSet`), a webhook, or the controller. Under `OnDelete` the
-controller never replaces old pods by itself, so a rule that waits for the
-updated count leaves a healthy workload in `Initializing` forever. A feature
-gate that changes how the controller moves pods is a branch too.
+(`SetDefaults_DaemonSet`), a webhook, or the controller. Under a StatefulSet's
+or DaemonSet's `OnDelete` the controller never replaces old pods by itself, so
+a rule that waits for the updated count leaves a healthy workload in
+`Initializing` forever. A feature gate that changes how the controller moves
+pods is a branch too.
+
+The validating webhook can reject a value the Go types declare. The CloneSet
+API still declares `OnDelete`, while its webhook
+(`pkg/webhook/cloneset/validating`) accepts only `ReCreate`,
+`InPlaceIfPossible`, and `InPlaceOnly`. A rule or flow for such a value is
+dead code, and the flow fails at create. Stand-in CRs in step 7 cannot catch
+it, which is why the webhook is read in step 1 and the manifests are applied
+with `--dry-run=server` before recording.
+
+An `omitempty` status counter is absent at 0, so its default is 0, never the
+desired count. CloneSet `status.expectedUpdatedReplicas` (replicas minus the
+partition) is absent when the partition covers every replica, and
+`(.status.updatedReplicas // 0) >= (.status.expectedUpdatedReplicas // 0)` then
+holds, as the controller means. A desired-count default would wait for a
+rollout the partition forbids.
 
 ### In-flight phases
 
@@ -786,10 +813,13 @@ by a map above), not a CR to skip.
 
 Exit codes. karta-verify exits 0 on success, 2 on a mismatch, and 3 on
 warnings. `go run` turns every non-zero exit into 1, hence the built binary when
-the code matters.
+the code matters. A pipeline reports the exit code of its last command, and zsh
+has no `PIPESTATUS`, so redirect instead:
+`<scratch>/verify --karta ... > <scratch>/out.txt; echo $?`.
 
 Scratch directory. A sibling of a linked worktree can be another checkout, so
-`mktemp -d` is the safe default.
+`mktemp -d` is the safe default. A git-ignored directory inside the worktree
+works too: neither `git status` nor `make validate` sees it.
 
 The write probe. With `--write`, per component, the root included,
 karta-verify:

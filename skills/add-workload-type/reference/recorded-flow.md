@@ -202,7 +202,19 @@ A chart that renders its own Namespace owns it. `--create-namespace` would make
 two owners. Turning the chart's Namespace off loses its labels, and a webhook
 `namespaceSelector` can key on them: OpenKruise exempts
 `control-plane: openkruise` from its fail-closed pod webhook, so without the
-label its own manager pods must pass a webhook that is not up yet.
+label its own manager pods must pass a webhook that is not up yet. Without
+`-n`, Helm stores the release record in the kubeconfig's current namespace
+(`default` on the kind cluster). That is fine, and `helm upgrade -i` stays
+idempotent on a reused cluster.
+
+A pod webhook with `failurePolicy: Fail` (grep the rendered webhooks) admits
+every pod created after it in every namespace it does not exempt, the Karta
+operator's included. The position in `ALL_WORKLOADS` does not make that safe,
+since `up.sh` installs the Karta operator after every workload operator. What
+does is `rollout_wait` on a deployment whose readiness probe covers the
+webhook (the OpenKruise manager's `readyz` includes its webhook check). The
+`install.sh` comment says so, and that the webhook stays in the pod admission
+path of every later flow on that cluster.
 
 ### Images and install.sh details
 
@@ -312,8 +324,21 @@ reads `Undefined` unless a no-status rule maps it, and the walk drops
 `Undefined` frames. When a no-status rule exists and the first frame already
 carries a phase or condition, no recording proves that rule.
 
+When a dip is certain. A controller that writes status in the same reconcile
+from the pod list it read before it created or deleted pods, and writes
+whenever `observedGeneration` rises, always lands a frame with the new
+generation and the old counts (CloneSet). That dip is required, not
+`Optional()`. The stale frame right after the `ACTION` does not count, since
+stale frames stay out of the walk; the certain frame is the one after it. Mark
+a dip `Optional()` when the controller can skip the status write or the frame
+can be shorter than a watch event. The StatefulSet flows' `Optional()` dips
+predate this test.
+
 A step whose state was declared earlier in the journey may be absent from the
-walk, like an `Optional()` step (`order.go`). A revisit copied from a sibling
+walk, like an `Optional()` step (`order.go`). Consecutive frames of one state
+collapse into one visit, and an `ACTION` is not a frame, so
+`Running -> ACTION -> Running` and `Degraded -> ACTION -> Degraded -> Running`
+both pass. A revisit copied from a sibling
 flow documents a frame the target controller may never write. The PyTorchJob
 flow declares an `Initializing` dip before the terminal state, yet the
 training-operator sets `Running` to False in the same status write that sets
@@ -421,6 +446,10 @@ multi-kind operator re-records every sibling flow. `E2E_LABELS` takes a raw
 Ginkgo label expression. `FLOW` is a Ginkgo focus regex: `FLOW=<name>` narrows
 to one flow, and `FLOW="aborted|terminated"` re-records just those two and
 leaves the other fixtures untouched. See Record in `test/e2e/README.md`.
+`FLOW` fits a failure in one flow or its manifest. The `phases` in every
+fixture of the kind were computed by the definition at record time, and the
+recorded states by the predicates, so a change to a status rule or a predicate
+re-records them all.
 
 Every flow file is an `Ordered` container: the first failing `It` skips every
 later one in the file.
@@ -432,6 +461,7 @@ flow's terminal state; use `Initializing` for a flow that ends there):
 
 ```bash
 yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml
+<scratch>/verify --karta <definition.yaml> --workload <scratch>/cr.yaml --write --strict > <scratch>/out.txt; echo $?
 ```
 
 Outcome, first frame, settled conditions, and the walk:
