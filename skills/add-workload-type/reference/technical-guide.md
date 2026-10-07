@@ -358,6 +358,14 @@ a rule that waits for the updated count leaves a healthy workload in
 `Initializing` forever. A feature gate that changes how the controller moves
 pods is a branch too.
 
+Reaching failure branches. A branch the controller enters when it cannot
+create a pod is often reachable on kind through admission. A driver
+`serviceAccount` naming a ServiceAccount that does not exist makes the
+ServiceAccount admission plugin reject the Spark driver pod, and the operator
+writes SUBMISSION_FAILED. A namespace ResourceQuota the pod exceeds does the
+same for most controllers. The workload object itself is admitted, so try such
+a manifest on the cluster before naming the branch unreachable.
+
 The validating webhook can reject a value the Go types declare. The CloneSet
 API still declares `OnDelete`, while its webhook
 (`pkg/webhook/cloneset/validating`) accepts only `ReCreate`,

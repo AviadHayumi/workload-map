@@ -202,8 +202,8 @@ Adding one means, in order:
    declare resource requests and limits, set `namespace: default` (the recorder
    overrides it), set `automountServiceAccountToken: false` unless the pods call
    the API server, and name objects `karta-e2e-<workload>-<flow>`. State
-   predicates read the CR's own fields, never Karta; `AddState` order is the
-   precedence, least to most advanced. See `test/e2e/recorder/README.md`. If
+   predicates read the CR's own fields, never Karta; `AddState` order decides
+   only a frame two predicates match, least to most advanced. See `test/e2e/recorder/README.md`. If
    the operator is new or its install needs new pieces, follow Adding an
    operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`, `smoke.yaml`,
    the version pin in `global.env`, `ALL_WORKLOADS` and `version_of` in
@@ -211,7 +211,8 @@ Adding one means, in order:
    operator already installed keeps its directory, pin, and `up.sh` entries;
    it extends any flag in `install.sh` that gates which kinds the controller
    serves and adds a `<kind>-smoke.yaml` plus a `run_smoke` line in
-   `verify.sh`. `Fixture.Operator`
+   `verify.sh`. The operator directory takes the upstream project's short
+   name (`kuberay`, `spark-operator`). `Fixture.Operator`
    in the flow must equal the directory name under `hack/e2e/operators/`;
    that is how the recording is filed under the operator version. The operator
    name is also the first `Label`; add the kind as a second label when the

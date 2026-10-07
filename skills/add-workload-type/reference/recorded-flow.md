@@ -81,15 +81,27 @@ first and run steps 6 and 7 on the generated file only.
 
 The builder comment holds what the code cannot show. An example of what an
 action does not do: a pause that stops new work only and leaves running pods
-alive, so a consumer that suspends to free capacity gets none back. Existing
-builders run 3 to 26 comment lines. The recorded phase sequence is the first
-thing to cut when the comment runs long, since the fixtures and flow comments
-already show it.
+alive, so a consumer that suspends to free capacity gets none back. Examples of
+what a write through an exposed path does not do: with spark-operator's
+`PartialRestart` gate on, a write to the executor `schedulerName`, affinity, or
+`priorityClassName` skips the rerun and reaches only executors created later;
+and `spec.batchScheduler` overrides both `schedulerName` paths at pod creation,
+so a write through them does nothing while it is set.
+
+The 3 to 26 line bound counts every `//` line of the doc comment, the summary
+sentence and the blank `//` line included. The recorded phase sequence is the
+first thing to cut when the comment runs long, since the fixtures and flow
+comments already show it.
 
 The Pre-built Karta Definitions table in `README.md` lists operator-backed kinds
 only. A builtin's `docs/catalog/` link covers it.
 
 ## Operator install under hack/e2e/
+
+The operator directory takes the upstream project's short name as its chart or
+release spells it (`kuberay`, `spark-operator`). The same string is
+`Fixture.Operator`, the first `Label`, and the `version_of` case; a hyphen is
+fine in all three.
 
 ### Builtins
 
@@ -137,6 +149,13 @@ or webhook limited to some namespaces (a `--namespaces` flag, a `jobNamespaces`
 chart value, a webhook `namespaceSelector`) never reconciles it, and the run
 times out with no frames. For a chart, the setting goes in a co-located
 `values.yaml`, as `grove/values.yaml` does.
+
+A chart can render per-namespace RBAC or a service account from the same list.
+spark-operator's `spark.jobNamespaces` does: `""` alone widens the watch to
+every namespace but renders the driver's service account and Role nowhere, so
+the smoke run in `default` fails. Listing `["", "default"]` keeps both, and the
+flows reach the recorder's namespace through the ClusterRole and `BeforeAll`
+helper under RBAC and shared objects.
 
 ### RBAC and shared objects
 
@@ -222,7 +241,9 @@ path of every later flow on that cluster.
 store (Shared helpers in `hack/e2e/README.md`). Passing the pinned upstream
 reference as both arguments of `preload_image` lets the nodes pull the same
 reference when the load fails. A local tag (`ray-e2e:local`) works only when
-the load does.
+the load does. A smoke run does not stand in for the preload: its pods may all
+land on one of the two workers, and a flow pod on the other then pulls the
+image inside the 3 minute deadline.
 
 A temp dir in `install.sh` is not `local` because the EXIT trap fires after
 `main` returns, and under `set -u` it fails on an unbound variable.
@@ -357,8 +378,11 @@ resume share it. `SuspendRunPolicy` sits next to `ResumeRunPolicy`. A new
 `ActionType` constant in `test/e2e/recorder/flow.go` is only the recorded
 action name.
 
-A pod template annotation patch drives a rollout on any kind that rolls its
-template: `AnnotatePodTemplate(key, value)` with `ActionRollout` (`"Rollout"`).
+A pod annotation patch drives a rollout on any kind that rolls its template:
+`Annotate(key, value, path...)` builds the nested merge patch, with
+`ActionRollout` (`"Rollout"`). The usual path is
+`"spec", "template", "metadata", "annotations"`; a SparkApplication takes
+`"spec", "driver", "annotations"`.
 
 spark-operator resubmits on any spec change other than suspend and TTL. That is
 the case for a flow that patches an exposed path from Running and walks the
@@ -395,6 +419,14 @@ terminal step on what the action changes and the controller echoes:
 `observedGeneration` at least 2 after a template patch, the new ready count
 after a scale.
 
+Some controllers echo nothing. spark-operator's INVALIDATING resets the status,
+so `executionAttempts` is 1 again and no field tells the rerun's RUNNING from
+the first; a gate on `IntAtLeast(2, ...)` stalls until the deadline. The flow
+then runs a short workload on to a state the controller writes only after the
+action, `Completed` gated on `PhaseEq("COMPLETED", ...)`. A fixture whose last
+event is the `ACTION` still reports `succeeded: true`; the walk check after
+recording catches it.
+
 ### Stale frames
 
 The recorder keeps frames written before the controller observed the current
@@ -419,7 +451,11 @@ generated one; `default` keeps the manifest usable with a plain `kubectl apply`
 while debugging.
 
 The pod stays alive well past the Running check so the state is stable when the
-watch sees it.
+watch sees it. A workload that cannot sleep runs as long as its work: SparkPi
+with 100000 slices on one 512m executor stayed RUNNING for about 100 seconds,
+not the minutes assumed. That held only because each action fired on the first
+RUNNING frame. The fixture timestamps or the controller log give the real
+time.
 
 The kind cluster has a tainted control-plane and two workers
 (`hack/e2e/kind-config.yaml`). A readiness probe that fails keeps a pod unready
@@ -440,6 +476,11 @@ resolves to `~/.kube/kind-<name>.kubeconfig`, and the default (`karta-e2e`)
 resolves to the shared `~/.kube/config`, which switches the shell's context
 away from whatever was selected. Exporting the per-cluster file once also makes
 hand-run `kubectl` commands hit the test cluster.
+
+A webhook Service can refuse connections for a few seconds after
+`rollout_wait`, until its endpoints propagate. `run_smoke` absorbs that through
+`apply_with_retry`; a hand-run `kubectl apply --dry-run=server` fails with
+`connection refused` and passes on a retry.
 
 `WORKLOADS` on `record-e2e` selects flows by label, so the operator name on a
 multi-kind operator re-records every sibling flow. `E2E_LABELS` takes a raw
@@ -463,6 +504,10 @@ flow's terminal state; use `Initializing` for a flow that ends there):
 yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml
 <scratch>/verify --karta <definition.yaml> --workload <scratch>/cr.yaml --write --strict > <scratch>/out.txt; echo $?
 ```
+
+Use the strictness step 7 settled on. A fragmented spec with no container path
+runs without `--strict` and exits 0; with it, exit 3 with only the
+`no containers` warnings is the expected result.
 
 Outcome, first frame, settled conditions, and the walk:
 

@@ -33,13 +33,10 @@ the examples, and the operator notes.
 
 Load these as needed; confirm field names and rules here, never guess.
 
-- `reference/technical-guide.md` - schema cheatsheet, status mapping patterns,
-  karta-verify runs, and the checklist.
-- `reference/sample-index.md` - workload shape to closest `docs/catalog/`
-  sample, and what not to copy. Start here in step 2.
-- `reference/recorded-flow.md` - reading the operator source, and the step 8
-  install, flow, recording, and presubmit detail.
-- `reference/troubleshooting.md` - every error and symptom mapped to its fix.
+- `reference/technical-guide.md` - schema, status patterns, karta-verify runs.
+- `reference/sample-index.md` - closest sample and what not to copy (step 2).
+- `reference/recorded-flow.md` - operator source and step 8 detail.
+- `reference/troubleshooting.md` - every error and symptom with its fix.
 
 ## Workflow
 
@@ -76,8 +73,8 @@ Sources:
   difference next to the pin.
 - An operator already in `hack/e2e/global.env`: read the source at that tag and
   leave the pin alone. A bump re-records every flow of that operator.
-- A checkout on another branch: `git fetch --depth 1 origin tag <tag>`, then
-  `git show <tag>:<path>`, not the working tree.
+- A checkout on another branch: `git show <tag>:<path>` after
+  `git fetch --depth 1 origin tag <tag>`.
 - A Kubernetes builtin (apps, batch, core): do not clone kubernetes/kubernetes.
   Read the status type from the `k8s.io/api` module cache, and the controller
   with its `util/` counter helpers at the `KIND_NODE_IMAGE` version. Grep it for
@@ -250,8 +247,10 @@ Spec-driven branches:
   from: API defaulting, a webhook, or the controller. Under a StatefulSet's
   `OnDelete`, updated below desired is settled. Record one flow per value a
   rule branches on that the kind cluster can reach, and name unrecorded
-  branches in the builder comment. Check feature gates the same way and name
-  any no rule covers.
+  branches in the builder comment. Before calling a failure branch
+  unreachable, try an admission rejection (Spec-driven branches in the
+  technical guide). Check feature gates the same way and name any no rule
+  covers.
 
 In-flight phases:
 
@@ -278,8 +277,8 @@ Scale and suspend:
   `replicasPath`. Never put bounds in one unit next to a `replicasPath` in
   another.
 
-Detail: Status definition, Status mapping patterns, Scale definition, and
-Suspend definition in `reference/technical-guide.md`.
+Detail: Status mapping patterns, and the Status, Scale, and Suspend
+definitions in `reference/technical-guide.md`.
 
 ### 6. Validate the definition
 
@@ -316,7 +315,8 @@ built from its pod label code are stand-ins; every run on them counts as
 unverified.
 
 - The CR with no status, and each step 8 testdata manifest as written, must
-  read `Initializing` or `Undefined`, never `Running`. Predict a no-match frame
+  read `Initializing`, `Undefined`, or, when created with the suspend flag set,
+  the status step 5 gives that frame; never `Running`. Predict a no-match frame
   as `status: [Undefined]` and run it without `--strict`. Every settled rule
   requires a field only the controller writes, such as
   `(.status.observedGeneration // 0) > 0`.
@@ -337,7 +337,7 @@ unverified.
   understanding of the CRD is wrong first. Never edit the prediction just to
   pass, and never adjust the checklist; look the symptom up in
   `reference/troubleshooting.md`, fix the path, and rerun.
-- Done means exit 0 with `--strict`.
+- Done means exit 0, with `--strict` unless a case below runs without it.
 - Use a CR that defines its items inline for `--strict`. A CR that only
   references them reports zero instances: run it without `--strict` and state
   the expected zero in the final answer.
@@ -363,23 +363,17 @@ go run ./hack/karta-verify --karta <definition.yaml> \
   --workload <real-cr.yaml> --write --strict
 ```
 
-A `{}` or `null` identity-write change for
-a field the CR did not carry is the write engine's fault; say so in the final
-answer. For a field the CR did carry, the read and write paths address
-different locations: fix the path. A probe that lands short or elsewhere, or
-a suspend or resume that changes a path outside its actions, is a formula
-path: rewrite it plain. On
-`skipped: no instances extracted`, fix the read side first.
+Look up every unexpected changed path, and `skipped: no instances extracted`,
+in the karta-verify output table of `reference/troubleshooting.md` and apply
+its fix.
 
 Output and scratch:
 
 - Show the user the run output alongside the definition.
-- Keep predictions and scratch copies in `mktemp -d`; when the editing tool
-  cannot write there, in a git-ignored directory that is not itself a checkout
-  (`git check-ignore -v <dir>` prints a match). That is `<scratch>` below.
-- When the exit code matters (2 mismatch, 3 warnings), build with
-  `go build -o <scratch>/verify ./hack/karta-verify`; `go run` reports every
-  failure as 1. Run it unpiped and read `$?`.
+- Keep predictions and scratch copies in `mktemp -d`, else in a git-ignored
+  directory that is not a checkout (`git check-ignore -v <dir>`): `<scratch>`.
+- When the exit code matters (2 mismatch, 3 warnings), run
+  `go build -o <scratch>/verify ./hack/karta-verify` unpiped and read `$?`.
 
 Detail: karta-verify runs in `reference/technical-guide.md`.
 
@@ -396,8 +390,10 @@ Catalog entry:
   never hand-edit it. Rerun steps 6 and 7 on the generated file.
 - The builder comment holds what code cannot show: the controller's order of
   checks, why each guard exists, what is unproven, the unmapped fault signals,
-  what an action does not do. Do not restate paths. Stay within 3 to 26 lines
-  by cutting what the fixtures and flow comments show, never those items.
+  what an action or a write through an exposed path does not do (a feature
+  gate, or a spec field that overrides the path at pod creation). Do not
+  restate paths. Stay within 3 to 26 `//` lines, summary included, by cutting
+  what the fixtures and flow comments show, never those items.
 - Add a Pre-built Karta Definitions row in `README.md` for an operator-backed
   kind; none for a builtin.
 
@@ -407,7 +403,8 @@ Operator install under `hack/e2e/`:
   with `WORKLOADS=none`, `make record-e2e` with `WORKLOADS=<label>`.
   `Fixture.Operator` equals the first `Label`; the second label is `builtin`.
 - A new operator follows Adding an operator in `hack/e2e/README.md`:
-  `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, a
+  `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, `<name>` the
+  upstream project's short name (`kuberay`, `spark-operator`), a
   `<NAME>_VERSION` pin in `global.env`, a `version_of` case and an
   `ALL_WORKLOADS` entry (install order) in `up.sh`, and `deps_of` only when it
   needs another operator first. With no `deps_of` and no dependents, it goes
@@ -425,7 +422,9 @@ Operator install under `hack/e2e/`:
 - Check which namespaces the controller and its webhooks watch (a
   `--namespaces` flag, a `jobNamespaces` chart value, a webhook
   `namespaceSelector`) and widen each to cover the recorder's generated
-  namespace (chart: a co-located `values.yaml`).
+  namespace (chart: a co-located `values.yaml`). When that value also renders
+  per-namespace RBAC or a service account, keep `default` listed for the smoke
+  test.
 - Pods with no permissions upstream: a co-located RBAC manifest applied from
   `install.sh`, with a comment that it is scoped to the test cluster. Other
   cluster-scoped or shared objects the flows need: same way, with
@@ -492,9 +491,10 @@ Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
   `reference/recorded-flow.md`).
 - A reason no recording can show stays mapped, stays out of the predicate, and
   is named unproven in the builder comment.
-- `AddState` order is precedence: least to most advanced, last match
-  strongest. Declare `Suspended` first when the controller leaves the condition
-  after a resume, last when it flips it to False.
+- `AddState` order decides only a frame two predicates match: least to most
+  advanced, last match strongest. Declare `Suspended` first when the
+  controller leaves the condition after a resume, last when it flips it to
+  False.
 - Mark a step `Optional()` when the controller may skip it (State order in
   `reference/recorded-flow.md`). Check each
   fixture's first frame after the first run. If a no-status rule exists and the
@@ -508,9 +508,9 @@ Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
 - Actions are generic merge-patch helpers in `test/e2e/flows/actions.go`, not
   named after the workload; suspend and resume share them, side by side. An
   action other than suspend, resume, or scale needs an `ActionType` constant in
-  `test/e2e/recorder/flow.go`. A pod template rollout uses
-  `AnnotatePodTemplate(key, value)` with `ActionRollout` (`"Rollout"`); add
-  them when missing.
+  `test/e2e/recorder/flow.go`. A pod template rollout or rerun uses
+  `Annotate(key, value, path...)`, a merge patch at any annotations map, with
+  `ActionRollout` (`"Rollout"`); add them when missing.
 - A `suspendDefinition` that can pause a running workload needs a flow
   `Reaches(Running).Do(<suspend action>)` then `Reaches(Suspended)`; the resume
   is optional.
@@ -521,7 +521,8 @@ Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
   `Do()` whose predicate reads a spec field is gated on a field only the
   controller writes. A terminal status shared with an in-flight phase is gated
   on the CR field. A `Do()` state that is also terminal gets a terminal
-  `With()` on a field the action changes and the controller echoes; confirm
+  `With()` on a field the action changes and the controller echoes, or, when
+  it echoes none, ends on a later state only the action leads to; confirm
   `STATE` frames follow the `ACTION`. With a string or absent
   `observedGeneration`, the `With()` gate is the only protection against a
   late write.
@@ -531,7 +532,9 @@ Manifests under `test/e2e/flows/testdata/<workload>/`:
 - Name objects `karta-e2e-<workload>-<flow>`; set `namespace: default`.
 - Pin image tags, declare requests and limits, add the SPDX header, and keep
   the pod alive past the Running check: `sleep infinity` when it never
-  completes, `sleep 300` for a Job that must hold Running.
+  completes, `sleep 300` for a Job that must hold Running. A workload that
+  cannot sleep holds Running by its work size: measure how long in the first
+  recording and say so in the manifest comment.
 - Do not tolerate the control-plane taint. To make one pod of a per-node
   workload differ, branch on `spec.nodeName` from the downward API
   (`*-worker2`); keep it unready by failing its readiness probe, not by exit.
@@ -552,20 +555,17 @@ make e2e-down CLUSTER_NAME=<name>
 - Export both once per session and use the same `CLUSTER_NAME` on every
   `make` call.
 - Before recording, `kubectl apply --dry-run=server -f` every testdata
-  manifest; a webhook can reject a value the types declare.
+  manifest; a webhook can reject a value the types declare. Retry a
+  connection refused.
 - A new kind on a multi-kind operator passes the kind label to `record-e2e`
   (`WORKLOADS=tfjob`); `e2e-up` takes the operator name, or `none`.
   `FLOW="<a>|<b>"` re-records only those flows; after a change to a rule or a
   predicate, re-record every flow of the kind. `E2E_LABELS` takes a raw Ginkgo
   label expression.
-- On `required state ... missing or out of order`, the `observed [...]` list is
-  the real walk. Fix the mapping when a frame reads the wrong status; change
-  the journey only when the frame is real and correctly mapped. When an action
-  step never reaches its next state, dump the frames (Reading fixtures in
-  `reference/recorded-flow.md`) and check for a stale writer before dropping
-  the flow.
-- After a failure, compare `Ran N of M Specs` with the `It` count and re-run
-  the skipped flows with `FLOW`.
+- On `required state ... missing or out of order`, an action step that never
+  advances, or `Ran N of M Specs` below the `It` count, apply its row in
+  Recorder and e2e in `reference/troubleshooting.md`; never drop a flow before
+  checking for a stale writer.
 - `make e2e-down` leaves the kubeconfig file and
   `hack/e2e/operators/.installed-versions-<cluster>`; remove both.
 
