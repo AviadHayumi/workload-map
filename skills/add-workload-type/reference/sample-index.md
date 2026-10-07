@@ -45,6 +45,24 @@ multi-instance or nested pattern (for example Ray worker groups needing
 | Templates that each run a pod directly, where no pod label carries the template name (Argo Workflows) | Start from `docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml` for the multi-instance shape, then follow Instance ids carried outside labels in `technical-guide.md` | One `Pod` child with `fragmentedPodSpecDefinition` paths iterating `.spec.templates[]`, `instanceIdPath` on the template name, and a `componentInstanceSelector` whose `idPath` reads the pod spec itself (the `ARGO_TEMPLATE` env value). No `scaleDefinition`: a template runs any number of pods and the spec carries no count. |
 | Pipeline tasks that each run through an intermediate object, with the task name on a pod label (Tekton PipelineRun) | Start from `docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml` for the shape | One multi-instance `TaskRun` child (`tekton.dev/v1`), since the owner chain is PipelineRun, TaskRun, Pod. Two task lists feed it: `instanceIdPath: (.spec.pipelineSpec.tasks[]?, .spec.pipelineSpec.finally[]?) \| .name`, and every fragmented path uses the same union. `idPath: .metadata.labels["tekton.dev/pipelineTask"]`. Steps are not containers; see Read-only projections in `technical-guide.md`. |
 
+## Do not copy
+
+Parts of the existing tree that predate a rule. Copy the shape, not these.
+
+| Source | Do not copy | Instead |
+|---|---|---|
+| `apps-deployment-v1.yaml` | `Failed` on `ProgressDeadlineExceeded` | `Degraded` (step 5) |
+| `apps-statefulset-v1.yaml` | `Degraded` on a partial ready count, and the `Optional()` dip its flows declare for it | `Initializing` (step 5) |
+| `apps-statefulset-v1.yaml` | Rules without the `(.status.observedGeneration // 0) > 0` guard | Require a controller-written field in every settled rule (step 7) |
+| `kubeflow-org-pytorchjob-v1.yaml`, `kubeflow-org-mpijob-v2beta1.yaml` | `Initializing` on `Created` alone | AND the absence of every later condition (step 5) |
+| `kubeflow-org-pytorchjob-v1.yaml`, `kubeflow-org-mpijob-v2beta1.yaml` | One fixed child per optional map key | One multi-instance child keyed by the map (step 3) |
+| The nearest sample's role label key | The `keyPath` value | The target controller's real pod labels (step 6) |
+| Older entries such as `.spec.replicas // 1` | A `//` fallback in a scale path | A plain path (step 4) |
+| The PyTorchJob flow | The `Initializing` revisit before the terminal state | Declare a revisit only when the controller source can produce it (step 8) |
+| `test/e2e/recorded_data/*/v1.34.0/` | Fixtures of an operator filed under the Kubernetes version | The operator's `version_of` string (step 8) |
+| `karta-e2e-pytorch`, `karta-e2e-sts` | Object names without the flow suffix or with a shortened workload | `karta-e2e-<workload>-<flow>` (step 8) |
+| A sibling catalog definition's gang format | Converting `podGroups` to `podGroup` while copying | Copy the format it uses (Optimization instructions in `technical-guide.md`) |
+
 ## Pattern quick reference
 
 - Single full pod template: `podTemplateSpecPath`. See `batch-job-v1.yaml`.

@@ -5,9 +5,9 @@
 
 Match the error text to a row and apply the fix. Messages come from the
 validator (`pkg/api/runai/v1alpha1/validation.go`), the jq validator
-(`pkg/jq/validation.go`), the Go accessor API at runtime, or a
-`hack/karta-verify` run against a CR. The prose version
-is `docs/Troubleshooting.md`.
+(`pkg/jq/validation.go`), the Go accessor API at runtime, a
+`hack/karta-verify` run against a CR, or the e2e scripts and recorder. The
+prose version is `docs/Troubleshooting.md`.
 
 ## Structure validation errors
 
@@ -64,6 +64,44 @@ Raised by the Go Component API when reading a definition.
 | `extracted a pod spec with no containers`, with `replicas=<none>` on the same line | A fixed child for a role the CR omits (TFJob PS or Evaluator, PyTorchJob Worker). Its probe write also creates the role. | Model the roles as one multi-instance child keyed by the map (step 3 in `SKILL.md`). |
 | `extracted a pod spec with no containers`, with a replica count | The spec path points at the wrong level, or a `fragmentedPodSpecDefinition` has no `containersPath`. | Check the path with jq against the CR. For a fragmented spec with no container field, run without `--strict` (step 7). |
 | `status: Running,Initializing` (two or more statuses) | Two rules match the same object, often one on a condition the controller never clears. | Make the rules exclusive (step 5 in `SKILL.md`). Do not widen the prediction. |
+| `predicted but not extracted` for the root key | The read side does not extract the root's scale and spec paths. | Never list the root. Predict `status:` alone for a root-only definition and check root read paths with jq. |
+| `replicas=<none>` with no warning | The spec carries no count, an `omitempty` field is absent, or the component has bounds only. | Expected. Leave `replicas` out of that prediction. Do not write `replicasPath: 1`. |
+| Unresolved status warning on the CR with no status | No rule matches, as intended. | Predict `status: [Undefined]` and run without `--strict`. |
+| Zero instances warning under `--strict` | The CR references its items (`pipelineRef`, a template reference) instead of defining them inline. | Run without `--strict` and state the expected zero in the final answer. |
+| Every failure exits 1 | `go run` turns every non-zero exit into 1. | `go build -o <scratch>/verify ./hack/karta-verify` and read the code: 2 mismatch, 3 warnings. |
+| `function not defined` at runtime | `keys_unsorted`, which passes the validator. | Use `keys`. |
+| `--write`: a changed path on the identity write is `{}` or `null` for a field the CR did not carry | The write engine materializes the field. | Not a definition defect. Say so in the final answer. |
+| `--write`: a changed path on the identity write for a field the CR did carry | The read path and the write path do not address the same location. | Fix the path. |
+| `--write`: the probe landed in fewer places than there are instances, or in another path | The spec path is a formula: a `//` fallback, arithmetic, or a filter after an iterator. | Rewrite it as a plain path (Fragmented paths must be assignable in `technical-guide.md`). |
+| `--write`: a suspend or resume changed a path outside its actions | An action path is a formula. | Rewrite the action path as a plain path. |
+| `skipped: no instances extracted` | The component extracted nothing from this CR. | Fix the read side first. |
+
+## Recorder and e2e
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `required state ... missing or out of order` | The `observed [...]` list in the error is the real walk. | Fix the mapping when a frame reads the wrong status. Change the journey only when the frame is real and correctly mapped. |
+| An action step never reaches its next state | A stale writer (a polling loop) or a wrong mapping. | Dump the frames (Reading fixtures in `recorded-flow.md`) and check for a stale writer (step 5) before dropping the flow. |
+| The run times out with no frames | The controller or a webhook does not watch the recorder's generated namespace. | Make the install watch every namespace the controller and its webhooks watch. |
+| Every workload pod ends in error | The upstream manifest grants the pods no permissions. | Add a co-located RBAC manifest applied from `install.sh`. |
+| The webhook rollout times out | A one-shot Job that generates webhook certs has not finished. | `kubectl wait --for=condition=Complete job.batch/<init-job>` before `rollout_wait`. |
+| `install.sh` fails at exit on an unbound variable | The temp dir is `local`; the EXIT trap fires after `main` returns, under `set -u`. | Assign it without `local` before the `trap`. |
+| The controller lands in `default` while its ClusterRoleBinding names another namespace | The manifest carries no `kind: Namespace` and no `namespace:` (Argo Rollouts). | Create the namespace and apply with `-n <ns>`. Delete what landed in the wrong namespace before `make e2e-up` again. |
+| The operator's own manager pods are blocked by its pod webhook | The chart's Namespace was turned off and its labels were lost (OpenKruise `control-plane: openkruise`). | Let the chart render its Namespace and install as upstream documents. |
+| A new training-operator kind never reconciles | `install.sh` does not list it in `--enable-scheme`. | Add one `--enable-scheme=<kind>` per kind. |
+| `kind load` fails on a multi-arch image | Docker Desktop's containerd store. | `preload_image "${img}" "${img}" \|\| warn "..."` with the pinned upstream reference, and keep testdata on it. |
+| `run_smoke` waits on the wrong object | A bare `job/` resolves to `batch/v1`. | Use `<plural>.<group>/<name>-smoke`. |
+| `go vet` fails in `test/e2e/flows` on a new helper | The name collides with dot-imported ginkgo or gomega (`Not`, `And`, `Or`, `Equal`). | Rename it (`Negate`, `AnyOf`). |
+| Counter predicates pass or fail on every CR in the offline test | `yaml.Unmarshal` into a map yields float64, and `NestedInt64` reads 0. | Decode with `yaml.YAMLToJSON` then `Unstructured.UnmarshalJSON`. |
+| The run stalls until the timeout | A `With()` or `Do()` step whose frame the watch missed. | Gate only the terminal step or a step whose frame is certain. Never pair `With()` with `Optional()`. |
+| `Do()` fires before the controller wrote any status | Its predicate reads a spec field. | Gate the step with `With()` on a field only the controller writes. |
+| The run ends on the frame that fired the action | The `Do()` state is also the terminal state. | Gate the terminal step with `With()` on a field the action changes and the controller echoes. |
+| `succeeded: true`, but the fixture stops one frame early | An in-flight phase maps to the same status as the final one. | Gate the terminal step on the CR field and check the `phase:` values. |
+| A late write lands in the checked walk after a `Do()` | `observedGeneration` is a string or absent, so stale frames are not marked. | Gate the action step with `With()` on the controller's first real status. |
+| `Ran N of M Specs` with N below the number of `It`s | The flow file is `Ordered`; the first failure skipped the rest. | Re-run the skipped flows with `FLOW="<a>\|<b>"`. |
+| A walk frame reads `Running=Initializing,Running` | Two status rules overlap. | Fix the rule (step 5) and re-record. |
+| `generated files or module manifests are stale or untracked` | `validate` requires a clean tree and sees untracked files. | Commit the new files, fixtures included, before `make check`. |
+| `make check` is silent for minutes | It is downloading the pinned `golangci-lint` and `goreleaser`. | Run it in the background with its output in a log file and poll the log. |
 
 ## Silent mistakes (valid but wrong)
 

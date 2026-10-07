@@ -6,7 +6,9 @@
 A condensed field reference for authoring a Karta definition. It matches the API
 types in `pkg/api/runai/v1alpha1/` and the validator in
 `pkg/api/runai/v1alpha1/validation.go`. The prose reference is
-`docs/Technical Guide.md`.
+`docs/Technical Guide.md`. It also carries the why and the operator examples
+behind steps 3 to 7 of `SKILL.md`: Status mapping patterns for step 5 and
+karta-verify runs for steps 6 and 7.
 
 ## Top-level shape
 
@@ -88,6 +90,12 @@ PodCliqueSet is the example: containers and scheduler name are inside
 `.spec.template.cliques[].spec.podSpec`, but labels and annotations sit one level
 up on the clique itself. `podSpecPath` would read the spec and silently drop the
 labels and annotations. Check where every field lives, not just the containers.
+
+An optional full template next to the scattered fields is not a reason to use
+`podTemplateSpecPath`. Spark offers `spec.driver.template` beside the scattered
+driver fields. An absent template reads null, and a write through it creates a
+template with no containers. The scattered fields are always there, so the
+definition reads those, and the builder comment says the template is not read.
 
 `fragmentedPodSpecDefinition` fields (all optional; set only those that exist):
 `schedulerNamePath`, `labelsPath`, `annotationsPath`, `resourcesPath`,
@@ -236,6 +244,129 @@ statusMappings:
       status: "True"
 ```
 
+## Status mapping patterns
+
+The why and the operator examples behind the step 5 rules in `SKILL.md`.
+
+### One status per frame
+
+Every status that matches lands in the workload's phases list, and a consumer
+cannot tell which one is current. The recorded flow cannot tell them apart
+either. Keeping each pair exclusive means finding what the controller leaves
+unchanged in the other state and guarding on a field it does change.
+
+Phase derived from a spec field. A controller that reports Paused whenever
+`.spec.paused` is set leaves that field on the frames before its first phase
+write. Mirroring the controller:
+
+- `Suspended` also matches `(.spec.paused // false) and (.status.phase // "") == ""`.
+- `Initializing` ANDs `(.spec.paused // false) | not`.
+
+Flag read before the phase switch. Spark reads `spec.suspend` before its phase
+switch and writes its own Suspending and Resuming phases. A frame with the flag
+set and a phase it will suspend from reads `Suspending`, and the paused phase
+with the flag cleared reads `Resuming`: the status of the phase it writes next.
+The flow mirrors both with `AnyOf` over the phase and the flag.
+
+A rule that negates a phase list (`IN(...) | not`) also matches the empty
+phase, so it maps the object with no status too.
+
+Hibernation by annotation. A controller that hibernates by annotation can keep
+its healthy phase and `Ready=True` while it clears the ready count, so
+`Running` needs `(.status.readyInstances // 0) >= (.spec.instances // 1)` as
+well.
+
+A condition set once and never cleared. Kubeflow `Created` holds on every later
+frame, so a rule on it alone overlaps every other status. The guarded rule:
+
+```text
+[.status.conditions // [] | .[] | select((.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended") and .status == "True")] | length == 0
+```
+
+The rule still requires `Created` itself. An object with no status then reads
+`Undefined`, which step 7 allows and the recorder drops from the walk. The
+PyTorchJob and MPIJob samples still carry the overlap.
+
+Conditions written in one reconcile. The training-operator loops over all roles
+in one status pass, so a succeeded Chief and a failed PS set `Succeeded=True`
+and `Failed=True` together.
+
+Polling loops beside the reconcile (KEDA, other autoscalers). When the
+reconcile copies the conditions, starts the loop, and writes its copy
+afterwards, its late write can undo the loop's first poll for one frame. When
+the loop also writes its own cached copy, it can write a stale pause condition
+back after a resume, and no reconcile clears it when status-only changes do not
+trigger one. Matching `Suspended` on the intent field (a spec flag, an
+annotation the controller only reads) together with the condition makes the
+stale frame read what the workload does. Parse the field as the controller
+does: KEDA's `strconv.ParseBool` treats any unparsable value as paused.
+
+### Failed and Degraded
+
+A consumer that reads `Failed` as final may delete the workload. An error a poll
+loop sets and clears on its next good poll leaves the started work running, so
+it is `Degraded`. KEDA shows both: `ScaledJobCheckFailed` (the scale loop never
+started) is `Failed`, and `TriggerError` is `Degraded`.
+
+A progress deadline, `Progressing=False/ProgressDeadlineExceeded`, goes back to
+True by itself once the pods become available, in the Deployment and the
+OpenKruise CloneSet alike. The CloneSet keeps the last write time of an
+unchanged condition, so a healthy scale-up of a CloneSet settled longer than the
+deadline hits it on the first reconcile. The Deployment sample maps it to
+`Failed`.
+
+A condition the controller never clears does not mark a fault. CloneSet
+`FailedScale` and `FailedUpdate` are also raised by a pod update conflict on a
+healthy rollout.
+
+A controller that reports only counters cannot tell one stuck pod from one that
+is starting: some-but-not-all ready also holds on every create, the last pod of
+every rollout, and every node join. The StatefulSet sample still maps that
+partial to `Degraded` and declares the dip `Optional()` in its flows.
+
+Fault signals that are not `Degraded`. Kubeflow `Restarting` evicts `Running`,
+and the guarded `Initializing` rule maps the frame, so it reads
+`Initializing`. DaemonSet pod failures are events only. DaemonSet
+`numberMisscheduled` also counts pods that a NoSchedule taint lets keep
+running, so the controller does not always clear it.
+
+### Spec-driven branches
+
+A settled state that owes no pods (replicas 0, a node selector no node
+matches) reads `Running`, as the StatefulSet and Grove rules do. A desired > 0
+guard leaves it `Undefined`. A `nodeSelector` no node carries reaches it on the
+kind cluster.
+
+Spec fields that choose how the controller progresses include an update
+strategy such as `OnDelete`, a rollout `partition`, `paused`, and a restart
+policy. The default for an absent field goes into the rule,
+`(.spec.updateStrategy.type // "RollingUpdate")`, and comes from API defaulting
+(`SetDefaults_DaemonSet`), a webhook, or the controller. Under `OnDelete` the
+controller never replaces old pods by itself, so a rule that waits for the
+updated count leaves a healthy workload in `Initializing` forever. A feature
+gate that changes how the controller moves pods is a branch too.
+
+### In-flight phases
+
+Karta has no in-flight status except `Suspending` and `Resuming`. A phase the
+controller writes while it finishes a transition it always completes (draining
+pods before Completed, Aborted, or Terminated) maps to the status it ends in.
+Left unmapped, the workload reads `Undefined` mid-transition.
+
+Two exits. Volcano's Restarting goes to Failed when
+`status.retryCount >= spec.maxRetry`, else back to Pending. Both inputs are on
+the object, so the phase splits into one matcher per exit, `byPhase` plus a
+`byExpression`, each under the status it ends in. A retry policy with one retry
+and a short interval reaches the retry exit on the kind cluster.
+
+Pause through another object. Volcano suspends through a separate Command
+object (AbortJob, ResumeJob) and reports Aborting, then Aborted. No
+`suspendDefinition` can be written, yet Aborted is the resumable paused phase
+(`Suspended`) and Aborting its draining phase (`Suspending`). A resume that
+writes Restarting, as a restart policy does, leaves `Resuming` unmapped. A
+lifecycle policy in the CR reaches the paused state, since the recorder only
+patches the workload.
+
 ## Scale definition
 
 ```yaml
@@ -259,7 +390,8 @@ gap: it is a number the CRD never declared. karta-verify prints
 `replicas=<none>` for such a component, and that is not a warning. The same
 holds for a count the API only implies (one TaskRun per Tekton task unless a
 matrix fans it out): the catalog models counts a spec field states, so leave it
-out and say so in a comment.
+out and say so in a comment. A count only the status carries (DaemonSet
+`desiredNumberScheduled`) is left out the same way.
 
 A component's replica count is the number of units at that component's level of
 the tree, counted across the whole workload. It is not the number of API objects
@@ -377,6 +509,11 @@ Kubeflow mpi-operator (MPIJob v2beta1) labels role with
 `training.kubeflow.org/job-role` (values `launcher`, `worker`). Read the actual
 pod labels the controller sets before writing `keyPath`.
 
+Labels set at creation. A label the controller writes when it creates the pod
+is there from the first frame. A label written later by status reconciliation
+(a primary or replica role) leaves new pods unmapped until it appears, and
+moves pods between components on failover.
+
 Disambiguating roles that share a label. When two components would match the
 same pod label, a plain value match is not mutually exclusive. Separate them by
 matching on a key that only one role carries, using key existence (omit `value`).
@@ -456,6 +593,34 @@ only the elements that carry the field (or a single `0` when none do), so one
 task that omits `replicas` breaks the count. Integer fields marked `omitempty`
 make this common. A default inside the pipeline,
 `.spec.tasks[] | .replicas // 0`, keeps the count but is not assignable.
+
+Roles keyed by a map. When the roles are optional keys of a map
+(`.spec.tfReplicaSpecs`, `.spec.pytorchReplicaSpecs`), one multi-instance child
+keyed by the map covers every role, deprecated aliases included:
+
+```yaml
+- name: replica
+  instanceIdPath: .spec.tfReplicaSpecs | keys[] | ascii_downcase
+  specDefinition:
+    podTemplateSpecPath: .spec.tfReplicaSpecs[].template
+  scaleDefinition:
+    replicasPath: .spec.tfReplicaSpecs[].replicas
+  podSelector:
+    componentInstanceSelector:
+      idPath: .metadata.labels["training.kubeflow.org/replica-type"]
+```
+
+A fixed child per role breaks on a CR that omits the key: it extracts an empty
+pod spec, and a write through it creates the key with no containers, which the
+operator's webhook rejects.
+
+In Karta (gojq), `keys` and `.[]` both walk the map in sorted key order, so ids
+and templates line up. The jq CLI walks `.[]` in insertion order instead, so a
+CR whose keys are not sorted looks misaligned there when it is not.
+`jq -S . cr.json | jq '<expr>'` sorts the input first. `keys_unsorted` passes
+the validator but fails at runtime with `function not defined`.
+`ascii_downcase` matches a controller that lowercases the key into the pod
+label; the real label decides.
 
 ## Additional child kinds
 
@@ -551,6 +716,107 @@ creator with no `scaleDefinition` and the created role as its child gets its
 children's count from `CalculateSubtreeScale`
 (`pkg/instructions/gang_scheduling.go`), not 1. Name that in the comment too.
 
+## karta-verify runs
+
+The why and the detail behind steps 6 and 7 in `SKILL.md`. Flags and the
+predictions format are documented in `hack/karta-verify/README.md`.
+
+Validation says nothing about whether a path resolves against a real object. A
+definition can pass step 6 in full, resolve to null against the real object,
+and report nothing. A run against a real CR is the only proof. With
+`--workload`, karta-verify builds the workload tree from the manifest and
+prints the extracted status, replica counts, and containers per component
+instance, with no cluster involved.
+
+Stand-in CRs. When no real CR exists, a CR written by hand from the controller
+source (the status its first sync writes, the fields the admission webhook
+defaults) exercises the paths, one per mapped phase plus one with no status. A
+pod built from the controller's pod label code does the same for selectors.
+
+The no-status frame. A `// 0` default on both sides of a comparison
+(`(.status.observedGeneration // 0) == (.metadata.generation // 0)`, updated
+equals desired) holds on an object no controller has seen. That is why every
+settled rule requires a field only the controller writes. `--strict` counts an
+unresolved status as a warning, which is why an `Undefined` prediction runs
+without it.
+
+Predictions. Writing the expected values first is the point: reading the output
+afterwards invites accepting whatever appears, while a prediction that
+disagrees with the extraction is a defect that cannot be talked away.
+
+```yaml
+status: [Running]
+components:
+- key: task[worker]
+  replicas: 2
+  containers: [worker]
+  podSpec: true
+```
+
+The read side does not extract the root's scale and spec paths, so a prediction
+keyed on the root fails as `predicted but not extracted`. For a
+Deployment-shaped root, check `.spec.replicas` and
+`.spec.template.spec.containers[].name` with jq instead. `--write` does probe
+the root's spec. `status` is compared as a set against every status that
+matched.
+
+Done. With `--strict` the run exits 0 when the status resolved, every child
+component declaring a spec pattern extracted a pod spec with containers, every
+`instanceIdPath` produced the instance keys the CR contains, and every predicted
+number matched. A child declared only for ownership (no spec or scale
+definition, like the Deployment's `replicaset`) prints
+`replicas=<none> podSpec=n/a containers=<none>`, which `--strict` accepts.
+
+Zero instances. A CR that only references its items (a PipelineRun by
+`pipelineRef`, a Workflow by template reference) correctly reports zero
+instances, which `--strict` counts as a warning.
+
+No container field. A CRD that only exposes image and resources overrides gets
+a `fragmentedPodSpecDefinition` with no `containersPath` or `containerPath`. On
+a child it always warns `extracted a pod spec with no containers`; Milvus warns
+the same way. Pointing `containerPath` at the
+role spec stores a whole container there on write and drops the role's other
+fields.
+
+Optional roles. A fixed child for a role the CR omits warns
+`extracted a pod spec with no containers` next to `replicas=<none>`, and its
+probe write creates the role. That is the map-keyed shape problem (Roles keyed
+by a map above), not a CR to skip.
+
+Exit codes. karta-verify exits 0 on success, 2 on a mismatch, and 3 on
+warnings. `go run` turns every non-zero exit into 1, hence the built binary when
+the code matters.
+
+Scratch directory. A sibling of a linked worktree can be another checkout, so
+`mktemp -d` is the safe default.
+
+The write probe. With `--write`, per component, the root included,
+karta-verify:
+
+1. Writes the pod spec back unchanged. Nothing may change.
+2. Sets one probe field and writes again. Exactly one leaf per instance may
+   change. The probe is a `nodeSelector` entry, or for a fragmented spec the
+   scheduler name when `schedulerNamePath` is set, else a label, else the
+   image.
+3. Applies the suspend actions, then the resume actions. Only the action paths
+   may change.
+
+It prints every changed path with its before and after value, and each
+unexpected change is a warning. Reading it is in the karta-verify output table
+of `troubleshooting.md`. Scale paths are read today and not probed, but they are
+written as plain paths so they stay writable. A count derived from several
+fields (LeaderWorkerSet workers, JobSet replicas times parallelism) has no plain
+path.
+
+The pod check. karta-verify never sees a pod. A selector that returns null on a
+real pod maps the pod to nothing. A definition with no selectors (the CronJob
+shape) relies on the owner chain (How a pod reaches a component above). To
+list each pod's owners and which one is the controller:
+
+```bash
+kubectl get pod -l <label> -o json | jq -r '.items[] | .metadata.name + " " + ([.metadata.ownerReferences[]? | .kind + "/" + .name + "(controller=" + ((.controller // false) | tostring) + ")"] | join(","))'
+```
+
 ## jq safety rules
 
 Every path is validated statically. These constructs are rejected:
@@ -568,6 +834,10 @@ Rules for correct paths:
 - Evaluated against the correct resource (workload object vs pod manifest).
 
 ## Validation checklist
+
+The validator (`go run ./hack/karta-verify --karta <definition.yaml>`) enforces
+the first six items and that every jq expression parses and uses no rejected
+construct. Check the rest by hand.
 
 - All kinds use a full GVK (only `Pod` may omit the group).
 - Root has a `statusDefinition` and no `ownerRef`.
