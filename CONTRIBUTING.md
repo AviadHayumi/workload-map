@@ -232,7 +232,9 @@ Adding one means, in order:
    operator's `version_of` string from `hack/e2e/up.sh`, which can be
    composite (`v1.9.0+mpiv0.8.2` for kubeflow). For a new kind on an operator
    that ships several, pass the kind label to `record-e2e`
-   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded. Fixtures are
+   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded.
+   `FLOW=<name>` (or `FLOW="<a>|<b>"`) re-records only those flows, which is
+   the normal loop after a failure. Fixtures are
    recorder output and carry no SPDX header. Every recorded state frame should
    list one status in `phases`; two mean the status rules overlap.
 4. `make test-replay` and `make verify-recordings` green. Commit the new files

@@ -249,6 +249,29 @@ workload's own conditions or phases into Karta's normalized statuses:
   together. Guard `Completed` with the absence of `Failed=True` (or the
   reverse, matching what the controller treats as final) and mirror it in the
   flow.
+- A controller can run a polling loop next to its reconcile (KEDA, other
+  autoscalers). Check whether the reconcile copies the conditions, starts the
+  loop, and writes its copy afterwards, and whether the loop writes its own
+  cached copy. Two things follow. The reconcile's late write can undo the
+  loop's first poll for one frame, so declare that dip `Optional()` in the flow
+  between the advanced state and the next one, with a comment. And the loop
+  can write a stale pause condition back after a resume, which no reconcile
+  clears when status-only changes do not trigger one. When the pause intent
+  lives in a field the controller only reads (a spec flag, an annotation),
+  match `Suspended` on the intent field and the condition together, parse the
+  field the way the controller does (KEDA's `strconv.ParseBool` treats any
+  unparsable value as paused), and AND the negation of that combined test into
+  every other rule. The stale frame then reads what the workload does. Do not
+  drop the resumed flow to work around it. Drop a flow only when no field on
+  the object tells the states apart, keep the action, and name it as unproven
+  in the builder comment.
+- Reserve `Failed` for a state the controller does not leave without a spec
+  change (KEDA `ScaledJobCheckFailed`: the scale loop never started). An error
+  a poll loop sets and clears on its next good poll (KEDA `TriggerError`) is
+  `Degraded`: the work already started keeps running, and a consumer that reads
+  `Failed` as final may delete it. When one condition carries both kinds, split
+  it by reason and mirror the split in the flow with a status-plus-reason
+  predicate.
 - A condition the controller writes while it recreates pods needs no rule of
   its own when the guarded rule above already maps the frame (Kubeflow
   `Restarting` evicts `Running`, and the frame reads `Initializing`). Say which
@@ -277,6 +300,10 @@ workload's own conditions or phases into Karta's normalized statuses:
   pods) gets no `scaleDefinition`. Do not write `replicasPath: 1` to fill the
   gap; karta-verify prints `replicas=<none>` for it, and that is not a warning.
   A count the API only implies (one TaskRun per task) is left out the same way.
+  Bounds on how many child objects run (KEDA ScaledJob counts Jobs) go on the
+  child for that level with no `replicasPath`; see Bounds without a count in
+  `reference/technical-guide.md`. Never put bounds in one unit next to a
+  `replicasPath` in another.
 - A suspend that writes a string or clears a field on resume, or a hold honored
   only before start, is covered under Suspend definition in
   `reference/technical-guide.md`.
@@ -410,9 +437,12 @@ a pod spec with no containers` next to `replicas=<none>`, and its probe write
 creates the role. That is the shape problem from step 3, not a CR to skip.
 
 Show the user the run output alongside the definition. Keep the predictions file
-and any scratch copies out of the repository, in a directory outside the
-checkout or one the clone ignores through `.git/info/exclude`; karta-verify
-takes absolute paths. `go run` turns every non-zero exit into 1, so build once with
+and any scratch copies out of the repository. The default is a sibling
+directory next to the checkout; `<scratch>` below means that directory.
+Otherwise use a directory the clone ignores through its exclude file. In a
+linked worktree `.git` is a file, so find the exclude file with
+`git -C <checkout> rev-parse --git-path info/exclude`. karta-verify takes
+absolute paths. `go run` turns every non-zero exit into 1, so build once with
 `go build -o <scratch>/verify ./hack/karta-verify` when the exit code matters
 (2 mismatch, 3 warnings). When something comes back empty or
 wrong, do not adjust the checklist; look the symptom up in
@@ -432,7 +462,11 @@ Two more runs are needed when they apply:
   every gang-scheduling `groupByKeyPaths` entry against it with `jq`. The
   `componentTypeSelector` must match, and the `componentInstanceSelector`
   `idPath` must return one of the instance ids karta-verify printed for the
-  component. A selector that returns null here maps the pod to nothing.
+  component. A selector that returns null here maps the pod to nothing. A
+  definition with no selectors (the CronJob shape) relies on the rules in
+  Component or additional kind in `reference/technical-guide.md`; check the
+  pod's owner chain instead,
+  `kubectl get pod <pod> -o json | jq '.metadata.ownerReferences'`.
 
 Then prove the writes. Reading is half of a definition; a consumer also writes
 through it, and a path that reads fine can write somewhere else or drop fields.
@@ -484,6 +518,11 @@ Catalog entry:
   `make generate-samples` writes the YAML under `docs/catalog/`; never hand-edit
   that file. Port the YAML validated in steps 6 and 7 into the builder, generate,
   and run step 6 and step 7 again on the generated file.
+- The builder comment holds what the code cannot show: the controller's order
+  of checks, why each guard exists, what is unproven, and what an action does
+  not do (a pause that stops new work only and leaves running pods alive, so a
+  consumer that suspends to free capacity gets none back). Do not restate the
+  paths. Existing builders run 3 to 26 comment lines.
 - Add a row for the workload to the Pre-built Karta Definitions table in
   `README.md`.
 
@@ -503,9 +542,16 @@ Operator install under `hack/e2e/`:
   one `--enable-scheme=<kind>` per kind and silently ignores the rest). Add a
   `<kind>-smoke.yaml` next to `smoke.yaml` (as `mpi-smoke.yaml` is) and a second
   `run_smoke` line in `verify.sh`.
-- `verify.sh` drives `smoke.yaml` to its terminal state through `run_smoke`. That
-  is its purpose: it proves the controller, its RBAC, and the pod path end to
-  end. When the upstream release manifest grants the workload's pods no
+- `verify.sh` drives `smoke.yaml` to a terminal or stable state through
+  `run_smoke`. That is its purpose: it proves the controller, its RBAC, and the
+  pod path end to end. A workload that never settles and proves the pod path
+  on an object it creates (a KEDA ScaledJob, any Job generator) does not fit
+  `run_smoke`, which waits on one target. Write the sequence by hand, as
+  `run_smoke` does: `apply_with_retry`, `kubectl wait` for the controller
+  condition on the workload, a `retry` until the child exists (`kubectl wait`
+  with a label selector fails while nothing matches), `kubectl wait` on the
+  child by its owner label, then `kubectl delete`. Capture each step in `rc`
+  so the delete always runs, and say in a comment why `run_smoke` is not used. When the upstream release manifest grants the workload's pods no
   permissions (every pod ends in error until a role exists), add a co-located
   RBAC manifest, apply it from `install.sh`, and say in a comment that it is
   scoped to the test cluster. Any other cluster-scoped or shared object the
@@ -525,7 +571,10 @@ Operator install under `hack/e2e/`:
   `https://raw.githubusercontent.com/<org>/<repo>/<tag>/<path>` (mpi-operator),
   a kustomize base at the tag,
   `kubectl apply --server-side -k "github.com/<org>/<repo>/<path>?ref=<tag>"`
-  (kubeflow), then a Helm chart. Project storage buckets often lag the newest
+  (kubeflow), then a Helm chart. Pin the tag as upstream spells it
+  (`v2.21.0`); a Helm chart version has no `v`. When the asset name drops the
+  `v` (`keda-2.21.0.yaml`), derive it in `install.sh` with `${<NAME>_VERSION#v}`
+  and say so next to the pin. Project storage buckets often lag the newest
   tag. Run `curl -fsSIL <url>` before writing `install.sh`. A remote kustomize
   resource must be a directory, so a single upstream file (a Namespace) is
   copied locally. When the upstream overlay or chart bundles an operator the
@@ -624,8 +673,17 @@ Flow under `test/e2e/flows/`:
 - When a run fails with `required state ... missing or out of order`, the
   `observed [...]` list in the error is the real walk. Fix the mapping (step 5)
   when a frame reads the wrong status. Change the journey only when the frame
-  is real and correctly mapped.
-- Actions are merge patches. A `Do()` step fires on the first frame judged to
+  is real and correctly mapped. When an action step never reaches its next
+  state, dump the frames, `yq -o json -I0 '.events[] | {state: .state, conds: [.object.status.conditions // [] | .[] | .type + "=" + .status + "/" + (.reason // "-")]}' <fixture>`
+  (slice with `| head -N`; yq rejects `.events[0:9] | {...}`), and check for a
+  stale writer (step 5) before dropping the flow.
+- Every flow file is an `Ordered` container: the first failing `It` skips every
+  later one in the file. After a failure, compare `Ran N of M Specs` with the
+  number of `It`s and re-run the skipped flows with `FLOW="<a>|<b>"`.
+- Actions are merge patches in `test/e2e/flows/actions.go`. Write a new one as
+  a generic helper, like the predicates (an annotation patch takes the key and
+  value), so suspend and resume share it; do not name it after the workload.
+  A `Do()` step fires on the first frame judged to
   be its state, which can be that pre-status frame when the predicate reads a
   spec field (a `Suspended` that matches `spec.paused`). Gate such a step on a
   field only the controller writes, for example
@@ -694,7 +752,7 @@ kubeconfig file; remove it yourself.
 
 After recording, run step 7 again, `--write` included, on a CR the controller
 wrote. Each fixture holds one: extract the last Running frame with
-`yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > /tmp/cr.yaml`
+`yq '[.events[] | select(.state == "Running")] | .[-1].object' <fixture> > <scratch>/cr.yaml`
 and pass it as `--workload`. Read each fixture with yq:
 `yq '.result.succeeded' <fixture>` for the outcome,
 `yq '.events[0].object.status.conditions' <fixture>` for the first frame, and

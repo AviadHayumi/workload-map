@@ -286,6 +286,13 @@ the same count (`group` and `leader` above both give 3). And the numbers should
 add up against a real manifest: if the CR declares 3 groups of 4, the components
 should report 3, 3, and 9, not 4.
 
+Bounds without a count. Some specs declare only bounds on how many child
+objects run (KEDA ScaledJob `minReplicaCount` and `maxReplicaCount` count Jobs,
+while `.spec.jobTargetRef.parallelism` counts pods per Job). Put the bounds on
+the child for that level with no `replicasPath`, and the per-Job count on the
+component that carries the template. karta-verify prints
+`replicas=<none> min=N max=M` for the child, and that is not a warning.
+
 Look for autoscaling bounds explicitly. `minReplicasPath` and `maxReplicasPath`
 are easy to miss because they usually live somewhere other than the replica field
 itself, for example PyTorchJob's `.spec.elasticPolicy.minReplicas` or Grove's
@@ -331,6 +338,11 @@ resumeActions:
 The path may also target an annotation when the controller suspends through
 one: `.metadata.annotations["example.io/hibernation"]` with `'"on"'` to suspend
 and `'"off"'` to resume.
+
+Check what the controller stops. A Job or JobSet suspend deletes the pods. An
+autoscaler's pause (KEDA `autoscaling.keda.sh/paused`) only stops new work, and
+running Jobs and their pods run to completion. Say so in the builder comment,
+since a consumer that suspends to free capacity gets none back.
 
 A hold the controller honors only before the run starts is still modeled as
 suspend. Say in a comment that the controller rejects it on a started run, and
@@ -457,6 +469,17 @@ component must hang off, in which case it carries a `kind` and an `ownerRef` and
 nothing else. The CronJob definition does exactly that for the `batch/v1` Job it
 creates. Do not list a kind here merely because the workload creates it, if a
 component already covers it.
+
+How a pod reaches a component. Which pods belong to the workload is decided by
+the owner-reference chain from the pod up to the root. Which component a pod
+maps to is decided among the components that declare a spec pattern
+(`InferPodComponent` in `pkg/instructions/pod.go`): with exactly one, every pod
+maps to it and no selector is needed; with several, `componentTypeSelector`
+decides. An ownership-only child has no spec pattern and receives no pods. In
+the CronJob shape the pods map to the root, which carries the template, and the
+`Job` child only names the kind the owner chain passes through. Offline nothing
+proves the chain; check it on a recorded pod with
+`kubectl get pod <pod> -o json | jq '.metadata.ownerReferences'`.
 
 ```yaml
 additionalChildKinds:
