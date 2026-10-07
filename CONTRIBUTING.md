@@ -193,35 +193,41 @@ Adding one means, in order:
    is a Kubernetes builtin (apps, batch, core): the table lists operator-backed
    kinds only.
 2. A flow under `test/e2e/flows/` with its workload manifests under
-   `test/e2e/flows/testdata/<workload>/`, covering at least the states the
-   definition maps, and each spec value a rule branches on that the kind's
-   webhook accepts (a StatefulSet's `OnDelete`, paused, a partition, a restart
-   policy), that a kind cluster can reach. When the
-   definition can suspend a running workload, one flow fires the suspend
-   action from Running; a CR created suspended does not prove it. Manifests pin image tags,
-   declare resource requests and limits, set `namespace: default` (the recorder
-   overrides it), set `automountServiceAccountToken: false` unless the pods call
-   the API server, and name objects `karta-e2e-<workload>-<flow>`. State
-   predicates read the CR's own fields, never Karta; `AddState` order decides
-   only a frame two predicates match, least to most advanced. See `test/e2e/recorder/README.md`. If
-   the operator is new or its install needs new pieces, follow Adding an
-   operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`, `smoke.yaml`,
-   the version pin in `global.env`, `ALL_WORKLOADS` and `version_of` in
-   `up.sh`) so `make e2e-up` still provisions everything. A new kind for an
-   operator already installed keeps its directory, pin, and `up.sh` entries;
-   it extends any flag in `install.sh` that gates which kinds the controller
-   serves and adds a `<kind>-smoke.yaml` plus a `run_smoke` line in
-   `verify.sh`. The operator directory takes the upstream project's short
-   name (`kuberay`, `spark-operator`). `Fixture.Operator`
-   in the flow must equal the directory name under `hack/e2e/operators/`;
-   that is how the recording is filed under the operator version. The operator
-   name is also the first `Label`; add the kind as a second label when the
-   operator ships several kinds. Name the testdata directory and the
-   `<workload>` in object names after the kind in lowercase (`pytorch`,
-   `mpijob`); single-kind operators may use the operator name (`nim`). When the
-   kind collides with a builtin or another catalog entry (a Volcano `Job`), use
-   the upstream short name (`vcjob`) for the label, the directory, and the
-   object names alike.
+   `test/e2e/flows/testdata/<workload>/`. See `test/e2e/recorder/README.md`.
+   - Flow: record every mapped state, and each spec value a rule branches on
+     (a StatefulSet's `OnDelete`, paused, a partition, a restart policy), that
+     the kind's webhook accepts and a kind cluster can reach. Name the rest
+     unproven in the builder comment. When the definition can suspend a
+     running workload, one flow fires the suspend action from Running; a CR
+     created suspended does not prove it. State predicates read the CR's own
+     fields, never Karta; `AddState` order decides only a frame two
+     predicates match, least to most advanced.
+   - Manifests: pin image tags, declare resource requests and limits, set
+     `namespace: default` (the recorder overrides it), set
+     `automountServiceAccountToken: false` unless the pods call the API
+     server, and name objects `karta-e2e-<workload>-<flow>`.
+   - Install: if the operator is new or its install needs new pieces, follow
+     Adding an operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`,
+     `smoke.yaml`, the version pin in `global.env`, `ALL_WORKLOADS` and
+     `version_of` in `up.sh`) so `make e2e-up` still provisions everything. A
+     new kind for an operator already installed keeps its directory, pin, and
+     `up.sh` entries; it extends any flag in `install.sh` that gates which
+     kinds the controller serves and adds a `<kind>-smoke.yaml` plus a
+     `run_smoke` line in `verify.sh`. A Kubernetes builtin needs none of
+     this.
+   - Naming: the operator directory takes the upstream project's short name
+     (`kuberay`, `spark-operator`). `Fixture.Operator` in the flow must equal
+     that directory name; that is how the recording is filed under the
+     operator version. The operator name is also the first `Label`; add the
+     kind as a second label when the operator ships several kinds. A builtin
+     has no directory: `Fixture.Operator` equals the first `Label`, and the
+     second label is `builtin`. Name the testdata directory and the
+     `<workload>` in object names after the kind in lowercase (`mpijob`,
+     `rayjob`; `pytorch` is a legacy name); single-kind operators may use the
+     operator name (`nim`). When the kind collides with a builtin or another
+     catalog entry (a Volcano `Job`), use the upstream short name (`vcjob`)
+     for the label, the directory, the object names, and the root component
+     name alike.
 3. The recorded fixtures from a live run, committed under
    `test/e2e/recorded_data/<operator>/<version>/<kartaName>/`:
 
@@ -246,12 +252,15 @@ Adding one means, in order:
    `FLOW=<name>` (or `FLOW="<a>|<b>"`) re-records only those flows, which is
    the normal loop after a failure in a flow or its manifest. A change to a
    status rule or a predicate re-records every flow of the kind. Fixtures are
-   recorder output and carry no SPDX header. Every recorded state frame should
-   list one status in `phases`; two mean the status rules overlap.
-4. `make test-replay` and `make verify-recordings` green, and
-   `GOWORK=off go vet ./...` clean in `test/e2e`, which `make check` does not
-   cover. Commit the new files before `make check`: the `validate` target
-   treats untracked files as stale generator output.
+   recorder output and carry no SPDX header. `phases` lists the flow
+   predicates that matched a frame. Every state frame of a new fixture should
+   list one; two mean the predicates overlap, and since they mirror the status
+   rules, karta-verify on that frame shows whether the rules overlap too.
+4. `make test-replay` and `make verify-recordings` green. `make lint-shell`
+   green, and `GOWORK=off go vet ./...` and `gofmt -l .` clean in `test/e2e`;
+   `make check` covers none of these three. Commit the new files before
+   `make check`: the `validate` target treats untracked files as stale
+   generator output.
 
 ## Versioning
 

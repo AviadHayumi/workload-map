@@ -49,7 +49,7 @@ A builtin (apps, batch, core) has no operator repository. Read the status type
 from the module cache:
 
 ```bash
-$(go list -m -f '{{.Dir}}' k8s.io/api)/<group>/<version>/types.go
+cat "$(go list -m -f '{{.Dir}}' k8s.io/api)/<group>/<version>/types.go"
 ```
 
 Fetch the controller at the Kubernetes version of `KIND_NODE_IMAGE` in
@@ -81,12 +81,13 @@ first and run steps 6 and 7 on the generated file only.
 
 The builder comment holds what the code cannot show. An example of what an
 action does not do: a pause that stops new work only and leaves running pods
-alive, so a consumer that suspends to free capacity gets none back. Examples of
-what a write through an exposed path does not do: with spark-operator's
-`PartialRestart` gate on, a write to the executor `schedulerName`, affinity, or
-`priorityClassName` skips the rerun and reaches only executors created later;
-and `spec.batchScheduler` overrides both `schedulerName` paths at pod creation,
-so a write through them does nothing while it is set.
+alive, so a consumer that suspends to free capacity gets none back. Two
+examples of what a write through an exposed path does not do. With
+spark-operator's `PartialRestart` gate on, a write to the executor
+`schedulerName`, affinity, or `priorityClassName` skips the rerun and reaches
+only executors created later. And `spec.batchScheduler` overrides both
+`schedulerName` paths at pod creation, so a write through them does nothing
+while it is set.
 
 The 3 to 26 line bound counts every `//` line of the doc comment, the summary
 sentence and the blank `//` line included. The recorded phase sequence is the
@@ -148,7 +149,7 @@ The recorder creates the flow object in a namespace it generates. A controller
 or webhook limited to some namespaces (a `--namespaces` flag, a `jobNamespaces`
 chart value, a webhook `namespaceSelector`) never reconciles it, and the run
 times out with no frames. For a chart, the setting goes in a co-located
-`values.yaml`, as `grove/values.yaml` does.
+`values.yaml`, the way `grove/values.yaml` carries its chart overrides.
 
 A chart can render per-namespace RBAC or a service account from the same list.
 spark-operator's `spark.jobNamespaces` does: `""` alone widens the watch to
@@ -279,25 +280,26 @@ string from `up.sh`, which can be composite (`kubeflow` is `v1.9.0+mpiv0.8.2`).
 A new kind for an operator with older fixtures therefore lands in a second
 version directory next to `v1.34.0` until the older fixtures are re-recorded.
 
-Naming examples: `Label("kubeflow", "mpijob")`; testdata directories `pytorch`,
-`mpijob`, `rayjob`; single-kind operators `nim`, `milvus`. A Volcano `Job`
-collides with the builtin, so it uses `vcjob` for the second label, the testdata
-directory, the object names, and the root component name (otherwise the
-lowercase kind, as in every catalog builder).
+Naming examples: `Label("kubeflow", "mpijob")`; testdata directories `mpijob`,
+`rayjob` (`pytorch` is a legacy name); single-kind operators `nim`, `milvus`.
+A Volcano `Job` collides with the builtin, so it uses `vcjob` for the second
+label, the testdata directory, the object names, and the root component name
+(otherwise the lowercase kind, as in every catalog builder).
 
 ### Predicates
 
-Helpers in `test/e2e/flows/predicates.go`: `CondTrue`, `CondNotTrue`,
-`CondStatus`, `CondReason`, `PhaseEq`, `PhaseAny`, `IntAtLeast`, `BoolTrue`,
-`Absent`, `AllOf`. `CondReason` requires status True and `CondNotTrue` also
-matches Unknown, so a controller that reports one condition and tells states
-apart by reason while it is Unknown needs generic helpers (status plus reason,
-condition absent, any-of). The same goes for a state reported two ways
-(any-of), a negation, or a count that `omitempty` drops at zero (at-most,
-absent read as 0).
+Helpers in `test/e2e/flows/predicates.go`: `CondTrue`, `CondFalse`,
+`CondsFalse`, `CondNotTrue`, `CondStatus`, `CondReason`, `PhaseEq`, `PhaseAny`,
+`IntAtLeast`, `IntEq`, `BoolTrue`, `Absent`, `AllOf`. `CondReason` requires
+status True and `CondNotTrue` also matches Unknown, so a controller that
+reports one condition and tells states apart by reason while it is Unknown
+needs generic helpers (status plus reason, condition absent, any-of). The same
+goes for a state reported two ways (any-of), a negation, or a count that
+`omitempty` drops at zero (at-most, absent read as 0). `predicates.go` has none
+of these; add each next to the existing helpers when a flow first needs it.
 
 The flow files dot-import ginkgo and gomega, so a helper named `Not`, `And`,
-`Or`, or `Equal` fails vet. `Negate` and `AnyOf` are safe names.
+`Or`, or `Equal` fails vet. Name them `Negate` and `AnyOf` when adding them.
 
 Reusing a named predicate under another path: a CR that copies the JobSet
 counters reads the same fields `JobsetRunning` reads. Give `JobsetRunning` the
@@ -374,13 +376,15 @@ workers are the usual reasons to raise it with `SetTimeout`.
 
 Actions are merge patches in `test/e2e/flows/actions.go`. A generic helper
 takes its inputs (an annotation patch takes the key and value), so suspend and
-resume share it. `SuspendRunPolicy` sits next to `ResumeRunPolicy`. A new
-`ActionType` constant in `test/e2e/recorder/flow.go` is only the recorded
-action name.
+resume share it. A missing helper is added when a flow first needs it, next to
+the existing ones: a `SuspendRunPolicy` with
+`{"spec":{"runPolicy":{"suspend":true}}}` and `ActionSuspend` goes next to
+`ResumeRunPolicy`. A new `ActionType` constant in `test/e2e/recorder/flow.go`
+is only the recorded action name.
 
-A pod annotation patch drives a rollout on any kind that rolls its template:
-`Annotate(key, value, path...)` builds the nested merge patch, with
-`ActionRollout` (`"Rollout"`). The usual path is
+A pod annotation patch drives a rollout on any kind that rolls its template.
+The first rollout flow adds `Annotate(key, value, path...)`, which builds the
+nested merge patch, and `ActionRollout` (`"Rollout"`). The usual path is
 `"spec", "template", "metadata", "annotations"`; a SparkApplication takes
 `"spec", "driver", "annotations"`.
 
@@ -393,7 +397,7 @@ reads a spec field (a `Suspended` that matches `spec.paused`), that can be the
 pre-status frame. A gate on a field only the controller writes fixes it:
 
 ```go
-Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("Paused", "status", "phase")).Do(...)
+recorder.Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("Paused", "status", "phase")).Do(...)
 ```
 
 The run ends only after every `With()` or `Do()` step was reached
@@ -409,7 +413,7 @@ in-flight phase maps to the same status as the final one, the terminal gate
 keeps both frames, for example:
 
 ```go
-Reaches(kartav1alpha1.FailedStatus).With(PhaseEq("Aborted", "status", "state", "phase"))
+recorder.Reaches(kartav1alpha1.FailedStatus).With(PhaseEq("Aborted", "status", "state", "phase"))
 ```
 
 When the state that fires a `Do()` is also the terminal state (Running, an
@@ -445,10 +449,10 @@ resume patch shows as a revisit,
 ## Testdata manifests
 
 `karta-e2e-tfjob-running` is the name shape. Older manifests that drop the flow
-suffix or shorten the workload (`karta-e2e-pytorch`, `karta-e2e-sts`) predate
-the convention. The recorder overrides `namespace: default` with its own
-generated one; `default` keeps the manifest usable with a plain `kubectl apply`
-while debugging.
+suffix or shorten the workload (`karta-e2e-pytorch`, `karta-e2e-mpi`,
+`karta-e2e-sts`) predate the convention. The recorder overrides
+`namespace: default` with its own generated one; `default` keeps the manifest
+usable with a plain `kubectl apply` while debugging.
 
 The pod stays alive well past the Running check so the state is stable when the
 watch sees it. A workload that cannot sleep runs as long as its work: SparkPi
@@ -469,7 +473,8 @@ The pod, batch-job, deployment, and statefulset manifests show
 
 ## Recording
 
-`hack/e2e/up.sh` always runs `kind export kubeconfig` and
+`hack/e2e/up.sh` writes the kubeconfig (`kind create cluster`, or
+`kind export kubeconfig` on a reused cluster) and runs
 `kubectl config use-context` against whatever `KUBECONFIG` resolves to. An
 explicit `KUBECONFIG=<file>` wins. Otherwise a non-default `CLUSTER_NAME`
 resolves to `~/.kube/kind-<name>.kubeconfig`, and the default (`karta-e2e`)
@@ -487,10 +492,10 @@ multi-kind operator re-records every sibling flow. `E2E_LABELS` takes a raw
 Ginkgo label expression. `FLOW` is a Ginkgo focus regex: `FLOW=<name>` narrows
 to one flow, and `FLOW="aborted|terminated"` re-records just those two and
 leaves the other fixtures untouched. See Record in `test/e2e/README.md`.
-`FLOW` fits a failure in one flow or its manifest. The `phases` in every
-fixture of the kind were computed by the definition at record time, and the
-recorded states by the predicates, so a change to a status rule or a predicate
-re-records them all.
+`FLOW` fits a failure in one flow or its manifest. The `phases` and states in
+every fixture of the kind come from the flow's predicates at record time, and
+the predicates mirror the status rules, so a change to either re-records them
+all.
 
 Every flow file is an `Ordered` container: the first failing `It` skips every
 later one in the file.
@@ -527,7 +532,11 @@ yq -o json -I0 '.events[] | {"state": .state, "conds": [.object.status.condition
 yq v4 needs the quoted keys. Slice with `| head -N`, since yq rejects
 `.events[0:9] | {...}`.
 
-In the walk, `Running=Initializing,Running` is the overlap from step 5. When
+In the walk, `Running=Initializing,Running` means two predicates matched the
+frame (`judge` in `test/e2e/recorder/flow.go`); Karta is not involved. Since
+the predicates mirror the rules, run karta-verify on that frame to confirm the
+definition overlaps too (step 5). Older fixtures carry such frames; a new one
+must not. When
 the controller stores `observedGeneration` as an integer, the first frame after
 an `ACTION` usually carries `(stale)`; that frame proves the
 `observedGeneration != generation` rule.
@@ -549,9 +558,10 @@ left. That is why one testdata manifest is applied by hand before
 seconds. `make check` does not vet or lint the `test/e2e` module, hence the
 separate `GOWORK=off go vet ./...` and `gofmt -l .` there.
 
-When `bin/` already holds the pinned `golangci-lint-<version>` and
-`goreleaser-<version>`, `make check` finishes in the foreground within a 10
-minute timeout. Otherwise it downloads both and stays silent for minutes.
+`make check` first downloads the pinned tools missing from `bin/`
+(golangci-lint, goreleaser, controller-gen, go-licence-detector, setup-envtest
+and its control-plane binaries) and prints nothing while it does, often for
+minutes.
 
 The `validate` target requires a clean tree. It reports untracked files as
 `generated files or module manifests are stale or untracked`, which reads like

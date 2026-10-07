@@ -18,7 +18,10 @@ reviews:
   high_level_summary_instructions: >-
     If pkg/catalog/kartas/ changes, list which of hack/e2e/operators/,
     test/e2e/flows/ and test/e2e/recorded_data/ the PR also touches. A
-    definition without all three is a claim without evidence; say so.
+    definition without a flow and recorded fixtures is a claim without
+    evidence; say so. Only a new operator, or a new kind on an installed one,
+    needs a hack/e2e/operators/ change; a Kubernetes builtin (apps, batch,
+    core) needs none.
   path_filters:
     - "!**/zz_generated*"
     - "!NOTICE"
@@ -45,25 +48,32 @@ reviews:
 
         Companions: a new or changed definition ships in the same PR with the
         builder registered in pkg/catalog/catalog.go, the generated file under
-        docs/catalog/ from `make generate-samples`, e2e install support under
-        hack/e2e/operators/<operator>/ with the version pinned in
-        hack/e2e/global.env, a flow under test/e2e/flows/ with manifests under
-        test/e2e/flows/testdata/, fixtures recorded from a live run under
-        test/e2e/recorded_data/, and `make test-replay` plus
-        `make verify-recordings` green. A unit test with hand-written
-        conditions does not replace the recording.
+        docs/catalog/ from `make generate-samples`, a flow under
+        test/e2e/flows/ with manifests under test/e2e/flows/testdata/, fixtures
+        recorded from a live run under test/e2e/recorded_data/, and
+        `make test-replay` plus `make verify-recordings` green. A new operator
+        also ships e2e install support under hack/e2e/operators/<operator>/
+        with the version pinned in hack/e2e/global.env. A new kind on an
+        installed operator needs only `<kind>-smoke.yaml` and a run_smoke line
+        in its verify.sh. A Kubernetes builtin (apps, batch, core) needs no
+        hack/e2e change. A unit test with hand-written conditions does not
+        replace the recording.
 
         Status mappings: enumerate every reason the controller writes on its
         top-level condition by reading the operator source, not the CRD.
         Transitional reasons (Deployment progressing or not yet available,
         router waiting on Gateway API objects, autoscaler objects appearing, a
         LeaderWorkerSet rolling) map to Initializing; a deliberate stop or
-        suspend maps to Suspended; the rest map to Failed. The matcher returns
-        every state that matches, with no precedence, so mappings must be
-        mutually exclusive on every frame. Do not use Ready=Unknown as the
-        startup signal, Knative-style condition sets rarely write it. Map gate
-        conditions outside the Ready rollup explicitly. Rationale: a catch-all
-        `Ready=False -> Failed` makes every healthy startup flap Failed.
+        suspend maps to Suspended; a fault the controller clears on recovery
+        maps to Degraded. Failed is only for a state the controller does not
+        leave without a spec change, never ProgressDeadlineExceeded. A
+        condition the controller never clears stays unmapped. The matcher
+        returns every state that matches, with no precedence, so mappings must
+        be mutually exclusive on every frame. Use Ready=Unknown as the startup
+        signal only when the controller is shown to write it; many controllers
+        go straight to False. Map gate conditions outside the Ready rollup
+        explicitly. Rationale: a catch-all `Ready=False -> Failed` makes every
+        healthy startup flap Failed.
 
         Components: Kind, OwnerRef and pod selector value must match the label
         constants the controller writes; grep the controller and compare each.
@@ -74,8 +84,11 @@ reviews:
         replica count are read exactly once.
 
         Scale paths: a path used for writes must address a location, not
-        compute one. `//` fallbacks, arithmetic and filter pipelines are
-        formulas; a `//` fallback writes into its alternate branch. Replicas
+        compute one. `//` fallbacks, arithmetic and value-producing projections
+        (`. + {...}`, `map(...)`, a default inside the pipeline) are formulas;
+        a path-preserving `select(...)` stays assignable. A `//` fallback
+        between two paths writes into whichever branch the read resolved,
+        possibly the wrong field; one to a literal fails on write. Replicas
         reading null for an autoscaled component is correct; take bounds from
         the autoscaler block.
 
@@ -114,6 +127,8 @@ reviews:
         Recorder predicates read the workload's own fields only, never Karta,
         and mirror the definition's StatusMappings exactly, reasons included; a
         predicate wider or narrower than the mapping records the wrong state.
+        The one exception: a mapped reason no recording can show stays out of
+        the predicate when the builder comment names it unproven.
         Manifests under testdata pin image tags, declare resource requests and
         limits, carry the SPDX header, and satisfy the controller's own
         constraints (inherited preset probes and security contexts, no model
@@ -127,19 +142,21 @@ reviews:
         by line.
     - path: "pkg/resource/**"
       instructions: >-
-        The write path. A mutation of one field must change exactly that field
-        in the stored object: no whole-struct replacement, no typed zero values
-        materializing, fields the projection type cannot represent survive,
-        keyed lists merge per element, a path that computes a value fails with a
-        typed error before anything mutates, and all fragments of one update
-        commit atomically. No per-CRD special cases in the engine. Any new
-        failure mode must be a typed error, never a silent partial write.
+        The write path. Review a change against this contract for a write, and
+        flag a change that moves the engine further from it. A mutation of one
+        field changes exactly that field in the stored object: no whole-struct
+        replacement, no typed zero values materializing, fields the projection
+        type cannot represent survive, keyed lists merge per element, a path
+        that computes a value fails with a typed error before anything mutates,
+        and all fragments of one update commit atomically. No per-CRD special
+        cases in the engine. A new failure mode is a typed error, never a
+        silent partial write.
     - path: "pkg/jq/**"
       instructions: >-
         Paths are resolved with jq itself; do not reimplement setpath or
-        getpath semantics in Go. Validation of definition expressions must
-        reject expressions that cannot be assigned when they are declared on a
-        writable path.
+        getpath semantics in Go. The contract for validation: an expression
+        declared on a writable path that cannot be assigned through is
+        rejected. Flag a change that moves validation further from it.
     - path: "**/*.go"
       instructions: >-
         Follow AGENTS.md: types, consts and vars first, functions after in call

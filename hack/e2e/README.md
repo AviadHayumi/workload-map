@@ -111,7 +111,7 @@ Install side (this directory):
    ```sh
    #!/usr/bin/env bash
    # SPDX + copyright, set -euo pipefail, MODULE_DIR, source ../_common.sh
-   run_smoke "${MODULE_DIR}/smoke.yaml" "<kind>/<name>-smoke" "<wait-expr>" "<timeout>" default
+   run_smoke "${MODULE_DIR}/smoke.yaml" "<plural>.<group>/<name>-smoke" "<wait-expr>" "<timeout>" default
    ```
 
    `<wait-expr>` is passed to `kubectl wait --for=`, so both `condition=Ready` and

@@ -43,16 +43,17 @@ level that owns other components but is not itself a Kubernetes object, and give
 it a `scaleDefinition` for the level's count and a `replicaSelector` for the label
 that identifies which group a pod belongs to. LeaderWorkerSet is the canonical
 case: a `group` component sits between the root and the `leader` and `worker`
-components, carries `replicasPath: .spec.replicas // 1` and a `replicaSelector` on
+components, carries `replicasPath: .spec.replicas` and a `replicaSelector` on
 `leaderworkerset.sigs.k8s.io/group-index`, and owns both roles. Without it,
 `leader` and `worker` have no shared grouping level and per-group identity is
-lost.
+lost. The catalog builder still reads `.spec.leaderWorkerTemplate.size` there,
+the wrong level (Two numbers, two levels).
 
 ```yaml
 - name: group
   ownerRef: leaderworkerset
   scaleDefinition:
-    replicasPath: .spec.replicas // 1
+    replicasPath: .spec.replicas
   podSelector:
     replicaSelector:
       keyPath: .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"]
@@ -114,9 +115,11 @@ Fragmented paths must be assignable. Every `fragmentedPodSpecDefinition` path is
 used both to read the field and to write it back when a consumer mutates the pod
 spec, so each path must be a jq path expression that jq can assign through.
 Navigation (`.a.b`), array iteration (`.items[]`), and path-preserving filters
-(`select(...)`) are assignable. A `//` fallback is not: `.a // .b` produces
-values, not a path, so it reads fine but fails on mutation. This passes both the
-schema and the jq safety validator, so it is a silent trap. When a field can be
+(`select(...)`) are assignable. A `//` fallback is the trap: in gojq,
+`path(.a // .b)` is the path of whichever branch the read resolved, so a write
+lands silently in that branch, possibly the wrong field. A fallback to a
+literal (`.a // 0`) fails on write with `invalid path against: number (0)`.
+Both pass the schema and the jq safety validator. When a field can be
 overridden (for example a workflow-level default plus a per-template override),
 target one layer with an assignable path rather than a fallback expression, and
 model per-item variation with a multi-instance component (`instanceIdPath`) so
@@ -129,7 +132,7 @@ correctly but cannot be assigned through. Prefer an assignable path whenever one
 exists. When none does, the fragmented path is still usable for reading, and the
 consequence is explicit: mutating that component's pod spec fails. Say so in a
 comment next to the path so the limitation is not rediscovered later. The catalog
-does this for the Grove standalone-clique paths and the NIMCache resources path.
+does this for the NIMCache resources path.
 
 An assignable path can still be the wrong one. When the container-like objects
 are not `corev1.Container` (a Tekton Step keeps its resources under
@@ -137,19 +140,20 @@ are not `corev1.Container` (a Tekton Step keeps its resources under
 `containersPath: .taskSpec.steps` reads without resources and a write-back
 drops the step-only fields. Use a deliberate read-only projection instead,
 `[.taskSpec.steps[]? | . + {resources: .computeResources}]`, so reads carry the
-right fields and a write fails with `Invalid path expression` rather than
-corrupting the spec. Say so in a comment.
+right fields and a write fails with `invalid path against: array (...)` rather
+than corrupting the spec. Say so in a comment.
 
 A field shared by every instance (a workload-level scheduler name or affinity)
-returns one value against N instances and fails the count check. Repeat it per
-instance with a read-only path that walks the same iterator:
+returns one value against N instances. Extraction pads the shorter result list,
+so only the first instance gets the value and the others read it as unset.
+Repeat it per instance with a read-only path that walks the same iterator:
 `. as $root | (.spec.a[]?, .spec.b[]?) | $root.spec.podTemplate.schedulerName`.
 An absent field yields null per instance and reads as unset. Writes through it
 fail by design.
 
-Variable bindings are allowed. `as $name` is not on the rejected-construct list,
-and the corrected Grove definition relies on it to exclude cliques that belong to
-a scaling group. Bindings keep a path readable when a filter has to reference a
+Variable bindings are allowed. `as $name` is not on the rejected-construct list;
+a Grove path that excludes cliques belonging to a scaling group needs one.
+Bindings keep a path readable when a filter has to reference a
 sibling field, at the cost of assignability. The optional iterator `[]?`, the
 comma operator, object construction, and `+` are allowed too.
 
@@ -228,7 +232,8 @@ or other status fields (for example Grove PodCliqueSet has no aggregate phase).
 Do not invent a phase or a condition type the controller never sets: that
 produces a definition that validates but never resolves. Match such states with
 `byExpression` over the real status fields, for example
-`(.status.availableReplicas // 0) >= (.spec.replicas // 0)` for running.
+`(.status.observedGeneration // 0) > 0 and (.status.availableReplicas // 0) >= (.spec.replicas // 1)`
+for running.
 
 Example combining expression and condition rules:
 
@@ -266,7 +271,8 @@ Flag read before the phase switch. Spark reads `spec.suspend` before its phase
 switch and writes its own Suspending and Resuming phases. A frame with the flag
 set and a phase it will suspend from reads `Suspending`, and the paused phase
 with the flag cleared reads `Resuming`: the status of the phase it writes next.
-The flow mirrors both with `AnyOf` over the phase and the flag.
+The flow mirrors both with an `AnyOf` helper over the phase and the flag, added
+to `predicates.go` when missing.
 
 A rule that negates a phase list (`IN(...) | not`) also matches the empty
 phase, so it maps the object with no status too.
@@ -332,8 +338,9 @@ generic fix, since a container list cannot be merge-patched.
 
 A controller that reports only counters cannot tell one stuck pod from one that
 is starting: some-but-not-all ready also holds on every create, the last pod of
-every rollout, and every node join. The StatefulSet sample still maps that
-partial to `Degraded` and declares the dip `Optional()` in its flows.
+every rollout, and every node join. That is why it maps to `Initializing`, as
+`kubectl rollout status` does. The StatefulSet sample still maps that partial
+to `Degraded` and declares the dip `Optional()` in its flows.
 
 Fault signals that are not `Degraded`. Kubeflow `Restarting` evicts `Running`,
 and the guarded `Initializing` rule maps the frame, so it reads
@@ -415,9 +422,8 @@ All three paths are optional. Write them as plain assignable paths, even when
 the field is `omitempty`: an absent field reads as null, which is the honest
 value, and `//` defaults belong only in status expressions. Older catalog
 entries such as `.spec.replicas // 1` predate this rule; do not copy the
-fallback. A count
-derived from several fields (see Two numbers, two levels) is the exception: it
-has no plain path, so it stays a read-only formula.
+fallback. A count derived from several fields (see Two numbers, two levels) is
+the exception: it has no plain path, so it stays a read-only formula.
 
 Omit the whole `scaleDefinition` when the spec carries no count for the
 component. A workflow template or pipeline step runs any number of pods, and
@@ -434,7 +440,7 @@ the tree, counted across the whole workload. It is not the number of API objects
 of the component's `kind`. The distinction matters because a component's `kind`
 often names the controller object that produces the pods rather than the pods
 themselves. In LeaderWorkerSet the `leader` component has kind `StatefulSet` and
-`replicasPath: .spec.replicas // 1`, which for three groups resolves to 3, even
+`replicasPath: .spec.replicas`, which for three groups resolves to 3, even
 though the operator creates a single leader StatefulSet. The count describes the
 level, not the object.
 
@@ -443,9 +449,12 @@ group count and a members-per-group count, and picking the wrong one is a valid
 jq path that returns the wrong number, so the validator cannot catch it.
 LeaderWorkerSet is the trap: `.spec.replicas` is the number of groups and
 `.spec.leaderWorkerTemplate.size` is pods per group. The `group` component scales
-on `.spec.replicas // 1`, `leader` on `.spec.replicas // 1` (one leader per
-group), and `worker` on the derived
-`(.spec.replicas // 1) * ((.spec.leaderWorkerTemplate.size // 1) - 1)`. A nested
+on `.spec.replicas`, `leader` on `.spec.replicas` (one leader per group), and
+`worker` on the derived read-only formula
+`(.spec.replicas // 1) * ((.spec.leaderWorkerTemplate.size // 1) - 1)`. The
+catalog's `group` still reads `.spec.leaderWorkerTemplate.size` and its
+`leader` the older `.spec.replicas // 1`, which is why karta-verify reports
+`group` 4 next to `leader` 3 for 3 groups of 4. A nested
 level multiplies by its parent's count the same way: JobSet's `replicatedjob`
 uses `.spec.replicatedJobs[] | .replicas * .template.spec.parallelism`.
 
@@ -618,9 +627,9 @@ fragmented or scale path that can return more than one value, or zero, requires
 The counts must also line up. `instanceIdPath` and every fragmented path must
 agree on which elements they visit, so when one uses a filter
 (`select(.container != null)`) all of them use the same filter. A one-element CR
-passes either way; test with a CR whose array has two entries, and with one that
-has zero if the CRD allows it (a workflow built from a template reference has no
-inline templates, and the component should then report zero instances, not fail).
+passes either way. Test with a CR whose array has two entries, and with one that
+has zero if the CRD allows it. A workflow built from a template reference has no
+inline templates, so the component reports zero instances and does not fail.
 
 Keep a per-element field a plain path, `.spec.tasks[].replicas`. It yields one
 value per element, null where the field is absent, so the count stays aligned.
