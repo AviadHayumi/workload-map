@@ -77,8 +77,10 @@ Sources:
   `git fetch --depth 1 origin tag <tag>`.
 - A Kubernetes builtin (apps, batch, core): do not clone kubernetes/kubernetes.
   Read the status type from the `k8s.io/api` module cache, and the controller
-  with its `util/` counter helpers at the `KIND_NODE_IMAGE` version. Grep it for
-  `Status.Conditions` before mapping any condition.
+  with its `util/` counter helpers at the `KIND_NODE_IMAGE` version in
+  `hack/e2e/global.env` (commands: Kubernetes builtins in
+  `reference/recorded-flow.md`). Grep it for `Status.Conditions` before mapping
+  any condition.
 
 Proceed without a CR if there is none; the definition is then validated, not
 exercised. For a catalog definition, take the CR from the step 8 cluster: do
@@ -202,9 +204,11 @@ One status per frame:
   conditions can be True at once, guard `Completed` with the absence of
   `Failed=True` (or the reverse, per what the controller treats as final) and
   mirror it in the flow.
-- A polling loop next to the reconcile: check whether the reconcile writes its
-  copy of the conditions after starting the loop (declare that one-frame dip
-  `Optional()`, with a comment), and whether the loop writes a cached copy. For
+- A polling loop next to the reconcile: when the reconcile writes its copy of
+  the conditions after starting the loop, that late write can undo the first
+  poll for one frame. Declare that dip `Optional()` in the flow between the
+  advanced state and the next one, with a comment. When the loop writes a
+  cached copy, it can write a stale pause condition back after a resume. For
   pause intent in a field the controller only reads, match `Suspended` on that
   field and the condition together, parsed as the controller does, and AND its
   negation into every other rule. Drop a flow only when no field tells the
@@ -217,10 +221,11 @@ Failed and Degraded:
   carries both, split it by reason and mirror the split in the flow with a
   status-plus-reason predicate.
 - Map `Degraded` only on a field that a fault sets, normal progress does not,
-  and the controller clears on recovery. Leave a never-cleared condition
-  unmapped and say in the builder comment that a consumer wanting the fault
-  reads it directly. A `Degraded` flow fires the fix and ends `Running` when
-  the kind cluster can reach it.
+  and the controller clears on recovery (a failure condition, an error reason,
+  a restart count). Leave a never-cleared condition unmapped and say in the
+  builder comment that a consumer wanting the fault reads it directly. A
+  `Degraded` flow fires the fix and ends `Running` when the kind cluster can
+  reach it.
 - A progress deadline (`ProgressDeadlineExceeded`) is `Degraded` only when the
   controller restarts its clock on progress and on each new rollout or scale
   (Deployment). Otherwise healthy progress trips it (CloneSet): leave it
@@ -347,14 +352,17 @@ unverified.
   `podSpec: true` with no `containers`. Expect one `no containers` warning per
   such child and no other; never point `containerPath` at the role spec to
   silence it.
+- Run against a CR in another state (completed or failed) when one exists, to
+  confirm the other status rules fire.
 - Multi-instance: run against a CR whose array has two entries (a hand-written
-  scratch CR is fine). Run against a CR in another state when one exists.
+  scratch CR is fine).
 - Run `--write --strict` against a CR that omits each optional role.
 - Pod selectors: evaluate every `podSelector` path and `groupByKeyPaths` entry
-  with jq on a real pod (`kubectl get pod -l <owner label> -o json`). The
-  `componentTypeSelector` must match, and the `idPath` must return an instance
-  id karta-verify printed. With no selectors, check the owner chain; the
-  component `ownerRef` names the `controller=true` owner.
+  with jq on a real pod (`kubectl get pod -l <owner label> -o json`, or the
+  pod saved in step 1). The `componentTypeSelector` must match, and the
+  `idPath` must return an instance id karta-verify printed. With no selectors,
+  check the owner chain; the component `ownerRef` names the `controller=true`
+  owner.
 
 Then prove the writes:
 
@@ -402,6 +410,7 @@ Operator install under `hack/e2e/`:
 - A builtin needs no install scripts, pin, or `up.sh` entry: `make e2e-up`
   with `WORKLOADS=none`, `make record-e2e` with `WORKLOADS=<label>`.
   `Fixture.Operator` equals the first `Label`; the second label is `builtin`.
+  Its fixtures land under the Kubernetes version, `v1.34.0`.
 - A new operator follows Adding an operator in `hack/e2e/README.md`:
   `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, `<name>` the
   upstream project's short name (`kuberay`, `spark-operator`), a
@@ -464,15 +473,16 @@ Operator install under `hack/e2e/`:
 Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
 
 - One Ginkgo file whose `recorder.Fixture` `Operator` equals the directory name
-  under `hack/e2e/operators/`; a mismatch silently files the recording under
-  the Kubernetes version. Check the path the recorder prints on save: the
-  operator's `version_of` string, so a second version directory beside
-  `v1.34.0` is expected.
+  under `hack/e2e/operators/` (a builtin has none; see above); a mismatch
+  silently files the recording under the Kubernetes version. Check the path the
+  recorder prints on save: the operator's `version_of` string, so a second
+  version directory beside `v1.34.0` is expected.
 - The operator name is the first `Label`; a multi-kind operator adds the kind
   as the second. The testdata directory and object names use the lowercase kind
   (a single-kind operator may use its name). When that collides with a builtin
   or another catalog entry, use the upstream short name for the second label,
-  testdata directory, object names, and root component name alike.
+  testdata directory, object names, and root component name (otherwise the
+  lowercase kind, as in every catalog builder) alike.
 - Predicates read the CR's fields, never Karta. Each `AddState` predicate holds
   on exactly the frames its `statusMappings` rule matches, step 5 guards
   included.
@@ -593,6 +603,9 @@ Before `make check`:
   which `make check` does not cover. Then run `make check`; do not skip it.
   Unless `bin/` holds the pinned `golangci-lint` and `goreleaser`, run it in
   the background with its output in a log file and poll the log.
+- `make test-replay` prints only `ok`. To see the new fixtures replayed, run
+  `GOWORK=off go test -count=1 -v ./replay_tests/... -args -ginkgo.v` in
+  `test/e2e` and grep the output for the `kartaName`.
 - Commit the new files, fixtures included, before `make check`; `validate`
   needs a clean tree.
 - Fixtures carry no SPDX header; do not add one.
