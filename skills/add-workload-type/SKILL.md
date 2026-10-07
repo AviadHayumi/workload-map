@@ -181,8 +181,11 @@ deprecated aliases with no extra component:
       idPath: .metadata.labels["training.kubeflow.org/replica-type"]
 ```
 
-`keys` and `.[]` both walk the map in sorted key order, so ids and templates
-line up. `keys_unsorted` passes the validator but fails at runtime with
+In Karta (gojq), `keys` and `.[]` both walk the map in sorted key order, so ids
+and templates line up. The jq CLI walks `.[]` in insertion order instead, so a
+CR whose keys are not sorted looks misaligned there when it is not. Sort the
+input first (`jq -S . cr.json | jq '<expr>'`) or check the alignment with
+karta-verify. `keys_unsorted` passes the validator but fails at runtime with
 `function not defined`. `ascii_downcase` matches a controller that lowercases
 the key into the pod label; check the real label first.
 
@@ -196,7 +199,10 @@ ownership or scale. See `reference/technical-guide.md` for the full field list.
   evaluation never fails on null, for example `(.status.active // 0)`. Spec and
   scale paths are the exception: they stay plain paths (`.spec.parallelism`,
   `.spec.tasks[].replicas`) so they can be written through. An absent field
-  reads as null, which is the honest value.
+  reads as null, which is the honest value. karta-verify prints it as
+  `replicas=<none>`, which `--strict` accepts; leave `replicas` out of that
+  component's prediction and name the controller default in the builder
+  comment.
 - Confirm the resource: spec, scale, and status paths read the workload object;
   selector and optimization paths read a pod manifest.
 - Karta rejects jq that can mutate or explode. Do not use assignment or update
@@ -251,6 +257,9 @@ workload's own conditions or phases into Karta's normalized statuses:
   holds on every later frame, so a rule on it alone overlaps every other
   status. AND the absence of each later condition into that rule:
   `[.status.conditions // [] | .[] | select((.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended") and .status == "True")] | length == 0`.
+  Keep the controller-written condition required in that rule. An object with
+  no status then reads `Undefined`, which step 7 allows and the recorder drops
+  from the walk; do not add a no-status rule only to fill that frame.
   The PyTorchJob and MPIJob samples still carry this overlap; do not copy their
   `Initializing` rule.
 - Trace every condition one reconcile can write, not one condition at a time.
@@ -287,9 +296,11 @@ workload's own conditions or phases into Karta's normalized statuses:
   that reports only counters cannot tell one stuck pod from one that is
   starting: some-but-not-all ready also holds on every create, the last pod of
   every rollout, and every node join. Map that partial to `Initializing`, as
-  `kubectl rollout status` does, and say in the builder comment that
-  `Degraded` is not reported. The StatefulSet sample still maps it and declares
-  the dip `Optional()` in its flows; do not copy that.
+  `kubectl rollout status` does. The StatefulSet sample still maps it and
+  declares the dip `Optional()` in its flows; do not copy that. Every builder
+  comment says whether `Degraded` is mapped. When it is not, name the fault
+  signals the controller does write and the status each one reads (Kubeflow
+  `Restarting` reads `Initializing`).
 - Read the spec fields that choose how the controller progresses (an update
   strategy such as `OnDelete`, a rollout `partition`) and check every rule
   under each value, with the controller's default for an absent field
@@ -393,12 +404,15 @@ definition is structurally valid and never exercised, and which parts are
 unverified should be stated plainly rather than left for someone to discover.
 A CR written by hand from the controller source (the status its first sync
 writes, the fields the admission webhook defaults) is a useful stand-in, one
-per mapped phase plus one with no status. Every run on such a CR counts as
-unverified. A catalog definition runs this step again in step 8 on a CR the
-controller wrote.
+per mapped phase plus one with no status. So is a pod built from the
+controller's pod label code for the selector check below. Every run on such an
+object counts as unverified. A catalog definition runs this step again in step
+8 on a CR the controller wrote.
 
 The CR with no status, and each testdata manifest from step 8 as written, must
-read `Initializing` or `Undefined`, never `Running`. A `// 0` default on both
+read `Initializing` or `Undefined`, never `Running`. Predict a frame no rule
+matches as `status: [Undefined]` and run it without `--strict`, which counts an
+unresolved status as a warning. A `// 0` default on both
 sides of a comparison (`(.status.observedGeneration // 0) == (.metadata.generation // 0)`,
 updated equals desired) holds on an object no controller has seen. Require a
 field only the controller writes, such as `(.status.observedGeneration // 0) > 0`,
@@ -721,22 +735,34 @@ Flow under `test/e2e/flows/`:
   short frame, and a fast pod can go from Initializing straight to Completed.
   The create response is recorded only when it already reaches the terminal
   state. Otherwise the first frame is the controller's first write, often a
-  label or finalizer patch with no status, so a no-conditions `Initializing`
-  rule matches it. Check the first frame of each fixture after the first run.
-  When it already carries a phase or condition, no recording proves the
-  no-status rule; keep it and say so in the builder comment. Read
-  `test/e2e/recorder/README.md` before writing the first flow.
+  label or finalizer patch with no status. It reads `Undefined` unless a
+  no-status rule maps it, and the walk drops `Undefined` frames. Check the
+  first frame of each fixture after the first run. When a no-status rule exists
+  and the first frame already carries a phase or condition, no recording proves
+  that rule; keep it and say so in the builder comment. With no such rule, the
+  builder comment says that an object with no status reads `Undefined`; that is
+  not an unproven frame. Read `test/e2e/recorder/README.md` before writing the
+  first flow.
 - A step whose state was already declared earlier in the journey may be absent
   from the walk, like an `Optional()` step (`order.go`). Declare such a revisit
   only when the controller source can produce it, and describe it as allowed,
   not as a predicted frame. A revisit copied from a sibling flow documents a
-  frame the target controller may never write.
+  frame the target controller may never write. The PyTorchJob flow declares an
+  `Initializing` dip before the terminal state, yet the training-operator sets
+  `Running` to False in the same status write that sets `Succeeded` or `Failed`
+  (`filterOutCondition` in `pkg/util/status.go`), so a training-operator kind
+  with the guarded rule from step 5 declares none.
+- Each flow run has a 3 minute deadline (`defaultTimeout` in
+  `test/e2e/recorder/recorder.go`). Raise it with `SetTimeout` on the recorder
+  only when a run hits it (slow image pulls, many pods on the two workers), and
+  say why in a comment.
 - When a run fails with `required state ... missing or out of order`, the
   `observed [...]` list in the error is the real walk. Fix the mapping (step 5)
   when a frame reads the wrong status. Change the journey only when the frame
   is real and correctly mapped. When an action step never reaches its next
-  state, dump the frames, `yq -o json -I0 '.events[] | {state: .state, conds: [.object.status.conditions // [] | .[] | .type + "=" + .status + "/" + (.reason // "-")]}' <fixture>`
-  (slice with `| head -N`; yq rejects `.events[0:9] | {...}`), and check for a
+  state, dump the frames, `yq -o json -I0 '.events[] | {"state": .state, "conds": [.object.status.conditions // [] | .[] | .type + "=" + .status + "/" + (.reason // "-")]}' <fixture>`
+  (yq v4 needs the quoted keys; slice with `| head -N`, since yq rejects
+  `.events[0:9] | {...}`), and check for a
   stale writer (step 5) before dropping the flow.
 - Every flow file is an `Ordered` container: the first failing `It` skips every
   later one in the file. After a failure, compare `Ran N of M Specs` with the
@@ -761,12 +787,21 @@ Flow under `test/e2e/flows/`:
   spec, marked `staleObservedGeneration: true`, out of the order-checked walk
   and the step actions. The replay still asserts them, so the stale frame after
   an action proves a rule on `observedGeneration != generation`. This works
-  only when `status.observedGeneration` is an integer. A controller
-  that stores it as a string (Argo Rollouts writes `"1"`) disables that guard,
-  and a late write computed from the old spec lands in the checked walk after a
-  `Do()`. The `With()` gate above is then the only protection: it makes the
-  action land after the controller's first real status, so a late write of the
-  same state stays in order.
+  only when `status.observedGeneration` is an integer. A controller that
+  stores it as a string (Argo Rollouts writes `"1"`) or not at all (the
+  training-operator kinds) disables that guard, and a late write computed from
+  the old spec lands in the checked walk after a `Do()`. The `With()` gate
+  above is then the only protection: it makes the action land after the
+  controller's first real status, so a late write of the same state stays in
+  order. The API server echo of a resume patch shows as a revisit,
+  `Suspended -> ACTION -> Suspended -> Initializing -> Running`, which is
+  normal.
+- When the `suspendDefinition` can pause a running workload, record a flow
+  that suspends it from Running, `Reaches(Running).Do(<suspend action>)` then
+  `Reaches(Suspended)`; a resume after it is optional. A CR created suspended
+  never shows the controller turning Running off, and that is the transition a
+  consumer drives. Add the suspend action next to its
+  resume as a generic helper (`SuspendRunPolicy` next to `ResumeRunPolicy`).
 - The run ends on the first frame that matches the terminal state. When an
   in-flight phase maps to the same status as the final one (step 5), gate the
   terminal step on the CR field, for example
@@ -786,10 +821,12 @@ Flow under `test/e2e/flows/`:
 Manifests under `test/e2e/flows/testdata/<workload>/` (`<workload>` as chosen
 above):
 
-- Name objects `karta-e2e-<workload>-<flow>` and set `namespace: default`, as
-  every existing manifest does. The recorder overrides the namespace with its
-  own generated one; `default` keeps the manifest usable by hand with a plain
-  `kubectl apply` while debugging.
+- Name objects `karta-e2e-<workload>-<flow>`, the flow suffix included
+  (`karta-e2e-tfjob-running`). Older manifests that drop it or shorten the
+  workload (`karta-e2e-pytorch`, `karta-e2e-sts`) predate the convention.
+  Set `namespace: default`, as every existing manifest does. The recorder
+  overrides the namespace with its own generated one; `default` keeps the
+  manifest usable by hand with a plain `kubectl apply` while debugging.
 - Pin image tags, declare resource requests and limits, add the SPDX header,
   and keep the pod alive well past the Running check so the state is stable
   when the watch sees it: `sleep infinity` for a workload that never
@@ -829,7 +866,8 @@ those two and leaves the other fixtures untouched, which is the normal loop afte
 fixing a flow. See Record in `test/e2e/README.md`.
 
 With `KUBECONFIG` exported, `make e2e-down` deletes the cluster but leaves the
-kubeconfig file; remove it yourself.
+kubeconfig file. It always leaves the ignored
+`hack/e2e/operators/.installed-versions-<cluster>`. Remove both yourself.
 
 After recording, run step 7 again, `--write` included, on a CR the controller
 wrote. Each fixture holds one: extract the last Running frame with
