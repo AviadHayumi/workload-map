@@ -54,8 +54,10 @@ reviews:
         `make test-replay` plus `make verify-recordings` green. A new operator
         also ships e2e install support under hack/e2e/operators/<operator>/
         with the version pinned in hack/e2e/global.env. A new kind on an
-        installed operator needs only `<kind>-smoke.yaml` and a run_smoke line
-        in its verify.sh. A Kubernetes builtin (apps, batch, core) needs no
+        installed operator keeps the directory and the pin; it needs
+        `<kind>-smoke.yaml`, a run_smoke line in its verify.sh, and, when
+        install.sh gates which kinds the controller serves, that gate extended
+        to the new kind. A Kubernetes builtin (apps, batch, core) needs no
         hack/e2e change. A unit test with hand-written conditions does not
         replace the recording.
 

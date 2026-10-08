@@ -588,11 +588,11 @@ Record on an isolated cluster:
 export CLUSTER_NAME=<name> KUBECONFIG=~/.kube/kind-<name>.kubeconfig
 make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>
 make record-e2e CLUSTER_NAME=<name> WORKLOADS=<operator>
-make e2e-down CLUSTER_NAME=<name>
 ```
 
 - Export both once per session and use the same `CLUSTER_NAME` on every
-  `make` call.
+  `make` call. The cluster stays up until the checks after recording are
+  done; teardown is the last step below.
 - Before recording, `kubectl apply --dry-run=server -f` every testdata
   manifest. Retry a connection refused.
 - A new kind on a multi-kind operator passes the kind label to `record-e2e`
@@ -604,26 +604,27 @@ make e2e-down CLUSTER_NAME=<name>
   advances, or `Ran N of M Specs` below the `It` count, apply its row in
   Recorder and e2e in `reference/troubleshooting.md`; never drop a flow before
   checking for a stale writer.
-- With `KUBECONFIG` exported, `make e2e-down` leaves the kubeconfig file and
-  `hack/e2e/operators/.installed-versions-<cluster>`; remove both.
 
-After recording (yq commands for each check: Reading fixtures in
-`reference/recorded-flow.md`):
+After recording, with the cluster still up (yq commands for each check:
+Reading fixtures in `reference/recorded-flow.md`):
 
 - Rerun step 7 on the last frame of the flow's terminal state.
 - Every fixture ends with `succeeded: true`. `phases` lists the predicates that
-  matched a frame; in a new fixture every `STATE` frame lists one. Two mean the
-  predicates overlap: run karta-verify on that frame, fix the overlap (step 5),
-  and re-record. Check the `phase:` values; a flow that stops one frame early
-  still succeeds.
+  matched a frame; in a new fixture every `STATE` frame after the controller's
+  first status write lists one, and the frames before it read Undefined and
+  match none. Two mean the predicates overlap: run karta-verify on that frame,
+  fix the overlap (step 5), and re-record. Check the `phase:` values; a flow
+  that stops one frame early still succeeds.
 - Check every builder comment claim against the frames; rewrite it as observed
   or mark it unproven. A reset or clear claim needs a frame where the field was
   set before the action. Trace pod claims to the code and check them on the
   hand-applied pod.
-- Before `make e2e-down`, `kubectl apply -f` one testdata manifest and wait
-  until it settles. Check selectors and
-  `groupByKeyPaths` (or the owner chain) with jq on its pod. Save its CR as a
-  second step 7 input, then delete it.
+- `kubectl apply -f` one testdata manifest and wait until it settles. Check
+  selectors and `groupByKeyPaths` (or the owner chain) with jq on its pod.
+  Save its CR as a second step 7 input, then delete it.
+- Last, tear down: `make e2e-down CLUSTER_NAME=<name>`. With `KUBECONFIG`
+  exported it leaves the kubeconfig file and
+  `hack/e2e/operators/.installed-versions-<cluster>`; remove both.
 
 Before `make check`:
 

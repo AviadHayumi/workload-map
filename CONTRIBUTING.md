@@ -253,9 +253,11 @@ Adding one means, in order:
    the normal loop after a failure in a flow or its manifest. A change to a
    status rule or a predicate re-records every flow of the kind. Fixtures are
    recorder output and carry no SPDX header. `phases` lists the flow
-   predicates that matched a frame. Every state frame of a new fixture should
-   list one; two mean the predicates overlap, and since they mirror the status
-   rules, karta-verify on that frame shows whether the rules overlap too.
+   predicates that matched a frame. In a new fixture, every state frame after
+   the controller's first status write should list one; the frames before it
+   read Undefined and match none, which is normal. Two mean the predicates
+   overlap, and since they mirror the status rules, karta-verify on that frame
+   shows whether the rules overlap too.
 4. `make test-replay` and `make verify-recordings` green. `make lint-shell`
    green, and `GOWORK=off go vet ./...` and `gofmt -l .` clean in `test/e2e`;
    `make check` covers none of these three. Commit the new files before

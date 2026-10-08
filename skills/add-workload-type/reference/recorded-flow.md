@@ -84,10 +84,10 @@ action does not do: a pause that stops new work only and leaves running pods
 alive, so a consumer that suspends to free capacity gets none back. Two
 examples of what a write through an exposed path does not do. With
 spark-operator's `PartialRestart` gate on, a write to the executor
-`schedulerName`, affinity, or `priorityClassName` skips the rerun and reaches
-only executors created later. And `spec.batchScheduler` overrides both
-`schedulerName` paths at pod creation, so a write through them does nothing
-while it is set.
+`schedulerName`, affinity, or `priorityClassName` skips the rerun. Only
+executors created later get the change. `spec.batchScheduler` overrides both
+`schedulerName` paths at pod creation. A write through them does nothing while
+it is set.
 
 The 3 to 26 line bound counts every `//` line of the doc comment, the summary
 sentence and the blank `//` line included. The recorded phase sequence is the
