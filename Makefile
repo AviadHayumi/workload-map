@@ -602,6 +602,8 @@ E2E_KUBECONFIG := KUBECONFIG=$(HOME)/.kube/kind-$(CLUSTER_NAME).kubeconfig
 endif
 # Overall go-test timeout for the online suite; override for a quick subset, e.g. E2E_TIMEOUT=10m.
 E2E_TIMEOUT ?= 30m
+# Optional Ginkgo JUnit output for checking which recording flows actually ran.
+E2E_JUNIT_REPORT ?=
 
 # Select cases by operator with the same WORKLOADS list as e2e-up: record-e2e WORKLOADS="batch-job"
 # records just the batch-job case (a comma is OR in ginkgo label filters). E2E_LABELS overrides it
@@ -617,7 +619,7 @@ endif
 .PHONY: test-replay
 test-replay: ## Replay the recorded fixtures through Karta offline (no cluster)
 	cd test/e2e && GOWORK=off go build ./...
-	cd test/e2e && GOWORK=off go test ./replay_tests/...
+	cd test/e2e && GOWORK=off go test ./replay_tests/... ./cmd/verify-operator-pilot
 
 # Defaults and accepted values live in hack/e2e/global.env.
 KARTA_WEBHOOK_MODE ?= auto
@@ -668,7 +670,7 @@ record-e2e: ## Record the fixtures against the current cluster - kind from e2e-u
 	@if [ "$(strip $(WORKLOADS))" = "none" ]; then \
 		echo "record-e2e: WORKLOADS=none selects no cases"; exit 2; fi
 	cd test/e2e && GOWORK=off go test -count=1 ./recorder
-	cd test/e2e && GOWORK=off CLUSTER_NAME=$(CLUSTER_NAME) $(E2E_KUBECONFIG) go test -count=1 -v -timeout $(E2E_TIMEOUT) ./flows $(if $(E2E_FOCUS)$(E2E_LABELS),-args $(if $(E2E_FOCUS),-ginkgo.focus="$(E2E_FOCUS)") $(if $(E2E_LABELS),-ginkgo.label-filter="$(E2E_LABELS)"))
+	cd test/e2e && GOWORK=off CLUSTER_NAME=$(CLUSTER_NAME) $(E2E_KUBECONFIG) go test -count=1 -v -timeout $(E2E_TIMEOUT) ./flows $(if $(E2E_FOCUS)$(E2E_LABELS)$(E2E_JUNIT_REPORT),-args $(if $(E2E_FOCUS),-ginkgo.focus="$(E2E_FOCUS)") $(if $(E2E_LABELS),-ginkgo.label-filter="$(E2E_LABELS)") $(if $(E2E_JUNIT_REPORT),-ginkgo.junit-report="$(E2E_JUNIT_REPORT)"))
 
 .PHONY: verify-recordings
 verify-recordings: ## Fail if any recorded fixture ended with succeeded false (re-record it clean before pushing)
