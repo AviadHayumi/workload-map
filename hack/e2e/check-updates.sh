@@ -44,6 +44,7 @@ main() {
   for arg in git python3; do
     command -v "$arg" >/dev/null || { echo "missing required tool: $arg" >&2; return 1; }
   done
+  echo 'Candidate versions only: upstream support and Karta compatibility are not verified.'
   printf '%-8s %-20s %-28s %s\n' STATUS OPERATOR PINNED 'LATEST TAG'
   for name in "${ALL_OPERATORS[@]}"; do
     if ! printf '%s\n' "${requested[@]}" | grep -qxF "$name"; then continue; fi

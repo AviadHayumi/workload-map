@@ -649,8 +649,8 @@ build-operator-e2e: ## Compile the operator e2e suite without running it (no clu
 test-operator-e2e: ## Run the operator e2e against the current cluster (KARTA_WEBHOOK_MODE must match the one e2e-up installed; CLUSTER_NAME for a named one)
 	CLUSTER_NAME=$(CLUSTER_NAME) KARTA_WEBHOOK_MODE=$(KARTA_WEBHOOK_MODE) $(E2E_KUBECONFIG) ./hack/e2e/karta-operator/test.sh
 
-.PHONY: e2e-check-versions
-e2e-check-versions: ## Report newer workload and infra operator tags (OPERATORS="jobset infra", UPDATE_FLAGS="--fail-on-update --include-prereleases")
+.PHONY: e2e-operators-check-latest-supported-versions
+e2e-operators-check-latest-supported-versions: ## Report newer workload and infra operator tags (OPERATORS="jobset infra", UPDATE_FLAGS="--fail-on-update --include-prereleases")
 	@bash ./hack/e2e/check-updates.sh $(UPDATE_FLAGS) $(OPERATORS)
 
 .PHONY: test-e2e-updates

@@ -292,7 +292,7 @@ class WrapperTests(unittest.TestCase):
                    "KNATIVE_VERSION": "knative-v1.0.0", "KOURIER_VERSION": "knative-v1.0.0"}
             env.update(pins or {})
             if make:
-                command = ["make", "-C", str(SCRIPT.parents[2]), "e2e-check-versions", *args]
+                command = ["make", "-C", str(SCRIPT.parents[2]), "e2e-operators-check-latest-supported-versions", *args]
             else:
                 command = ["bash", str(SCRIPT.parent / path), *args]
             result = subprocess.run(command, cwd=directory, env=env, capture_output=True,

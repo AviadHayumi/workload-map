@@ -56,15 +56,19 @@ knative, dynamo pulls grove.
 ## Check for operator updates
 
 ```sh
-make e2e-check-versions                         # all workload and infra operators
-make e2e-check-versions OPERATORS="jobset infra" # selected operators or infra only
-make e2e-check-versions UPDATE_FLAGS=--fail-on-update
-make e2e-check-versions UPDATE_FLAGS=--include-prereleases
+make e2e-operators-check-latest-supported-versions                         # all workload and infra operators
+make e2e-operators-check-latest-supported-versions OPERATORS="jobset infra" # selected operators or infra only
+make e2e-operators-check-latest-supported-versions UPDATE_FLAGS=--fail-on-update
+make e2e-operators-check-latest-supported-versions UPDATE_FLAGS=--include-prereleases
 ./hack/e2e/operators/kubeflow/check-updates.sh   # Training Operator and MPI Operator
 ./hack/e2e/infra/fake-gpu-operator/check-updates.sh
 JOBSET_VERSION=v0.11.0 ./hack/e2e/operators/jobset/check-updates.sh
 make test-e2e-updates                          # offline tests, also part of make check
 ```
+
+Support status is not inferred from tag presence. This command currently checks
+available release tags. Upstream support-policy evaluation and Karta compatibility
+validation through installation, recording, and replay are separate steps.
 
 Requires Bash, Git, Python 3.9 or newer, and access to public GitHub repositories.
 No cluster, Docker, Helm, GitHub CLI, or GitHub token is required. Version pins
