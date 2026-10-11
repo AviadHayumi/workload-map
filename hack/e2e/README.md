@@ -47,6 +47,37 @@ Selecting a subset keeps a run light, and `none` keeps only the base, which is w
 the operator e2e wants. Dependencies are added automatically: kserve pulls
 knative, dynamo pulls grove.
 
+## Pull request checks
+
+PRs targeting main or a release branch get two installation checks. When an
+installation input changes, the checks select work as follows:
+
+- Changes only under `hack/e2e/operators/<name>/` run both checks on separate fresh
+  clusters. `Installation E2E (all)` installs and smoke-tests every workload
+  operator. `Installation E2E (changed)` tests the named operators and their
+  dependencies; the full check covers their dependents.
+- Any shared input runs only the full installation, even when operator files also
+  changed. Shared inputs are the rest of `hack/e2e/` (including `karta-operator/`),
+  `charts/karta/`, `operator/Dockerfile`, `.dockerignore`, workspace Go dependency
+  files, `Makefile`, and `.github/workflows/ci.yaml`. Markdown counts too.
+- Unrelated changes, including Go source changes alone, skip provisioning in both
+  checks. The checks still run and report success with an explanation in the job
+  summary. The selective check does the same when a shared change uses the full
+  installation. Read the summary to see whether a green check actually installed
+  anything.
+
+Runs use the default `auto` webhook mode and include Karta's smoke test. The first
+install or smoke failure fails the check; later operators are not tested. On
+failure, download `installation-e2e-all` or `installation-e2e-changed` from the
+run's artifacts for cluster logs, pod and event listings, and resource diagnostics
+collected before teardown. These checks do not run recorded workload flows or the
+separate webhook-mode operator e2e suite.
+
+To inspect selection locally, run `./hack/e2e/install-changed.sh <target-ref> HEAD`
+with the PR's target branch, such as `origin/main`. The script computes the merge
+base. `make test-e2e-install-changes` runs the selector's unit tests without a
+cluster. For a fresh local install, run `make e2e-down` before `make e2e-up`.
+
 ## How up.sh runs an operator
 
 For each selected operator, up.sh runs `operators/<name>/install.sh` then

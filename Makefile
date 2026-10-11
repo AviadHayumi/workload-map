@@ -672,6 +672,7 @@ verify-recordings: ## Fail if any recorded fixture ended with succeeded false (r
 # The e2e shell scripts to shellcheck: the provisioner, teardown, the karta-operator
 # scripts, the shared helpers, and every per-operator install.sh/verify.sh.
 E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh \
+	hack/e2e/install-changed.sh hack/e2e/install_changed_test.sh \
 	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \
 	$(wildcard hack/e2e/operators/*/install.sh) \
@@ -680,6 +681,10 @@ E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh \
 .PHONY: lint-shell
 lint-shell: ## shellcheck the e2e shell scripts (-x follows sourced files)
 	shellcheck -x $(E2E_SHELL)
+
+.PHONY: test-e2e-install-changes
+test-e2e-install-changes: ## Test installation change selection (no cluster needed)
+	bash hack/e2e/install_changed_test.sh
 
 ##@ Tools
 
