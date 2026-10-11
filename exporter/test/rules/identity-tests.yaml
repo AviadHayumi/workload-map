@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+rule_files:
+  - .rendered/karta-rules.yaml
+evaluation_interval: 30s
+tests:
+  - name: conflicting Pod incarnations are suppressed on name-only matching
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",gpu="0"}'
+        values: '80x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="old",workload="train",workload_uid="w1",component="worker"}'
+        values: '1x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="new",workload="train",workload_uid="w2",component="worker"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:workload
+        eval_time: 2m
+        exp_samples: []
+      - expr: karta:join_coverage:ratio
+        eval_time: 2m
+        exp_samples: [{labels: 'karta:join_coverage:ratio{}', value: 0}]
+  - name: conflicting components are suppressed even at workload level
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",gpu="0"}'
+        values: '80x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="a"}'
+        values: '1x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="b"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:workload
+        eval_time: 2m
+        exp_samples: []
+  - name: phase labels do not leak and unknown components retain workload usage
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",gpu="0"}'
+        values: '80x4'
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="unknown",gpu="1"}'
+        values: '20x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="worker",pod_phase="Running"}'
+        values: '1x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="worker",pod_phase="Running",instance="replica"}'
+        values: '1x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="unknown",uid="p2",workload="train",workload_uid="w1",component="<unknown>",pod_phase="Running"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:workload
+        eval_time: 2m
+        exp_samples: [{labels: 'karta:gpu_utilization:workload{namespace="demo",workload="train",workload_uid="w1"}', value: 50}]
+      - expr: karta:gpu_utilization:component
+        eval_time: 2m
+        exp_samples: [{labels: 'karta:gpu_utilization:component{namespace="demo",workload="train",workload_uid="w1",component="worker"}', value: 80}]
+  - name: no arriving GPU samples leave coverage absent
+    interval: 30s
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="worker"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:join_coverage:ratio
+        eval_time: 2m
+        exp_samples: []

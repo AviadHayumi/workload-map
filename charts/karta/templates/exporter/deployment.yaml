@@ -39,6 +39,9 @@ spec:
             {{- if .Values.exporter.useCatalog }}
             - --use-catalog
             {{- end }}
+            - --workload-phases={{ .Values.exporter.metrics.workloadPhases | join "," }}
+            - --pod-phases={{ .Values.exporter.metrics.podPhases | join "," }}
+            - --pod-metrics-mode={{ .Values.exporter.metrics.podMetricsMode }}
             {{- range .Values.exporter.extraArgs }}
             - {{ . | quote }}
             {{- end }}

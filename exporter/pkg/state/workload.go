@@ -28,6 +28,9 @@ func Build(ctx context.Context, entry *registry.Entry, workload resource.Kuberne
 		Ref:   ref,
 		Karta: entry.Karta.Name,
 	}
+	if created := workload.GetCreationTimestamp(); !created.IsZero() {
+		record.CreatedTimestamp = created.Unix()
+	}
 
 	root, err := factory.GetRootComponent()
 	if err != nil {

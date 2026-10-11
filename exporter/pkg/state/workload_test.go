@@ -35,7 +35,7 @@ func jobsetObject(status map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "jobset.x-k8s.io/v1alpha2",
 		"kind":       "JobSet",
-		"metadata":   map[string]any{"name": "llm", "namespace": "team-a", "uid": "wl-1"},
+		"metadata":   map[string]any{"name": "llm", "namespace": "team-a", "uid": "wl-1", "creationTimestamp": "2026-08-19T10:00:00Z"},
 		"spec": map[string]any{
 			"replicatedJobs": []any{
 				map[string]any{
@@ -85,6 +85,17 @@ var _ = Describe("Build", func() {
 			"replicatedjob/decode":  1,
 		}))
 		Expect(record.Karta).To(Equal("jobset-x-k8s-io-jobset-v1alpha2"))
+		Expect(record.CreatedTimestamp).To(Equal(int64(1787133600)))
+	})
+
+	It("leaves the created timestamp zero when the object has none", func() {
+		workload := jobsetObject(map[string]any{"conditions": []any{}, "replicatedJobsStatus": []any{}})
+		unstructured.RemoveNestedField(workload.Object, "metadata", "creationTimestamp")
+
+		record, err := Build(ctx, jobsetEntry(), workload, "wl-1", ref)
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(record.CreatedTimestamp).To(BeZero())
 	})
 
 	It("emits Undefined when mappings are present but nothing matches", func() {

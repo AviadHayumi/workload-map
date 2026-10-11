@@ -31,13 +31,14 @@ type ComponentState struct {
 // WorkloadRecord is the stored state of one Karta-described workload.
 // Records are immutable once inserted; callers build a fresh record per event.
 type WorkloadRecord struct {
-	UID        types.UID
-	Ref        WorkloadRef
-	Karta      string
-	Generation int64
-	HasStatus  bool
-	Phases     []v1alpha1.ResourceStatus
-	Components []ComponentState
+	UID              types.UID
+	Ref              WorkloadRef
+	Karta            string
+	Generation       int64
+	CreatedTimestamp int64
+	HasStatus        bool
+	Phases           []v1alpha1.ResourceStatus
+	Components       []ComponentState
 }
 
 // PodRecord is the stored attribution of one pod.

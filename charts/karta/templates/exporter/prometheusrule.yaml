@@ -1,18 +1,27 @@
 {{- if and .Values.exporter.enabled .Values.exporter.prometheusRule.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") -}}
 {{- $rule := .Values.exporter.prometheusRule -}}
 {{- $join := $rule.joinLabels | join ", " -}}
-{{/*
-Every aggregation level is computed from the raw per-pod join, never from
-another recorded average, so pod-weighted results stay correct. The max by()
-on the info side keeps the join evaluating when a deleted and recreated pod
-briefly leaves two identity series with the same name. Sentinel-attributed
-pods stay in workload-level aggregates but are excluded from component and
-component-instance levels.
-*/}}
+{{/* All source observations must match one complete Pod attribution. */}}
+{{- if or (empty $rule.resources) (empty $rule.levels) (empty $rule.joinLabels) -}}
+{{- fail "exporter recording resources, levels, and joinLabels must not be empty; disable prometheusRule instead" -}}
+{{- end -}}
+{{- range $resource := $rule.resources -}}
+{{- if not (has $resource (list "gpu" "cpu" "memory")) -}}
+{{- fail (printf "invalid exporter recording resource %q" $resource) -}}
+{{- end -}}
+{{- end -}}
+{{- range $level := $rule.levels -}}
+{{- if not (has $level (list "workload" "component" "component_instance")) -}}
+{{- fail (printf "invalid exporter recording level %q" $level) -}}
+{{- end -}}
+{{- end -}}
+{{- $identityLabels := concat $rule.joinLabels (list "uid" "workload" "workload_kind" "workload_group" "workload_uid" "component" "component_instance" "replica") | uniq | join ", " -}}
+{{- $identity := printf "max by (%s) (karta_pod_workload_info)" $identityLabels -}}
+{{- $unique := printf "count by (%s) (%s) == 1" $join $identity -}}
 {{- $levels := list
-  (dict "suffix" "workload" "groupLeft" "workload, workload_kind, workload_group" "selector" "")
-  (dict "suffix" "component" "groupLeft" "workload, workload_kind, workload_group, component" "selector" "{component!=\"<unknown>\"}")
-  (dict "suffix" "component_instance" "groupLeft" "workload, workload_kind, workload_group, component, component_instance" "selector" "{component!=\"<unknown>\",component_instance!=\"<unknown>\"}")
+  (dict "suffix" "workload" "groupLeft" "workload, workload_kind, workload_group, workload_uid" "selector" "")
+  (dict "suffix" "component" "groupLeft" "workload, workload_kind, workload_group, workload_uid, component" "selector" "{component!=\"<unknown>\"}")
+  (dict "suffix" "component_instance" "groupLeft" "workload, workload_kind, workload_group, workload_uid, component, component_instance" "selector" "{component!=\"<unknown>\",component_instance!=\"<unknown>\"}")
 -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -27,8 +36,10 @@ spec:
       interval: {{ $rule.interval }}
       rules:
         {{- range $level := $levels }}
-        {{- $info := printf "max by (%s, %s) (karta_pod_workload_info%s)" $join $level.groupLeft $level.selector }}
+        {{- if has $level.suffix $rule.levels }}
+        {{- $info := printf "max by (%s, %s) ((max by (%s) (karta_pod_workload_info%s)) and on (%s) (%s))" $join $level.groupLeft $identityLabels $level.selector $join $unique }}
         {{- $joinClause := printf "* on (%s) group_left (%s) %s" $join $level.groupLeft $info }}
+        {{- if has "gpu" $rule.resources }}
         - record: karta:gpu_utilization:{{ $level.suffix }}
           expr: |
             avg by (namespace, {{ $level.groupLeft }}) (
@@ -47,12 +58,16 @@ spec:
               (({{ $rule.gpuMemoryUsedMetric }} + {{ $rule.gpuMemoryFreeMetric }}) * 1048576)
               {{ $joinClause }}
             )
+        {{- end }}
+        {{- if has "cpu" $rule.resources }}
         - record: karta:cpu_usage_cores:{{ $level.suffix }}
           expr: |
             sum by (namespace, {{ $level.groupLeft }}) (
               rate({{ $rule.cpuUsageMetric }}{container!=""}[{{ $rule.cpuRateWindow }}])
               {{ $joinClause }}
             )
+        {{- end }}
+        {{- if has "memory" $rule.resources }}
         - record: karta:memory_working_set_bytes:{{ $level.suffix }}
           expr: |
             sum by (namespace, {{ $level.groupLeft }}) (
@@ -60,15 +75,19 @@ spec:
               {{ $joinClause }}
             )
         {{- end }}
-        # Attribution health: the fraction of pod-attributed GPU series that
-        # join the identity series. Free GPUs carry no pod label and are not
-        # attribution failures, so they are excluded from both sides. A drop
-        # below 1 means a label mismatch between the telemetry source and the
-        # exporter; alert on it.
+        {{- end }}
+        {{- end }}
+        {{- if has "gpu" $rule.resources }}
+        # Coverage measures arriving GPU observations with unambiguous attribution.
+        # It cannot detect an allocated device that sends no telemetry.
         - record: karta:join_coverage:ratio
           expr: |
-            count({{ $rule.gpuUtilizationMetric }}{pod!=""} * on ({{ $join }}) group_left ()
-              max by ({{ $join }}) (karta_pod_workload_info))
+            (
+              count({{ $rule.gpuUtilizationMetric }}{pod!=""} * on ({{ $join }}) group_left ()
+                (max by ({{ $join }}) ({{ $identity }}) and on ({{ $join }}) ({{ $unique }})))
+              or (0 * count({{ $rule.gpuUtilizationMetric }}{pod!=""}))
+            )
             /
             count({{ $rule.gpuUtilizationMetric }}{pod!=""})
+        {{- end }}
 {{- end }}

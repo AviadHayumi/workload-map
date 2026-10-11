@@ -10,14 +10,16 @@ import (
 )
 
 // Metric names exposed to consumers. These names, together with the label
-// names below, are Karta's public metric contract: additive-only changes.
+// names below, are Karta's public metric contract. Label changes require migration.
 const (
 	MetricPodWorkloadInfo    = "karta_pod_workload_info"
 	MetricWorkloadInfo       = "karta_workload_info"
 	MetricWorkloadStatus     = "karta_workload_status"
 	MetricComponentReplicas  = "karta_workload_component_replicas"
 	MetricComponentPods      = "karta_workload_component_pods"
+	MetricComponentInfo      = "karta_workload_component_info"
 	MetricWorkloadGeneration = "karta_workload_generation"
+	MetricWorkloadCreated    = "karta_workload_created_timestamp_seconds"
 )
 
 // Self-observability metric names. Not part of the consumer contract.
@@ -35,6 +37,8 @@ const (
 	LabelPod               = "pod"
 	LabelUID               = "uid"
 	LabelWorkload          = "workload"
+	LabelWorkloadUID       = "workload_uid"
+	LabelPodPhase          = "pod_phase"
 	LabelWorkloadKind      = "workload_kind"
 	LabelWorkloadGroup     = "workload_group"
 	LabelWorkloadVersion   = "workload_version"

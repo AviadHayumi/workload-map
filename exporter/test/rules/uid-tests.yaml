@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+rule_files:
+  - .rendered/karta-uid-rules.yaml
+evaluation_interval: 30s
+tests:
+  - name: producing Pod UID rejects old telemetry despite a reused Pod name
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",uid="old",gpu="0"}'
+        values: '80x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="new",workload="train",workload_uid="w2",component="worker"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:workload
+        eval_time: 2m
+        exp_samples: []
+  - name: matching source UID propagates workload UID
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",uid="p1",gpu="0"}'
+        values: '80x4'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="worker"}'
+        values: '1x4'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:workload
+        eval_time: 2m
+        exp_samples: [{labels: 'karta:gpu_utilization:workload{namespace="demo",workload="train",workload_uid="w1"}', value: 80}]

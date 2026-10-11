@@ -34,27 +34,38 @@ import (
 
 func main() {
 	var (
-		metricsAddr  string
-		kubeconfig   string
-		fullPodCache bool
-		useCatalog   bool
-		resync       time.Duration
+		metricsAddr    string
+		kubeconfig     string
+		fullPodCache   bool
+		useCatalog     bool
+		resync         time.Duration
+		workloadPhases string
+		podPhases      string
+		podMetricsMode string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address to serve /metrics, /healthz, and /readyz on.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig; empty means in-cluster configuration.")
 	flag.BoolVar(&fullPodCache, "full-pod-cache", false, "Cache full pod objects instead of the trimmed shape. Needed only for custom Kartas whose pod selectors read fields outside metadata, spec.nodeName, and status.phase.")
 	flag.BoolVar(&useCatalog, "use-catalog", false, "Use the built-in catalog definitions for workload kinds that have no Karta CR on the cluster. A Karta CR always overrides the catalog.")
 	flag.DurationVar(&resync, "resync-period", 10*time.Hour, "Informer resync period.")
+	flag.StringVar(&workloadPhases, "workload-phases", "all", "Normalized states to emit: all, none, or a comma-separated list. Selected states retain dense 0/1 samples.")
+	flag.StringVar(&podPhases, "pod-phases", "all", "Component Pod count phases to emit: all, none, or a comma-separated list.")
+	flag.StringVar(&podMetricsMode, "pod-metrics-mode", collector.PodMetricsCounts, "Pod metrics: counts (default), inventory (phase on attribution plus component inventory), or both (comparison mode).")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(metricsAddr, kubeconfig, fullPodCache, useCatalog, resync, logger); err != nil {
+	metricOptions, err := collector.ParseOptions(workloadPhases, podPhases, podMetricsMode)
+	if err != nil {
+		logger.Error("invalid metric selection", "error", err)
+		os.Exit(1)
+	}
+	if err := run(metricsAddr, kubeconfig, fullPodCache, useCatalog, resync, metricOptions, logger); err != nil {
 		logger.Error("exporter failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync time.Duration, logger *slog.Logger) error {
+func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync time.Duration, metricOptions collector.Options, logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -101,13 +112,12 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 		controller.Options{FullPodCache: fullPodCache, Resync: resync},
 	)
 
-	prometheusRegistry.MustRegister(collector.New(metricsStore, collector.Options{
-		PendingPods: ownerIndex.PendingCount,
-		KartaCounts: func() (int, int, int) {
-			stats := kartaRegistry.Stats()
-			return stats.Valid, stats.Invalid, stats.Shadowed
-		},
-	}))
+	metricOptions.PendingPods = ownerIndex.PendingCount
+	metricOptions.KartaCounts = func() (int, int, int) {
+		stats := kartaRegistry.Stats()
+		return stats.Valid, stats.Invalid, stats.Shadowed
+	}
+	prometheusRegistry.MustRegister(collector.New(metricsStore, metricOptions))
 
 	metricsServer := server.New(metricsAddr, prometheusRegistry, exporterController.Ready)
 

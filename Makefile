@@ -188,7 +188,11 @@ exporter-rules-test: ## Render the chart's recording rules and run the promtool 
 	helm template rules-test $(KARTA_CHART_DIR) --set exporter.enabled=true --api-versions monitoring.coreos.com/v1 \
 		| python3 hack/extract-prometheus-rules.py > exporter/test/rules/.rendered/karta-rules.yaml; \
 	promtool check rules exporter/test/rules/.rendered/karta-rules.yaml; \
-	cd exporter/test/rules && promtool test rules tests.yaml
+	helm template rules-test $(KARTA_CHART_DIR) --set exporter.enabled=true --api-versions monitoring.coreos.com/v1 \
+		--set 'exporter.prometheusRule.joinLabels={namespace,pod,uid}' \
+		| python3 hack/extract-prometheus-rules.py > exporter/test/rules/.rendered/karta-uid-rules.yaml; \
+	promtool check rules exporter/test/rules/.rendered/karta-uid-rules.yaml; \
+	cd exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml
 
 ##@ Air-gap
 

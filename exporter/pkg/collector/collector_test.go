@@ -21,41 +21,44 @@ import (
 // names, label names, or series shape fails this test visibly.
 const goldenContract = `# HELP karta_pod_workload_info Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.
 # TYPE karta_pod_workload_info gauge
-karta_pod_workload_info{component="replicatedjob",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p2",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
-karta_pod_workload_info{component="replicatedjob",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p1",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
+karta_pod_workload_info{component="replicatedjob",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p2",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
+karta_pod_workload_info{component="replicatedjob",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p1",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
 # HELP karta_workload_component_pods Observed pod count per component instance, broken down by pod phase.
 # TYPE karta_workload_component_pods gauge
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
+karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
+karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
 # HELP karta_workload_component_replicas Desired replicas per component instance, from the workload spec.
 # TYPE karta_workload_component_replicas gauge
-karta_workload_component_replicas{component="replicatedjob",component_instance="decode",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
-karta_workload_component_replicas{component="replicatedjob",component_instance="prefill",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 2
+karta_workload_component_replicas{component="replicatedjob",component_instance="decode",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
+karta_workload_component_replicas{component="replicatedjob",component_instance="prefill",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 2
+# HELP karta_workload_created_timestamp_seconds The workload's metadata.creationTimestamp as unix seconds. Steps forward when a workload is deleted and recreated under the same name.
+# TYPE karta_workload_created_timestamp_seconds gauge
+karta_workload_created_timestamp_seconds{namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1.7556e+09
 # HELP karta_workload_generation The workload's metadata.generation. A step change marks a spec change.
 # TYPE karta_workload_generation gauge
-karta_workload_generation{namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 3
+karta_workload_generation{namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 3
 # HELP karta_workload_info Identity and provenance of a Karta-described workload. Value is always 1.
 # TYPE karta_workload_info gauge
-karta_workload_info{karta="jobset-x-k8s-io-jobset-v1alpha2",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_version="v1alpha2"} 1
+karta_workload_info{karta="jobset-x-k8s-io-jobset-v1alpha2",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1",workload_version="v1alpha2"} 1
 # HELP karta_workload_status Normalized workload status. One series per phase; several phases can be 1 at the same time.
 # TYPE karta_workload_status gauge
-karta_workload_status{namespace="team-a",phase="Completed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Degraded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Initializing",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Resuming",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 1
-karta_workload_status{namespace="team-a",phase="Suspended",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Suspending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
-karta_workload_status{namespace="team-a",phase="Undefined",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet"} 0
+karta_workload_status{namespace="team-a",phase="Completed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Degraded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Initializing",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Resuming",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
+karta_workload_status{namespace="team-a",phase="Suspended",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Suspending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
+karta_workload_status{namespace="team-a",phase="Undefined",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
 `
 
 func fixtureStore() *store.Store {
@@ -63,12 +66,13 @@ func fixtureStore() *store.Store {
 	ref := store.WorkloadRef{Namespace: "team-a", Name: "llm", Group: "jobset.x-k8s.io", Version: "v1alpha2", Kind: "JobSet"}
 
 	s.UpsertWorkload(store.WorkloadRecord{
-		UID:        "w1",
-		Ref:        ref,
-		Karta:      "jobset-x-k8s-io-jobset-v1alpha2",
-		Generation: 3,
-		HasStatus:  true,
-		Phases:     []v1alpha1.ResourceStatus{v1alpha1.RunningStatus},
+		UID:              "w1",
+		Ref:              ref,
+		Karta:            "jobset-x-k8s-io-jobset-v1alpha2",
+		Generation:       3,
+		CreatedTimestamp: 1755600000,
+		HasStatus:        true,
+		Phases:           []v1alpha1.ResourceStatus{v1alpha1.RunningStatus},
 		Components: []store.ComponentState{
 			{Component: "replicatedjob", Instance: "prefill", Replicas: ptr.To(int32(2))},
 			{Component: "replicatedjob", Instance: "decode", Replicas: ptr.To(int32(1))},
@@ -93,6 +97,7 @@ var _ = Describe("Collector", func() {
 		MetricComponentReplicas,
 		MetricComponentPods,
 		MetricWorkloadGeneration,
+		MetricWorkloadCreated,
 	}
 
 	It("renders the exact metric contract from a snapshot", func() {
@@ -110,6 +115,18 @@ var _ = Describe("Collector", func() {
 		problems, err := testutil.CollectAndLint(c)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(problems).To(BeEmpty())
+	})
+
+	It("emits the created timestamp for workloads without a StatusDefinition", func() {
+		s := store.New()
+		s.UpsertWorkload(store.WorkloadRecord{
+			UID:              "w9",
+			Ref:              store.WorkloadRef{Namespace: "team-a", Name: "t", Group: "example.io", Version: "v1", Kind: "Thing"},
+			CreatedTimestamp: 1755600000,
+		})
+		c := New(s, Options{})
+
+		Expect(testutil.CollectAndCount(c, MetricWorkloadCreated)).To(Equal(1))
 	})
 
 	It("omits status series for workloads without a StatusDefinition", func() {

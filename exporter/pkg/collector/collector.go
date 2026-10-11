@@ -10,15 +10,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 )
 
-var workloadLabels = []string{LabelNamespace, LabelWorkload, LabelWorkloadKind, LabelWorkloadGroup}
-
-// Options wires the collector to state owned by other exporter parts.
-type Options struct {
-	// PendingPods returns the number of pods parked on a missing owner.
-	PendingPods func() int
-	// KartaCounts returns valid, invalid, and shadowed Karta counts.
-	KartaCounts func() (valid, invalid, shadowed int)
-}
+var workloadLabels = []string{LabelNamespace, LabelWorkload, LabelWorkloadKind, LabelWorkloadGroup, LabelWorkloadUID}
 
 // Collector renders a store snapshot as const metrics on every scrape.
 // Nothing is computed per object at scrape time beyond label assembly, and
@@ -32,19 +24,34 @@ type Collector struct {
 	workloadStatusDesc    *prometheus.Desc
 	componentReplicasDesc *prometheus.Desc
 	componentPodsDesc     *prometheus.Desc
+	componentInfoDesc     *prometheus.Desc
 	generationDesc        *prometheus.Desc
+	createdDesc           *prometheus.Desc
 	workloadsDesc         *prometheus.Desc
 	unattributedDesc      *prometheus.Desc
 	kartasDesc            *prometheus.Desc
 }
 
 func New(s *store.Store, options Options) *Collector {
+	if options.PodMetricsMode == "" {
+		options.PodMetricsMode = PodMetricsCounts
+	}
+	if options.WorkloadPhases == nil {
+		options.WorkloadPhases = AllPhases
+	}
+	if options.PodPhases == nil {
+		options.PodPhases = AllPodPhases
+	}
+	podLabels := []string{LabelNamespace, LabelPod, LabelUID, LabelWorkload, LabelWorkloadKind, LabelWorkloadGroup, LabelWorkloadUID, LabelComponent, LabelComponentInstance, LabelReplica}
+	if options.PodMetricsMode != PodMetricsCounts {
+		podLabels = append(podLabels, LabelPodPhase)
+	}
 	return &Collector{
 		store:   s,
 		options: options,
 		podInfoDesc: prometheus.NewDesc(MetricPodWorkloadInfo,
 			"Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.",
-			[]string{LabelNamespace, LabelPod, LabelUID, LabelWorkload, LabelWorkloadKind, LabelWorkloadGroup, LabelComponent, LabelComponentInstance, LabelReplica}, nil),
+			podLabels, nil),
 		workloadInfoDesc: prometheus.NewDesc(MetricWorkloadInfo,
 			"Identity and provenance of a Karta-described workload. Value is always 1.",
 			append(append([]string{}, workloadLabels...), LabelWorkloadVersion, LabelKarta), nil),
@@ -57,8 +64,14 @@ func New(s *store.Store, options Options) *Collector {
 		componentPodsDesc: prometheus.NewDesc(MetricComponentPods,
 			"Observed pod count per component instance, broken down by pod phase.",
 			append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance, LabelPhase), nil),
+		componentInfoDesc: prometheus.NewDesc(MetricComponentInfo,
+			"Declared or observed component instance inventory. Value is always 1.",
+			append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance), nil),
 		generationDesc: prometheus.NewDesc(MetricWorkloadGeneration,
 			"The workload's metadata.generation. A step change marks a spec change.",
+			workloadLabels, nil),
+		createdDesc: prometheus.NewDesc(MetricWorkloadCreated,
+			"The workload's metadata.creationTimestamp as unix seconds. Steps forward when a workload is deleted and recreated under the same name.",
 			workloadLabels, nil),
 		workloadsDesc: prometheus.NewDesc(MetricExporterWorkloads,
 			"Number of Karta-described workloads currently tracked.", nil, nil),
@@ -75,7 +88,9 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.workloadStatusDesc
 	ch <- c.componentReplicasDesc
 	ch <- c.componentPodsDesc
+	ch <- c.componentInfoDesc
 	ch <- c.generationDesc
+	ch <- c.createdDesc
 	ch <- c.workloadsDesc
 	ch <- c.unattributedDesc
 	ch <- c.kartasDesc
@@ -85,31 +100,38 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	snapshot := c.store.Snapshot()
 
 	for _, pod := range snapshot.Pods {
-		ch <- prometheus.MustNewConstMetric(c.podInfoDesc, prometheus.GaugeValue, 1,
-			pod.Namespace, pod.Name, string(pod.UID),
-			pod.Workload.Name, pod.Workload.Kind, pod.Workload.Group,
-			pod.Component, pod.Instance, pod.Replica)
+		labels := []string{pod.Namespace, pod.Name, string(pod.UID),
+			pod.Workload.Name, pod.Workload.Kind, pod.Workload.Group, string(pod.WorkloadUID),
+			pod.Component, pod.Instance, pod.Replica}
+		if c.options.PodMetricsMode != PodMetricsCounts {
+			labels = append(labels, string(pod.Phase))
+		}
+		ch <- prometheus.MustNewConstMetric(c.podInfoDesc, prometheus.GaugeValue, 1, labels...)
 	}
 
 	for _, workload := range snapshot.Workloads {
 		ref := workload.Ref
 		ch <- prometheus.MustNewConstMetric(c.workloadInfoDesc, prometheus.GaugeValue, 1,
-			ref.Namespace, ref.Name, ref.Kind, ref.Group, ref.Version, workload.Karta)
+			ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), ref.Version, workload.Karta)
 		ch <- prometheus.MustNewConstMetric(c.generationDesc, prometheus.GaugeValue, float64(workload.Generation),
-			ref.Namespace, ref.Name, ref.Kind, ref.Group)
+			ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID))
+		if workload.CreatedTimestamp != 0 {
+			ch <- prometheus.MustNewConstMetric(c.createdDesc, prometheus.GaugeValue, float64(workload.CreatedTimestamp),
+				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID))
+		}
 
 		if workload.HasStatus {
 			matched := make(map[string]struct{}, len(workload.Phases))
 			for _, phase := range workload.Phases {
 				matched[string(phase)] = struct{}{}
 			}
-			for _, phase := range AllPhases {
+			for _, phase := range c.options.WorkloadPhases {
 				value := 0.0
 				if _, ok := matched[string(phase)]; ok {
 					value = 1.0
 				}
 				ch <- prometheus.MustNewConstMetric(c.workloadStatusDesc, prometheus.GaugeValue, value,
-					ref.Namespace, ref.Name, ref.Kind, ref.Group, string(phase))
+					ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), string(phase))
 			}
 		}
 
@@ -118,11 +140,11 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 				continue
 			}
 			ch <- prometheus.MustNewConstMetric(c.componentReplicasDesc, prometheus.GaugeValue, float64(*component.Replicas),
-				ref.Namespace, ref.Name, ref.Kind, ref.Group, component.Component, component.Instance)
+				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), component.Component, component.Instance)
 		}
 	}
 
-	c.collectComponentPods(ch, snapshot)
+	c.collectComponents(ch, snapshot)
 	c.collectSelf(ch, snapshot)
 }
 
@@ -132,11 +154,8 @@ type componentKey struct {
 	instance    string
 }
 
-// collectComponentPods emits pod counts per component instance and pod phase.
-// The instance set is the union of instances declared by the workload spec
-// and instances observed on pods, zero-filled across all pod phases so
-// under-replication math never breaks on a missing series.
-func (c *Collector) collectComponentPods(ch chan<- prometheus.Metric, snapshot store.Snapshot) {
+// collectComponents preserves empty declared instances and observed attribution keys.
+func (c *Collector) collectComponents(ch chan<- prometheus.Metric, snapshot store.Snapshot) {
 	refs := make(map[types.UID]store.WorkloadRef, len(snapshot.Workloads))
 	keys := make(map[componentKey]struct{})
 	counts := make(map[componentKey]map[string]int)
@@ -162,10 +181,17 @@ func (c *Collector) collectComponentPods(ch chan<- prometheus.Metric, snapshot s
 
 	for key := range keys {
 		ref := refs[key.workloadUID]
-		for _, phase := range AllPodPhases {
+		if c.options.PodMetricsMode != PodMetricsCounts {
+			ch <- prometheus.MustNewConstMetric(c.componentInfoDesc, prometheus.GaugeValue, 1,
+				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(key.workloadUID), key.component, key.instance)
+		}
+		if c.options.PodMetricsMode == PodMetricsInventory {
+			continue
+		}
+		for _, phase := range c.options.PodPhases {
 			ch <- prometheus.MustNewConstMetric(c.componentPodsDesc, prometheus.GaugeValue,
 				float64(counts[key][string(phase)]),
-				ref.Namespace, ref.Name, ref.Kind, ref.Group, key.component, key.instance, string(phase))
+				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(key.workloadUID), key.component, key.instance, string(phase))
 		}
 	}
 }
