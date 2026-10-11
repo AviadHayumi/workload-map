@@ -104,7 +104,7 @@ lint: $(addprefix lint-,$(COMPONENTS)) ## Lint every component (read-only, never
 test: $(addprefix test-,$(COMPONENTS)) ## Test every component
 
 .PHONY: check
-check: $(addprefix check-,$(COMPONENTS)) ## Everything CI runs for Go. Run this before pushing
+check: $(addprefix check-,$(COMPONENTS)) test-e2e-updates ## Everything CI runs for Go. Run this before pushing
 
 .PHONY: build
 build: build-cli build-operator ## Build every binary into bin/ (the library has no artifact)
@@ -649,6 +649,14 @@ build-operator-e2e: ## Compile the operator e2e suite without running it (no clu
 test-operator-e2e: ## Run the operator e2e against the current cluster (KARTA_WEBHOOK_MODE must match the one e2e-up installed; CLUSTER_NAME for a named one)
 	CLUSTER_NAME=$(CLUSTER_NAME) KARTA_WEBHOOK_MODE=$(KARTA_WEBHOOK_MODE) $(E2E_KUBECONFIG) ./hack/e2e/karta-operator/test.sh
 
+.PHONY: e2e-check-updates
+e2e-check-updates: ## Report newer workload and infra operator tags (OPERATORS="jobset infra", UPDATE_FLAGS="--fail-on-update --include-prereleases")
+	@bash ./hack/e2e/check-updates.sh $(UPDATE_FLAGS) $(OPERATORS)
+
+.PHONY: test-e2e-updates
+test-e2e-updates: ## Test operator update detection offline
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e -p 'test_check_updates.py'
+
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)
 	CLUSTER_NAME=$(CLUSTER_NAME) ./hack/e2e/down.sh
@@ -670,8 +678,11 @@ verify-recordings: ## Fail if any recorded fixture ended with succeeded false (r
 	echo "all recordings succeeded"
 
 # The e2e shell scripts to shellcheck: the provisioner, teardown, the karta-operator
-# scripts, the shared helpers, and every per-operator install.sh/verify.sh.
-E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh \
+# scripts, the shared helpers, and every operator install, verify, and update check.
+E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh hack/e2e/check-updates.sh \
+	hack/e2e/_updates.sh \
+	$(wildcard hack/e2e/infra/*/check-updates.sh) \
+	$(wildcard hack/e2e/operators/*/check-updates.sh) \
 	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \
 	$(wildcard hack/e2e/operators/*/install.sh) \
