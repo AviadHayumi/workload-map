@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 #
-# Report whether installation inputs changed, and the narrowest install plan.
-# Shared inputs select all; operator-local changes select those operators.
+# Print changed operator names, all for shared inputs, or nothing for no changes.
 # Usage: install-changed.sh <base-ref> [head-ref]
 set -euo pipefail
 
@@ -16,12 +15,10 @@ changed_files="$(git -C "${REPO_ROOT}" -c core.quotePath=true diff --name-only -
   .dockerignore go.mod go.sum go.work go.work.sum operator/go.mod operator/go.sum cli/go.mod cli/go.sum)"
 
 if [ -z "${changed_files}" ]; then
-  printf 'changed=false\nworkloads=\n'
   exit 0
 fi
 
 operators=()
-workloads=""
 while IFS= read -r path; do
   case "${path}" in
     hack/e2e/operators/*/*)
@@ -29,15 +26,12 @@ while IFS= read -r path; do
       operator="${operator%%/*}"
       # Workload names reach a Make recipe; never pass shell syntax from a path.
       case "${operator}" in
-        '' | -* | *[!a-z0-9-]*) workloads=all; break ;;
+        '' | -* | *[!a-z0-9-]*) echo all; exit 0 ;;
       esac
       operators+=("${operator}")
       ;;
-    *) workloads=all; break ;;
+    *) echo all; exit 0 ;;
   esac
 done <<<"${changed_files}"
 
-if [ "${workloads}" != all ]; then
-  workloads="$(printf '%s\n' "${operators[@]}" | LC_ALL=C sort -u | paste -sd ' ' -)"
-fi
-printf 'changed=true\nworkloads=%s\n' "${workloads}"
+printf '%s\n' "${operators[@]}" | LC_ALL=C sort -u | paste -sd ' ' -

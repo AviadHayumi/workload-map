@@ -77,9 +77,12 @@ collected before teardown. These checks do not run recorded workload flows or th
 separate webhook-mode operator e2e suite.
 
 To inspect selection locally, run `./hack/e2e/install-changed.sh <target-ref> HEAD`
-with the PR's target branch, such as `origin/main`. The script computes the merge
-base. `make test-e2e-install-changes` runs the selector's unit tests without a
-cluster. For a fresh local install, run `make e2e-down` before `make e2e-up`.
+with the PR's target branch, such as `origin/main`. It compares from the merge
+base and prints operator names, `all`, or nothing.
+
+`make test-e2e-install-changes` checks this selection against local Git changes
+without a cluster. Each operator's `verify.sh` checks the running workload after
+installation. For a fresh local install, run `make e2e-down` before `make e2e-up`.
 
 ## How up.sh runs an operator
 
