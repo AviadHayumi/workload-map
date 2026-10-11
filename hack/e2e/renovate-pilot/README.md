@@ -44,3 +44,16 @@ make check
 The workflow pins Renovate 44.151.0 by container digest and every action by
 commit. The existing repository Renovate configuration is ignored for this
 isolated run so unrelated dependencies and release commands are unaffected.
+
+## Verified run
+
+[Fork Actions run 38174039025](https://github.com/AviadHayumi/workload-map/actions/runs/38174039025)
+succeeded on 2026-10-11 (UTC). Renovate created commit
+`4302432479e1a1f0c1342143fc0c5c0e66d503f5`, changing only JobSet v0.10.1 to
+v0.12.0. Installation, all five live flows, recording validation, and offline
+replay passed on Kubernetes v1.34.0. The temporary cluster was deleted.
+
+The running JobSet controller image resolved to
+`registry.k8s.io/jobset/jobset@sha256:e75536f1135b7bb2f19f8c3b620782fbdd9091d73398e3a272f9a5fed322980d`.
+The five recordings are committed under
+`test/e2e/recorded_data/jobset/v0.12.0/` with license headers added after download.
