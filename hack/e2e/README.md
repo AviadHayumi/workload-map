@@ -56,10 +56,10 @@ knative, dynamo pulls grove.
 ## Check for operator updates
 
 ```sh
-make e2e-check-updates                         # all workload and infra operators
-make e2e-check-updates OPERATORS="jobset infra" # selected operators or infra only
-make e2e-check-updates UPDATE_FLAGS=--fail-on-update
-make e2e-check-updates UPDATE_FLAGS=--include-prereleases
+make e2e-check-versions                         # all workload and infra operators
+make e2e-check-versions OPERATORS="jobset infra" # selected operators or infra only
+make e2e-check-versions UPDATE_FLAGS=--fail-on-update
+make e2e-check-versions UPDATE_FLAGS=--include-prereleases
 ./hack/e2e/operators/kubeflow/check-updates.sh   # Training Operator and MPI Operator
 ./hack/e2e/infra/fake-gpu-operator/check-updates.sh
 JOBSET_VERSION=v0.11.0 ./hack/e2e/operators/jobset/check-updates.sh
