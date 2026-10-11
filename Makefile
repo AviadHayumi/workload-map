@@ -592,7 +592,7 @@ COMMIT_BASE ?= origin/main
 COMMIT_HEAD ?= HEAD
 
 .PHONY: commit-attribution-check
-commit-attribution-check: ## Check commit attribution (COMMIT_BASE=origin/main COMMIT_HEAD=HEAD)
+commit-attribution-check: commit-attribution-validate ## Check commit attribution (COMMIT_BASE=origin/main COMMIT_HEAD=HEAD)
 	bash hack/commit-attribution/check-commit-attribution.sh "$(COMMIT_BASE)" "$(COMMIT_HEAD)"
 
 .PHONY: commit-attribution-validate

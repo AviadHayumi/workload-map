@@ -158,7 +158,6 @@ Run the same check locally:
 
 ```bash
 make commit-attribution-check COMMIT_BASE=origin/main COMMIT_HEAD=HEAD
-make commit-attribution-validate
 ```
 
 If it fails, remove the AI co-author line from each reported commit message.
