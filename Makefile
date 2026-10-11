@@ -658,7 +658,7 @@ e2e-operators-check-latest-supported-versions: ## Report newer workload and infr
 .PHONY: test-e2e-updates
 test-e2e-updates: ## Test operator update detection offline
 	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e -p 'test_check_updates.py'
-	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e/renovate-pilot -p 'test_verify_commit.py'
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e/renovate-pilot -p 'test_*.py'
 
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)

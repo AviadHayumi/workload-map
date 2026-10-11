@@ -92,6 +92,8 @@ cleanup() {
     > "${PILOT_ARTIFACT_DIR}/kind-cleanup.log" 2>&1 || status=1
   rm -f "${KUBECONFIG}" || status=1
   if [ -n "${check_dir}" ]; then
+    # envtest installs read-only asset directories in the validation clone.
+    chmod -R u+w "${check_dir}" || status=1
     rm -rf "${check_dir}" || status=1
   fi
   if [ "${status}" -eq 0 ]; then
