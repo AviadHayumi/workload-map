@@ -22,6 +22,9 @@ spec:
         mainContainer:
           image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
           imagePullPolicy: IfNotPresent
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 512Mi}
     decode:
       envFromSecret: hf-token-secret
       componentType: worker
@@ -31,6 +34,9 @@ spec:
         mainContainer:
           image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
           imagePullPolicy: IfNotPresent
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 512Mi}
           workingDir: /workspace
           command: ["python3", "-m", "dynamo.mocker"]
           args:

@@ -184,18 +184,19 @@ func ReplicasReady(n int64) recorder.StateCheck {
 	}
 }
 
-// FullyAvailable matches when every desired replica is created and ready (readyReplicas == updatedReplicas
-// == spec.replicas), Karta's Running for a StatefulSet. Compares to spec.replicas, not the lagging
-// status.replicas, so a gradually-scaled StatefulSet never reads Running mid-ramp.
+// FullyAvailable matches when every desired replica is created, ready, and settled (status.replicas ==
+// readyReplicas == updatedReplicas == spec.replicas), Karta's Running for a StatefulSet. Requiring the
+// actual replica count too keeps a scale-down out of Running while an extra pod is still draining.
 func FullyAvailable() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
 		desired, ok, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
 		if !ok {
 			desired = 1 // Karta defaults `.spec.replicas // 1`
 		}
+		replicas, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
 		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
 		updated, _, _ := unstructured.NestedInt64(u.Object, "status", "updatedReplicas")
-		return desired > 0 && ready == desired && updated == desired
+		return desired > 0 && replicas == desired && ready == desired && updated == desired
 	}
 }
 
@@ -214,17 +215,18 @@ func ReplicasDegraded() recorder.StateCheck {
 }
 
 // ReplicasInitializing matches a StatefulSet still converging: spec.replicas > 0 and either nothing ready
-// (readyReplicas == 0), not all created (updatedReplicas != spec.replicas), or more ready than desired
-// (readyReplicas > spec.replicas, a scale-down still shedding pods).
+// (readyReplicas == 0), not all created (updatedReplicas != spec.replicas), or more pods than desired
+// (status.replicas > spec.replicas, a scale-down still shedding pods, ready or not).
 func ReplicasInitializing() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
 		desired, ok, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
 		if !ok {
 			desired = 1
 		}
+		replicas, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
 		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
 		updated, _, _ := unstructured.NestedInt64(u.Object, "status", "updatedReplicas")
-		return desired > 0 && (ready == 0 || ready > desired || updated != desired)
+		return desired > 0 && (ready == 0 || replicas > desired || updated != desired)
 	}
 }
 

@@ -4,13 +4,13 @@ events:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:53:21Z"
+      creationTimestamp: "2026-09-16T11:10:27Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim-initializing
-      namespace: test-cb2tw
-      uid: ee7653de-685c-431d-909a-8a910bcffb5e
+      namespace: test-dc2d8
+      uid: 3061adf7-3c76-4e12-a07e-03379cd66b54
     spec:
       authSecret: ngc-secret
       env:
@@ -32,6 +32,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -45,20 +52,20 @@ events:
           volumeAccessMode: ReadWriteOnce
   phases:
   - Undefined
-  resourceVersion: "1321391"
+  resourceVersion: "631215"
   state: Undefined
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:53:21Z"
+      creationTimestamp: "2026-09-16T11:10:27Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim-initializing
-      namespace: test-cb2tw
-      uid: ee7653de-685c-431d-909a-8a910bcffb5e
+      namespace: test-dc2d8
+      uid: 3061adf7-3c76-4e12-a07e-03379cd66b54
     spec:
       authSecret: ngc-secret
       env:
@@ -80,6 +87,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -93,7 +107,7 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:53:21Z"
+      - lastTransitionTime: "2026-09-16T11:10:27Z"
         message: The PVC has been created for storing NIM
         reason: PVCCreated
         status: "True"
@@ -101,20 +115,20 @@ events:
       state: PVC-Created
   phases:
   - Undefined
-  resourceVersion: "1321402"
+  resourceVersion: "631225"
   state: Undefined
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:53:21Z"
+      creationTimestamp: "2026-09-16T11:10:27Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim-initializing
-      namespace: test-cb2tw
-      uid: ee7653de-685c-431d-909a-8a910bcffb5e
+      namespace: test-dc2d8
+      uid: 3061adf7-3c76-4e12-a07e-03379cd66b54
     spec:
       authSecret: ngc-secret
       env:
@@ -136,6 +150,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -149,22 +170,20 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:53:21Z"
-        message: |
-          Waiting for deployment "karta-e2e-nim-initializing" rollout to finish: 0 out of 1 new replicas have been updated...
+      - lastTransitionTime: "2026-09-16T11:10:27Z"
+        message: ""
         reason: NotReady
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-09-14T07:53:21Z"
-        message: |
-          Waiting for deployment "karta-e2e-nim-initializing" rollout to finish: 0 out of 1 new replicas have been updated...
+      - lastTransitionTime: "2026-09-16T11:10:27Z"
+        message: ""
         reason: Ready
         status: "False"
         type: Failed
       state: NotReady
   phases:
   - Initializing
-  resourceVersion: "1321405"
+  resourceVersion: "631228"
   state: Initializing
 flow: initializing
 kartaFile: docs/catalog/apps-nvidia-com-nimservice-v1alpha1.yaml

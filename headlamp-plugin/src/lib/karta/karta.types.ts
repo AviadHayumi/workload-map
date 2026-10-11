@@ -4,12 +4,20 @@
 export interface Karta {
   apiVersion: string;
   kind: string;
-  metadata: { name: string };
-  spec: {
-    structureDefinition: {
-      rootComponent: {
+  // resourceVersion is absent on catalog definitions, which never change.
+  metadata: { name: string; resourceVersion?: string };
+  // Optional at every level because the CRD requires none of it: a Karta
+  // applied while the validating webhook is down can be missing spec
+  // entirely. Note this only documents the shape, it does not enforce it --
+  // the plugin's tsconfig leaves strictNullChecks off, so readers get the
+  // warning but the compiler will not.
+  spec?: {
+    structureDefinition?: {
+      rootComponent?: {
         kind?: GroupVersionKind;
       };
+      // Counted, never read: not a full mirror of ComponentDefinition.
+      childComponents?: { name: string }[];
     };
   };
 }
@@ -17,7 +25,14 @@ export interface Karta {
 export interface Workload {
   apiVersion: string;
   kind: string;
-  metadata: { name: string; namespace?: string };
+  metadata: {
+    name: string;
+    namespace?: string;
+    creationTimestamp?: string;
+    uid?: string;
+    resourceVersion?: string;
+    ownerReferences?: { controller?: boolean }[];
+  };
   [field: string]: unknown;
 }
 

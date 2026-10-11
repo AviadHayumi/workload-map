@@ -7,11 +7,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -22,7 +22,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -32,6 +32,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -42,18 +45,18 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: The Configuration is still working to reflect the latest desired
           specification.
         reason: OutOfDate
         status: Unknown
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
@@ -61,7 +64,7 @@ events:
       observedGeneration: 1
   phases:
   - Initializing
-  resourceVersion: "342597"
+  resourceVersion: "629238"
   state: Initializing
 - kind: STATE
   object:
@@ -71,11 +74,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -86,7 +89,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -96,6 +99,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -106,15 +112,15 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         status: Unknown
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
@@ -123,7 +129,7 @@ events:
       observedGeneration: 1
   phases:
   - Initializing
-  resourceVersion: "342605"
+  resourceVersion: "629254"
   state: Initializing
 - kind: STATE
   object:
@@ -133,11 +139,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -148,7 +154,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -158,6 +164,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -168,16 +177,16 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         status: Unknown
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: Configuration "karta-e2e-knative" is waiting for a Revision to become
           ready.
         reason: RevisionMissing
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: Configuration "karta-e2e-knative" is waiting for a Revision to become
           ready.
         reason: RevisionMissing
@@ -185,10 +194,10 @@ events:
         type: RoutesReady
       latestCreatedRevisionName: karta-e2e-knative-00001
       observedGeneration: 1
-      url: http://karta-e2e-knative.test-t5fbb.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative.test-ffqfb.127.0.0.1.sslip.io
   phases:
   - Initializing
-  resourceVersion: "342608"
+  resourceVersion: "629260"
   state: Initializing
 - kind: STATE
   object:
@@ -198,11 +207,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -213,7 +222,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -223,6 +232,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -233,16 +245,16 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: Configuration "karta-e2e-knative" is waiting for a Revision to become
           ready.
         reason: RevisionMissing
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:19Z"
+      - lastTransitionTime: "2026-09-16T11:07:57Z"
         message: Configuration "karta-e2e-knative" is waiting for a Revision to become
           ready.
         reason: RevisionMissing
@@ -251,10 +263,10 @@ events:
       latestCreatedRevisionName: karta-e2e-knative-00001
       latestReadyRevisionName: karta-e2e-knative-00001
       observedGeneration: 1
-      url: http://karta-e2e-knative.test-t5fbb.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative.test-ffqfb.127.0.0.1.sslip.io
   phases:
   - Initializing
-  resourceVersion: "342692"
+  resourceVersion: "629341"
   state: Initializing
 - kind: STATE
   object:
@@ -264,11 +276,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -279,7 +291,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -289,6 +301,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -299,17 +314,17 @@ events:
         percent: 100
     status:
       address:
-        url: http://karta-e2e-knative.test-t5fbb.svc.cluster.local
+        url: http://karta-e2e-knative.test-ffqfb.svc.cluster.local
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         message: Ingress has not yet been reconciled.
         reason: IngressNotConfigured
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         message: Ingress has not yet been reconciled.
         reason: IngressNotConfigured
         status: Unknown
@@ -321,10 +336,10 @@ events:
       - latestRevision: true
         percent: 100
         revisionName: karta-e2e-knative-00001
-      url: http://karta-e2e-knative.test-t5fbb.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative.test-ffqfb.127.0.0.1.sslip.io
   phases:
   - Initializing
-  resourceVersion: "342700"
+  resourceVersion: "629350"
   state: Initializing
 - kind: STATE
   object:
@@ -334,11 +349,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -349,7 +364,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -359,6 +374,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -369,17 +387,17 @@ events:
         percent: 100
     status:
       address:
-        url: http://karta-e2e-knative.test-t5fbb.svc.cluster.local
+        url: http://karta-e2e-knative.test-ffqfb.svc.cluster.local
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         message: Waiting for load balancer to be ready
         reason: Uninitialized
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         message: Waiting for load balancer to be ready
         reason: Uninitialized
         status: Unknown
@@ -391,10 +409,10 @@ events:
       - latestRevision: true
         percent: 100
         revisionName: karta-e2e-knative-00001
-      url: http://karta-e2e-knative.test-t5fbb.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative.test-ffqfb.127.0.0.1.sslip.io
   phases:
   - Initializing
-  resourceVersion: "342706"
+  resourceVersion: "629356"
   state: Initializing
 - kind: STATE
   object:
@@ -404,11 +422,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-09-09T15:12:19Z"
+      creationTimestamp: "2026-09-16T11:07:57Z"
       generation: 1
       name: karta-e2e-knative
-      namespace: test-t5fbb
-      uid: 18599efd-1c41-4636-8b2f-33bf581e8085
+      namespace: test-ffqfb
+      uid: e1d92da5-b1ce-40d2-991d-a4aaba7bd207
     spec:
       template:
         metadata:
@@ -419,7 +437,7 @@ events:
           - env:
             - name: TARGET
               value: karta-e2e
-            image: ghcr.io/knative/helloworld-go:latest
+            image: ghcr.io/knative/helloworld-go@sha256:ca8932063cfacdf5e650f880ed0255e4ecaf5b1001ae22e3d1830dd1fff513f8
             name: user-container
             ports:
             - containerPort: 8080
@@ -429,6 +447,9 @@ events:
               tcpSocket:
                 port: 0
             resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
               requests:
                 cpu: 50m
                 memory: 64Mi
@@ -439,15 +460,15 @@ events:
         percent: 100
     status:
       address:
-        url: http://karta-e2e-knative.test-t5fbb.svc.cluster.local
+        url: http://karta-e2e-knative.test-ffqfb.svc.cluster.local
       conditions:
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: Ready
-      - lastTransitionTime: "2026-09-09T15:12:22Z"
+      - lastTransitionTime: "2026-09-16T11:08:02Z"
         status: "True"
         type: RoutesReady
       latestCreatedRevisionName: karta-e2e-knative-00001
@@ -457,10 +478,10 @@ events:
       - latestRevision: true
         percent: 100
         revisionName: karta-e2e-knative-00001
-      url: http://karta-e2e-knative.test-t5fbb.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative.test-ffqfb.127.0.0.1.sslip.io
   phases:
   - Running
-  resourceVersion: "342712"
+  resourceVersion: "629361"
   state: Running
 flow: running
 kartaFile: docs/catalog/serving-knative-dev-service-v1.yaml

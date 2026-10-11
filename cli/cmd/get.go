@@ -107,6 +107,7 @@ func newGetCommand() *cobra.Command {
 			cobra.RangeArgs(1, 2),
 			func(_ *cobra.Command, args []string) error { return parseArgs(opts, args) },
 		)),
+		ValidArgsFunction: completeWorkloads,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			opts.phases = phase.Get()
 			return validateOptions(cmd, opts)
@@ -165,42 +166,26 @@ func parseArgs(opts *getOptions, args []string) error {
 	return nil
 }
 
-func runGet(cmd *cobra.Command, opts *getOptions, format generator.Output) error {
+func runGet(cmd *cobra.Command, opts *getOptions, format generator.Output) (err error) {
 	ctx := cmd.Context()
-	access := clusterAccess()
 
-	namespace, _, err := ResolvedNamespace(access)
-	if err != nil {
-		return fmt.Errorf("resolve namespace: %w", err)
-	}
+	// Warnings go out last, after the rows and before main reports any error, so
+	// a long table cannot scroll them out of view.
+	var warnings []string
+	defer func() {
+		if writeErr := printWarnings(cmd.ErrOrStderr(), warnings); err == nil {
+			err = writeErr
+		}
+	}()
 
-	resolver, warnings := loadDefinitions(ctx, access)
-	if err := printWarnings(cmd.ErrOrStderr(), warningMessages(warnings)); err != nil {
-		return err
-	}
-	if len(resolver.List()) == 0 {
-		return exitError{code: ExitNotFound, err: fmt.Errorf(
-			"no Karta definitions available (catalog empty and no cluster definitions)")}
-	}
-
-	mapper, err := access.ToRESTMapper()
-	if err != nil {
-		return fmt.Errorf("kubernetes discovery: %w", err)
-	}
-	dyn, err := newDynamicClient(access)
+	var look lookup
+	look, warnings, err = resolveLookup(cmd, opts)
 	if err != nil {
 		return err
 	}
 
-	target, err := resolveTarget(opts, resolver, mapper)
-	if err != nil {
-		return err
-	}
-
-	views, searched, listWarnings, err := collect(ctx, dyn, mapper, target, namespace, opts)
-	if writeErr := printWarnings(cmd.ErrOrStderr(), listWarnings); writeErr != nil {
-		return writeErr
-	}
+	views, searched, listWarnings, err := collect(ctx, look.dyn, look.mapper, look.definition, look.namespace, opts)
+	warnings = append(warnings, listWarnings...)
 	if err != nil {
 		return err
 	}
@@ -215,11 +200,55 @@ func runGet(cmd *cobra.Command, opts *getOptions, format generator.Output) error
 
 	return generator.RenderWorkloads(cmd.OutOrStdout(), cmd.ErrOrStderr(), views, generator.Options{
 		Output:    format,
+		ByName:    opts.name != "",
 		Namespace: searched,
 		// An empty namespace means the type is cluster-scoped, so the search
 		// spanned the cluster.
 		AllNamespaces: searched == "",
 	})
+}
+
+// lookup is everything get and describe settle before they read the cluster:
+// where to look, how to reach it, and which definition covers the type asked for.
+type lookup struct {
+	namespace  string
+	dyn        dynamic.Interface
+	mapper     meta.RESTMapper
+	definition definitions.Definition
+}
+
+// resolveLookup runs the prologue both commands share. The definition-loading
+// warnings come back with every error after loading, so a cluster whose
+// definitions failed to load still says why.
+func resolveLookup(cmd *cobra.Command, opts *getOptions) (lookup, []string, error) {
+	access := clusterAccess()
+
+	namespace, _, err := ResolvedNamespace(access)
+	if err != nil {
+		return lookup{}, nil, fmt.Errorf("resolve namespace: %w", err)
+	}
+
+	resolver, loadWarnings := loadDefinitions(cmd.Context(), access)
+	warnings := warningMessages(loadWarnings)
+	if len(resolver.List()) == 0 {
+		return lookup{}, warnings, exitError{code: ExitNotFound, err: errNoDefinitions}
+	}
+
+	mapper, err := access.ToRESTMapper()
+	if err != nil {
+		return lookup{}, warnings, fmt.Errorf("kubernetes discovery: %w", err)
+	}
+	dyn, err := newDynamicClient(access)
+	if err != nil {
+		return lookup{}, warnings, err
+	}
+
+	definition, err := resolveTarget(opts, resolver, mapper)
+	if err != nil {
+		return lookup{}, warnings, err
+	}
+
+	return lookup{namespace: namespace, dyn: dyn, mapper: mapper, definition: definition}, warnings, nil
 }
 
 // resolveTarget maps the requested type to the definition that covers it.
@@ -249,8 +278,7 @@ func resolveTarget(
 	// absent must still resolve, including the qualified form suggested below.
 	switch matches := matchDefinitions(resolver, opts.typeToken); len(matches) {
 	case 0:
-		return definitions.Definition{}, exitError{code: ExitNotFound,
-			err: fmt.Errorf("no Karta definition covers %q", opts.typeToken)}
+		return definitions.Definition{}, noDefinitionForType(opts.typeToken)
 	case 1:
 		return matches[0], nil
 	default:

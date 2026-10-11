@@ -6,13 +6,13 @@ events:
     metadata:
       annotations:
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-09-14T07:54:50Z"
+      creationTimestamp: "2026-09-16T11:24:49Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing
-      namespace: test-mg9tk
-      uid: 3135b981-549e-41fb-b3e1-6170b26cd6b2
+      namespace: test-xksm5
+      uid: 789d8892-135c-48bf-b8c6-eacf5b45b254
     spec:
       services:
         Frontend:
@@ -22,7 +22,13 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
           replicas: 1
         decode:
           componentType: worker
@@ -41,7 +47,13 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
               workingDir: /workspace
           replicas: 1
           subComponentType: decode
@@ -49,7 +61,7 @@ events:
       state: ""
   phases:
   - Undefined
-  resourceVersion: "1322580"
+  resourceVersion: "631844"
   state: Undefined
 - kind: STATE
   object:
@@ -57,16 +69,16 @@ events:
     kind: DynamoGraphDeployment
     metadata:
       annotations:
-        nvidia.com/current-worker-hash: 43fa66e8
-        nvidia.com/current-worker-hash-v2: 36f91917
+        nvidia.com/current-worker-hash: 4c3e387d
+        nvidia.com/current-worker-hash-v2: fb9a81e3
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-09-14T07:54:50Z"
+      creationTimestamp: "2026-09-16T11:24:49Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing
-      namespace: test-mg9tk
-      uid: 3135b981-549e-41fb-b3e1-6170b26cd6b2
+      namespace: test-xksm5
+      uid: 789d8892-135c-48bf-b8c6-eacf5b45b254
     spec:
       services:
         Frontend:
@@ -76,7 +88,13 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
           replicas: 1
         decode:
           componentType: worker
@@ -95,7 +113,13 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
               workingDir: /workspace
           replicas: 1
           subComponentType: decode
@@ -103,7 +127,7 @@ events:
       state: ""
   phases:
   - Undefined
-  resourceVersion: "1322584"
+  resourceVersion: "631855"
   state: Undefined
 - kind: STATE
   object:
@@ -111,16 +135,16 @@ events:
     kind: DynamoGraphDeployment
     metadata:
       annotations:
-        nvidia.com/current-worker-hash: 43fa66e8
-        nvidia.com/current-worker-hash-v2: 36f91917
+        nvidia.com/current-worker-hash: 4c3e387d
+        nvidia.com/current-worker-hash-v2: fb9a81e3
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-09-14T07:54:50Z"
+      creationTimestamp: "2026-09-16T11:24:49Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing
-      namespace: test-mg9tk
-      uid: 3135b981-549e-41fb-b3e1-6170b26cd6b2
+      namespace: test-xksm5
+      uid: 789d8892-135c-48bf-b8c6-eacf5b45b254
     spec:
       services:
         Frontend:
@@ -130,7 +154,13 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
           replicas: 1
         decode:
           componentType: worker
@@ -149,14 +179,20 @@ events:
               image: busybox:99.99.99
               imagePullPolicy: IfNotPresent
               name: ""
-              resources: {}
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
               workingDir: /workspace
           replicas: 1
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:54:50Z"
-        message: 'Resources not ready: karta-e2e-dynamo-initializing-decode-43fa66e8:
+      - lastTransitionTime: "2026-09-16T11:24:49Z"
+        message: 'Resources not ready: karta-e2e-dynamo-initializing-decode-4c3e387d:
           Component deployment not ready - Available condition not true; karta-e2e-dynamo-initializing-frontend:
           Component deployment not ready - Available condition not true'
         reason: some_resources_are_not_ready
@@ -166,7 +202,7 @@ events:
       state: pending
   phases:
   - Initializing
-  resourceVersion: "1322617"
+  resourceVersion: "631881"
   state: Initializing
 flow: initializing
 kartaFile: docs/catalog/nvidia-com-dynamographdeployment-v1alpha1.yaml

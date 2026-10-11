@@ -20,6 +20,9 @@ spec:
         mainContainer:
           image: busybox:99.99.99
           imagePullPolicy: IfNotPresent
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 512Mi}
     decode:
       envFromSecret: hf-token-secret
       componentType: worker
@@ -29,6 +32,9 @@ spec:
         mainContainer:
           image: busybox:99.99.99
           imagePullPolicy: IfNotPresent
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 512Mi}
           workingDir: /workspace
           command: ["python3", "-m", "dynamo.mocker"]
           args:

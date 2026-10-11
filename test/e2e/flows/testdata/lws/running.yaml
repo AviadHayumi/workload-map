@@ -21,6 +21,7 @@ spec:
             command: ["sleep", "infinity"]
             resources:
               requests: {cpu: 50m, memory: 32Mi}
+              limits: {cpu: 50m, memory: 32Mi}
     workerTemplate:
       spec:
         containers:
@@ -29,3 +30,4 @@ spec:
             command: ["sleep", "infinity"]
             resources:
               requests: {cpu: 50m, memory: 32Mi}
+              limits: {cpu: 50m, memory: 32Mi}

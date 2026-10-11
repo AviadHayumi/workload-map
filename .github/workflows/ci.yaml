@@ -5,28 +5,35 @@ name: Pull Request
 
 on:
   push:
-    branches: [ main, v0.* ]
+    branches:
+      - main
+      - "v[0-9]+.[0-9]+"
+      - "release-[0-9]+.[0-9]+"
   pull_request:
-    branches: [ main, v0.* ]
+    branches:
+      - main
+      - "v[0-9]+.[0-9]+"
+      - "release-[0-9]+.[0-9]+"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ci:
     name: CI
-    if: github.event.deleted != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7
         with:
+          # pin-check compares the pin against the release tags.
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate attribution checker
-        run: make commit-attribution-validate
-
-      - name: Check incoming commits
+      - name: Check commit attribution
         env:
           COMMIT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           COMMIT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -41,18 +48,39 @@ jobs:
             go.sum
             operator/go.sum
             cli/go.sum
+            hack/release/go.sum
+
+      - name: Install helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.4
 
       - name: Cache bin tools
         uses: actions/cache@v6
         with:
-          path: bin
-          key: ${{ runner.os }}-bin-${{ hashFiles('Makefile') }}-${{ hashFiles('go.mod') }}
+          path: |
+            bin/controller-gen-*
+            bin/go-licence-detector-*
+            bin/golangci-lint-*
+            bin/goreleaser-*
+            bin/setup-envtest-*
+            bin/k8s
+          key: ${{ runner.os }}-tools-v1-${{ hashFiles('Makefile') }}-${{ hashFiles('go.mod') }}
           restore-keys: |
-            ${{ runner.os }}-bin-${{ hashFiles('Makefile') }}-
-            ${{ runner.os }}-bin-
+            ${{ runner.os }}-tools-v1-${{ hashFiles('Makefile') }}-
+            ${{ runner.os }}-tools-v1-
 
-      - name: Run checks
-        run: make check
+      - name: Validate GoReleaser configuration
+        run: make goreleaser-check
+
+      - name: Check the synchronized pin
+        if: github.event_name == 'pull_request'
+        run: make pin-check
+
+      - name: Run checks and build release executables
+        run: |
+          build_version="0.0.0-main-${GITHUB_SHA:0:7}"
+          make check VERSION="$build_version"
 
       - name: Lint helm chart
         run: make helm-lint
@@ -68,6 +96,66 @@ jobs:
 
       - name: Lint shell scripts
         run: make lint-shell
+
+  operator-e2e:
+    name: Operator E2E (${{ matrix.webhook }})
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        webhook: [auto, cert-manager, disabled]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            operator/go.sum
+
+      - name: Read pinned tool versions
+        run: |
+          . ./hack/e2e/global.env
+          echo "KIND_VERSION=$KIND_VERSION" >> "$GITHUB_ENV"
+          echo "KUBECTL_VERSION=$KUBECTL_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install kind and kubectl
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          install_only: true
+          version: ${{ env.KIND_VERSION }}
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Provision cluster
+        run: make e2e-up WORKLOADS=none KARTA_WEBHOOK_MODE=${{ matrix.webhook }}
+
+      - name: Run operator e2e
+        run: make test-operator-e2e KARTA_WEBHOOK_MODE=${{ matrix.webhook }}
+
+      - name: Collect diagnostics
+        if: failure()
+        run: kind export logs .artifacts/kind --name karta-e2e || true
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operator-e2e-artifacts-${{ matrix.webhook }}
+          path: .artifacts/
+          include-hidden-files: true
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: always()
+        run: make e2e-down
 
   headlamp-plugin-ci:
     name: Headlamp Plugin Build

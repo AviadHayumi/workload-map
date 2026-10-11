@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,16 +60,25 @@ func (g *countingGetter) ToRESTConfig() (*rest.Config, error) {
 
 // kartaListServer answers the Karta list with one definition claiming gvk.
 func kartaListServer(name string, gvk v1alpha1.GroupVersionKind) *httptest.Server {
-	body := fmt.Sprintf(`{"apiVersion":"run.ai/v1alpha1","kind":"KartaList",`+
-		`"metadata":{"resourceVersion":"1"},"items":[`+
-		`{"apiVersion":"run.ai/v1alpha1","kind":"Karta","metadata":{"name":%q},`+
-		`"spec":{"structureDefinition":{"rootComponent":{"name":"root",`+
-		`"kind":{"group":%q,"version":%q,"kind":%q}}}}}]}`,
-		name, gvk.Group, gvk.Version, gvk.Kind)
+	return kartaServer(newTestKarta(name, gvk, "root", nil))
+}
+
+// kartaServer answers the Karta list with karta alone, so a spec controls every
+// field the output reads instead of depending on the catalog.
+func kartaServer(karta *v1alpha1.Karta) *httptest.Server {
+	GinkgoHelper()
+	karta.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"}
+	body, err := json.Marshal(map[string]any{
+		"apiVersion": "run.ai/v1alpha1",
+		"kind":       "KartaList",
+		"metadata":   map[string]any{"resourceVersion": "1"},
+		"items":      []*v1alpha1.Karta{karta},
+	})
+	Expect(err).NotTo(HaveOccurred())
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, body)
+		_, _ = w.Write(body)
 	}))
 }
 
@@ -298,7 +308,7 @@ var _ = Describe("a definition that names no workload type", func() {
 	It("appears in the table with a placeholder kind", func() {
 		var stdout, stderr bytes.Buffer
 		rows := definitionRows(definitions.New(nil, []*v1alpha1.Karta{rootless("broken-karta")}).List())
-		Expect(renderDefinitions(&stdout, &stderr, rows)).To(Succeed())
+		Expect(renderDefinitions(&stdout, &stderr, rows, 0)).To(Succeed())
 
 		Expect(tableNames(stdout.String())).To(Equal([]string{"broken-karta"}))
 		Expect(stdout.String()).To(ContainSubstring("<none>"))
@@ -307,7 +317,7 @@ var _ = Describe("a definition that names no workload type", func() {
 	It("never leaks the table placeholder into a machine format", func() {
 		var stdout bytes.Buffer
 		kartas := []*v1alpha1.Karta{rootless("broken-karta")}
-		Expect(generator.Render(&stdout, generator.OutputJSON, kartas, unusedTable)).To(Succeed())
+		Expect(generator.Render(&stdout, generator.OutputJSON, kartas, false, unusedTable)).To(Succeed())
 
 		// "<none>" is a column affordance, never part of the data.
 		Expect(stdout.String()).NotTo(ContainSubstring("<none>"))
@@ -361,14 +371,14 @@ var _ = Describe("definitionRows over a merged resolver", func() {
 var _ = Describe("rendering an empty definition list", func() {
 	It("notes the empty table on stderr and writes nothing to stdout", func() {
 		var stdout, stderr bytes.Buffer
-		Expect(renderDefinitions(&stdout, &stderr, definitionRows(nil))).To(Succeed())
+		Expect(renderDefinitions(&stdout, &stderr, definitionRows(nil), 0)).To(Succeed())
 		Expect(stdout.String()).To(BeEmpty())
 		Expect(stderr.String()).To(ContainSubstring("No Karta definitions found."))
 	})
 
 	It("emits an empty json envelope with no note", func() {
 		var stdout bytes.Buffer
-		Expect(generator.Render[*v1alpha1.Karta](&stdout, generator.OutputJSON, nil, unusedTable)).To(Succeed())
+		Expect(generator.Render[*v1alpha1.Karta](&stdout, generator.OutputJSON, nil, false, unusedTable)).To(Succeed())
 		Expect(decodeKartas(stdout.String())).To(BeEmpty())
 	})
 })
@@ -388,24 +398,41 @@ var _ = Describe("kli definitions NAME", func() {
 		Expect(tableNames(stdout)).To(Equal([]string{pytorchDefinition}))
 	})
 
-	It("emits that definition itself as a json array of one", func() {
-		stdout, _, err := runDefinitions(noClusterGetter(), []string{pytorchDefinition, "-o", "json"})
+	DescribeTable("emits that definition on its own, with no envelope around it",
+		func(format string) {
+			stdout, _, err := runDefinitions(noClusterGetter(),
+				[]string{pytorchDefinition, "-o", format})
+			Expect(err).NotTo(HaveOccurred())
+
+			karta := decodeKarta(stdout)
+			Expect(karta.Name).To(Equal(pytorchDefinition))
+			Expect(karta.Kind).To(Equal("Karta"))
+			Expect(karta.APIVersion).To(Equal(v1alpha1.GroupVersion.String()))
+			Expect(stdout).NotTo(ContainSubstring("items"))
+		},
+		Entry("json", "json"),
+		Entry("yaml", "yaml"),
+	)
+
+	It("emits the same definition in json and yaml", func() {
+		jsonOut, _, err := runDefinitions(noClusterGetter(),
+			[]string{pytorchDefinition, "-o", "json"})
+		Expect(err).NotTo(HaveOccurred())
+		yamlOut, _, err := runDefinitions(noClusterGetter(),
+			[]string{pytorchDefinition, "-o", "yaml"})
 		Expect(err).NotTo(HaveOccurred())
 
-		kartas := decodeKartas(stdout)
-		Expect(kartas).To(HaveLen(1))
-		Expect(kartas[0].Name).To(Equal(pytorchDefinition))
-		Expect(kartas[0].Kind).To(Equal("Karta"))
+		Expect(decodeKarta(yamlOut)).To(Equal(decodeKarta(jsonOut)))
 	})
 
-	It("emits that definition itself in the yaml envelope", func() {
-		stdout, _, err := runDefinitions(noClusterGetter(), []string{pytorchDefinition, "-o", "yaml"})
+	It("emits a definition that validate accepts as it stands", func() {
+		stdout, _, err := runDefinitions(noClusterGetter(),
+			[]string{pytorchDefinition, "-o", "yaml"})
 		Expect(err).NotTo(HaveOccurred())
 
-		kartas := decodeKartas(stdout)
-		Expect(kartas).To(HaveLen(1))
-		Expect(kartas[0].Name).To(Equal(pytorchDefinition))
-		Expect(kartas[0].Kind).To(Equal("Karta"))
+		var karta v1alpha1.Karta
+		Expect(yaml.Unmarshal([]byte(stdout), &karta)).To(Succeed())
+		Expect(v1alpha1.NewKartaValidator(&karta).Validate()).To(Succeed())
 	})
 
 	It("prefers the cluster definition when a name exists in both sources", func() {
@@ -486,12 +513,12 @@ var _ = Describe("kli definitions --group --kind --version", func() {
 		},
 		Entry("an unknown group", []string{"--group", "nosuch.io"}, "nosuch.io"),
 		Entry("a pluralized kind, which the root kind no longer matches",
-			[]string{"--group", "jobset.x-k8s.io", "--kind", "jobsets"}, "jobset.x-k8s.io, Kind=jobsets"),
+			[]string{"--group", "jobset.x-k8s.io", "--kind", "jobsets"}, "jobset.x-k8s.io/jobsets"),
 		Entry("a known kind at an unknown version",
 			[]string{"--group", "nvidia.com", "--kind", "DynamoGraphDeployment", "--version", "v9"},
-			"nvidia.com/v9, Kind=DynamoGraphDeployment"),
+			"nvidia.com/v9/DynamoGraphDeployment"),
 		Entry("a known kind in the wrong group",
-			[]string{"--group", "wrong.group", "--kind", "JobSet"}, "wrong.group, Kind=JobSet"),
+			[]string{"--group", "wrong.group", "--kind", "JobSet"}, "wrong.group/JobSet"),
 	)
 
 	DescribeTable("rejects a filter that addresses nothing",
@@ -574,15 +601,16 @@ var _ = Describe("definitionFilter", func() {
 		Expect(definitionFilter{group: "", set: true}.narrow(defs)).To(BeEmpty())
 	})
 
-	DescribeTable("names the filter the way apimachinery names a GVK",
+	DescribeTable("names the filter the way the CLI names a GVK",
 		func(filter definitionFilter, want string) {
 			Expect(filter.String()).To(Equal(want))
 		},
 		Entry("group only", definitionFilter{group: "nvidia.com"}, "nvidia.com"),
-		Entry("group and kind", definitionFilter{group: "nvidia.com", kind: "Dynamo"}, "nvidia.com, Kind=Dynamo"),
+		Entry("group and kind", definitionFilter{group: "nvidia.com", kind: "Dynamo"}, "nvidia.com/Dynamo"),
 		Entry("all three", definitionFilter{group: "nvidia.com", version: "v1", kind: "Dynamo"},
-			"nvidia.com/v1, Kind=Dynamo"),
-		Entry("the core group", definitionFilter{group: "", version: "v1", kind: "Pod"}, "/v1, Kind=Pod"),
+			"nvidia.com/v1/Dynamo"),
+		Entry("the core group", definitionFilter{group: "", version: "v1", kind: "Pod"}, "v1/Pod"),
+		Entry("the core group without a version", definitionFilter{group: "", kind: "Pod"}, "Pod"),
 	)
 })
 
@@ -598,3 +626,66 @@ func decodeKartas(out string) []v1alpha1.Karta {
 	Expect(envelope.Count).To(Equal(len(envelope.Items)))
 	return envelope.Items
 }
+
+// decodeKarta reads the definition the machine formats emit on their own for a
+// request that named one. yaml decodes through json, so one decoder serves both.
+func decodeKarta(out string) v1alpha1.Karta {
+	GinkgoHelper()
+	var karta v1alpha1.Karta
+	Expect(yaml.Unmarshal([]byte(out), &karta)).To(Succeed())
+	return karta
+}
+
+var _ = DescribeTable("componentsCell lists the root and at most limit children",
+	func(components []string, limit int, want string) {
+		Expect(componentsCell(components, limit)).To(Equal(want))
+	},
+	Entry("children within the limit", []string{"pytorchjob", "master", "worker"}, 3,
+		"pytorchjob, master, worker"),
+	Entry("exactly the limit, since the root does not count",
+		[]string{"leaderworkerset", "group", "leader", "worker"}, 3,
+		"leaderworkerset, group, leader, worker"),
+	Entry("more children than the limit", []string{"milvus", "standalone", "proxy", "mixcoord", "etcd", "minio"}, 3,
+		"milvus, standalone, proxy, mixcoord, +2 more"),
+	Entry("zero lists every component", []string{"milvus", "standalone", "proxy", "mixcoord", "etcd"}, 0,
+		"milvus, standalone, proxy, mixcoord, etcd"),
+)
+
+var _ = Describe("kli definitions --component-limit", func() {
+	// A cluster definition the spec owns, addressed by name, so the row under
+	// test does not move when a catalog definition gains a component.
+	const wide = "wide-test"
+	var server *httptest.Server
+
+	BeforeEach(func() {
+		server = kartaServer(newTestKarta(wide,
+			v1alpha1.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "WideJob"},
+			"widejob", []string{"a", "b", "c", "d", "e"}))
+		DeferCleanup(server.Close)
+	})
+
+	It("lists three children per definition by default", func() {
+		stdout, _, err := runDefinitions(clusterGetter(server), []string{wide})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(stdout).To(ContainSubstring("widejob, a, b, c, +2 more"))
+	})
+
+	It("lists every component at zero", func() {
+		stdout, _, err := runDefinitions(clusterGetter(server), []string{wide, "--component-limit", "0"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(stdout).To(ContainSubstring("widejob, a, b, c, d, e"))
+		Expect(stdout).NotTo(ContainSubstring("more"))
+	})
+
+	It("leaves the machine formats whole", func() {
+		stdout, _, err := runDefinitions(clusterGetter(server), []string{wide, "-o", "yaml", "--component-limit", "1"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(decodeKarta(stdout).Spec.StructureDefinition.ChildComponents).To(HaveLen(5))
+	})
+
+	// A negative limit would otherwise pass through as "list every component".
+	It("rejects a negative limit", func() {
+		_, _, err := runDefinitions(noClusterGetter(), []string{"--component-limit", "-1"})
+		Expect(err).To(MatchError(ContainSubstring("--component-limit must not be negative")))
+	})
+})

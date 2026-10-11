@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	kartav1alpha1 "github.com/run-ai/karta/pkg/api/runai/v1alpha1"
-	"github.com/run-ai/karta/test/e2e/recorder"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/test/e2e/recorder"
 )
 
 var _ = Describe("KnativeService", Ordered, Label("knative"), func() {
@@ -23,13 +23,23 @@ var _ = Describe("KnativeService", Ordered, Label("knative"), func() {
 		rec = recorder.New(cfg).
 			SetTimeout(5*time.Minute).
 			AddState(kartav1alpha1.InitializingStatus, CondStatus("Ready", "Unknown")).
-			AddState(kartav1alpha1.RunningStatus, CondTrue("Ready"))
+			AddState(kartav1alpha1.RunningStatus, CondTrue("Ready")).
+			AddState(kartav1alpha1.FailedStatus, CondFalse("Ready"))
 	})
 
 	It("running", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "running", "testdata/knative/running.yaml").Through(
 			recorder.Reaches(kartav1alpha1.InitializingStatus),
 			recorder.Reaches(kartav1alpha1.RunningStatus),
+		).Run(ctx)
+		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
+		Expect(err).To(Succeed())
+	})
+
+	It("failed", func(ctx SpecContext) {
+		out, err := recorder.NewFlow(rec, "failed", "testdata/knative/failed.yaml").Through(
+			recorder.Reaches(kartav1alpha1.InitializingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.FailedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())

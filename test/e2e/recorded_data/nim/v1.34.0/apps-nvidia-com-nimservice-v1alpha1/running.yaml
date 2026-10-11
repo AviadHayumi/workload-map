@@ -4,13 +4,13 @@ events:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -32,6 +32,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -45,20 +52,20 @@ events:
           volumeAccessMode: ReadWriteOnce
   phases:
   - Undefined
-  resourceVersion: "1321042"
+  resourceVersion: "630691"
   state: Undefined
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -80,6 +87,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -93,7 +107,7 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: The PVC has been created for storing NIM
         reason: PVCCreated
         status: "True"
@@ -101,20 +115,20 @@ events:
       state: PVC-Created
   phases:
   - Undefined
-  resourceVersion: "1321052"
+  resourceVersion: "630701"
   state: Undefined
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -136,6 +150,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -149,12 +170,12 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: ""
         reason: NotReady
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: ""
         reason: Ready
         status: "False"
@@ -162,20 +183,20 @@ events:
       state: NotReady
   phases:
   - Initializing
-  resourceVersion: "1321055"
+  resourceVersion: "630703"
   state: Initializing
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -197,6 +218,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -210,13 +238,13 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: |
           Waiting for deployment "karta-e2e-nim" rollout to finish: 0 out of 1 new replicas have been updated...
         reason: NotReady
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: |
           Waiting for deployment "karta-e2e-nim" rollout to finish: 0 out of 1 new replicas have been updated...
         reason: Ready
@@ -225,20 +253,20 @@ events:
       state: NotReady
   phases:
   - Initializing
-  resourceVersion: "1321069"
+  resourceVersion: "630709"
   state: Initializing
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -260,6 +288,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -273,13 +308,13 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: |
           Waiting for deployment "karta-e2e-nim" rollout to finish: 0 of 1 updated replicas are available...
         reason: NotReady
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: |
           Waiting for deployment "karta-e2e-nim" rollout to finish: 0 of 1 updated replicas are available...
         reason: Ready
@@ -288,20 +323,20 @@ events:
       state: NotReady
   phases:
   - Initializing
-  resourceVersion: "1321071"
+  resourceVersion: "630721"
   state: Initializing
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-09-14T07:52:47Z"
+      creationTimestamp: "2026-09-16T11:09:37Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim
-      namespace: test-cb2tw
-      uid: f9c725f5-aa85-4c3d-955f-b3a5506e9ef1
+      namespace: test-dc2d8
+      uid: 4a21f792-15ab-43b5-819d-9b4c4bda5259
     spec:
       authSecret: ngc-secret
       env:
@@ -323,6 +358,13 @@ events:
         serviceMonitor: {}
       readinessProbe: {}
       replicas: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 500m
+          memory: 512Mi
       scale:
         hpa:
           maxReplicas: 0
@@ -336,25 +378,25 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-09-14T07:53:21Z"
+      - lastTransitionTime: "2026-09-16T11:10:27Z"
         message: |
           deployment "karta-e2e-nim" successfully rolled out
         reason: Ready
         status: "True"
         type: Ready
-      - lastTransitionTime: "2026-09-14T07:52:47Z"
+      - lastTransitionTime: "2026-09-16T11:09:37Z"
         message: ""
         reason: Ready
         status: "False"
         type: Failed
       model:
-        clusterEndpoint: 10.96.240.35:8000
+        clusterEndpoint: 10.96.75.229:8000
         externalEndpoint: ""
         name: meta/llama-3.2-1b-instruct
       state: Ready
   phases:
   - Running
-  resourceVersion: "1321376"
+  resourceVersion: "631196"
   state: Running
 flow: running
 kartaFile: docs/catalog/apps-nvidia-com-nimservice-v1alpha1.yaml
