@@ -114,7 +114,7 @@ jobs:
             echo "sha=$sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Publish the CI check and open the bot PR
+      - name: Publish the CI check and prepare the PR description
         env:
           GH_TOKEN: ${{ github.token }}
           PILOT_BRANCH: ${{ steps.candidate.outputs.branch }}
@@ -153,6 +153,14 @@ jobs:
           '''.replace('RUN_URL', run).replace('TRACKING_ISSUE', os.environ['PILOT_TRACKING_ISSUE'])
           Path(os.environ['PILOT_ARTIFACT_DIR'], 'pr-body.md').write_text(body)
           PY
+
+      - name: Open the bot PR
+        if: vars.E2E_OPERATOR_CREATE_PR == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_BRANCH: ${{ steps.candidate.outputs.branch }}
+        run: |
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$PILOT_BASE_BRANCH" \
             --head "$PILOT_BRANCH" --draft \
             --title 'build(e2e): update JobSet to v0.12.0 with CI recordings' \

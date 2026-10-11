@@ -36,7 +36,10 @@ allowing the push. Post-upgrade errors therefore cannot publish an unchecked
 pin or partial recordings. The workflow verifies the published commit again.
 
 The workflow then publishes a successful status check on that commit, linking to
-the recording run, and opens a draft PR with the temporary Actions token. The
+the recording run. With `E2E_OPERATOR_CREATE_PR=true` in the fork's Actions
+variables, it also opens a draft PR with the temporary Actions token. Otherwise,
+the verified bot branch and prepared PR body remain available for publication
+through an authorized GitHub session. The
 PR contains only the pin and five generated fixtures; its base branch contains
 the pilot implementation. The author is `github-actions[bot]` because that is
 the authentication used by this self-hosted Renovate run.
