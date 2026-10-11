@@ -3,44 +3,67 @@
 
 # Renovate recording pilot
 
-This experiment runs only in `AviadHayumi/workload-map`, on
-`codex/e2e-renovate-pilot`. It does not enable scheduled updates or automerge.
+The pilot runs only in `AviadHayumi/workload-map`, on
+`codex/e2e-renovate-pilot`. It has no schedule or automerge.
 
 Renovate reads the JobSet pin from `hack/e2e/global.env` through a regex manager
 and looks up GitHub releases. The eligible range ends at v0.12.0 because its
 [versioned support table](https://github.com/kubernetes-sigs/jobset/blob/v0.12.0/README.md)
-includes Kubernetes 1.34, matching the pinned kind image. This is a reviewed
-candidate bound, not an automatic claim that every new release is supported.
+includes Kubernetes 1.34, matching the pinned kind image. Other operators need
+their own release-policy review and install/record/replay runs.
 
-The workflow uses a new Renovate branch for every run attempt and defers PR
-creation until checks succeed. The fork's Actions token cannot create PRs under
-its current settings. After the experiment succeeds, the recordings can be
-committed and a PR opened in the fork through an authorized GitHub session.
-No personal token or additional repository secret is required by this workflow.
+## CI owns the recordings and commit
 
-The recording job has read-only repository permissions. It verifies the only
-Renovate change is JobSet v0.10.1 to v0.12.0, installs that pin into a fresh kind
-cluster, checks the running controller image, records all five JobSet flows,
-and replays the fixtures offline. It rejects existing candidate fixtures,
-Kubernetes-version fallback metadata, missing flows, skipped JobSet specs,
-failed recordings, and dry runs. The temporary cluster is deleted afterward.
+GitHub Actions runs pinned Renovate 44.151.0 natively with the pinned Go, kind,
+kubectl, and Helm tools. The existing general Renovate configuration is ignored.
+Renovate updates the pin, then runs the explicitly allowed `record.sh` through
+`postUpgradeTasks` before creating its commit. The hook refuses to run outside
+GitHub Actions or against an existing cluster.
 
-The run uploads the pin diff, all version defaults, controller image digests,
-Kubernetes version, source commit IDs, JUnit report, and successful recordings.
-Failed runs upload available diagnostics. Kubeconfig and credentials are not
-included in the evidence bundle. A successful JobSet pilot establishes this
-pipeline for JobSet on this Kubernetes version; other operators still need
-release policy review and their own install/record/replay runs.
+The hook provisions a fresh kind cluster, installs JobSet, checks the ready
+controller image and installed-version metadata, records all five JobSet flows,
+and validates and replays their fixtures. It rejects stale files, version
+fallbacks, missing flows, skipped selected specs, failed recordings, and dry runs.
+It adds license headers inside CI and runs `make check` in a disposable clean
+checkout of the candidate changes. That temporary validation commit stays local
+to the runner and is discarded.
 
-Local validation:
+Only after all checks and cluster cleanup succeed does the hook write a manifest
+of the exact pin and recording file hashes. Renovate includes those recordings
+through `postUpgradeTasks.fileFilters` in the same bot commit as the version pin.
+A local pre-push hook verifies the committed files against that manifest before
+allowing the push. Post-upgrade errors therefore cannot publish an unchecked
+pin or partial recordings. The workflow verifies the published commit again.
+
+The workflow then publishes a successful status check on that commit, linking to
+the recording run, and opens a draft PR with the temporary Actions token. The
+PR contains only the pin and five generated fixtures; its base branch contains
+the pilot implementation. The author is `github-actions[bot]` because that is
+the authentication used by this self-hosted Renovate run.
+
+The fork must allow GitHub Actions to create pull requests. Its
+`E2E_OPERATOR_TRACKING_ISSUE` Actions variable supplies the public issue URL,
+which is checked to be open before running the pilot. Default repository
+token permissions remain read-only; this workflow explicitly requests content,
+PR, and status writes. No personal token or additional secret is used.
+
+## Evidence and validation
+
+The PR body and status check link to the Actions run. Artifacts contain
+`recording.log`, `make-check.log`, JUnit, version defaults, controller image
+digests, Kubernetes version, source provenance, file hashes, and the generated
+recordings. Kubeconfig and credentials are excluded. The cluster is deleted on
+success and failure, with a final workflow cleanup as a fallback.
+
+Local checks do not run a cluster or record fixtures:
 
 ```sh
 PILOT_BASE_BRANCH=codex/e2e-renovate-pilot PILOT_RUN=1-1 \
   renovate-config-validator --strict hack/e2e/renovate-pilot/config.cjs
 actionlint .github/workflows/renovate-operator-pilot.yaml
+make lint-shell
 make check
 ```
 
-The workflow pins Renovate 44.151.0 by container digest and every action by
-commit. The existing repository Renovate configuration is ignored for this
-isolated run so unrelated dependencies and release commands are unaffected.
+The commit-verification tests use temporary local Git repositories and fabricated
+fixtures to check failure handling without a Kubernetes cluster.

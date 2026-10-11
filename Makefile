@@ -658,6 +658,7 @@ e2e-operators-check-latest-supported-versions: ## Report newer workload and infr
 .PHONY: test-e2e-updates
 test-e2e-updates: ## Test operator update detection offline
 	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e -p 'test_check_updates.py'
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e/renovate-pilot -p 'test_verify_commit.py'
 
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)
@@ -682,7 +683,7 @@ verify-recordings: ## Fail if any recorded fixture ended with succeeded false (r
 # The e2e shell scripts to shellcheck: the provisioner, teardown, the karta-operator
 # scripts, the shared helpers, and every operator install, verify, and update check.
 E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh hack/e2e/check-updates.sh \
-	hack/e2e/_updates.sh \
+	hack/e2e/_updates.sh hack/e2e/renovate-pilot/record.sh \
 	$(wildcard hack/e2e/infra/*/check-updates.sh) \
 	$(wildcard hack/e2e/operators/*/check-updates.sh) \
 	$(wildcard hack/e2e/karta-operator/*.sh) \

@@ -18,7 +18,7 @@ module.exports = {
   branchPrefix: `codex/renovate-pilot/${PILOT_RUN}/`,
   additionalBranchPrefix: '',
   branchTopic: 'jobset',
-  // A fresh branch has no successful checks. The pilot publishes a PR after recording.
+  // CI opens the PR only after checking the hook evidence against the pushed commit.
   prCreation: 'status-success',
   dependencyDashboard: false,
   dependencyDashboardTitle: 'Karta operator pilot dependency dashboard',
@@ -26,6 +26,15 @@ module.exports = {
   automerge: false,
   ignoreTests: false,
   ignoreUnstable: true,
+  binarySource: 'global',
+  platformCommit: 'disabled',
+  gitNoVerify: ['commit'],
+  executionTimeout: 45,
+  allowedCommands: ['^bash hack/e2e/renovate-pilot/record\\.sh$'],
+  customEnvVariables: Object.fromEntries([
+    'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT',
+    'GITHUB_STEP_SUMMARY', 'PILOT_BASE_SHA', 'PILOT_RUN', 'PILOT_ARTIFACT_DIR',
+  ].map((key) => [key, process.env[key] || ''])),
   username: 'github-actions[bot]',
   gitAuthor: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>',
   semanticCommits: 'enabled',
@@ -44,5 +53,10 @@ module.exports = {
     matchPackageNames: ['kubernetes-sigs/jobset'],
     // v0.12.0 explicitly tests Kubernetes 1.34; expand only after another review.
     allowedVersions: '>=0.10.1 <=0.12.0',
+    postUpgradeTasks: {
+      commands: ['bash hack/e2e/renovate-pilot/record.sh'],
+      executionMode: 'branch',
+      fileFilters: ['test/e2e/recorded_data/jobset/v0.12.0/**/*.yaml'],
+    },
   }],
 };
