@@ -50,16 +50,19 @@ knative, dynamo pulls grove.
 ## Pull request checks
 
 PRs targeting main or a release branch get two installation checks. When an
-installation input changes, the checks select work as follows:
+installation input changes, the checks select work as follows. Unrelated files
+in the same PR do not affect selection:
 
-- Changes only under `hack/e2e/operators/<name>/` run both checks on separate fresh
+- Installation inputs only under `hack/e2e/operators/<name>/` run both checks on separate fresh
   clusters. `Installation E2E (all)` installs and smoke-tests every workload
   operator. `Installation E2E (changed)` tests the named operators and their
   dependencies; the full check covers their dependents.
 - Any shared input runs only the full installation, even when operator files also
   changed. Shared inputs are the rest of `hack/e2e/` (including `karta-operator/`),
-  `charts/karta/`, `operator/Dockerfile`, `.dockerignore`, workspace Go dependency
-  files, `Makefile`, and `.github/workflows/ci.yaml`. Markdown counts too.
+  `charts/karta/`, `operator/Dockerfile`, `.dockerignore`, `Makefile`,
+  `.github/workflows/ci.yaml`, root `go.work`/`go.work.sum`, and `go.mod`/`go.sum`
+  at the root or under `cli/` and `operator/`. Markdown inside a watched directory
+  follows the same selection rule as other files there.
 - Unrelated changes, including Go source changes alone, skip provisioning in both
   checks. The checks still run and report success with an explanation in the job
   summary. The selective check does the same when a shared change uses the full
