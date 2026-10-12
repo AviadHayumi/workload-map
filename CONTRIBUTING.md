@@ -227,8 +227,9 @@ Adding one means, in order:
      this.
    - Update checks: every external workload and infrastructure operator needs
      a checker registered in `hack/e2e/check-updates.sh`. Infrastructure
-     checkers live under `hack/e2e/infra/<name>/`, including operators whose
-     installation is centralized in `up.sh`. Inspect a local upstream clone
+     modules keep `install.sh`, `verify.sh`, `check-updates.sh`, and
+     `smoke.yaml` together under `hack/e2e/infra/<name>/`; `up.sh` invokes
+     installation and verification before dependent workloads. Inspect a local upstream clone
      for the installed artifact's release convention, document pinned source
      evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and extend the offline Go
      tests in `hack/operator-updates/`. Run `make test-e2e-updates`; its

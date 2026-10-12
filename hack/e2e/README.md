@@ -15,8 +15,11 @@ hack/e2e/
   up.sh                 orchestrator: base + selected operators (install then verify)
   check-updates.sh       report upstream workload and infrastructure operator tags
   _updates.sh           update-check helpers, independent of cluster provisioning
-  infra/<name>/
-    check-updates.sh     check cert-manager, fake-gpu-operator, or KAI Scheduler
+  infra/<name>/         cert-manager, fake-gpu-operator, and KAI Scheduler
+    install.sh          standalone: installs the infrastructure operator
+    verify.sh           standalone: smoke-tests it via run_smoke
+    check-updates.sh     standalone: report upstream tag updates
+    smoke.yaml          the throwaway infrastructure smoke resources
   down.sh               tear the cluster down (and its kubeconfig for named clusters)
   global.env            single source of truth for versions and runtime defaults
   kind-config.yaml      kind cluster shape (1 control-plane + 2 workers)
@@ -54,7 +57,10 @@ make e2e-down                        # tear down
 The base is the kind cluster, the fake-gpu-operator, and the Karta operator.
 Selecting a subset keeps a run light, and `none` keeps only the base, which is what
 the operator e2e wants. Dependencies are added automatically: kserve pulls
-knative, dynamo pulls grove.
+knative, dynamo pulls grove. `up.sh` installs and verifies infrastructure first:
+Fake GPU Operator is always included, cert-manager follows `CERT_MANAGER` and
+webhook/dependency settings, and KAI Scheduler is included whenever Grove is
+selected. `--list` shows both infrastructure and workloads.
 
 ## Check for operator updates
 
@@ -91,7 +97,7 @@ matching tag, and links to tags and changes. `AHEAD` means the pin is newer than
 the latest matching tag in the selected channel. The final summary names groups
 with newer tags. A Kubeflow group includes MPI Operator; a Knative group includes
 Kourier. Infrastructure checks include cert-manager, fake-gpu-operator, and
-KAI Scheduler, which Grove installs.
+KAI Scheduler, which `up.sh` installs before Grove.
 
 Stable tags are the default. Grove also includes alpha releases because it has
 no stable release line; its release candidates require `--include-prereleases`.
@@ -114,12 +120,19 @@ not check CLI tools, Kubernetes node images, Ray runtime, or sidecar image pins.
 
 ## How up.sh runs an operator
 
-For each selected operator, up.sh runs `operators/<name>/install.sh` then
-`operators/<name>/verify.sh` as `bash <script>` subprocesses. The only contract is
+For each selected infrastructure operator, `up.sh` runs `infra/<name>/install.sh`
+then `infra/<name>/verify.sh`. It uses the same runner for workload operators
+under `operators/<name>/`. Both phases run as `bash <script>` subprocesses. The only contract is
 the exit code: any non-zero exit is a failed install/smoke and fails provisioning
 fast (the `main()` wrapper in the scripts is just convention). up.sh groups each
 operator in the CI log (`::group::`) and writes an install summary table to the run's
-Summary page (operator, version, install time, smoke time).
+Summary page (operator, version, install time, smoke time). Successful infrastructure
+and workload versions are recorded in the per-cluster installed-version file.
+
+The infrastructure smoke checks prove certificate issuance, a pod starting with
+a simulated GPU, and a pod scheduled by KAI. They use `run_smoke` to clean up
+throwaway resources after success or failure. `go test ./hack/e2e` exercises
+planning, install/verify ordering, and failure propagation offline.
 
 ## Shared helpers (`operators/_common.sh`)
 
@@ -201,11 +214,15 @@ Install side (this directory):
 5. Add `<name>` to `ALL_WORKLOADS` in `up.sh` (in install order), and a `deps_of`
    entry only if it depends on another operator.
 
-For infrastructure installed centrally by `up.sh`, put the executable checker in
-`infra/<name>/check-updates.sh` and register it in both `ALL_OPERATORS` and the
-`infra` selector. The same release-source documentation and offline test
-requirements apply. A new kind served by an existing operator reuses its checker;
-extend it when installation adds a separately versioned component.
+Infrastructure follows the same module pattern under `infra/<name>/`: executable
+`install.sh`, `verify.sh`, and `check-updates.sh`, plus `smoke.yaml`. Installation
+and verification source `../../operators/_common.sh`. Add its version to
+`version_of` and select it in `up.sh`'s infrastructure plan before its dependents;
+workload installers must not install infrastructure themselves. Register its
+update checker in both `ALL_OPERATORS` and the `infra` selector. The same
+release-source documentation and offline test requirements apply. A new kind
+served by an existing operator reuses its checker; extend it when installation
+adds a separately versioned component.
 
 The offline Go tests require checkers for workload installer modules and
 infrastructure directories and check their aggregate registration. Include the

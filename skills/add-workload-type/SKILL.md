@@ -453,8 +453,9 @@ Operator install under `hack/e2e/`:
   `_updates.sh`, registration in `hack/e2e/check-updates.sh`, clone-verified
   release evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and offline Go tests
   under `hack/operator-updates/`. This includes infrastructure operators:
-  their checkers live in `hack/e2e/infra/<name>/` and join the `infra` selector,
-  even when `up.sh` installs them centrally. The shared checker uses the Go
+  their install/verify/checker scripts and smoke manifest live together in
+  `hack/e2e/infra/<name>/`. `up.sh` invokes them before dependent workloads,
+  and their update checkers join the `infra` selector. The shared checker uses the Go
   standard library; wrappers require Bash and Git and build it with the root
   Go toolchain. `check-updates.sh` reports candidate tags and does not replace
   the `verify.sh` smoke test or compatibility validation. Kubernetes builtins

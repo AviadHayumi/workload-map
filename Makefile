@@ -685,7 +685,7 @@ verify-recordings: ## Fail if any recorded fixture ended with succeeded false (r
 # scripts, the shared helpers, and every operator install, verify, and update check.
 E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh hack/e2e/check-updates.sh \
 	hack/e2e/_updates.sh \
-	$(wildcard hack/e2e/infra/*/check-updates.sh) \
+	$(wildcard hack/e2e/infra/*/*.sh) \
 	$(wildcard hack/e2e/operators/*/check-updates.sh) \
 	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \

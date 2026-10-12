@@ -99,7 +99,8 @@ Kubernetes builtins and Karta built from the checkout are exempt.
    retracted-tag exclusions and groups with multiple components.
 3. Register the group in `ALL_OPERATORS` in `hack/e2e/check-updates.sh`.
    Infrastructure groups must also join its `infra` selector. Infrastructure
-   installation may remain centralized in `up.sh`.
+   installation and verification live beside the checker and are invoked by
+   `up.sh` before dependent workloads.
 4. Add offline Go tests here for the repository and tag namespace, filtering,
    and any release exceptions. Preserve the regression that checks every
    workload installer module and infrastructure directory has an executable
