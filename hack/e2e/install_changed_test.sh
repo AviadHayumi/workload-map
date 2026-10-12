@@ -62,7 +62,7 @@ expect() {
   assertion_count=$((assertion_count + 1))
 }
 
-for path in README.md docs/notes.md hack/e2e/global.env \
+for path in README.md docs/notes.md hack/e2e/operators/_common.sh \
   hack/e2e/operators/jobset/install.sh hack/e2e/operators/jobset/verify.sh \
   hack/e2e/operators/kuberay/install.sh; do
   change_file "${path}"
@@ -86,27 +86,7 @@ while IFS='|' read -r expected path; do
   commit_fixture
   expect "input: ${path}" "${expected}" base pr
 done <<'CASES'
-all|hack/e2e/up.sh
-all|hack/e2e/down.sh
-all|hack/e2e/README.md
-all|hack/e2e/karta-operator/install.sh
 all|hack/e2e/operators/_common.sh
-all|hack/e2e/global.env
-all|hack/e2e/versions.env
-all|.github/workflows/ci.yaml
-all|Makefile
-all|charts/karta/values.yaml
-all|charts/karta/templates/deployment.yaml
-all|operator/Dockerfile
-all|.dockerignore
-all|go.mod
-all|go.sum
-all|go.work
-all|go.work.sum
-all|cli/go.mod
-all|cli/go.sum
-all|operator/go.mod
-all|operator/go.sum
 kuberay|hack/e2e/operators/kuberay/install.sh
 new-operator|hack/e2e/operators/new-operator/install.sh
 all|hack/e2e/operators/-leading-hyphen/install.sh
@@ -126,12 +106,18 @@ done
 
 reset_fixture
 for path in README.md docs/notes.md pkg/example.go operator/internal/example.go \
-  test/e2e/example_test.go .github/workflows/release.yaml charts/another/values.yaml \
-  hack/e2e-other/install.sh hack/e2e.md Makefile.extra go.mod.backup operator/Dockerfile.example; do
+  test/e2e/example_test.go .github/workflows/ci.yaml Makefile charts/karta/values.yaml \
+  operator/Dockerfile .dockerignore go.mod go.sum go.work go.work.sum \
+  cli/go.mod cli/go.sum operator/go.mod operator/go.sum \
+  hack/e2e/up.sh hack/e2e/down.sh hack/e2e/README.md hack/e2e/karta-operator/install.sh \
+  hack/e2e/global.env hack/e2e/versions.env hack/e2e/operators-other/install.sh hack/e2e/operators.md; do
   change_file "${path}"
 done
 commit_fixture
-expect 'unrelated code, docs, and similarly named paths' '' base pr
+expect 'paths outside operators do not trigger provisioning' '' base pr
+change_file hack/e2e/operators/jobset/install.sh
+commit_fixture
+expect 'unrelated changes do not override selected operators' jobset base pr
 
 reset_fixture
 change_file hack/e2e/operators/jobset/install.sh
@@ -145,9 +131,9 @@ expect 'multiple files in one operator are deduplicated' jobset base pr
 change_file hack/e2e/operators/kuberay/install.sh
 commit_fixture
 expect 'multiple operators are sorted' 'jobset kuberay' base pr
-change_file Makefile
+change_file hack/e2e/operators/_common.sh
 commit_fixture
-expect 'shared input overrides selective operators' all base pr
+expect 'common operator helper overrides selective operators' all base pr
 expect 'explicit head does not use current HEAD' jobset base selected-head
 expect 'default head includes current HEAD' all base
 
@@ -162,9 +148,9 @@ while IFS='|' read -r expected source destination; do
   expect "${source} -> ${destination}" "${expected}" base pr
 done <<'CASES'
 jobset|hack/e2e/operators/jobset/install.sh|DELETE
-all|hack/e2e/global.env|DELETE
+all|hack/e2e/operators/_common.sh|DELETE
 jobset|hack/e2e/operators/jobset/install.sh|docs/moved-install.sh
-all|hack/e2e/global.env|docs/moved-global.env
+all|hack/e2e/operators/_common.sh|docs/moved-common.sh
 jobset|docs/notes.md|hack/e2e/operators/jobset/notes.md
 jobset kuberay|hack/e2e/operators/jobset/verify.sh|hack/e2e/operators/kuberay/verify.sh
 jobset|hack/e2e/operators/jobset/verify.sh|hack/e2e/operators/jobset/check.sh
@@ -172,7 +158,7 @@ CASES
 
 reset_fixture
 git -C "${repo}" checkout --quiet base
-change_file Makefile
+change_file hack/e2e/operators/_common.sh
 commit_fixture
 git -C "${repo}" checkout --quiet pr
 change_file docs/notes.md

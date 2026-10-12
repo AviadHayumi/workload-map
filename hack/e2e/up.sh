@@ -5,7 +5,8 @@
 # Provision a local kind cluster for the Karta e2e suite: builds and deploys the
 # Karta operator, installs the base dependencies (fake-gpu-operator, plus
 # cert-manager when something needs it), and installs the selected upstream workload
-# operators, smoke-testing each one as it installs. KARTA_WEBHOOK_MODE picks which
+# operators, then smoke-tests each one against the completed cluster.
+# KARTA_WEBHOOK_MODE picks which
 # webhook and serving-cert arrangement Karta is installed with.
 # Run with --help for usage; see hack/e2e/README.md for the details.
 set -euo pipefail
@@ -136,49 +137,37 @@ install_fake_gpu() {
 
 # --- selectable workload operators -------------------------------------------
 
-# run_operator <name>: run the operator's standalone install.sh then verify.sh,
-# each as a subprocess, grouped in the CI log and recording a job-summary row.
-# Exits non-zero on the first failure so a broken operator fails provisioning fast
-# rather than partway through the e2e suite.
+# run_operator <name> <phase>: run install.sh or verify.sh and record its outcome.
 run_operator() {
-  local name="$1" dir="${OPERATORS_DIR}/$1"
+  local name="$1" phase="$2" dir="${OPERATORS_DIR}/$1"
   local ver
-  ver="$(version_of "${name}")"
-  [ -f "${dir}/install.sh" ] || { fail "no install.sh for operator ${name}"; exit 1; }
-  group "operator: ${name} (${ver})"
+  if [ "${name}" = karta ]; then
+    dir="${REPO_ROOT}/hack/e2e/karta-operator"
+    ver=local
+  else
+    ver="$(version_of "${name}")"
+  fi
+  [ -f "${dir}/${phase}.sh" ] || { fail "no ${phase}.sh for operator ${name}"; exit 1; }
+  group "operator: ${name} ${phase} (${ver})"
   # SECONDS is a bash builtin counting elapsed seconds; diff it to time each phase.
-  local t0=$SECONDS irc=0
-  bash "${dir}/install.sh" || irc=$?
-  local idur=$((SECONDS - t0))
-  if [ "${irc}" -ne 0 ]; then
-    endgroup
-    echo "==> ${name}: install FAILED after ${idur}s"
+  local t0=$SECONDS rc=0
+  bash "${dir}/${phase}.sh" || rc=$?
+  local duration=$((SECONDS - t0))
+  endgroup
+  if [ "${rc}" -ne 0 ]; then
     # :x: renders as a red X in the GitHub summary; ASCII in the source.
-    summary "| :x: | ${name} | ${ver} | fail (${idur}s) | - |"
-    fail "install ${name} failed (exit ${irc}, ${idur}s)"
+    summary "| :x: | ${name} | ${ver} | ${phase} | ${duration}s |"
+    fail "${name}: ${phase} failed (exit ${rc}, ${duration}s)"
     exit 1
   fi
-  local smoke="n/a" vdur=0
-  if [ -f "${dir}/verify.sh" ]; then
-    local t1=$SECONDS src=0
-    bash "${dir}/verify.sh" || src=$?
-    vdur=$((SECONDS - t1))
-    if [ "${src}" -ne 0 ]; then
-      endgroup
-      echo "==> ${name}: smoke FAILED after ${vdur}s"
-      summary "| :x: | ${name} | ${ver} | ${idur}s | fail (${vdur}s) |"
-      fail "smoke ${name} failed (exit ${src}, ${vdur}s)"
-      exit 1
-    fi
-    smoke="${vdur}s"
-  fi
-  endgroup
   # Ungrouped, so the outcome is visible without expanding the group above.
-  echo "==> ${name}: ready (install ${idur}s, smoke ${smoke})"
-  summary "| :white_check_mark: | ${name} | ${ver} | ${idur}s | ${smoke} |"
+  echo "==> ${name}: ${phase} passed (${duration}s)"
+  summary "| :white_check_mark: | ${name} | ${ver} | ${phase} | ${duration}s |"
   # The e2e flows file each recording under the installed operator version. Per cluster,
   # like the kubeconfig, so parallel clusters with different versions cannot mix.
-  echo "${name}=${ver}" >> "${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
+  if [ "${phase}" = verify ] && [ "${name}" != karta ]; then
+    echo "${name}=${ver}" >> "${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
+  fi
 }
 
 main() {
@@ -286,17 +275,18 @@ main() {
   group "fake-gpu-operator ${FAKE_GPU_VERSION}"; install_fake_gpu; endgroup
   # Fresh provision, fresh version list (gitignored; read by the e2e flows).
   : > "${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
-  if [ "${#plan[@]}" -gt 0 ]; then
-    summary "## E2E install: ${CLUSTER_NAME}"
-    summary ""
-    summary "|  | Operator | Version | Install | Smoke |"
-    summary "|---|---|---|---|---|"
-    for w in "${plan[@]}"; do run_operator "$w"; done
-  fi
-  group "karta operator"
-  bash "${REPO_ROOT}/hack/e2e/karta-operator/install.sh" || { endgroup; fail "karta install failed"; exit 1; }
-  bash "${REPO_ROOT}/hack/e2e/karta-operator/verify.sh" || { endgroup; fail "karta smoke failed"; exit 1; }
-  endgroup
+  summary "## E2E install: ${CLUSTER_NAME}"
+  summary ""
+  summary "|  | Operator | Version | Phase | Duration |"
+  summary "|---|---|---|---|---|"
+  # Verify only after all installations so smoke tests also expose conflicts.
+  local phase
+  for phase in install verify; do
+    if [ "${#plan[@]}" -gt 0 ]; then
+      for w in "${plan[@]}"; do run_operator "$w" "${phase}"; done
+    fi
+    run_operator karta "${phase}"
+  done
 
   echo "==> environment ready (cluster: ${CLUSTER_NAME}, webhook: ${KARTA_WEBHOOK_MODE})."
   if [ "${CLUSTER_NAME}" != "${DEFAULT_CLUSTER}" ]; then

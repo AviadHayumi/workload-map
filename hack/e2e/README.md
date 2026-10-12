@@ -5,14 +5,14 @@
 
 This directory provisions a local kind cluster for the Karta e2e suite: it builds
 and deploys the Karta operator, installs the dependencies the suite needs, and
-installs the upstream workload operators it exercises. Each operator is smoke-tested
-as it installs, so a broken install fails provisioning rather than a later run.
+installs the upstream workload operators it exercises. After installation finishes,
+it runs each selected operator's smoke test against the completed cluster.
 
 ## Layout
 
 ```
 hack/e2e/
-  up.sh                 orchestrator: base + selected operators (install then verify)
+  up.sh                 orchestrator: install base + selected operators, then verify each
   down.sh               tear the cluster down (and its kubeconfig for named clusters)
   global.env            single source of truth for versions and runtime defaults
   kind-config.yaml      kind cluster shape (1 control-plane + 2 workers)
@@ -49,49 +49,36 @@ knative, dynamo pulls grove.
 
 ## Pull request checks
 
-PRs targeting main or a release branch get two installation checks. When an
-installation input changes, the checks select work as follows. Unrelated files
-in the same PR do not affect selection:
+Changes under `hack/e2e/operators/` run two checks on separate fresh kind clusters:
 
-- Installation inputs only under `hack/e2e/operators/<name>/` run both checks on separate fresh
-  clusters. `Installation E2E (all)` installs and smoke-tests every workload
-  operator. `Installation E2E (changed)` tests the named operators and their
-  dependencies; the full check covers their dependents.
-- Any shared input runs only the full installation, even when operator files also
-  changed. Shared inputs are the rest of `hack/e2e/` (including `karta-operator/`),
-  `charts/karta/`, `operator/Dockerfile`, `.dockerignore`, `Makefile`,
-  `.github/workflows/ci.yaml`, root `go.work`/`go.work.sum`, and `go.mod`/`go.sum`
-  at the root or under `cli/` and `operator/`. Markdown inside a watched directory
-  follows the same selection rule as other files there.
-- Unrelated changes, including Go source changes alone, skip provisioning in both
-  checks. The checks still run and report success with an explanation in the job
-  summary. The selective check does the same when a shared change uses the full
-  installation. Read the summary to see whether a green check actually installed
-  anything.
+- `Installation E2E (all)` installs every workload operator.
+- `Installation E2E (changed)` installs the changed operators and their dependencies.
+  Changes to shared files such as `operators/_common.sh` select all operators.
 
-Runs use the default `auto` webhook mode and include Karta's smoke test. The first
-install or smoke failure fails the check; later operators are not tested. On
-failure, download `installation-e2e-all` or `installation-e2e-changed` from the
-run's artifacts for cluster logs, pod and event listings, and resource diagnostics
-collected before teardown. These checks do not run recorded workload flows or the
-separate webhook-mode operator e2e suite.
+Both checks finish installing the selected operators and Karta before calling
+those operators' existing `verify.sh` scripts, followed by Karta's `verify.sh`.
+This tests each workload with all requested operators present, including any
+changes a later installation made to the cluster. A failed installation or
+verification fails the check.
 
-To inspect selection locally, run `./hack/e2e/install-changed.sh <target-ref> HEAD`
-with the PR's target branch, such as `origin/main`. It compares from the merge
-base and prints operator names, `all`, or nothing.
+Changes outside `hack/e2e/operators/` skip provisioning in both checks, including
+changes to `global.env`, the workflow, or Go code alone. The job summary reports
+when provisioning is skipped.
 
-`make test-e2e-install-changes` checks this selection against local Git changes
-without a cluster. Each operator's `verify.sh` checks the running workload after
-installation. For a fresh local install, run `make e2e-down` before `make e2e-up`.
+Runs use the default `auto` webhook mode. On failure, the run uploads cluster logs
+and resource diagnostics before teardown. These checks do not run recorded
+workload flows or the separate webhook-mode operator e2e suite.
 
-## How up.sh runs an operator
+To inspect selection locally, run `./hack/e2e/install-changed.sh <target-ref> HEAD`.
+`make test-e2e-install-changes` tests Git-based selection without a cluster.
+For a fresh local install, run `make e2e-down` before `make e2e-up`.
 
-For each selected operator, up.sh runs `operators/<name>/install.sh` then
-`operators/<name>/verify.sh` as `bash <script>` subprocesses. The only contract is
-the exit code: any non-zero exit is a failed install/smoke and fails provisioning
-fast (the `main()` wrapper in the scripts is just convention). up.sh groups each
-operator in the CI log (`::group::`) and writes an install summary table to the run's
-Summary page (operator, version, install time, smoke time).
+## How up.sh runs operators
+
+`up.sh` resolves the requested operators and their dependencies once. It calls
+each `install.sh`, installs Karta, then calls each `verify.sh` from the same plan
+and verifies Karta. All scripts run as Bash subprocesses; a missing script or
+non-zero exit fails provisioning. The CI summary records each phase's duration.
 
 ## Shared helpers (`operators/_common.sh`)
 

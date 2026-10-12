@@ -121,14 +121,12 @@ jobs:
         run: |
           workloads="$(./hack/e2e/install-changed.sh "$BASE_REF" "$HEAD_REF")"
           if [ -z "$workloads" ]; then
-            echo "No installation inputs changed." >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$MODE" = changed ] && [ "$workloads" = all ]; then
-            echo "Shared installation inputs changed; the all check covers this run." >> "$GITHUB_STEP_SUMMARY"
+            echo "No operator files changed." >> "$GITHUB_STEP_SUMMARY"
           else
             if [ "$MODE" = all ]; then workloads=all; fi
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
-            echo "Install and smoke-test: $workloads" >> "$GITHUB_STEP_SUMMARY"
+            echo "Install $workloads, then verify each installed operator." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Read pinned tool versions
