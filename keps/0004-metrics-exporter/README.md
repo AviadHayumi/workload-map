@@ -11,9 +11,9 @@
 
 ## Summary
 
-The Karta metrics exporter reads Karta definitions, workloads and pods from the
-Kubernetes API. It uses the Karta library internally to interpret these objects
-and exposes pod-to-workload attribution and normalized workload state at `/metrics`.
+The proposed Karta metrics exporter reads definitions, workloads and pods from
+the Kubernetes API. It uses the Karta library to interpret these objects and
+exposes pod attribution, workload state and exporter health at `/metrics`.
 
 Prometheus scrapes these metrics and joins attribution with existing GPU, CPU
 and memory measurements. Grafana queries Prometheus to show usage by workload
@@ -21,10 +21,8 @@ and component.
 
 ![Karta uses Kubernetes objects to expose pod ownership and workload state. Prometheus joins these metrics with resource usage, and Grafana displays workload and component views.](metrics-flow.png)
 
-[Editable diagram](metrics-flow.excalidraw) - open at excalidraw.com to edit.
-
-This proposal defines the metrics contract. Discovery, caching and deployment
-details remain open.
+This draft defines a proposed metrics contract, not an implemented exporter.
+Discovery, caching and deployment details remain open.
 
 ## Motivation
 
@@ -35,7 +33,7 @@ about running, completed or degraded work.
 
 ### Goals
 
-Expose attribution and normalized state through a small Prometheus contract.
+Expose attribution, normalized state and exporter health through a small Prometheus contract.
 
 ### Non-goals
 
@@ -43,9 +41,9 @@ Collect usage measurements, choose optimization thresholds, or design exporter l
 
 ## Proposal
 
-### Required metrics
+### Workload metrics
 
-The exporter must provide these two gauges. Workload labels are: `namespace`, `workload` (name),
+The exporter must provide these two workload gauges. Workload labels are: `namespace`, `workload` (name),
 `workload_group` (API group) and `workload_kind`.
 
 | Metric | Additional labels | Value |
@@ -66,10 +64,12 @@ has no mapping. Replace changed attribution, including old UIDs; remove deleted 
 
 Status uses Karta's existing phase names: `Initializing`, `Running`, `Completed`, `Failed`,
 `Degraded`, `Suspended`, `Suspending`, `Resuming` and `Undefined`.
-Emit every phase. Phases are independent, not exclusive; definitions decide which match.
+After successful evaluation, emit every phase. Phases are independent, not exclusive;
+definitions decide which match.
 `Undefined` alone is `1` when evaluation succeeds but no other phase matches;
-it does not signal an evaluation error. A missing status definition or evaluation
-failure produces no status series. Absence is not zero.
+it does not signal an evaluation error. A missing status definition produces no
+series and is not an error. Evaluation failure produces no series, increments
+the error counter and marks the kind unhealthy. Absent status is unknown, not zero.
 
 ### What these metrics enable
 
@@ -85,14 +85,17 @@ Its value of `1` preserves usage when multiplied in a Prometheus label join.
 | Which component instance has low GPU activity? | DCGM `DCGM_FI_DEV_GPU_UTIL`, where supported and attributed to pods. |
 
 Grouping by workload, component and instance separates prefill, decode and frontend
-without queries tied to a specific operator. For example, sustained low decode
-GPU activity identifies a candidate for investigation, not proof of wasted capacity.
-Frontend may use only CPU. Missing GPU data is not zero utilization.
+without operator-specific queries. Frontend may use only CPU; missing GPU data is
+not zero utilization.
 
-These two Karta metrics are sufficient for attributed usage. An idle flag is not
-proposed: low CPU/GPU activity does not prove no useful work. Memory occupancy is
-not activity. Requests, queue depth and latency from the application are needed
-to interpret demand before scaling decisions.
+These two metrics alone cannot detect idleness. For example, Karta maps
+`decode-0` to `component="replicatedjob", component_instance="decode"`. DCGM reports
+GPU activity for `decode-0`; the join assigns that activity to decode. The mapping
+stays `1` whether the pod is busy or idle. Inspect all pods in the instance over time.
+
+No Karta idle flag is proposed. Low CPU/GPU activity is an observation, not proof
+of no useful work. Memory occupancy is not activity. Requests, queue depth and
+latency from the application provide demand context before scaling decisions.
 
 <details>
 <summary>Query example: CPU by workload, component and instance</summary>
@@ -131,17 +134,84 @@ the results; they do not require additional Karta exporter metrics.
 
 ### Consumption limits
 
-The initial contract covers one cluster and workloads whose pods share their
-namespace. Sources must supply workload-pod `namespace` and `pod` labels;
-relabel existing identity labels if needed. Exporter scrape-target labels alone
-cannot identify the measured pod. DCGM needs Kubernetes pod attribution enabled.
+The initial contract covers one cluster. Pods must be in the same namespace as
+the workload object; cross-namespace attribution is unsupported. For pod-based
+joins, sources must supply the measured pod's `namespace` and `pod` labels;
+relabel existing identity labels if needed. Scraping must preserve these labels
+on both sides of the join; exporter-target labels must not replace them.
+DCGM needs Kubernetes pod attribution enabled.
 
 Name-based joins do not protect against old telemetry during pod recreation,
 even though the mapping has `uid`. The example excludes unmatched pods and
 pods with an unknown component or instance from its per-instance totals.
 Missing data is not zero, and totals may be partial.
-Neither these metrics nor `up=1` proves completeness or freshness. Observation
-health signals must be designed before implementing the exporter.
+The workload metrics and `up=1` do not prove completeness or freshness.
+Exporter health must be monitored separately.
+
+### Exporter health metrics
+
+These three health metrics are required by the proposed contract.
+`karta_workload_status{phase="Failed"}` reports workload failure, not exporter
+failure. Prometheus `up` reports scrape success only.
+
+| Metric | Type and labels | Meaning |
+|---|---|---|
+| `karta_exporter_resource_healthy` | Gauge: `group`, `version`, `kind` | `1` when the required kind is fully observed and evaluated within the declared scope; `0` during startup, errors, partial results or stale observation. |
+| `karta_exporter_errors_total` | Counter: `stage`, `reason` | Failed operation attempts, including retries. |
+| `karta_exporter_resource_last_success_timestamp_seconds` | Gauge: `group`, `version`, `kind` | Last verified successful observation of that kind; `0` until the first success. |
+
+Deployment configuration must declare required namespaces and kinds, including
+Pods and every kind needed for ownership, attribution or status. Emit health rows
+for each required kind even if discovery or watch creation fails. Missing
+permissions, unavailable API versions, unresolved required owners and evaluation
+failures keep the affected kind unhealthy. Optional catalog kinds outside this
+scope do not count as failures. Recovery requires verified success.
+
+Freshness must be verified even in a quiet cluster. Scrapes, cached reads and
+other kinds' events must not advance the timestamp. Scope configuration,
+verification, freshness limits and recovery mechanisms remain TBD. Health does
+not prove coverage of types with no Karta; keep unmatched telemetry visible as unknown.
+
+Keep error labels bounded: stages are `discovery`, `collection`, `attribution`
+and `status`; reasons are `forbidden`, `unavailable_type`, `unresolved`,
+`evaluation`, `api` and `other`. Put object names and error text in logs.
+
+<details>
+<summary>Example monitoring queries</summary>
+
+```promql
+# A required resource is currently unhealthy.
+karta_exporter_resource_healthy == 0
+```
+
+```promql
+# Recent errors, grouped by where and why they happened.
+sum by (stage, reason) (increase(karta_exporter_errors_total[5m])) > 0
+```
+
+```promql
+# No verified success within the example five-minute freshness budget.
+time() - karta_exporter_resource_last_success_timestamp_seconds > 300
+```
+
+Also monitor failed scrapes and missing expected health series. For a single
+exporter target, using its actual configured job label:
+
+```promql
+(up{job="karta-exporter"} == 0)
+or absent(up{job="karta-exporter"})
+or absent(karta_exporter_resource_healthy{job="karta-exporter"})
+or absent(karta_exporter_resource_last_success_timestamp_seconds{job="karta-exporter"})
+```
+
+These are example expressions, not installed alerts. Check individual missing
+kinds against the declared scope; the absence queries above detect whole missing
+metric families. Choose alert durations and freshness budgets for the deployment.
+Monitor DCGM, cAdvisor and application telemetry separately. Missing, unhealthy
+or stale required health signals make dependent attribution and status unknown.
+Partial or stale telemetry cannot support an idle verdict.
+
+</details>
 
 <details>
 <summary>Why keep attribution separate from usage?</summary>
@@ -170,7 +240,7 @@ or memory, existing Kubernetes resource-request metrics can use the same pod map
 
 - Definition selection and discovery: TBD.
 - Ownership, attribution and pod recreation: TBD.
-- Permissions, freshness, partial results and health metrics: TBD.
+- Permission checks, observation freshness, partial results and recovery: TBD.
 - Deployment, scraping and resource limits: TBD.
 
 ## Compatibility and migration
@@ -182,7 +252,9 @@ until promoted to a stable contract with a migration policy.
 
 Use existing JobSet, DynamoGraphDeployment and PyTorchJob catalog definitions to
 check attribution, unique ownership, phases, missing/deleted objects and joins.
-Add failure and recovery tests when exporter logic is designed.
+When logic is designed, test revoked permissions, unavailable API versions,
+unresolved owners, evaluation failures and recovery. Unrelated events must not
+make a failed resource healthy or refresh its last-success timestamp.
 
 ## Risks and alternatives
 
