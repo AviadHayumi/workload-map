@@ -150,6 +150,40 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`. When p
 git commit -s -m "fix(api): validate status mapping expressions before applying them"
 ```
 
+### Commit Attribution
+
+Commit co-author trailers identify human contributors. Do not add AI tools as
+co-authors. Human `Co-authored-by` trailers and the required human `Signed-off-by`
+trailer remain valid. AI-assisted contributions are allowed; this check does not
+detect or prohibit AI use.
+
+The `Commit attribution` CI check uses `hack/check-commit-attribution.sh`.
+It needs only Bash, Git, and grep. It rejects `Co-authored-by` lines
+containing Claude, ChatGPT, Copilot, Codex, Devin, Cursor, Gemini, or Anthropic,
+case-insensitively. Merge, revert, and fixup commit messages are checked too.
+This is name matching, not an identity lookup. Unlisted names are outside the
+rule's scope. Normal prose mentioning these tools is allowed.
+
+The workflow reads the full incoming range from local Git history, without an
+API page limit. For a new branch push, it checks all reachable commits. Invalid
+references fail the check. No dependency installation is needed.
+
+Run the same check locally:
+
+```bash
+bash hack/check-commit-attribution.sh origin/main HEAD
+bash hack/check-commit-attribution_test.sh
+```
+
+If it fails, remove the AI co-author line from each reported commit message.
+Keep human attribution and DCO sign-offs. A new commit does not repair an earlier
+commit's message.
+
+Repository maintainers must require the `Commit attribution` status in branch
+protection or a ruleset to block merges. Check the final squash commit message
+as well: PR checks cannot inspect a message edited at merge time. The push check
+detects prohibited trailers after they land; it cannot undo or prevent that push.
+
 ### Making Changes
 
 1. Fork the repository

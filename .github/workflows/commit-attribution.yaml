@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+name: Commit Attribution
+
+on:
+  pull_request:
+    branches: [main, v0.*]
+  push:
+    branches: [main, v0.*]
+
+permissions:
+  contents: read
+
+jobs:
+  commit-attribution:
+    name: Commit attribution
+    if: github.event.deleted != true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the incoming commit history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test attribution check
+        run: bash hack/check-commit-attribution_test.sh
+
+      - name: Check incoming commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash hack/check-commit-attribution.sh "$BASE_SHA" "$HEAD_SHA"
