@@ -4,9 +4,9 @@
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { useThrottle } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import { useEffect, useMemo, useRef } from 'react';
-import { Definition } from '../../../lib/sdk/definitions';
-import { Workload } from '../../../lib/sdk/karta.types';
-import { evaluatePhases } from '../../../lib/sdk/kartaUtil';
+import { Definition } from '../../../lib/karta/sdk/definitions';
+import { Workload } from '../../../lib/karta/sdk/karta.types';
+import { evaluatePhases } from '../../../lib/karta/sdk/kartaUtil';
 import { buildWorkloadRow } from '../buildRow/buildRow';
 import { WorkloadRow } from '../workloadRow.types';
 

@@ -8,7 +8,7 @@ Copyright (c) 2026 NVIDIA Corporation
 A [Headlamp](https://headlamp.dev) plugin scaffold for visualizing Karta
 workload trees: the components, instances, and normalized status of any
 workload described by a Karta definition (`kartas.run.ai`). Currently this
-is a placeholder setup, a `/sdk/workloads` route and a WASM engine
+is a placeholder setup, a `/karta/sdk/workloads` route and a WASM engine
 exporting only `kartaVersion`. The real tree visualization and engine
 bindings land in follow-up work.
 

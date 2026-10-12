@@ -29,7 +29,7 @@ vi.mock('../KindFetcher/KindFetcher', () => ({
   },
 }));
 
-import type { Definition } from '../../../lib/sdk/definitions';
+import type { Definition } from '../../../lib/karta/sdk/definitions';
 import type { ServedKind } from '../../useServedKinds/useServedKinds';
 import { ClusterFetcher, ClusterState } from './ClusterFetcher';
 

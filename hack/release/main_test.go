@@ -12,21 +12,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const libraryModule = "github.com/dsx-ai-factory/workload-map/sdk"
+const libraryModule = "github.com/dsx-ai-factory/workload-map/karta/sdk"
 
 var _ = Describe("Release validation", func() {
 	Describe("publishable module", func() {
 		It("accepts a go.mod without replace or exclude directives", func() {
 			root := GinkgoT().TempDir()
 			writeLibraryModule(root, "require k8s.io/api v0.37.1\n")
-			Expect(checkPublishable(filepath.Join(root, "sdk", "go.mod"))).To(Succeed())
+			Expect(checkPublishable(filepath.Join(root, "karta", "sdk", "go.mod"))).To(Succeed())
 		})
 
 		DescribeTable("rejects publication-unsafe module files",
 			func(body, message string) {
 				root := GinkgoT().TempDir()
 				writeLibraryModule(root, body)
-				Expect(checkPublishable(filepath.Join(root, "sdk", "go.mod"))).To(
+				Expect(checkPublishable(filepath.Join(root, "karta", "sdk", "go.mod"))).To(
 					MatchError(ContainSubstring(message)))
 			},
 			Entry("single-line replacement",
@@ -98,20 +98,20 @@ var _ = Describe("Release validation", func() {
 
 		It("accepts the release and library tags on HEAD", func() {
 			tag("v1.2.3")
-			tag("sdk/v1.2.3")
+			tag("karta/sdk/v1.2.3")
 			Expect(validateTags(root, "1.2.3")).To(Succeed())
 		})
 
 		It("rejects a release without the library tag", func() {
 			tag("v1.2.3")
-			Expect(validateTags(root, "1.2.3")).To(MatchError(ContainSubstring("resolve tag sdk/v1.2.3")))
+			Expect(validateTags(root, "1.2.3")).To(MatchError(ContainSubstring("resolve tag karta/sdk/v1.2.3")))
 		})
 
 		It("rejects a library tag on another commit", func() {
-			tag("sdk/v1.2.3")
+			tag("karta/sdk/v1.2.3")
 			commit("second")
 			tag("v1.2.3")
-			Expect(validateTags(root, "1.2.3")).To(MatchError(ContainSubstring("tag sdk/v1.2.3 points to")))
+			Expect(validateTags(root, "1.2.3")).To(MatchError(ContainSubstring("tag karta/sdk/v1.2.3 points to")))
 		})
 	})
 
@@ -147,7 +147,7 @@ var _ = Describe("Release validation", func() {
 
 func writeLibraryModule(root, body string) {
 	GinkgoHelper()
-	Expect(os.MkdirAll(filepath.Join(root, "sdk"), 0o755)).To(Succeed())
+	Expect(os.MkdirAll(filepath.Join(root, "karta", "sdk"), 0o755)).To(Succeed())
 	contents := "module " + libraryModule + "\n\ngo 1.26.3\n\n" + body
-	Expect(os.WriteFile(filepath.Join(root, "sdk", "go.mod"), []byte(contents), 0o644)).To(Succeed())
+	Expect(os.WriteFile(filepath.Join(root, "karta", "sdk", "go.mod"), []byte(contents), 0o644)).To(Succeed())
 }

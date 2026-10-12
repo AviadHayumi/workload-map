@@ -37,9 +37,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/dsx-ai-factory/workload-map/sdk/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/sdk/pkg/resource"
-	"github.com/dsx-ai-factory/workload-map/sdk/pkg/tree"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
 
 // Sample workload objects embedded at compile time.

@@ -21,19 +21,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/dsx-ai-factory/workload-map/sdk/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/sdk/pkg/resource"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 // Annotation keys written back to every reconciled workload. The controller
 // never references a CRD-specific field path to compute these values — Karta
 // resolves them from the structure definition stored in the cluster.
 const (
-	annotationStatus   = "sdk/status"
-	annotationReplicas = "sdk/replicas"
-	annotationCPU      = "sdk/cpu-request"
-	annotationMemory   = "sdk/memory-request"
-	annotationGPU      = "sdk/gpu-request"
+	annotationStatus   = "karta/sdk/status"
+	annotationReplicas = "karta/sdk/replicas"
+	annotationCPU      = "karta/sdk/cpu-request"
+	annotationMemory   = "karta/sdk/memory-request"
+	annotationGPU      = "karta/sdk/gpu-request"
 
 	// managedByLabel is injected into every pod-bearing component's template through Karta.
 	managedByLabelKey   = "app.kubernetes.io/managed-by"

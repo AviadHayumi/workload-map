@@ -14,12 +14,12 @@ const { useListMock, evaluatePhases, useThrottleMock } = vi.hoisted(() => ({
 vi.mock('@kinvolk/headlamp-plugin/lib', () => ({
   K8s: { crd: { makeCustomResourceClass: vi.fn(() => ({ useList: useListMock })) } },
 }));
-vi.mock('../../../lib/sdk/kartaUtil', () => ({ evaluatePhases }));
+vi.mock('../../../lib/karta/sdk/kartaUtil', () => ({ evaluatePhases }));
 vi.mock('@kinvolk/headlamp-plugin/lib/CommonComponents', () => ({
   useThrottle: useThrottleMock,
 }));
 
-import type { Definition } from '../../../lib/sdk/definitions';
+import type { Definition } from '../../../lib/karta/sdk/definitions';
 import { KindFetcher } from './KindFetcher';
 
 const deploymentGVK = { group: 'apps', version: 'v1', kind: 'Deployment' };

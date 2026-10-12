@@ -9,5 +9,5 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${MODULE_DIR}/../operators/_common.sh"
 
-echo "==> smoke: sdk/karta-smoke"
-run_smoke "${MODULE_DIR}/smoke.yaml" "sdk/karta-smoke" "condition=Ready" "120s" default
+echo "==> smoke: karta/sdk/karta-smoke"
+run_smoke "${MODULE_DIR}/smoke.yaml" "karta/sdk/karta-smoke" "condition=Ready" "120s" default

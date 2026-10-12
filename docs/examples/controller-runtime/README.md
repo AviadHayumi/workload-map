@@ -39,7 +39,7 @@ workload Karta can describe:
 3. Aggregate replica counts and container resource requests across every
    component (root and children), so the totals are right even though the leader
    and worker pods live in separate child components.
-4. Write the results back as `sdk/*` annotations, and emit a `StatusChanged`
+4. Write the results back as `karta/sdk/*` annotations, and emit a `StatusChanged`
    Kubernetes Event on each real status transition (a single canonical phase, so
    no churn through transient or simultaneous states).
 5. Inject a pod-template label into every pod-bearing component (leader and
@@ -65,7 +65,7 @@ and writes them with plain `GetPodTemplateSpec` / `UpdatePodTemplateSpec` calls.
 - Go (only to build the image)
 
 This example is a standalone module. Its local `replace` directive selects the
-repository library in `sdk/`, so the image is built from the repository root.
+repository library in `karta/sdk/`, so the image is built from the repository root.
 
 ## Run it on Kind
 
@@ -136,11 +136,11 @@ Expected annotations once the group is ready (replicas sums the group, leader an
 worker components; cpu/memory sum the leader and worker requests):
 
 ```text
-sdk/status: Running
-sdk/replicas: 4
-sdk/cpu-request: 200m
-sdk/memory-request: 128Mi
-sdk/gpu-request: 0
+karta/sdk/status: Running
+karta/sdk/replicas: 4
+karta/sdk/cpu-request: 200m
+karta/sdk/memory-request: 128Mi
+karta/sdk/gpu-request: 0
 ```
 
 The label injection is recorded as a single event:

@@ -2,8 +2,8 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 import { describe, expect, it } from 'vitest';
-import type { Definition } from '../../../lib/sdk/definitions';
-import type { Karta, Workload } from '../../../lib/sdk/karta.types';
+import type { Definition } from '../../../lib/karta/sdk/definitions';
+import type { Karta, Workload } from '../../../lib/karta/sdk/karta.types';
 import { buildWorkloadRow } from './buildRow';
 
 function karta(childComponents?: { name: string }[]): Karta {

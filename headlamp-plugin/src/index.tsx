@@ -15,11 +15,11 @@ registerSidebarEntry({
   parent: 'karta',
   name: 'karta-workloads',
   label: 'Workloads',
-  url: '/sdk/workloads',
+  url: '/karta/sdk/workloads',
 });
 
 registerRoute({
-  path: '/sdk/workloads',
+  path: '/karta/sdk/workloads',
   sidebar: 'karta-workloads',
   name: 'karta-workloads',
   exact: true,
