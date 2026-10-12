@@ -38,8 +38,8 @@ details remain open.
 
 ## Motivation
 
-A JobSet has busy prefill pods and idle decode pods. Grouping them requires
-operator-specific labels. Karta already describes those relationships, enabling
+A JobSet has busy prefill pods and decode pods with little GPU activity.
+Grouping them requires operator-specific labels. Karta already describes those relationships, enabling
 common dashboards and capacity investigation. Normalized state adds context
 about running, completed or degraded work.
 
@@ -60,11 +60,12 @@ The exporter must provide these two gauges. Workload labels are: `namespace`, `w
 
 | Metric | Additional labels | Value |
 |---|---|---|
-| `karta_pod_workload_info` | `pod`, `uid` (pod UID), `component`, `component_instance` | Always `1`: a pod's workload and component attribution. |
-| `karta_workload_status` | `phase` | `1` if a normalized phase matches, otherwise `0`. Includes described workloads with no pods. |
+| `karta_pod_workload_info` | `pod`, `uid` (pod UID), `component`, `component_instance` | Always `1`: identifies the pod's workload, component and named instance. Carries labels, not usage. |
+| `karta_workload_status` | `phase` | `1` if a normalized phase matches, otherwise `0`. Workload-level state, including workloads with no pods; not component health. |
 
 For JobSet, `component="replicatedjob"` identifies the Karta component;
 `component_instance="prefill"` or `"decode"` identifies a named instance.
+Group by both labels to keep prefill and decode separate.
 An empty instance means no named instances. An unresolved component sets both
 component labels to `<unknown>`; an unresolved instance sets only
 `component_instance` to `<unknown>`. An unresolved workload has no mapping.
@@ -80,44 +81,98 @@ Emit every phase. Phases are independent, not exclusive; definitions decide whic
 it does not signal an evaluation error. A missing status definition or evaluation
 failure produces no status series. Absence is not zero.
 
-### Consumption and limits
+### What these metrics enable
 
-Prometheus joins mappings with DCGM GPU or cAdvisor CPU/memory measurements.
-Decode's measurements then carry its workload, component and instance labels.
-Recording rules can save the query for Grafana. Karta does not copy usage values.
+`karta_pod_workload_info` supplies the labels needed to group existing measurements.
+Its value of `1` preserves usage when multiplied in a Prometheus label join.
+`karta_workload_status` adds lifecycle context, displayed by workload labels.
+`Running` does not mean busy.
 
-This contract covers one cluster and workloads whose pods share their namespace.
-Usage sources must supply `namespace` and `pod` labels; relabel existing
-pod-identity labels if needed. Join on `namespace,pod`.
-`uid` identifies the pod incarnation but does not protect this name-based join
-from old telemetry during recreation; that behavior needs an implementation design.
+| Question | Measurement joined with Karta attribution |
+|---|---|
+| Which component instance uses CPU? | cAdvisor `container_cpu_usage_seconds_total`, converted to cores with `rate()`. |
+| How much memory does it hold? | cAdvisor `container_memory_working_set_bytes`. |
+| Which component instance has low GPU activity? | DCGM `DCGM_FI_DEV_GPU_UTIL`, where supported and attributed to pods. |
 
-Joins drop unmatched samples, so totals can be partial. Missing series cannot
-distinguish deletion from observation failure. Neither these metrics nor `up=1`
-proves completeness or freshness. They support inspection, not automated safety
-decisions. Health signals are outside this draft and must be designed before
-implementing the exporter.
+Grouping by workload, component and instance separates prefill, decode and frontend
+without queries tied to a specific operator. For example, sustained low decode
+GPU activity identifies a candidate for investigation, not proof of wasted capacity.
+Frontend may use only CPU. Missing GPU data is not zero utilization.
+
+These two Karta metrics are sufficient for attributed usage. An idle flag is not
+proposed: low CPU/GPU activity does not prove no useful work. Memory occupancy is
+not activity. Requests, queue depth and latency from the application are needed
+to interpret demand before scaling decisions.
 
 <details>
-<summary>Why this pattern?</summary>
+<summary>Query example: CPU by workload, component and instance</summary>
 
-[kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/design/metrics-best-practices.md)
-groups identity in `_info` metrics, separates changing state and favors raw facts
-over derived totals. Karta applies that pattern to workload relationships.
-[Prometheus label joins](https://prometheus.io/docs/prometheus/latest/querying/operators/#many-to-one-and-one-to-many-vector-matches)
-attach those relationships to existing measurements.
+For one cluster, with one current mapping per pod and deduplicated usage series.
+Duplicate scrapes inflate sums; Karta does not deduplicate usage:
+
+```promql
+sum by (namespace, workload_group, workload_kind, workload,
+        component, component_instance) (
+  rate(container_cpu_usage_seconds_total{
+    namespace!="", pod!="", container!="", container!="POD"
+  }[5m])
+  * on (namespace, pod)
+    group_left (workload_group, workload_kind, workload, component, component_instance)
+    karta_pod_workload_info{
+      component!="<unknown>", component_instance!="<unknown>"
+    }
+)
+```
+
+The result is CPU cores per component instance. Multiplication by `1` copies Karta's
+labels onto each container measurement; the outer sum combines containers and pods.
+
+For memory, replace `rate(...)` with `container_memory_working_set_bytes` using the
+same filters. For GPU activity, use `DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}`
+and replace the outer `sum` with `avg`. This averages observed GPU series equally, not
+pods or requested capacity. Plot it over time to investigate sustained low activity.
+Shared-device measurements may not isolate a pod's usage.
+Use valid measurements at the appropriate device or GPU-instance scope.
+
+Grafana can run these queries directly. Optional Prometheus recording rules save
+the results; they do not require additional Karta exporter metrics.
+
+</details>
+
+### Consumption limits
+
+The initial contract covers one cluster and workloads whose pods share their
+namespace. Sources must supply workload-pod `namespace` and `pod` labels;
+relabel existing identity labels if needed. Exporter scrape-target labels alone
+cannot identify the measured pod. DCGM needs Kubernetes pod attribution enabled.
+
+Name-based joins do not protect against old telemetry during pod recreation,
+even though the mapping has `uid`. The example excludes unmatched pods and
+pods with an unknown component or instance from its per-instance totals.
+Missing data is not zero, and totals may be partial.
+Neither these metrics nor `up=1` proves completeness or freshness. Observation
+health signals must be designed before implementing the exporter.
+
+<details>
+<summary>Why keep attribution separate from usage?</summary>
+
+This follows the info-metric pattern used by kube-state-metrics: identity is exposed
+as labels on a value of `1`, while measurements remain in their existing exporters.
+Prometheus combines them by matching pod identity. Karta adds workload meaning
+without collecting or duplicating resource usage.
 
 </details>
 
 <details>
 <summary>Suggested metrics, outside the minimum contract</summary>
 
-- Desired replicas per component instance: requested scale.
+- Desired replicas per component instance: expected scale, even when no pods exist.
 - Observed pod counts: only when existing series cannot supply the needed breakdown.
 - Creation timestamp and generation: recreation and spec changes.
 - Workload info: selected Karta definition and API version.
 
-These need separate consumer justification.
+These need separate consumer justification. For usage relative to requested CPU
+or memory, existing Kubernetes resource-request metrics can use the same pod mapping.
 
 </details>
 

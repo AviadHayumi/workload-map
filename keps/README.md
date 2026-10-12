@@ -56,6 +56,4 @@ updates, open a new issue if the original is closed.
 
 ## Index
 
-| KEP | Title | Status |
-|---|---|---|
-| [0004](0004-metrics-exporter/README.md) | Karta metrics exporter | provisional |
+No KEPs have been added yet.
