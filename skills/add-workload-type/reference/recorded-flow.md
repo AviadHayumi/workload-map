@@ -31,7 +31,10 @@ at a field no real object carries. Only step 7 shows that.
 
 Pinning examples:
 
-- Newest non-prerelease tag: `git ls-remote --tags --refs <repo-url> | sort -V -k2`.
+- Read the release workflow or guide in a local clone before choosing a tag.
+  A chart may publish in another repository or use a component-specific
+  prefix. The newest matching release still needs a Kubernetes/API support
+  check and installation, smoke, recording, and replay validation.
 - Helm-installed operators pin the chart version: kuberay `1.6.2`, milvus
   `1.3.7`.
 - An operator already in `hack/e2e/global.env`, for example a new kind for
@@ -104,9 +107,33 @@ release spells it (`kuberay`, `spark-operator`). The same string is
 `Fixture.Operator`, the first `Label`, and the `version_of` case; a hyphen is
 fine in all three.
 
+### Required update checker
+
+Every external workload and infrastructure operator has an executable
+`check-updates.sh` in addition to installation and smoke verification. Workload
+checkers live beside `install.sh` and `verify.sh`; infrastructure checkers live
+under `hack/e2e/infra/<name>/`, including operators installed centrally by
+`up.sh`. They source `hack/e2e/_updates.sh`, which builds the standard-library
+Go checker in `hack/operator-updates/` and runs it with the pin from `global.env`.
+The aggregate builds it once and shares the executable with each wrapper.
+
+Record the upstream tag repository, exact prefix, channel, and installed
+artifact mapping in `hack/e2e/UPSTREAM_RELEASES.md`, with public source links
+pinned to the release code inspected in a local clone. Register the group in
+`ALL_OPERATORS` in `hack/e2e/check-updates.sh`; infrastructure groups also join
+the `infra` selector. Add offline Go cases for its mapping and release
+exceptions. `make test-e2e-updates` checks tag handling, wrappers, and required
+checker registration without a cluster or live tag lookup.
+
+`make e2e-operators-check-latest-supported-versions OPERATORS=<name>` reports
+candidate tags. It does not certify upstream support or Karta compatibility,
+change pins, or replace the `verify.sh` smoke test. The CLI and exit codes are
+documented in `hack/operator-updates/README.md`. Builtin workloads and locally
+built Karta have no external operator release to check.
+
 ### Builtins
 
-A builtin needs no install scripts, pin, or `up.sh` entry. `up.sh` rejects any
+A builtin needs no install scripts, update checker, pin, or `up.sh` entry. `up.sh` rejects any
 name outside `ALL_WORKLOADS`, so `e2e-up` takes `WORKLOADS=none`. In the flow,
 `Fixture.Operator` and the first `Label` are the same name (`deployment`,
 `batch-job`) and the second label is `builtin`. `operatorVersion()` falls back
