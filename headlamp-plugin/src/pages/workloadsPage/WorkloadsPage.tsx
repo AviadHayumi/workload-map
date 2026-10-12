@@ -7,7 +7,7 @@ import Button from '@mui/material/Button';
 import { WorkloadsTable } from '../../components/workloadsTable/WorkloadsTable';
 import { useWorkloadRows } from '../../hooks/useWorkloadRows/useWorkloadRows';
 
-// Route target for /karta/workloads: owns fetching, delegates rendering.
+// Route target for /sdk/workloads: owns fetching, delegates rendering.
 export function WorkloadsPage() {
   const {
     rows,

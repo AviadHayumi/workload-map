@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-import { Definition } from '../../../lib/karta/definitions';
-import { Karta, Workload } from '../../../lib/karta/karta.types';
+import { Definition } from '../../../lib/sdk/definitions';
+import { Karta, Workload } from '../../../lib/sdk/karta.types';
 import { WorkloadRow } from '../workloadRow.types';
 
 function componentsCount(karta: Karta): number {

@@ -5,7 +5,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getKartaWasm } = vi.hoisted(() => ({ getKartaWasm: vi.fn() }));
-vi.mock('../../lib/karta/karta', () => ({ getKartaWasm }));
+vi.mock('../../lib/sdk/karta', () => ({ getKartaWasm }));
 
 import { useKartaWasm } from './useKartaWasm';
 

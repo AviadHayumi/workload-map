@@ -11,9 +11,9 @@ const { useListMock, listCatalog } = vi.hoisted(() => ({
 vi.mock('@kinvolk/headlamp-plugin/lib', () => ({
   K8s: { crd: { makeCustomResourceClass: vi.fn(() => ({ useList: useListMock })) } },
 }));
-vi.mock('../../lib/karta/kartaUtil', () => ({ listCatalog }));
+vi.mock('../../lib/sdk/kartaUtil', () => ({ listCatalog }));
 
-import type { Karta } from '../../lib/karta/karta.types';
+import type { Karta } from '../../lib/sdk/karta.types';
 import { useKartaDefinitions } from './useKartaDefinitions';
 
 function karta(name: string, kind?: { group: string; version: string; kind: string }): Karta {

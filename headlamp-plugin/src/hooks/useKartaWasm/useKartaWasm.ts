@@ -2,7 +2,7 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 import { useEffect, useState } from 'react';
-import { getKartaWasm, KartaWasm } from '../../lib/karta/karta';
+import { getKartaWasm, KartaWasm } from '../../lib/sdk/karta';
 
 export interface UseKartaWasmResult {
   karta: KartaWasm | null;

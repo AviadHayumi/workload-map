@@ -15,9 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/karta/pkg/resource"
-	"github.com/dsx-ai-factory/workload-map/karta/pkg/tree"
+	"github.com/dsx-ai-factory/workload-map/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/sdk/pkg/resource"
+	"github.com/dsx-ai-factory/workload-map/sdk/pkg/tree"
 )
 
 // gpuResourceName is the extended resource a GPU request is declared under.

@@ -68,8 +68,8 @@ func TestImageRefsPropagatesParseError(t *testing.T) {
 func TestRepoOf(t *testing.T) {
 	cases := map[string]string{
 		"ghcr.io/dsx-ai-factory/workload-map/karta-operator:1.2.3":                             "ghcr.io/dsx-ai-factory/workload-map/karta-operator",
-		"registry.k8s.io/kubectl:v1.34.0":                                       "registry.k8s.io/kubectl",
-		"localhost:5000/foo/bar:tag":                                            "localhost:5000/foo/bar",
+		"registry.k8s.io/kubectl:v1.34.0":                                                      "registry.k8s.io/kubectl",
+		"localhost:5000/foo/bar:tag":                                                           "localhost:5000/foo/bar",
 		"ghcr.io/dsx-ai-factory/workload-map/karta-operator@sha256:" + strings.Repeat("a", 64): "ghcr.io/dsx-ai-factory/workload-map/karta-operator",
 	}
 	for in, want := range cases {
@@ -151,7 +151,7 @@ func TestParseFlagsRejectsBadStabilityReads(t *testing.T) {
 func TestResolveMultiArch(t *testing.T) {
 	reg := httptest.NewServer(registry.New())
 	defer reg.Close()
-	ref := mustHost(t, reg.URL) + "/karta/karta-operator:1.2.3"
+	ref := mustHost(t, reg.URL) + "/sdk/karta-operator:1.2.3"
 
 	amd64, err := random.Image(256, 1)
 	if err != nil {

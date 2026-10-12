@@ -37,9 +37,9 @@ The plugin adds three views for v1:
 
 | View            | Route                                      | Description                                                                                                            |
 | --------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Workloads       | `/karta/workloads`                         | Unified table across all Karta-described kinds: Name, Kind, Namespace, Status chips, Age                               |
-| Workload Detail | `/karta/workloads/:gvk/:namespace/:name` | Header with status chips, vitals tiles (pods, GPUs, CPU, memory, runtime), interactive flow graph, flat resource table |
-| Definitions     | `/karta/definitions`                       | Karta CRs table: Name, Workload Kind, Components, Instances (live count), Ready (operator condition), Age              |
+| Workloads       | `/sdk/workloads`                         | Unified table across all Karta-described kinds: Name, Kind, Namespace, Status chips, Age                               |
+| Workload Detail | `/sdk/workloads/:gvk/:namespace/:name` | Header with status chips, vitals tiles (pods, GPUs, CPU, memory, runtime), interactive flow graph, flat resource table |
+| Definitions     | `/sdk/definitions`                       | Karta CRs table: Name, Workload Kind, Components, Instances (live count), Ready (operator condition), Age              |
 
 
 Map integration (R3) and Custom Resources page enrichment (R4) are out of scope for v1 — both are P2 (post-v1).
@@ -168,7 +168,7 @@ A single table showing all live workload instances across all Karta-described ki
 
 ### 4.4 R2 — Workload Detail Page
 
-A detail page for a single workload, reached from the workloads table at `/karta/workloads/:gvk/:namespace/:name`. Composed of four parts:
+A detail page for a single workload, reached from the workloads table at `/sdk/workloads/:gvk/:namespace/:name`. Composed of four parts:
 
 - **Header** — kind icon, name, namespace, status chips, age. Workload object fetched via `useGet()` from `@kinvolk/headlamp-plugin`; status chips evaluated via `EvaluatePhases()` from the WASM engine (`pkg/status`).
 - **Vitals tiles** — pods (with per-component breakdown), GPUs, CPU, memory, runtime:

@@ -32,9 +32,9 @@ vi.mock('@kinvolk/headlamp-plugin/lib', async importOriginal => ({
   registerSidebarEntry,
 }));
 // The module production imports, not the barrel: useKartaWasm and kartaUtil
-// both reach for lib/karta/karta directly, so mocking the barrel would watch a
+// both reach for lib/sdk/karta directly, so mocking the barrel would watch a
 // path nothing uses.
-vi.mock('./lib/karta/karta', () => ({ getKartaWasm }));
+vi.mock('./lib/sdk/karta', () => ({ getKartaWasm }));
 
 // WorkloadsPage is deliberately not mocked: the point is that nothing in the
 // page's import graph loads the engine at module scope either.
@@ -49,10 +49,10 @@ describe('plugin registration', () => {
 
   it('registers the workloads route and its sidebar entries', () => {
     expect(registerRoute).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/karta/workloads', exact: true })
+      expect.objectContaining({ path: '/sdk/workloads', exact: true })
     );
     expect(registerSidebarEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'karta-workloads', url: '/karta/workloads' })
+      expect.objectContaining({ name: 'karta-workloads', url: '/sdk/workloads' })
     );
   });
 });
