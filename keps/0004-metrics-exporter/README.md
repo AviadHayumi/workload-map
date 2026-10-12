@@ -19,19 +19,9 @@ Prometheus scrapes these metrics and joins attribution with existing GPU, CPU
 and memory measurements. Grafana queries Prometheus to show usage by workload
 and component.
 
-```mermaid
-flowchart TB
-    api["Kubernetes API<br/>Definitions, workloads and pods"]
-    subgraph exporter["Karta metrics exporter"]
-        karta["Karta library<br/>Interpret objects using definitions"]
-        metrics["/metrics<br/>Attribution and normalized state"]
-        karta --> metrics
-    end
-    api -->|Read objects| karta
-    metrics -->|Scraped by| prometheus["Prometheus<br/>Join attribution with usage"]
-    usage["Existing GPU, CPU<br/>and memory metrics"] -->|Scraped by| prometheus
-    prometheus -->|Queried by| grafana["Grafana<br/>Usage by workload and component"]
-```
+![Karta uses Kubernetes objects to expose pod ownership and workload state. Prometheus joins these metrics with resource usage, and Grafana displays workload and component views.](metrics-flow.png)
+
+[Editable diagram](metrics-flow.excalidraw) - open at excalidraw.com to edit.
 
 This proposal defines the metrics contract. Discovery, caching and deployment
 details remain open.
