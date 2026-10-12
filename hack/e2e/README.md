@@ -15,19 +15,20 @@ hack/e2e/
   up.sh                 orchestrator: base + selected operators (install then verify)
   check-updates.sh       report upstream workload and infrastructure operator tags
   _updates.sh           update-check helpers, independent of cluster provisioning
-  infra/<name>/         cert-manager, fake-gpu-operator, and KAI Scheduler
-    install.sh          standalone: installs the infrastructure operator
-    verify.sh           standalone: smoke-tests it via run_smoke
-    check-updates.sh     standalone: report upstream tag updates
-    smoke.yaml          the throwaway infrastructure smoke resources
+  infra/
+    <name>/             cert-manager, fake-gpu-operator, and KAI Scheduler
+      install.sh        standalone: installs the infrastructure operator
+      verify.sh         standalone: smoke-tests it via run_smoke
+      check-updates.sh   standalone: report upstream tag updates
+      smoke.yaml        the throwaway infrastructure smoke resources
+    karta-operator/     the system under test, built from this checkout
+      install.sh        standalone: installs Karta in the selected webhook route
+      verify.sh         standalone: smoke-tests it via run_smoke
+      smoke.yaml        the throwaway Karta the smoke test applies
+      test.sh           runs the operator e2e against the current cluster
   down.sh               tear the cluster down (and its kubeconfig for named clusters)
   global.env            single source of truth for versions and runtime defaults
   kind-config.yaml      kind cluster shape (1 control-plane + 2 workers)
-  karta-operator/       the system under test
-    install.sh          standalone: installs Karta in the selected webhook route
-    verify.sh           standalone: smoke-tests it via run_smoke
-    smoke.yaml          the throwaway Karta the smoke test applies
-    test.sh             runs the operator e2e against the current cluster
   operators/            the upstream workload operators it exercises
     _common.sh          shared helpers + GitHub Actions logging, sourced by every script
     <name>/
@@ -57,10 +58,11 @@ make e2e-down                        # tear down
 The base is the kind cluster, the fake-gpu-operator, and the Karta operator.
 Selecting a subset keeps a run light, and `none` keeps only the base, which is what
 the operator e2e wants. Dependencies are added automatically: kserve pulls
-knative, dynamo pulls grove. `up.sh` installs and verifies infrastructure first:
+knative, dynamo pulls grove. `up.sh` installs and verifies external infrastructure first:
 Fake GPU Operator is always included, cert-manager follows `CERT_MANAGER` and
 webhook/dependency settings, and KAI Scheduler is included whenever Grove is
-selected. `--list` shows both infrastructure and workloads.
+selected. Karta is installed and verified last from `infra/karta-operator/`.
+`--list` shows both external infrastructure and workloads.
 
 ## Check for operator updates
 
@@ -120,7 +122,7 @@ not check CLI tools, Kubernetes node images, Ray runtime, or sidecar image pins.
 
 ## How up.sh runs an operator
 
-For each selected infrastructure operator, `up.sh` runs `infra/<name>/install.sh`
+For each selected external infrastructure operator, `up.sh` runs `infra/<name>/install.sh`
 then `infra/<name>/verify.sh`. It uses the same runner for workload operators
 under `operators/<name>/`. Both phases run as `bash <script>` subprocesses. The only contract is
 the exit code: any non-zero exit is a failed install/smoke and fails provisioning
@@ -128,6 +130,10 @@ fast (the `main()` wrapper in the scripts is just convention). up.sh groups each
 operator in the CI log (`::group::`) and writes an install summary table to the run's
 Summary page (operator, version, install time, smoke time). Successful infrastructure
 and workload versions are recorded in the per-cluster installed-version file.
+
+Karta uses the same install/verify pattern under `infra/karta-operator/`, after
+all external operators. It has no external version pin or update checker.
+`make test-operator-e2e` runs its `test.sh` against the provisioned cluster.
 
 The infrastructure smoke checks prove certificate issuance, a pod starting with
 a simulated GPU, and a pod scheduled by KAI. They use `run_smoke` to clean up

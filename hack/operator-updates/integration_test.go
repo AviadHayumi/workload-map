@@ -288,7 +288,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every operator has an executable registered checker", func(t *testing.T) {
+	t.Run("every external operator has an executable registered checker", func(t *testing.T) {
 		installers, err := filepath.Glob(filepath.Join(root, "hack", "e2e", "operators", "*", "install.sh"))
 		if err != nil {
 			t.Fatal(err)
@@ -307,7 +307,8 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 		}
 		var expectedInfra []string
 		for _, entry := range entries {
-			if entry.IsDir() {
+			// Karta is built from this checkout, not an external release pin.
+			if entry.IsDir() && entry.Name() != "karta-operator" {
 				expectedInfra = append(expectedInfra, entry.Name())
 				directories = append(directories, filepath.Join(infra, entry.Name()))
 			}

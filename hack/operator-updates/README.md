@@ -103,7 +103,7 @@ Kubernetes builtins and Karta built from the checkout are exempt.
    `up.sh` before dependent workloads.
 4. Add offline Go tests here for the repository and tag namespace, filtering,
    and any release exceptions. Preserve the regression that checks every
-   workload installer module and infrastructure directory has an executable
+   external workload installer module and infrastructure directory has an executable
    checker and aggregate registration. Run `make test-e2e-updates` and
    `make lint-shell`, then the install/smoke/record/replay checks for the
    affected operator and `make check` before pushing.

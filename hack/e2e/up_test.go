@@ -89,17 +89,17 @@ func TestInfrastructureProvisioning(t *testing.T) {
 		failStep   string
 	}{
 		{
-			name: "base only", workload: "none", components: []string{"infra/fake-gpu-operator", "karta-operator"},
+			name: "base only", workload: "none", components: []string{"infra/fake-gpu-operator", "infra/karta-operator"},
 			versions: []string{"fake-gpu-operator=9.2.0"},
 		},
 		{
 			name: "all infra before grove and dynamo", workload: "dynamo", env: []string{"CERT_MANAGER=true"},
-			components: []string{"infra/cert-manager", "infra/fake-gpu-operator", "infra/kai-scheduler", "operators/grove", "operators/dynamo", "karta-operator"},
+			components: []string{"infra/cert-manager", "infra/fake-gpu-operator", "infra/kai-scheduler", "operators/grove", "operators/dynamo", "infra/karta-operator"},
 			versions:   []string{"cert-manager=v9.1.0", "fake-gpu-operator=9.2.0", "kai-scheduler=v9.3.0", "grove=v9.4.0", "dynamo=9.5.0"},
 		},
 		{
 			name: "cert manager before kserve", workload: "kserve",
-			components: []string{"infra/cert-manager", "infra/fake-gpu-operator", "operators/knative", "operators/kserve", "karta-operator"},
+			components: []string{"infra/cert-manager", "infra/fake-gpu-operator", "operators/knative", "operators/kserve", "infra/karta-operator"},
 			versions:   []string{"cert-manager=v9.1.0", "fake-gpu-operator=9.2.0", "knative=knative-v9.6.0", "kserve=v9.7.0"},
 		},
 		{
@@ -154,40 +154,92 @@ func TestInfrastructureProvisioning(t *testing.T) {
 	}
 }
 
+func TestKartaStandaloneRepositoryPaths(t *testing.T) {
+	for _, script := range []string{"install.sh", "test.sh"} {
+		t.Run(script, func(t *testing.T) {
+			root := t.TempDir()
+			module := filepath.Join("infra", "karta-operator", script)
+			for _, path := range []string{"global.env", "operators/_common.sh", module} {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				writeE2EFixture(t, filepath.Join(root, "hack", "e2e", path), string(content))
+			}
+			if err := os.MkdirAll(filepath.Join(root, "operator"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			bin := filepath.Join(root, "bin")
+			for _, tool := range []string{"kubectl", "helm", "go"} {
+				writeE2EFixture(t, filepath.Join(bin, tool), `#!/bin/bash
+set -eu
+printf '%s|%s|%s\n' "${0##*/}" "$PWD" "$*" >> "$E2E_TEST_TOOLS"
+`)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "/bin/bash", filepath.Join(root, "hack", "e2e", module))
+			// Standalone callers do not inherit up.sh's repository-root export.
+			cmd.Env = slices.DeleteFunc(os.Environ(), func(value string) bool {
+				return strings.HasPrefix(value, "REPO_ROOT=") || strings.HasPrefix(value, "ARTIFACTS=")
+			})
+			cmd.Env = append(cmd.Env,
+				"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "GO_VERSION=1.26.8",
+				"KARTA_WEBHOOK_MODE=auto", "GITHUB_ACTIONS=", "E2E_TEST_TOOLS="+filepath.Join(root, "tools"),
+			)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("standalone %s: %v\n%s", script, err, output)
+			}
+			log, err := os.ReadFile(filepath.Join(root, "tools"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if script == "install.sh" {
+				for _, want := range []string{
+					"apply --server-side -f " + filepath.Join(root, "charts", "karta", "crds") + "/",
+					"upgrade -i karta " + filepath.Join(root, "charts", "karta") + " ",
+				} {
+					if !strings.Contains(string(log), want) {
+						t.Errorf("standalone install did not use repository path %q:\n%s", want, log)
+					}
+				}
+			} else {
+				if want := "go|" + filepath.Join(root, "operator") + "|test -tags e2e "; !strings.Contains(string(log), want) {
+					t.Errorf("operator tests ran outside %s:\n%s", filepath.Join(root, "operator"), log)
+				}
+				if _, err := os.Stat(filepath.Join(root, ".artifacts", "kartas.yaml")); err != nil {
+					t.Errorf("diagnostics missing from repository artifacts: %v", err)
+				}
+			}
+		})
+	}
+}
+
 // Run the real orchestrator with child scripts and cluster tools replaced. The
 // fixture also isolates the installed-version file from developer clusters.
 func runProvision(t *testing.T, args []string, env ...string) provisionResult {
 	t.Helper()
 	root := t.TempDir()
 	e2eDir := filepath.Join(root, "hack", "e2e")
-	write := func(path, content string) {
-		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, path := range []string{"up.sh", "global.env", "operators/_common.sh"} {
 		content, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		write(filepath.Join(e2eDir, path), string(content))
+		writeE2EFixture(t, filepath.Join(e2eDir, path), string(content))
 	}
 	installers, err := filepath.Glob("operators/*/install.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
-	components := []string{"infra/cert-manager", "infra/fake-gpu-operator", "infra/kai-scheduler", "karta-operator"}
+	components := []string{"infra/cert-manager", "infra/fake-gpu-operator", "infra/kai-scheduler", "infra/karta-operator"}
 	for _, installer := range installers {
 		components = append(components, filepath.Dir(installer))
 	}
 	for _, component := range components {
 		for _, phase := range []string{"install", "verify"} {
 			step := filepath.ToSlash(component) + "/" + phase
-			write(filepath.Join(e2eDir, component, phase+".sh"), fmt.Sprintf(`#!/bin/bash
+			writeE2EFixture(t, filepath.Join(e2eDir, component, phase+".sh"), fmt.Sprintf(`#!/bin/bash
 set -eu
 printf '%%s\n' '%s' >> "$E2E_TEST_EVENTS"
 if [ "${E2E_TEST_FAIL_STEP:-}" = '%s' ]; then exit 7; fi
@@ -196,7 +248,7 @@ if [ "${E2E_TEST_FAIL_STEP:-}" = '%s' ]; then exit 7; fi
 	}
 	bin := filepath.Join(root, "bin")
 	for _, tool := range []string{"docker", "kind", "kubectl", "helm", "curl", "tar"} {
-		write(filepath.Join(bin, tool), `#!/bin/bash
+		writeE2EFixture(t, filepath.Join(bin, tool), `#!/bin/bash
 set -eu
 printf '%s\n' "${0##*/} $*" >> "$E2E_TEST_TOOLS"
 case "${0##*/} $*" in
@@ -206,7 +258,7 @@ esac
 `)
 	}
 	versions := filepath.Join(e2eDir, "operators", ".installed-versions-karta-e2e")
-	write(versions, "stale=old\n")
+	writeE2EFixture(t, versions, "stale=old\n")
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "/bin/bash", append([]string{filepath.Join(e2eDir, "up.sh")}, args...)...)
@@ -248,4 +300,14 @@ esac
 	result.summary = read(filepath.Join(root, "summary"))
 	result.tools = read(filepath.Join(root, "tools"))
 	return result
+}
+
+func writeE2EFixture(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
 }

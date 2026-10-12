@@ -44,5 +44,5 @@ config/crd/_.yaml
 
 hack/e2e/operators/.installed-versions*
 
-# Diagnostics collected by hack/e2e/karta-operator/test.sh
+# Diagnostics collected by hack/e2e/infra/karta-operator/test.sh
 /.artifacts/

@@ -29,7 +29,7 @@ if [ -z "${KUBECONFIG:-}" ] && [ "${CLUSTER_NAME}" != "${DEFAULT_CLUSTER}" ]; th
   mkdir -p "$(dirname "${KUBECONFIG}")"
   export KUBECONFIG
 fi
-# karta-operator/, infra/<name>/, and operators/<name>/ run install.sh and verify.sh as
+# infra/<name>/ and operators/<name>/ run install.sh and verify.sh as
 # subprocesses; export what they need (version pins come from global.env).
 export CLUSTER_NAME IMAGE REPO_ROOT KARTA_WEBHOOK_MODE
 
@@ -286,8 +286,8 @@ main() {
     for w in "${plan[@]}"; do run_operator "$w"; done
   fi
   group "karta operator"
-  bash "${REPO_ROOT}/hack/e2e/karta-operator/install.sh" || { endgroup; fail "karta install failed"; exit 1; }
-  bash "${REPO_ROOT}/hack/e2e/karta-operator/verify.sh" || { endgroup; fail "karta smoke failed"; exit 1; }
+  bash "${INFRA_DIR}/karta-operator/install.sh" || { endgroup; fail "karta install failed"; exit 1; }
+  bash "${INFRA_DIR}/karta-operator/verify.sh" || { endgroup; fail "karta smoke failed"; exit 1; }
   endgroup
 
   echo "==> environment ready (cluster: ${CLUSTER_NAME}, webhook: ${KARTA_WEBHOOK_MODE})."

@@ -113,8 +113,10 @@ Every external workload and infrastructure operator has an executable
 `check-updates.sh` in addition to installation and smoke verification. Workload
 checkers live beside `install.sh` and `verify.sh`; infrastructure checkers live
 beside their install/verify scripts and smoke manifest under
-`hack/e2e/infra/<name>/`. `up.sh` installs and verifies infrastructure before
-dependent workloads. Update checkers source `hack/e2e/_updates.sh`, which builds the standard-library
+`hack/e2e/infra/<name>/`. `up.sh` installs and verifies external infrastructure before
+dependent workloads. The locally built system under test lives in
+`hack/e2e/infra/karta-operator/`, runs last, and has no external update checker.
+Update checkers source `hack/e2e/_updates.sh`, which builds the standard-library
 Go checker in `hack/operator-updates/` and runs it with the pin from `global.env`.
 The aggregate builds it once and shares the executable with each wrapper.
 
