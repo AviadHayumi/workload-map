@@ -101,18 +101,18 @@ var _ = Describe("Collector", func() {
 	}
 
 	It("renders the exact metric contract from a snapshot", func() {
-		c := New(fixtureStore(), Options{})
+		c := testGatherer(GinkgoT(), fixtureStore(), Options{})
 
-		Expect(testutil.CollectAndCompare(c, strings.NewReader(goldenContract), contractFamilies...)).To(Succeed())
+		Expect(testutil.GatherAndCompare(c, strings.NewReader(goldenContract), contractFamilies...)).To(Succeed())
 	})
 
 	It("passes promlint", func() {
-		c := New(fixtureStore(), Options{
+		c := testGatherer(GinkgoT(), fixtureStore(), Options{
 			PendingPods: func() int { return 1 },
 			KartaCounts: func() (int, int, int) { return 1, 0, 0 },
 		})
 
-		problems, err := testutil.CollectAndLint(c)
+		problems, err := testutil.GatherAndLint(c)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(problems).To(BeEmpty())
 	})
@@ -124,9 +124,9 @@ var _ = Describe("Collector", func() {
 			Ref:              store.WorkloadRef{Namespace: "team-a", Name: "t", Group: "example.io", Version: "v1", Kind: "Thing"},
 			CreatedTimestamp: 1755600000,
 		})
-		c := New(s, Options{})
+		c := testGatherer(GinkgoT(), s, Options{})
 
-		Expect(testutil.CollectAndCount(c, MetricWorkloadCreated)).To(Equal(1))
+		Expect(testutil.GatherAndCount(c, MetricWorkloadCreated)).To(Equal(1))
 	})
 
 	It("omits status series for workloads without a StatusDefinition", func() {
@@ -135,9 +135,10 @@ var _ = Describe("Collector", func() {
 			UID: "w9",
 			Ref: store.WorkloadRef{Namespace: "team-a", Name: "t", Group: "example.io", Version: "v1", Kind: "Thing"},
 		})
-		c := New(s, Options{})
+		c := testGatherer(GinkgoT(), s, Options{})
 
-		count := testutil.CollectAndCount(c, MetricWorkloadStatus)
+		count, err := testutil.GatherAndCount(c, MetricWorkloadStatus)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(count).To(BeZero())
 	})
 
@@ -148,7 +149,7 @@ var _ = Describe("Collector", func() {
 			UID: "p3", Namespace: "team-a", Name: "weird-0", WorkloadUID: "w1", Workload: ref,
 			Component: "replicatedjob", Instance: SentinelUnknown, Reason: ReasonUnknownInstance, Phase: corev1.PodRunning,
 		})
-		c := New(s, Options{
+		c := testGatherer(GinkgoT(), s, Options{
 			PendingPods: func() int { return 2 },
 			KartaCounts: func() (int, int, int) { return 1, 1, 0 },
 		})
@@ -159,6 +160,6 @@ karta_exporter_unattributed_pods{reason="jq_error"} 0
 karta_exporter_unattributed_pods{reason="no_owner"} 2
 karta_exporter_unattributed_pods{reason="unknown_instance"} 1
 `
-		Expect(testutil.CollectAndCompare(c, strings.NewReader(expected), MetricExporterUnattributedPods)).To(Succeed())
+		Expect(testutil.GatherAndCompare(c, strings.NewReader(expected), MetricExporterUnattributedPods)).To(Succeed())
 	})
 })

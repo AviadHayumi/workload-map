@@ -6,7 +6,6 @@ package collector
 import (
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
 
@@ -15,8 +14,7 @@ import (
 
 func gather(t *testing.T, s *store.Store, options Options) map[string][]*dto.Metric {
 	t.Helper()
-	registry := prometheus.NewPedanticRegistry()
-	registry.MustRegister(New(s, options))
+	registry := testGatherer(t, s, options)
 	families, err := registry.Gather()
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,9 @@ import (
 	"context"
 	"reflect"
 
+	otelattribute "go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -124,7 +127,7 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 	record, err := state.Build(context.Background(), entry, u, u.GetUID(), ref)
 	record.Generation = u.GetGeneration()
 	if err != nil {
-		c.attributionErrors.WithLabelValues(collector.ReasonStatusEval).Inc()
+		c.attributionErrors.Add(context.Background(), 1, metric.WithAttributes(otelattribute.String(collector.LabelReason, collector.ReasonStatusEval)))
 		c.logger.Warn("workload state evaluation failed", "workload", ref.Namespace+"/"+ref.Name, "kind", ref.Kind, "error", err)
 	}
 	c.store.UpsertWorkload(record)
@@ -279,7 +282,7 @@ func (c *Controller) attributePod(pod *corev1.Pod) {
 		c.index.MarkPending(result.Missing, podKey)
 		return
 	case owner.OutcomeDepthExceeded:
-		c.attributionErrors.WithLabelValues(collector.ReasonNoOwner).Inc()
+		c.attributionErrors.Add(context.Background(), 1, metric.WithAttributes(otelattribute.String(collector.LabelReason, collector.ReasonNoOwner)))
 		c.store.DeletePod(pod.UID)
 		return
 	default:
@@ -319,7 +322,7 @@ func (c *Controller) attributePod(pod *corev1.Pod) {
 	} else {
 		computed, err := attribute.InstanceIDs(context.Background(), entry, workload)
 		if err != nil {
-			c.attributionErrors.WithLabelValues(collector.ReasonJQError).Inc()
+			c.attributionErrors.Add(context.Background(), 1, metric.WithAttributes(otelattribute.String(collector.LabelReason, collector.ReasonJQError)))
 		} else {
 			instanceIDs = computed
 		}
@@ -327,7 +330,7 @@ func (c *Controller) attributePod(pod *corev1.Pod) {
 
 	attribution := attribute.Attribute(context.Background(), pod, entry, instanceIDs)
 	if attribution.Reason != "" {
-		c.attributionErrors.WithLabelValues(attribution.Reason).Inc()
+		c.attributionErrors.Add(context.Background(), 1, metric.WithAttributes(otelattribute.String(collector.LabelReason, attribution.Reason)))
 	}
 
 	workloadGVK := workload.GroupVersionKind()

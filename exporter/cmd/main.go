@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -30,19 +31,22 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/server"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
+	"github.com/dsx-ai-factory/workload-map/exporter/pkg/telemetry"
 )
 
 func main() {
 	var (
-		metricsAddr    string
-		kubeconfig     string
-		fullPodCache   bool
-		useCatalog     bool
-		resync         time.Duration
-		workloadPhases string
-		podPhases      string
-		podMetricsMode string
+		metricsAddr     string
+		metricsExporter string
+		kubeconfig      string
+		fullPodCache    bool
+		useCatalog      bool
+		resync          time.Duration
+		workloadPhases  string
+		podPhases       string
+		podMetricsMode  string
 	)
+	flag.StringVar(&metricsExporter, "metrics-exporter", os.Getenv("OTEL_METRICS_EXPORTER"), "Metric delivery: prometheus (default). Overrides OTEL_METRICS_EXPORTER; other outputs are not supported yet.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address to serve /metrics, /healthz, and /readyz on.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig; empty means in-cluster configuration.")
 	flag.BoolVar(&fullPodCache, "full-pod-cache", false, "Cache full pod objects instead of the trimmed shape. Needed only for custom Kartas whose pod selectors read fields outside metadata, spec.nodeName, and status.phase.")
@@ -54,11 +58,17 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	metricsExporter, err := telemetry.ParseExporter(metricsExporter)
+	if err != nil {
+		logger.Error("invalid metric delivery", "error", err)
+		os.Exit(1)
+	}
 	metricOptions, err := collector.ParseOptions(workloadPhases, podPhases, podMetricsMode)
 	if err != nil {
 		logger.Error("invalid metric selection", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("metric delivery configured", "exporter", metricsExporter)
 	if err := run(metricsAddr, kubeconfig, fullPodCache, useCatalog, resync, metricOptions, logger); err != nil {
 		logger.Error("exporter failed", "error", err)
 		os.Exit(1)
@@ -105,19 +115,44 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
-	exporterController := controller.New(
+	provider, err := telemetry.NewPrometheusProvider(prometheusRegistry)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		if err := provider.Shutdown(shutdownCtx); err != nil {
+			logger.Error("metrics shutdown failed", "error", err)
+		}
+	}()
+	meter := provider.Meter("karta-exporter")
+
+	exporterController, err := controller.New(
 		dynamicClient, metadataClient, kubeClient, mapper,
 		kartaRegistry, ownerIndex, metricsStore,
-		prometheusRegistry, logger,
+		meter, logger,
 		controller.Options{FullPodCache: fullPodCache, Resync: resync},
 	)
+
+	if err != nil {
+		return err
+	}
 
 	metricOptions.PendingPods = ownerIndex.PendingCount
 	metricOptions.KartaCounts = func() (int, int, int) {
 		stats := kartaRegistry.Stats()
 		return stats.Valid, stats.Invalid, stats.Shadowed
 	}
-	prometheusRegistry.MustRegister(collector.New(metricsStore, metricOptions))
+	registration, err := collector.New(meter, metricsStore, metricOptions)
+	if err != nil {
+		return fmt.Errorf("register workload observations: %w", err)
+	}
+	defer func() {
+		if err := registration.Unregister(); err != nil {
+			logger.Error("unregister workload observations failed", "error", err)
+		}
+	}()
 
 	metricsServer := server.New(metricsAddr, prometheusRegistry, exporterController.Ready)
 
@@ -130,9 +165,10 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 	select {
 	case err := <-errCh:
 		cancel()
-		return err
+		otherErr := <-errCh
+		return errors.Join(err, otherErr)
 	case <-ctx.Done():
-		return <-errCh
+		return errors.Join(<-errCh, <-errCh)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -63,8 +63,8 @@ type Controller struct {
 	mu       sync.Mutex
 	watchers map[schema.GroupVersionKind]*watcher
 
-	attributionErrors *prometheus.CounterVec
-	lastEvent         prometheus.Gauge
+	attributionErrors metric.Int64Counter
+	lastEvent         metric.Float64Gauge
 
 	startedMu sync.RWMutex
 	started   bool
@@ -85,32 +85,36 @@ func New(
 	reg *registry.Registry,
 	index *owner.Index,
 	s *store.Store,
-	registerer prometheus.Registerer,
+	meter metric.Meter,
 	logger *slog.Logger,
 	options Options,
-) *Controller {
-	controller := &Controller{
-		dynamicClient:  dynamicClient,
-		metadataClient: metadataClient,
-		kubeClient:     kubeClient,
-		mapper:         mapper,
-		options:        options,
-		logger:         logger,
-		registry:       reg,
-		index:          index,
-		store:          s,
-		watchers:       make(map[schema.GroupVersionKind]*watcher),
-		attributionErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: collector.MetricExporterAttributionErrors,
-			Help: "Attribution and status evaluation errors, by reason.",
-		}, []string{collector.LabelReason}),
-		lastEvent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: collector.MetricExporterLastEventSeconds,
-			Help: "Unix timestamp of the last processed watch event. A freshness witness.",
-		}),
+) (*Controller, error) {
+	attributionErrors, err := meter.Int64Counter(collector.MetricExporterAttributionErrors,
+		metric.WithDescription("Attribution and status evaluation errors, by reason."))
+	if err != nil {
+		return nil, fmt.Errorf("create attribution error counter: %w", err)
 	}
-	registerer.MustRegister(controller.attributionErrors, controller.lastEvent)
-	return controller
+	lastEvent, err := meter.Float64Gauge(collector.MetricExporterLastEventSeconds,
+		metric.WithDescription("Unix timestamp of the last processed watch event. A freshness witness."))
+	if err != nil {
+		return nil, fmt.Errorf("create last event gauge: %w", err)
+	}
+	lastEvent.Record(context.Background(), 0)
+	controller := &Controller{
+		dynamicClient:     dynamicClient,
+		metadataClient:    metadataClient,
+		kubeClient:        kubeClient,
+		mapper:            mapper,
+		options:           options,
+		logger:            logger,
+		registry:          reg,
+		index:             index,
+		store:             s,
+		watchers:          make(map[schema.GroupVersionKind]*watcher),
+		attributionErrors: attributionErrors,
+		lastEvent:         lastEvent,
+	}
+	return controller, nil
 }
 
 // Ready reports whether all informers, including per-workload-kind watchers,
@@ -341,5 +345,5 @@ func (c *Controller) rootWatcherStore(groupKind schema.GroupKind) cache.Store {
 }
 
 func (c *Controller) markEvent() {
-	c.lastEvent.SetToCurrentTime()
+	c.lastEvent.Record(context.Background(), float64(time.Now().UnixNano())/1e9)
 }

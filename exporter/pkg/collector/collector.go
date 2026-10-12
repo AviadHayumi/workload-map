@@ -4,7 +4,11 @@
 package collector
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	"context"
+	"fmt"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
@@ -12,27 +16,33 @@ import (
 
 var workloadLabels = []string{LabelNamespace, LabelWorkload, LabelWorkloadKind, LabelWorkloadGroup, LabelWorkloadUID}
 
-// Collector renders a store snapshot as const metrics on every scrape.
-// Nothing is computed per object at scrape time beyond label assembly, and
-// deleted objects simply stop being rendered.
+// Collector observes one current store snapshot per collection.
 type Collector struct {
 	store   *store.Store
 	options Options
 
-	podInfoDesc           *prometheus.Desc
-	workloadInfoDesc      *prometheus.Desc
-	workloadStatusDesc    *prometheus.Desc
-	componentReplicasDesc *prometheus.Desc
-	componentPodsDesc     *prometheus.Desc
-	componentInfoDesc     *prometheus.Desc
-	generationDesc        *prometheus.Desc
-	createdDesc           *prometheus.Desc
-	workloadsDesc         *prometheus.Desc
-	unattributedDesc      *prometheus.Desc
-	kartasDesc            *prometheus.Desc
+	podInfo           gauge
+	workloadInfo      gauge
+	workloadStatus    gauge
+	componentReplicas gauge
+	componentPods     gauge
+	componentInfo     gauge
+	generation        gauge
+	created           gauge
+	workloads         gauge
+	unattributed      gauge
+	kartas            gauge
 }
 
-func New(s *store.Store, options Options) *Collector {
+type gauge struct {
+	name        string
+	description string
+	labels      []string
+	instrument  metric.Float64ObservableGauge
+}
+
+// New registers current-state observations. Unregister the returned registration before releasing the store.
+func New(meter metric.Meter, s *store.Store, options Options) (metric.Registration, error) {
 	if options.PodMetricsMode == "" {
 		options.PodMetricsMode = PodMetricsCounts
 	}
@@ -46,57 +56,40 @@ func New(s *store.Store, options Options) *Collector {
 	if options.PodMetricsMode != PodMetricsCounts {
 		podLabels = append(podLabels, LabelPodPhase)
 	}
-	return &Collector{
-		store:   s,
-		options: options,
-		podInfoDesc: prometheus.NewDesc(MetricPodWorkloadInfo,
-			"Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.",
-			podLabels, nil),
-		workloadInfoDesc: prometheus.NewDesc(MetricWorkloadInfo,
-			"Identity and provenance of a Karta-described workload. Value is always 1.",
-			append(append([]string{}, workloadLabels...), LabelWorkloadVersion, LabelKarta), nil),
-		workloadStatusDesc: prometheus.NewDesc(MetricWorkloadStatus,
-			"Normalized workload status. One series per phase; several phases can be 1 at the same time.",
-			append(append([]string{}, workloadLabels...), LabelPhase), nil),
-		componentReplicasDesc: prometheus.NewDesc(MetricComponentReplicas,
-			"Desired replicas per component instance, from the workload spec.",
-			append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance), nil),
-		componentPodsDesc: prometheus.NewDesc(MetricComponentPods,
-			"Observed pod count per component instance, broken down by pod phase.",
-			append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance, LabelPhase), nil),
-		componentInfoDesc: prometheus.NewDesc(MetricComponentInfo,
-			"Declared or observed component instance inventory. Value is always 1.",
-			append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance), nil),
-		generationDesc: prometheus.NewDesc(MetricWorkloadGeneration,
-			"The workload's metadata.generation. A step change marks a spec change.",
-			workloadLabels, nil),
-		createdDesc: prometheus.NewDesc(MetricWorkloadCreated,
-			"The workload's metadata.creationTimestamp as unix seconds. Steps forward when a workload is deleted and recreated under the same name.",
-			workloadLabels, nil),
-		workloadsDesc: prometheus.NewDesc(MetricExporterWorkloads,
-			"Number of Karta-described workloads currently tracked.", nil, nil),
-		unattributedDesc: prometheus.NewDesc(MetricExporterUnattributedPods,
-			"Pods the exporter could not fully attribute, by reason.", []string{LabelReason}, nil),
-		kartasDesc: prometheus.NewDesc(MetricExporterKartas,
-			"Karta definitions known to the exporter, by validity and reason.", []string{LabelValid, LabelReason}, nil),
+	c := &Collector{
+		store:             s,
+		options:           options,
+		podInfo:           gauge{name: MetricPodWorkloadInfo, description: "Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.", labels: podLabels},
+		workloadInfo:      gauge{name: MetricWorkloadInfo, description: "Identity and provenance of a Karta-described workload. Value is always 1.", labels: append(append([]string{}, workloadLabels...), LabelWorkloadVersion, LabelKarta)},
+		workloadStatus:    gauge{name: MetricWorkloadStatus, description: "Normalized workload status. One series per phase; several phases can be 1 at the same time.", labels: append(append([]string{}, workloadLabels...), LabelPhase)},
+		componentReplicas: gauge{name: MetricComponentReplicas, description: "Desired replicas per component instance, from the workload spec.", labels: append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance)},
+		componentPods:     gauge{name: MetricComponentPods, description: "Observed pod count per component instance, broken down by pod phase.", labels: append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance, LabelPhase)},
+		componentInfo:     gauge{name: MetricComponentInfo, description: "Declared or observed component instance inventory. Value is always 1.", labels: append(append([]string{}, workloadLabels...), LabelComponent, LabelComponentInstance)},
+		generation:        gauge{name: MetricWorkloadGeneration, description: "The workload's metadata.generation. A step change marks a spec change.", labels: workloadLabels},
+		created:           gauge{name: MetricWorkloadCreated, description: "The workload's metadata.creationTimestamp as unix seconds. Steps forward when a workload is deleted and recreated under the same name.", labels: workloadLabels},
+		workloads:         gauge{name: MetricExporterWorkloads, description: "Number of Karta-described workloads currently tracked.", labels: nil},
+		unattributed:      gauge{name: MetricExporterUnattributedPods, description: "Pods the exporter could not fully attribute, by reason.", labels: []string{LabelReason}},
+		kartas:            gauge{name: MetricExporterKartas, description: "Karta definitions known to the exporter, by validity and reason.", labels: []string{LabelValid, LabelReason}},
 	}
+	gauges := []*gauge{&c.podInfo, &c.workloadInfo, &c.workloadStatus,
+		&c.componentReplicas, &c.componentPods, &c.componentInfo,
+		&c.generation, &c.created, &c.workloads, &c.unattributed, &c.kartas}
+	instruments := make([]metric.Observable, 0, len(gauges))
+	for _, g := range gauges {
+		instrument, err := meter.Float64ObservableGauge(g.name, metric.WithDescription(g.description))
+		if err != nil {
+			return nil, fmt.Errorf("create instrument %s: %w", g.name, err)
+		}
+		g.instrument = instrument
+		instruments = append(instruments, instrument)
+	}
+	return meter.RegisterCallback(func(_ context.Context, observer metric.Observer) error {
+		c.collect(observer)
+		return nil
+	}, instruments...)
 }
 
-func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.podInfoDesc
-	ch <- c.workloadInfoDesc
-	ch <- c.workloadStatusDesc
-	ch <- c.componentReplicasDesc
-	ch <- c.componentPodsDesc
-	ch <- c.componentInfoDesc
-	ch <- c.generationDesc
-	ch <- c.createdDesc
-	ch <- c.workloadsDesc
-	ch <- c.unattributedDesc
-	ch <- c.kartasDesc
-}
-
-func (c *Collector) Collect(ch chan<- prometheus.Metric) {
+func (c *Collector) collect(observer metric.Observer) {
 	snapshot := c.store.Snapshot()
 
 	for _, pod := range snapshot.Pods {
@@ -106,17 +99,17 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		if c.options.PodMetricsMode != PodMetricsCounts {
 			labels = append(labels, string(pod.Phase))
 		}
-		ch <- prometheus.MustNewConstMetric(c.podInfoDesc, prometheus.GaugeValue, 1, labels...)
+		c.podInfo.observe(observer, 1, labels...)
 	}
 
 	for _, workload := range snapshot.Workloads {
 		ref := workload.Ref
-		ch <- prometheus.MustNewConstMetric(c.workloadInfoDesc, prometheus.GaugeValue, 1,
+		c.workloadInfo.observe(observer, 1,
 			ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), ref.Version, workload.Karta)
-		ch <- prometheus.MustNewConstMetric(c.generationDesc, prometheus.GaugeValue, float64(workload.Generation),
+		c.generation.observe(observer, float64(workload.Generation),
 			ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID))
 		if workload.CreatedTimestamp != 0 {
-			ch <- prometheus.MustNewConstMetric(c.createdDesc, prometheus.GaugeValue, float64(workload.CreatedTimestamp),
+			c.created.observe(observer, float64(workload.CreatedTimestamp),
 				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID))
 		}
 
@@ -130,7 +123,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 				if _, ok := matched[string(phase)]; ok {
 					value = 1.0
 				}
-				ch <- prometheus.MustNewConstMetric(c.workloadStatusDesc, prometheus.GaugeValue, value,
+				c.workloadStatus.observe(observer, value,
 					ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), string(phase))
 			}
 		}
@@ -139,13 +132,13 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			if component.Replicas == nil {
 				continue
 			}
-			ch <- prometheus.MustNewConstMetric(c.componentReplicasDesc, prometheus.GaugeValue, float64(*component.Replicas),
+			c.componentReplicas.observe(observer, float64(*component.Replicas),
 				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(workload.UID), component.Component, component.Instance)
 		}
 	}
 
-	c.collectComponents(ch, snapshot)
-	c.collectSelf(ch, snapshot)
+	c.collectComponents(observer, snapshot)
+	c.collectSelf(observer, snapshot)
 }
 
 type componentKey struct {
@@ -155,7 +148,7 @@ type componentKey struct {
 }
 
 // collectComponents preserves empty declared instances and observed attribution keys.
-func (c *Collector) collectComponents(ch chan<- prometheus.Metric, snapshot store.Snapshot) {
+func (c *Collector) collectComponents(observer metric.Observer, snapshot store.Snapshot) {
 	refs := make(map[types.UID]store.WorkloadRef, len(snapshot.Workloads))
 	keys := make(map[componentKey]struct{})
 	counts := make(map[componentKey]map[string]int)
@@ -182,22 +175,22 @@ func (c *Collector) collectComponents(ch chan<- prometheus.Metric, snapshot stor
 	for key := range keys {
 		ref := refs[key.workloadUID]
 		if c.options.PodMetricsMode != PodMetricsCounts {
-			ch <- prometheus.MustNewConstMetric(c.componentInfoDesc, prometheus.GaugeValue, 1,
+			c.componentInfo.observe(observer, 1,
 				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(key.workloadUID), key.component, key.instance)
 		}
 		if c.options.PodMetricsMode == PodMetricsInventory {
 			continue
 		}
 		for _, phase := range c.options.PodPhases {
-			ch <- prometheus.MustNewConstMetric(c.componentPodsDesc, prometheus.GaugeValue,
+			c.componentPods.observe(observer,
 				float64(counts[key][string(phase)]),
 				ref.Namespace, ref.Name, ref.Kind, ref.Group, string(key.workloadUID), key.component, key.instance, string(phase))
 		}
 	}
 }
 
-func (c *Collector) collectSelf(ch chan<- prometheus.Metric, snapshot store.Snapshot) {
-	ch <- prometheus.MustNewConstMetric(c.workloadsDesc, prometheus.GaugeValue, float64(len(snapshot.Workloads)))
+func (c *Collector) collectSelf(observer metric.Observer, snapshot store.Snapshot) {
+	c.workloads.observe(observer, float64(len(snapshot.Workloads)))
 
 	unknownInstance, jqErrors := 0, 0
 	for _, pod := range snapshot.Pods {
@@ -212,14 +205,22 @@ func (c *Collector) collectSelf(ch chan<- prometheus.Metric, snapshot store.Snap
 	if c.options.PendingPods != nil {
 		pending = c.options.PendingPods()
 	}
-	ch <- prometheus.MustNewConstMetric(c.unattributedDesc, prometheus.GaugeValue, float64(pending), ReasonNoOwner)
-	ch <- prometheus.MustNewConstMetric(c.unattributedDesc, prometheus.GaugeValue, float64(unknownInstance), ReasonUnknownInstance)
-	ch <- prometheus.MustNewConstMetric(c.unattributedDesc, prometheus.GaugeValue, float64(jqErrors), ReasonJQError)
+	c.unattributed.observe(observer, float64(pending), ReasonNoOwner)
+	c.unattributed.observe(observer, float64(unknownInstance), ReasonUnknownInstance)
+	c.unattributed.observe(observer, float64(jqErrors), ReasonJQError)
 
 	if c.options.KartaCounts != nil {
 		valid, invalid, shadowed := c.options.KartaCounts()
-		ch <- prometheus.MustNewConstMetric(c.kartasDesc, prometheus.GaugeValue, float64(valid), "true", "")
-		ch <- prometheus.MustNewConstMetric(c.kartasDesc, prometheus.GaugeValue, float64(invalid), "false", ReasonInvalid)
-		ch <- prometheus.MustNewConstMetric(c.kartasDesc, prometheus.GaugeValue, float64(shadowed), "false", ReasonShadowed)
+		c.kartas.observe(observer, float64(valid), "true", "")
+		c.kartas.observe(observer, float64(invalid), "false", ReasonInvalid)
+		c.kartas.observe(observer, float64(shadowed), "false", ReasonShadowed)
 	}
+}
+
+func (g gauge) observe(observer metric.Observer, value float64, values ...string) {
+	attributes := make([]attribute.KeyValue, len(g.labels))
+	for i, name := range g.labels {
+		attributes[i] = attribute.String(name, values[i])
+	}
+	observer.ObserveFloat64(g.instrument, value, metric.WithAttributes(attributes...))
 }

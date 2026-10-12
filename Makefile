@@ -128,6 +128,7 @@ generate-licenses: go-licence-detector ## Regenerate NOTICE and THIRD_PARTY_LICE
 		-noticeOut=NOTICE \
 		-depsTemplate=hack/licenses/third_party_licenses.tpl \
 		-depsOut=THIRD_PARTY_LICENSES; \
+	$(MAKE) -C exporter generate-licenses GO_LICENCE_DETECTOR="$(abspath $(GO_LICENCE_DETECTOR))"; \
 	echo "Done"
 
 .PHONY: download-dependencies

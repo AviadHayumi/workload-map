@@ -24,6 +24,36 @@ helm upgrade --install karta charts/karta \
 The recording rules (a PrometheusRule) are rendered by default whenever the
 exporter is enabled and the prometheus-operator CRDs are installed.
 
+## Metrics delivery
+
+Karta instruments use the OpenTelemetry Go API and SDK. The first supported
+output is the OTel Prometheus reader, served at `/metrics`. Prometheus still
+scrapes the endpoint and evaluates the existing recording rules.
+
+```bash
+karta-exporter --metrics-exporter=prometheus --metrics-bind-address=:8080
+```
+
+`OTEL_METRICS_EXPORTER=prometheus` supplies the default when the flag is absent.
+An explicit `--metrics-exporter` overrides that environment variable. When
+neither is set, Prometheus is selected. Other values fail before cluster access;
+native OTLP, multiple exporters, and `none` are not implemented.
+
+The chart can pass the selector through `exporter.extraArgs`. Existing
+`--workload-phases`, `--pod-phases`, `--pod-metrics-mode`, and `--use-catalog`
+settings keep their behavior. No new Collector deployment is required.
+
+The Prometheus reader preserves the existing names and labels. Scope and target
+metadata are disabled on Karta series. Each collection observes a current store
+snapshot, so obsolete mappings are not retained by the SDK. The provider disables
+the SDK cardinality limit because overflow would discard pod identity. Memory
+use still grows with the watched scope; this setting is not a memory bound.
+Go and process metrics retain their existing Prometheus collectors.
+
+Adding native OTLP later requires explicit configuration and tests for identity,
+deletion, freshness and backend label translation. Installing the OTel SDK does
+not enable that output automatically.
+
 ## Metric contract
 
 Every workload-scoped series carries `namespace`, `workload`,

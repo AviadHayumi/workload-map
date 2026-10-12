@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,16 +25,16 @@ type Server struct {
 func New(addr string, gatherer prometheus.Gatherer, ready func() bool) *Server {
 	mux := http.NewServeMux()
 	metricsHandler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
-	everReady := false
+	var everReady atomic.Bool
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		// a half-built store must fail the scrape visibly, not serve
 		// plausible zeros; once synced, keep serving forever
-		if !everReady {
+		if !everReady.Load() {
 			if !ready() {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}
-			everReady = true
+			everReady.Store(true)
 		}
 		metricsHandler.ServeHTTP(w, r)
 	})

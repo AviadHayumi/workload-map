@@ -62,6 +62,17 @@ test: ## Run unit tests
 .PHONY: check
 check: fmt-check vet lint test ## Run all checks (fmt-check, vet, lint, test)
 
+# This module can select dependency versions different from the library and CLI.
+GO_LICENCE_DETECTOR ?= $(abspath ../bin/go-licence-detector)
+
+.PHONY: generate-licenses
+generate-licenses: $(LOCALBIN) ## Generate the exporter's dependency license reports.
+	@test -x "$(GO_LICENCE_DETECTOR)" || $(MAKE) -C .. go-licence-detector
+	go mod download -json > $(LOCALBIN)/deps.json
+	$(GO_LICENCE_DETECTOR) -in $(LOCALBIN)/deps.json \
+		-noticeTemplate=../hack/licenses/notice.tpl -noticeOut=NOTICE \
+		-depsTemplate=../hack/licenses/third_party_licenses.tpl -depsOut=THIRD_PARTY_LICENSES
+
 ##@ Build
 
 .PHONY: build
