@@ -217,13 +217,25 @@ Adding one means, in order:
      server, and name objects `karta-e2e-<workload>-<flow>`.
    - Install: if the operator is new or its install needs new pieces, follow
      Adding an operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`,
-     `smoke.yaml`, the version pin in `global.env`, `ALL_WORKLOADS` and
+     executable `check-updates.sh`, `smoke.yaml`, the version pin in
+     `global.env`, `ALL_WORKLOADS` and
      `version_of` in `up.sh`) so `make e2e-up` still provisions everything. A
      new kind for an operator already installed keeps its directory, pin, and
      `up.sh` entries; it extends any flag in `install.sh` that gates which
      kinds the controller serves and adds a `<kind>-smoke.yaml` plus a
      `run_smoke` line in `verify.sh`. A Kubernetes builtin needs none of
      this.
+   - Update checks: every external workload and infrastructure operator needs
+     a checker registered in `hack/e2e/check-updates.sh`. Infrastructure
+     checkers live under `hack/e2e/infra/<name>/`, including operators whose
+     installation is centralized in `up.sh`. Inspect a local upstream clone
+     for the installed artifact's release convention, document pinned source
+     evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and extend the offline Go
+     tests in `hack/operator-updates/`. Run `make test-e2e-updates`; its
+     registration check catches missing or non-executable wrappers. The
+     checker reports candidate tags, while support-policy review and
+     install/smoke/record/replay establish compatibility. It does not replace
+     `verify.sh`. Kubernetes builtins and locally built Karta are exempt.
    - Naming: the operator directory takes the upstream project's short name
      (`kuberay`, `spark-operator`). `Fixture.Operator` in the flow must equal
      that directory name; that is how the recording is filed under the

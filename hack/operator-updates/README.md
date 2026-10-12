@@ -1,0 +1,112 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
+
+# Operator update checker
+
+This Go command compares Karta's operator pins with public upstream Git tags.
+It uses only the standard library and belongs to the root Go module. It reports
+candidate versions and links to changes; it does not certify upstream support
+or Karta compatibility. Installation, smoke checks, recording, and replay remain
+separate validation steps.
+
+## Run
+
+Run from the repository root with Bash, Git, and the Go version in `go.mod`:
+
+```sh
+make e2e-operators-check-latest-supported-versions
+make e2e-operators-check-latest-supported-versions OPERATORS="jobset infra"
+make e2e-operators-check-latest-supported-versions UPDATE_FLAGS=--fail-on-update
+make e2e-operators-check-latest-supported-versions UPDATE_FLAGS=--include-prereleases
+./hack/e2e/operators/jobset/check-updates.sh
+./hack/e2e/infra/fake-gpu-operator/check-updates.sh
+JOBSET_VERSION=v0.11.0 ./hack/e2e/operators/jobset/check-updates.sh
+```
+
+The Bash wrappers read `hack/e2e/global.env`, preserving environment overrides.
+Their shared `_updates.sh` builds `bin/operator-updates` before running it. The
+aggregate builds once and passes the executable to each selected wrapper.
+Python, a cluster, Docker, Helm, and a GitHub token are not required.
+
+To reuse a binary instead of building at invocation time:
+
+```sh
+make build-operator-updates
+E2E_OPERATOR_UPDATES_BIN="$PWD/bin/operator-updates" \
+  ./hack/e2e/check-updates.sh jobset
+```
+
+The Go CLI also accepts the component mapping directly:
+
+```sh
+. ./hack/e2e/global.env
+./bin/operator-updates --fail-on-update \
+  --operator jobset "$JOBSET_VERSION" kubernetes-sigs/jobset v stable ""
+go run ./hack/operator-updates --include-prereleases \
+  --operator jobset "$JOBSET_VERSION" kubernetes-sigs/jobset v stable ""
+```
+
+Repeat `--operator NAME PIN REPO PREFIX CHANNEL NOTE` to check several components.
+Use `--exclude-tag TAG` for a known retraction (repeatable), `--no-header` to
+suppress the column header, or `--help` to list options. The final empty argument
+above is an optional note; its position is required.
+
+`E2E_OPERATOR_UPDATES_BIN` must name an executable file; use an absolute path
+because wrappers also run outside the repository directory. A prebuilt binary
+requires only Bash and Git at runtime. Invoke the binary directly when its exit
+code matters; `go run` does not preserve the command's exit code 2.
+
+## Report and selection
+
+| Status | Meaning |
+| --- | --- |
+| `NEW` | At least one matching tag is newer than the effective pin. |
+| `CURRENT` | The pin has the same precedence as the latest matching tag. |
+| `AHEAD` | The pin is newer than the latest matching tag. |
+| `ERROR` | The input or tag lookup failed; other checks continue. |
+
+The aggregate summary names groups with updates. Kubeflow checks Training
+Operator and MPI Operator; Knative checks Serving and Kourier. The `infra`
+selector covers cert-manager, Fake GPU Operator, and KAI Scheduler.
+
+The checker uses the installed component's tag namespace and release channel,
+including Grove alpha releases and known KAI Scheduler retractions. Stable
+releases are otherwise the default. `--include-prereleases` includes prerelease
+tags within that namespace. The mappings and clone-verified release sources
+are in [UPSTREAM_RELEASES.md](../e2e/UPSTREAM_RELEASES.md).
+
+Script and binary exit codes are 0 for a successful report, 1 for input or
+lookup errors, and 2 for detected updates when `--fail-on-update` is set. Errors
+take precedence over updates. Make uses its own nonzero failure code. Git tag
+lookups require public GitHub access, are noninteractive, and have a bounded
+timeout. The checker does not change pins or contact Kubernetes.
+
+## Add an operator
+
+Every external workload and infrastructure operator needs an executable
+`check-updates.sh` as well as installation and smoke verification coverage.
+Kubernetes builtins and Karta built from the checkout are exempt.
+
+1. Inspect a local clone of each upstream component's release workflow or guide.
+   Confirm the repository, exact tag prefix, channel, and mapping to the chart
+   or manifest the installer uses. Document pinned public source evidence in
+   `hack/e2e/UPSTREAM_RELEASES.md`.
+2. Add the Bash wrapper at `hack/e2e/operators/<name>/check-updates.sh`, beside
+   `install.sh` and `verify.sh`, or `hack/e2e/infra/<name>/check-updates.sh` for
+   infrastructure. Source `_updates.sh` and call `check_updates` with one
+   `--operator NAME PIN REPO PREFIX CHANNEL NOTE` per versioned component.
+   Forward `"$@"` and make the wrapper executable. Existing wrappers show
+   retracted-tag exclusions and groups with multiple components.
+3. Register the group in `ALL_OPERATORS` in `hack/e2e/check-updates.sh`.
+   Infrastructure groups must also join its `infra` selector. Infrastructure
+   installation may remain centralized in `up.sh`.
+4. Add offline Go tests here for the repository and tag namespace, filtering,
+   and any release exceptions. Preserve the regression that checks every
+   workload installer module and infrastructure directory has an executable
+   checker and aggregate registration. Run `make test-e2e-updates` and
+   `make lint-shell`, then the install/smoke/record/replay checks for the
+   affected operator and `make check` before pushing.
+
+The offline tests exercise the CLI, Bash wrappers, and Make target with fake Git
+responses. They do not query upstream or provision a cluster. The package also
+runs in the root module's normal Go test and lint checks.
