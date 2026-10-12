@@ -4,14 +4,15 @@
 # Operator update checker
 
 This Go command compares Karta's operator pins with public upstream Git tags.
-It uses only the standard library and belongs to the root Go module. It reports
+It uses only the standard library and has its own Go module. It reports
 candidate versions and links to changes; it does not certify upstream support
 or Karta compatibility. Installation, smoke checks, recording, and replay remain
 separate validation steps.
 
 ## Run
 
-Run from the repository root with Bash, Git, and the Go version in `go.mod`:
+Run from the repository root with Bash, Git, and the Go version in
+`hack/operator-updates/go.mod`:
 
 ```sh
 make e2e-operators-check-latest-supported-versions
@@ -42,7 +43,7 @@ The Go CLI also accepts the component mapping directly:
 . ./hack/e2e/global.env
 ./bin/operator-updates --fail-on-update \
   --operator jobset "$JOBSET_VERSION" kubernetes-sigs/jobset v stable ""
-go run ./hack/operator-updates --include-prereleases \
+GOWORK=off go -C hack/operator-updates run . --include-prereleases \
   --operator jobset "$JOBSET_VERSION" kubernetes-sigs/jobset v stable ""
 ```
 
@@ -127,5 +128,13 @@ Kubernetes builtins and Karta built from the checkout are exempt.
    Infrastructure modules do not need separate catalog definitions or recordings.
 
 The offline tests exercise the CLI, Bash wrappers, and Make target with fake Git
-responses. They do not query upstream or provision a cluster. The package also
-runs in the root module's normal Go test and lint checks.
+responses. They do not query upstream or provision a cluster.
+
+The root Makefile includes this module in `GO_MODULES` and `COMPONENTS`, so
+`make check` runs its formatting, vet, lint, module, and test checks. Use
+`make check-operator-updates` to run only those checks. Direct Go commands in
+this directory use `GOWORK=off`; no workspace entry is needed.
+
+The repository's Renovate scanner discovers the module from `go.mod`; no manual
+`includePaths` entry is needed in `renovate.json`. The checker has no third-party
+dependencies, so it does not need a `go.sum`.

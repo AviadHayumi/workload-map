@@ -101,8 +101,8 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	build := exec.CommandContext(ctx, goBinary, "build", "-o", harness.binary, "./hack/operator-updates")
-	build.Dir = root
+	build := exec.CommandContext(ctx, goBinary, "build", "-o", harness.binary, ".")
+	build.Dir = filepath.Join(root, "hack", "operator-updates")
 	build.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local",
 		"GOFLAGS=-mod=readonly", "GOOS="+runtime.GOOS, "GOARCH="+runtime.GOARCH)
 	if output, err := build.CombinedOutput(); err != nil {
@@ -357,6 +357,69 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 			t.Errorf("infra alias reports = %v, infrastructure directories = %v", reportedInfra, expectedInfra)
 		}
 	})
+}
+
+func TestOperatorUpdatesStandaloneBuild(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := t.TempDir()
+	files := []string{
+		"hack/operator-updates/go.mod",
+		"hack/e2e/_updates.sh",
+		"hack/e2e/global.env",
+		"hack/e2e/operators/jobset/check-updates.sh",
+	}
+	sources, err := filepath.Glob(filepath.Join(root, "hack", "operator-updates", "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range sources {
+		if !strings.HasSuffix(source, "_test.go") {
+			files = append(files, filepath.Join("hack", "operator-updates", filepath.Base(source)))
+		}
+	}
+	for _, file := range files {
+		content, err := os.ReadFile(filepath.Join(root, file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		destination := filepath.Join(fixture, file)
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(destination, content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An unavailable product module must not prevent this standalone tool from building.
+	workspace := filepath.Join(fixture, "go.work")
+	if err := os.WriteFile(workspace, []byte("go 1.25.0\nuse ./missing-product\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeGit := "#!/bin/sh\nprintf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\trefs/tags/v1.1.0\\n'\n"
+	if err := os.WriteFile(filepath.Join(fixture, "git"), []byte(fakeGit), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, "bash", filepath.Join(fixture, "hack", "e2e", "operators", "jobset", "check-updates.sh"))
+	command.Dir = t.TempDir()
+	command.Env = append(os.Environ(),
+		"PATH="+fixture+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"E2E_OPERATOR_UPDATES_BIN=", "JOBSET_VERSION=v1.0.0", "GO_VERSION="+strings.TrimPrefix(runtime.Version(), "go"),
+		"GOWORK="+workspace, "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local",
+		"GOFLAGS=-mod=readonly", "GOOS="+runtime.GOOS, "GOARCH="+runtime.GOARCH)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run standalone wrapper: %v\n%s", err, output)
+	}
+	for _, want := range []string{"NEW", "jobset", "v1.1.0"} {
+		if !strings.Contains(string(output), want) {
+			t.Errorf("output missing %q\n%s", want, output)
+		}
+	}
 }
 
 func (h scriptHarness) run(t *testing.T, test scriptCase) scriptResult {

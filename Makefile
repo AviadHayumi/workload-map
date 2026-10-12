@@ -17,12 +17,12 @@ GO_LDFLAGS  := -X $(VERSION_PKG).version=$(VERSION)
 LDFLAGS     := -ldflags "$(GO_LDFLAGS)"
 
 # The component inventory every aggregate fans out over.
-COMPONENTS := lib cli operator karta-wasm release-helper
+COMPONENTS := lib cli operator karta-wasm release-helper operator-updates
 
 # Every Go module in the repo. The tidy target fans out over this rather than
 # COMPONENTS because an untidy manifest in a module that ships no
 # binary (the examples, the e2e fixtures) still breaks a downstream `go get`.
-GO_MODULES := . cli karta-wasm operator test/e2e hack/imagelock \
+GO_MODULES := . cli karta-wasm operator test/e2e hack/imagelock hack/operator-updates \
 	docs/examples/quickstart docs/examples/controller-runtime \
 	hack/e2e/operators/nim/image
 
@@ -126,7 +126,7 @@ clean: ## Remove build outputs, coverage profiles, and release and plugin artifa
 	rm -fv "$(LOCALBIN)"/*-tidy.mod "$(LOCALBIN)"/*-tidy.sum "$(LOCALBIN)"/*-license.mod "$(LOCALBIN)"/*-license.sum "$(LOCALBIN)"/*deps.json
 	rm -fv operator/cover-unit.out operator/cover-integration.out
 	rm -fv karta-wasm/karta.wasm karta-wasm/wasm_exec.js
-	rm -fv hack/imagelock/imagelock hack/release/release
+	rm -fv hack/imagelock/imagelock hack/release/release hack/operator-updates/operator-updates
 	rm -fv "$(PROJECT_DIR)"/karta-*.tgz
 	rm -rfv "$(DIST_DIR)" "$(IMAGE_LOCK_OUT_DIR)" headlamp-plugin/dist "$(PROJECT_DIR)/.artifacts"
 
@@ -249,6 +249,40 @@ modules-check-release-helper: ## Verify release helper module metadata is tidy a
 
 .PHONY: check-release-helper
 check-release-helper: fmt-check-release-helper vet-release-helper lint-release-helper modules-check-release-helper test-release-helper ## Full release helper presubmit
+
+##@ Operator update checker (nested module)
+
+.PHONY: fmt-operator-updates
+fmt-operator-updates: ## Format the operator update checker
+	cd hack/operator-updates && GOWORK=off go fmt ./...
+
+.PHONY: fmt-check-operator-updates
+fmt-check-operator-updates: ## Check operator update checker formatting
+	@set -e; \
+	cd hack/operator-updates; \
+	dirs="$$(GOWORK=off go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-operator-updates
+vet-operator-updates: ## Vet the operator update checker
+	cd hack/operator-updates && GOWORK=off go vet ./...
+
+.PHONY: lint-operator-updates
+lint-operator-updates: golangci-lint ## Lint the operator update checker
+	cd hack/operator-updates && GOWORK=off $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-operator-updates
+test-operator-updates: ## Test operator update detection offline
+	cd hack/operator-updates && GOWORK=off go test ./...
+
+.PHONY: modules-check-operator-updates
+modules-check-operator-updates: ## Verify operator update checker module metadata
+	cd hack/operator-updates && GOWORK=off go mod tidy -diff
+	cd hack/operator-updates && GOWORK=off go mod verify
+
+.PHONY: check-operator-updates
+check-operator-updates: fmt-check-operator-updates vet-operator-updates lint-operator-updates modules-check-operator-updates test-operator-updates ## Full operator update checker presubmit
 
 ##@ CLI
 
@@ -655,11 +689,10 @@ e2e-operators-check-latest-supported-versions: ## Report newer workload and infr
 
 .PHONY: build-operator-updates
 build-operator-updates: $(LOCALBIN) ## Build the operator update checker into bin/
-	go build -o "$(LOCALBIN)/operator-updates" ./hack/operator-updates
+	cd hack/operator-updates && GOWORK=off go build -o "$(abspath $(LOCALBIN))/operator-updates" .
 
 .PHONY: test-e2e-updates
-test-e2e-updates: ## Test operator update detection offline (also covered by test-lib)
-	go test ./hack/operator-updates/...
+test-e2e-updates: test-operator-updates ## Test operator update detection offline (also covered by make check)
 
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)

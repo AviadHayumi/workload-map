@@ -74,8 +74,8 @@ product release dependency graph. The internal `hack/release` helper has its own
 module outside the workspace so release-only imports do not become direct
 product dependencies and its pinned dependency graph remains isolated. Run
 direct Go commands inside nested modules such as `hack/release`, `karta-wasm`,
-`test/e2e`, `hack/imagelock`, and `docs/examples` with `GOWORK=off`. The root
-Makefile already sets this for its targets.
+`test/e2e`, `hack/imagelock`, `hack/operator-updates`, and `docs/examples` with
+`GOWORK=off`. The root Makefile already sets this for its targets.
 
 ## Code Style
 

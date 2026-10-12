@@ -38,7 +38,7 @@ hack/e2e/
       <config>.yaml     optional co-located config (e.g. grove/values.yaml)
 ```
 
-The shared tag checker lives in `hack/operator-updates/`, in the root Go module.
+The shared tag checker lives in its own Go module at `hack/operator-updates/`.
 Its [README](../operator-updates/README.md) describes the CLI and release mapping
 contract.
 

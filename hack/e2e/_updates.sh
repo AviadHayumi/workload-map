@@ -13,7 +13,7 @@ prepare_update_checker() {
     root="$(cd "${_UPDATES_DIR}/../.." && pwd)"
     mkdir -p "${root}/bin" || return 1
     # Build once for the aggregate invocation and share the executable with its wrappers.
-    if ! (cd "${root}" && go build -o "${root}/bin/operator-updates" ./hack/operator-updates); then
+    if ! (cd "${root}/hack/operator-updates" && GOWORK=off go build -o "${root}/bin/operator-updates" .); then
       echo "failed to build the operator update checker" >&2
       return 1
     fi
