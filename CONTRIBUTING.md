@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
+
 # Contributing to karta
 
 Thank you for your interest in contributing to karta! This document provides guidelines and instructions for contributing to this project.
@@ -75,6 +78,12 @@ For more information about the DCO, please visit: https://developercertificate.o
 2. Ensure your code follows the project's coding standards and conventions
 3. Every pull request must reference at least one open GitHub issue in its description. This ensures that all changes are tracked and linked to project requirements or bug reports.
 4. For major changes, please open an issue first to discuss the proposed changes
+
+### Design Proposals
+
+For changes that need design agreement before implementation, follow the
+[Karta Enhancement Proposal process](keps/README.md). It describes when to write
+one and provides a template.
 
 ### Development Environment Setup
 
