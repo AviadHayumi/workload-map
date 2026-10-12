@@ -11,10 +11,30 @@
 
 ## Summary
 
-Expose pod-to-workload attribution and normalized state for workloads covered
-by Karta definitions. Prometheus joins attribution with existing GPU, CPU and
-memory measurements; Grafana groups usage by workload and component. This draft
-defines the proposed exporter's metrics. Logic and deployment remain undecided.
+The Karta metrics exporter reads Karta definitions, workloads and pods from the
+Kubernetes API. It uses the Karta library internally to interpret these objects
+and exposes pod-to-workload attribution and normalized workload state at `/metrics`.
+
+Prometheus scrapes these metrics and joins attribution with existing GPU, CPU
+and memory measurements. Grafana queries Prometheus to show usage by workload
+and component.
+
+```mermaid
+flowchart TB
+    api["Kubernetes API<br/>Definitions, workloads and pods"]
+    subgraph exporter["Karta metrics exporter"]
+        karta["Karta library<br/>Interpret objects using definitions"]
+        metrics["/metrics<br/>Attribution and normalized state"]
+        karta --> metrics
+    end
+    api -->|Read objects| karta
+    metrics -->|Scraped by| prometheus["Prometheus<br/>Join attribution with usage"]
+    usage["Existing GPU, CPU<br/>and memory metrics"] -->|Scraped by| prometheus
+    prometheus -->|Queried by| grafana["Grafana<br/>Usage by workload and component"]
+```
+
+This proposal defines the metrics contract. Discovery, caching and deployment
+details remain open.
 
 ## Motivation
 
