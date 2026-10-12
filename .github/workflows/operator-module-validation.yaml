@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+name: Operator review validation
+
+on:
+  push:
+    branches: [codex/operator-review-validation-3757752b]
+
+permissions:
+  contents: read
+
+jobs:
+  module:
+    if: github.repository == 'AviadHayumi/workload-map'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: hack/operator-updates/go.mod
+          cache: false
+      - name: Record candidate commit
+        run: |
+          mkdir -p .artifacts
+          git rev-parse HEAD^ | tee .artifacts/candidate-commit.txt
+      - name: Check standalone module and build
+        run: |
+          set -o pipefail
+          make check-operator-updates build-operator-updates 2>&1 | tee .artifacts/module-checks.log
+          make lint-shell
+          go test ./hack/e2e
+      - name: Check public operator tags
+        run: |
+          set -o pipefail
+          make e2e-operators-check-latest-supported-versions 2>&1 | tee .artifacts/operator-updates.log
+      - name: Upload validation output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: operator-module-validation
+          path: .artifacts/
+          include-hidden-files: true
