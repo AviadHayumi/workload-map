@@ -28,7 +28,7 @@ This release extends Karta from a CRD and Go library into an optional runnable s
 Helm chart (from GHCR):
 
 ```bash
-helm install karta oci://ghcr.io/run-ai/karta/sdk/karta --version 0.2.0
+helm install karta oci://ghcr.io/run-ai/karta/karta --version 0.2.0
 ```
 
 Go consumers:
@@ -178,7 +178,7 @@ This release completes the project rename from `ri` / `krt` to karta, decouples 
 Helm chart (from GHCR):
 
 ```bash
-helm install karta oci://ghcr.io/run-ai/karta/sdk/karta --version 0.1.0
+helm install karta oci://ghcr.io/run-ai/karta/karta --version 0.1.0
 ```
 
 Go consumers:

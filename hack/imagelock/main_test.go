@@ -151,7 +151,7 @@ func TestParseFlagsRejectsBadStabilityReads(t *testing.T) {
 func TestResolveMultiArch(t *testing.T) {
 	reg := httptest.NewServer(registry.New())
 	defer reg.Close()
-	ref := mustHost(t, reg.URL) + "/karta/sdk/karta-operator:1.2.3"
+	ref := mustHost(t, reg.URL) + "/karta/karta-operator:1.2.3"
 
 	amd64, err := random.Image(256, 1)
 	if err != nil {

@@ -29,11 +29,11 @@ import (
 // never references a CRD-specific field path to compute these values — Karta
 // resolves them from the structure definition stored in the cluster.
 const (
-	annotationStatus   = "karta/sdk/status"
-	annotationReplicas = "karta/sdk/replicas"
-	annotationCPU      = "karta/sdk/cpu-request"
-	annotationMemory   = "karta/sdk/memory-request"
-	annotationGPU      = "karta/sdk/gpu-request"
+	annotationStatus   = "karta/status"
+	annotationReplicas = "karta/replicas"
+	annotationCPU      = "karta/cpu-request"
+	annotationMemory   = "karta/memory-request"
+	annotationGPU      = "karta/gpu-request"
 
 	// managedByLabel is injected into every pod-bearing component's template through Karta.
 	managedByLabelKey   = "app.kubernetes.io/managed-by"

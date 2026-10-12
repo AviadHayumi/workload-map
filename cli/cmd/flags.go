@@ -41,7 +41,7 @@ func withOutput(cmd *cobra.Command, flags *pflag.FlagSet, supportsWide bool) *En
 // withConfig registers the --config persistent flag on cmd.
 func withConfig(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagConfig, "",
-		"Path to the config file (default $KARTA_CONFIG or $HOME/.karta/sdk/config.yaml)")
+		"Path to the config file (default $KARTA_CONFIG or $HOME/.karta/config.yaml)")
 }
 
 // withPhase registers the repeatable --phase enum flag on flags, along with its

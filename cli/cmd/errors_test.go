@@ -24,7 +24,7 @@ func exitCodeOf(t *testing.T, args ...string) (int, error) {
 }
 
 // isolateConfig points config discovery at an empty environment, so a test does
-// not depend on the developer's own ~/.karta/sdk/config.yaml.
+// not depend on the developer's own ~/.karta/config.yaml.
 func isolateConfig(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())

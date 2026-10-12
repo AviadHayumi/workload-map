@@ -3,7 +3,7 @@
 
 import { ApiProxy } from '@kinvolk/headlamp-plugin/lib';
 import { useEffect, useRef, useState } from 'react';
-import { GroupVersionKind } from '../../lib/karta/sdk/karta.types';
+import { GroupVersionKind } from '../../lib/karta/karta.types';
 
 export interface ServedKind {
   // Only discovery knows this: MPIJob is "mpijobs", Milvus is "milvuses".

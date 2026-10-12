@@ -39,7 +39,7 @@ workload Karta can describe:
 3. Aggregate replica counts and container resource requests across every
    component (root and children), so the totals are right even though the leader
    and worker pods live in separate child components.
-4. Write the results back as `karta/sdk/*` annotations, and emit a `StatusChanged`
+4. Write the results back as `karta/*` annotations, and emit a `StatusChanged`
    Kubernetes Event on each real status transition (a single canonical phase, so
    no churn through transient or simultaneous states).
 5. Inject a pod-template label into every pod-bearing component (leader and
@@ -136,11 +136,11 @@ Expected annotations once the group is ready (replicas sums the group, leader an
 worker components; cpu/memory sum the leader and worker requests):
 
 ```text
-karta/sdk/status: Running
-karta/sdk/replicas: 4
-karta/sdk/cpu-request: 200m
-karta/sdk/memory-request: 128Mi
-karta/sdk/gpu-request: 0
+karta/status: Running
+karta/replicas: 4
+karta/cpu-request: 200m
+karta/memory-request: 128Mi
+karta/gpu-request: 0
 ```
 
 The label injection is recorded as a single event:

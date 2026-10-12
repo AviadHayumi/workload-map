@@ -8,7 +8,7 @@ vi.mock('@kinvolk/headlamp-plugin/lib', () => ({ ApiProxy: { request } }));
 
 import { getKartaWasm, loadScriptViaApiProxy } from './karta';
 
-const PATH = '/plugins/karta/sdk/wasm_exec.js';
+const PATH = '/plugins/karta/wasm_exec.js';
 
 // Waits for loadScriptViaApiProxy to inject its <script> tag, then returns
 // it so a test can drive script.onload/onerror itself — jsdom never

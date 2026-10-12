@@ -2,9 +2,9 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 import { useEffect, useState } from 'react';
-import { Definition, KartaCR, mergeDefinitions } from '../../lib/karta/sdk/definitions';
-import { Karta } from '../../lib/karta/sdk/karta.types';
-import { listCatalog } from '../../lib/karta/sdk/kartaUtil';
+import { Definition, KartaCR, mergeDefinitions } from '../../lib/karta/definitions';
+import { Karta } from '../../lib/karta/karta.types';
+import { listCatalog } from '../../lib/karta/kartaUtil';
 
 export interface UseKartaDefinitionsResult {
   definitions: Definition[];
