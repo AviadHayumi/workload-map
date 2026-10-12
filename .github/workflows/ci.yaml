@@ -90,7 +90,10 @@ jobs:
 
   operator-e2e:
     name: Operator E2E (${{ matrix.webhook }})
-    if: github.event_name == 'push'
+    # Every push, and a pull request that changes the Karta operator install,
+    # chart or image.
+    needs: e2e-install-changes
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.e2e-install-changes.outputs.karta == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -102,6 +105,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -147,6 +152,117 @@ jobs:
       - name: Tear down
         if: always()
         run: make e2e-down
+
+  e2e-install-changes:
+    name: Operator install changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      operators: ${{ steps.detect.outputs.operators }}
+      karta: ${{ steps.detect.outputs.karta }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # The detector diffs the pull request against its base branch.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect operators whose install changed
+        id: detect
+        # bash here means pipefail, so a detector failure fails the step
+        # instead of leaving tee to report success with empty outputs.
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: ./hack/e2e/changed-operators.sh "origin/${BASE_REF}" | tee -a "$GITHUB_OUTPUT"
+
+  operator-install:
+    name: Operator install (${{ matrix.operator }})
+    needs: e2e-install-changes
+    if: github.event_name == 'pull_request' && needs.e2e-install-changes.outputs.operators != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        operator: ${{ fromJSON(needs.e2e-install-changes.outputs.operators) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read pinned tool versions
+        run: |
+          . ./hack/e2e/global.env
+          {
+            echo "KIND_VERSION=$KIND_VERSION"
+            echo "KUBECTL_VERSION=$KUBECTL_VERSION"
+            echo "HELM_VERSION=$HELM_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: Install helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kind and kubectl
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          install_only: true
+          version: ${{ env.KIND_VERSION }}
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+
+      # A fresh cluster is the only place an install script proves itself:
+      # namespaces the manifest does not ship, CRDs that must exist before a
+      # controller starts, webhooks that must be ready before their objects.
+      - name: Install the operator on a fresh cluster
+        env:
+          OPERATOR: ${{ matrix.operator }}
+        run: make e2e-up WORKLOADS="$OPERATOR"
+
+      - name: Collect diagnostics
+        if: failure()
+        run: kind export logs .artifacts/kind --name karta-e2e || true
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operator-install-artifacts-${{ matrix.operator }}
+          path: .artifacts/
+          include-hidden-files: true
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: always()
+        run: make e2e-down
+
+  # One fixed-name check for branch protection: the matrix job names vary per
+  # operator and a skipped matrix must still count as green.
+  e2e-install-gate:
+    name: Operator install gate
+    needs: [e2e-install-changes, operator-install, operator-e2e]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Fail unless every selected install passed
+        env:
+          DETECT: ${{ needs.e2e-install-changes.result }}
+          INSTALL: ${{ needs.operator-install.result }}
+          KARTA: ${{ needs.operator-e2e.result }}
+        run: |
+          echo "detector=${DETECT} operator-install=${INSTALL} operator-e2e=${KARTA}"
+          [ "${DETECT}" = "success" ] || exit 1
+          case "${INSTALL}" in success|skipped) ;; *) exit 1 ;; esac
+          case "${KARTA}" in success|skipped) ;; *) exit 1 ;; esac
 
   headlamp-plugin-ci:
     name: Headlamp Plugin Build
