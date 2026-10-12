@@ -11,7 +11,7 @@
 {{- end -}}
 {{- end -}}
 {{- range $level := $rule.levels -}}
-{{- if not (has $level (list "workload" "component" "component_instance")) -}}
+{{- if not (has $level (list "workload" "component" "component_instance" "replica")) -}}
 {{- fail (printf "invalid exporter recording level %q" $level) -}}
 {{- end -}}
 {{- end -}}
@@ -22,6 +22,7 @@
   (dict "suffix" "workload" "groupLeft" "workload, workload_kind, workload_group, workload_uid" "selector" "")
   (dict "suffix" "component" "groupLeft" "workload, workload_kind, workload_group, workload_uid, component" "selector" "{component!=\"<unknown>\"}")
   (dict "suffix" "component_instance" "groupLeft" "workload, workload_kind, workload_group, workload_uid, component, component_instance" "selector" "{component!=\"<unknown>\",component_instance!=\"<unknown>\"}")
+  (dict "suffix" "replica" "groupLeft" "workload, workload_kind, workload_group, workload_uid, component, component_instance, replica" "selector" "{component!=\"<unknown>\",component_instance!=\"<unknown>\",replica!=\"\"}")
 -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

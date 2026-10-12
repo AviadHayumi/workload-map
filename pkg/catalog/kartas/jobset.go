@@ -63,10 +63,13 @@ func Jobset() *v1alpha1.Karta {
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
 							// Total pods per replicatedJob = replicas (Job instances) * parallelism (pods per Job).
-							ReplicasPath: ptr.To(".spec.replicatedJobs[] | .replicas * .template.spec.parallelism"),
+							ReplicasPath: ptr.To(".spec.replicatedJobs[] | (.replicas // 1) * (.template.spec.parallelism // 1)"),
 						},
 						InstanceIdPath: ptr.To(".spec.replicatedJobs[].name"),
 						PodSelector: &v1alpha1.PodSelector{
+							ReplicaSelector: &v1alpha1.ReplicaSelector{
+								KeyPath: `.metadata.labels["jobset.sigs.k8s.io/job-index"]`,
+							},
 							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
 								IdPath: `.metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]`,
 							},

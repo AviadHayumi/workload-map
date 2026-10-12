@@ -17,6 +17,7 @@ import (
 
 // Entry is a validated Karta chosen to serve its (group, kind).
 type Entry struct {
+	Catalog     bool
 	Karta       *v1alpha1.Karta
 	RootGVK     schema.GroupVersionKind
 	Summary     *instructions.StructureSummary
@@ -197,6 +198,7 @@ func (r *Registry) recomputeLocked() {
 		if err != nil {
 			continue
 		}
+		entry.Catalog = true
 		chosen[groupKind] = entry
 	}
 	r.chosen = chosen

@@ -193,7 +193,7 @@ exporter-rules-test: ## Render the chart's recording rules and run the promtool 
 		--set 'exporter.prometheusRule.joinLabels={namespace,pod,uid}' \
 		| python3 hack/extract-prometheus-rules.py > exporter/test/rules/.rendered/karta-uid-rules.yaml; \
 	promtool check rules exporter/test/rules/.rendered/karta-uid-rules.yaml; \
-	cd exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml
+	cd exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml replica-tests.yaml kep-tests.yaml
 
 ##@ Air-gap
 

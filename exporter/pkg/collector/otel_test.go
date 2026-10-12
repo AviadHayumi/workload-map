@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
@@ -76,6 +77,8 @@ func TestOTelMatchesLegacyAcrossCollections(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// Health is an additive contract introduced after the legacy collector.
+				got = slices.DeleteFunc(got, func(f *dto.MetricFamily) bool { return f.GetName() == MetricExporterResourceHealthy })
 				if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 					t.Fatalf("collection %d differs (-legacy +OTel):\n%s", step, diff)
 				}

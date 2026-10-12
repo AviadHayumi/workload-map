@@ -3,6 +3,10 @@
 
 # Karta Metrics Exporter
 
+This guide describes the current prototype. The proposed three-metric contract and
+remaining release work are in [KEP-0004](../keps/0004-metrics-exporter/README.md).
+
+
 The exporter makes existing per-pod metrics addressable at workload and
 component scope. It watches Karta CRs, the workloads they describe, and
 pods, and publishes identity and state series. Recording rules shipped in
@@ -88,11 +92,11 @@ failure.
 Recorded aggregate names (part of the same contract):
 
 ```text
-karta:gpu_utilization:{workload|component|component_instance}
-karta:gpu_memory_used_bytes:{workload|component|component_instance}
-karta:gpu_memory_total_bytes:{workload|component|component_instance}
-karta:cpu_usage_cores:{workload|component|component_instance}
-karta:memory_working_set_bytes:{workload|component|component_instance}
+karta:gpu_utilization:{workload|component|component_instance|replica}
+karta:gpu_memory_used_bytes:{workload|component|component_instance|replica}
+karta:gpu_memory_total_bytes:{workload|component|component_instance|replica}
+karta:cpu_usage_cores:{workload|component|component_instance|replica}
+karta:memory_working_set_bytes:{workload|component|component_instance|replica}
 karta:join_coverage:ratio
 ```
 
@@ -343,8 +347,9 @@ Default readable kinds are in `exporter.rbac.workloadRules` in values.yaml.
   `status.phase`. A custom Karta whose pod selectors read other pod fields
   needs `exporter.fullPodCache=true`; without it, its pods surface only as
   unattributed.
-- `/readyz` stays false until all informers sync, so a restarting exporter
-  is a visible scrape gap, never plausible zeros.
+- `/readyz` stays false until all informers sync. `/metrics` remains available
+  and the metrics Service publishes unready addresses to expose startup health.
+  Consumers must check observation health before trusting incomplete inventories.
 - The metrics endpoint serves cluster-wide workload identity and is
   unauthenticated. Enable `exporter.networkPolicy.enabled` to restrict
   ingress; authenticated serving is a planned follow-up.
@@ -361,3 +366,75 @@ before choosing a mode.
 Keep both UIDs when reducing cardinality. Dropping identity labels can
 merge different objects or create duplicate samples. Prefer selecting
 unused phases, resources, and recording levels instead.
+
+
+## Observation health and repeated groups
+
+`replica` identifies a repeated group using the Karta definition. It is not a
+replica count. For example, LWS workers in groups `0` and `1` remain separate in
+`karta:gpu_utilization:replica`. This level retains workload identity, component,
+component instance and replica. Empty replica keys are excluded. A definition
+without a replica selector cannot provide this breakdown.
+
+A selector can return jq `empty` when grouping does not apply, such as a
+Deployment-backed Dynamo service. Null, empty strings and multiple results are
+errors. JobSet uses the repeated Job index; Grove uses its replica index and
+normalizes generated PodClique names to the declared component instance.
+
+`karta_exporter_resource_healthy` carries `scope`, `namespace`, `group`,
+`version`, `kind`, `workload` and `workload_uid`. It measures observation health:
+
+- `scope="kind"`: fresh API listing agrees with the informer cache. Workload
+  labels are empty. Namespace `*` means all namespaces; empty means cluster scope.
+- `scope="workload"`: interpretation and attribution agree with fresh Kubernetes
+  objects, and the required collections are healthy. Workload UID is retained.
+- `1`: verification succeeded within the maximum age.
+- `0`: startup, permission failure, cache lag, interpretation failure, incomplete
+  attribution or expired verification. Missing health is unknown.
+
+Verification runs every 30 seconds, with a two minute maximum age. Quiet
+workloads are verified without waiting for an object event. Watch errors
+invalidate observations; an unrelated event or HTTP scrape cannot recover them.
+The `/metrics` endpoint remains available during initial sync failure so the
+zero is visible. `/readyz` continues to report initial informer readiness.
+
+Use `--namespace=team-a` to observe one namespace. Omit it to observe all
+namespaces. Separate exporter instances can cover namespaces with different
+permissions. `--required-kinds=batch/v1/Job,example.com/v1/TrainingJob` emits kind
+health even before discovery succeeds. Karta CR definitions are required;
+absent optional catalog APIs are skipped. Child APIs that have never been
+discovered are also optional unless explicitly required, allowing definitions
+to cover deployment modes with different dependencies. Previously observed APIs remain
+required if they disappear. Discovery is retried without restarting the exporter.
+Karta definitions themselves remain cluster scoped.
+
+Pods waiting for a missing owner are retried during each verification interval.
+This recovers attribution when the owner event arrived just before the Pod was
+registered as waiting, even if neither object changes again.
+
+`--health-check-interval` and `--health-max-age` tune verification cost and
+freshness. Maximum age must exceed twice the positive interval. Each pass makes
+fresh LIST requests and may GET missing owners. Owner lookup errors invalidate workload health in that namespace because the root
+is unknown. Newly observed Pods with missing or UID-replaced owners can still escape
+this check. An invalid Karta definition can also invalidate unrelated workloads.
+These prototype health gaps are documented in KEP-0004 and remain to be fixed.
+
+A dashboard can show observation failures directly:
+
+```promql
+karta_exporter_resource_healthy{scope="workload"} == 0
+```
+
+Gate an existing low-utilization candidate by current workload health using
+`and on (namespace, workload_uid)` with
+`karta_exporter_resource_healthy{scope="workload"} == 1`.
+A decision over a time window also needs healthy samples throughout that window,
+including adequate sample count, current health and a successful exporter scrape
+(`up=1`). Monitor missing expected health rows too. Do not average health.
+
+Health verifies Karta observation, not application readiness, GPU telemetry
+completeness or idleness. Wrong but valid definition semantics still need
+operator-specific tests. GPU decisions also need fresh per-device telemetry,
+expected allocation coverage and application demand. A missing allocated device,
+a recreated Pod with old name-only telemetry, or queued requests must not become
+an idle decision. Replica counts cannot establish those facts.

@@ -318,6 +318,8 @@ spec:
                                   description: |-
                                     KeyPath is the JQ path to the replica identifier on the pod.
                                     The evaluated result should be the replica index or group identifier (e.g., "0", "1").
+                                    Return no results (jq empty) when a replica group does not apply to the pod.
+                                    Null, empty strings and multiple results are errors.
                                   type: string
                               required:
                               - keyPath
@@ -1109,6 +1111,8 @@ spec:
                                 description: |-
                                   KeyPath is the JQ path to the replica identifier on the pod.
                                   The evaluated result should be the replica index or group identifier (e.g., "0", "1").
+                                  Return no results (jq empty) when a replica group does not apply to the pod.
+                                  Null, empty strings and multiple results are errors.
                                 type: string
                             required:
                             - keyPath

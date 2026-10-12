@@ -11,11 +11,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -45,6 +47,10 @@ func main() {
 		workloadPhases  string
 		podPhases       string
 		podMetricsMode  string
+		namespace       string
+		requiredKinds   string
+		healthInterval  time.Duration
+		healthMaxAge    time.Duration
 	)
 	flag.StringVar(&metricsExporter, "metrics-exporter", os.Getenv("OTEL_METRICS_EXPORTER"), "Metric delivery: prometheus (default). Overrides OTEL_METRICS_EXPORTER; other outputs are not supported yet.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address to serve /metrics, /healthz, and /readyz on.")
@@ -55,6 +61,10 @@ func main() {
 	flag.StringVar(&workloadPhases, "workload-phases", "all", "Normalized states to emit: all, none, or a comma-separated list. Selected states retain dense 0/1 samples.")
 	flag.StringVar(&podPhases, "pod-phases", "all", "Component Pod count phases to emit: all, none, or a comma-separated list.")
 	flag.StringVar(&podMetricsMode, "pod-metrics-mode", collector.PodMetricsCounts, "Pod metrics: counts (default), inventory (phase on attribution plus component inventory), or both (comparison mode).")
+	flag.StringVar(&namespace, "namespace", "", "Observe one namespace; empty observes all namespaces. Karta definitions remain cluster scoped.")
+	flag.StringVar(&requiredKinds, "required-kinds", "", "Required kinds even before discovery: comma-separated group/version/Kind (core: v1/Pod).")
+	flag.DurationVar(&healthInterval, "health-check-interval", 30*time.Second, "Interval between fresh API and attribution verification passes.")
+	flag.DurationVar(&healthMaxAge, "health-max-age", 2*time.Minute, "Maximum age of a successful verification; must exceed twice the check interval.")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -69,13 +79,30 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("metric delivery configured", "exporter", metricsExporter)
-	if err := run(metricsAddr, kubeconfig, fullPodCache, useCatalog, resync, metricOptions, logger); err != nil {
+	controllerOptions := controller.Options{FullPodCache: fullPodCache, Resync: resync, Namespace: namespace, HealthInterval: healthInterval, HealthMaxAge: healthMaxAge}
+	for _, kind := range strings.Split(requiredKinds, ",") {
+		if kind == "" {
+			continue
+		}
+		parts := strings.Split(kind, "/")
+		if len(parts) < 2 || len(parts) > 3 || parts[len(parts)-1] == "" {
+			logger.Error("invalid required kind", "kind", kind)
+			os.Exit(1)
+		}
+		gv, err := schema.ParseGroupVersion(strings.Join(parts[:len(parts)-1], "/"))
+		if err != nil {
+			logger.Error("invalid required kind", "error", err)
+			os.Exit(1)
+		}
+		controllerOptions.RequiredKinds = append(controllerOptions.RequiredKinds, gv.WithKind(parts[len(parts)-1]))
+	}
+	if err := run(metricsAddr, kubeconfig, useCatalog, controllerOptions, metricOptions, logger); err != nil {
 		logger.Error("exporter failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync time.Duration, metricOptions collector.Options, logger *slog.Logger) error {
+func run(metricsAddr, kubeconfig string, useCatalog bool, controllerOptions controller.Options, metricOptions collector.Options, logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -84,6 +111,7 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 		return fmt.Errorf("failed to build rest config: %w", err)
 	}
 
+	restConfig.Timeout = 30 * time.Second
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -132,7 +160,7 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 		dynamicClient, metadataClient, kubeClient, mapper,
 		kartaRegistry, ownerIndex, metricsStore,
 		meter, logger,
-		controller.Options{FullPodCache: fullPodCache, Resync: resync},
+		controllerOptions,
 	)
 
 	if err != nil {
@@ -160,7 +188,7 @@ func run(metricsAddr, kubeconfig string, fullPodCache, useCatalog bool, resync t
 	go func() { errCh <- exporterController.Run(ctx) }()
 	go func() { errCh <- metricsServer.Run(ctx) }()
 
-	logger.Info("karta exporter started", "metricsAddr", metricsAddr, "fullPodCache", fullPodCache, "useCatalog", useCatalog)
+	logger.Info("karta exporter started", "metricsAddr", metricsAddr, "fullPodCache", controllerOptions.FullPodCache, "useCatalog", useCatalog)
 
 	select {
 	case err := <-errCh:

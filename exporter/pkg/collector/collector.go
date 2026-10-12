@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -32,6 +33,7 @@ type Collector struct {
 	workloads         gauge
 	unattributed      gauge
 	kartas            gauge
+	resourceHealthy   gauge
 }
 
 type gauge struct {
@@ -58,6 +60,7 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 	}
 	c := &Collector{
 		store:             s,
+		resourceHealthy:   gauge{name: MetricExporterResourceHealthy, description: "Fresh verified Karta observation: 1 healthy, 0 failed, incomplete, or stale. Not application readiness or GPU telemetry coverage.", labels: []string{"scope", LabelNamespace, "group", "version", "kind", LabelWorkload, LabelWorkloadUID}},
 		options:           options,
 		podInfo:           gauge{name: MetricPodWorkloadInfo, description: "Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.", labels: podLabels},
 		workloadInfo:      gauge{name: MetricWorkloadInfo, description: "Identity and provenance of a Karta-described workload. Value is always 1.", labels: append(append([]string{}, workloadLabels...), LabelWorkloadVersion, LabelKarta)},
@@ -73,7 +76,7 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 	}
 	gauges := []*gauge{&c.podInfo, &c.workloadInfo, &c.workloadStatus,
 		&c.componentReplicas, &c.componentPods, &c.componentInfo,
-		&c.generation, &c.created, &c.workloads, &c.unattributed, &c.kartas}
+		&c.generation, &c.created, &c.workloads, &c.unattributed, &c.kartas, &c.resourceHealthy}
 	instruments := make([]metric.Observable, 0, len(gauges))
 	for _, g := range gauges {
 		instrument, err := meter.Float64ObservableGauge(g.name, metric.WithDescription(g.description))
@@ -91,6 +94,26 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 
 func (c *Collector) collect(observer metric.Observer) {
 	snapshot := c.store.Snapshot()
+	now := time.Now()
+	seenHealth := make(map[types.UID]bool)
+	activeWorkloads := make(map[types.UID]bool, len(snapshot.Workloads))
+	for _, w := range snapshot.Workloads {
+		activeWorkloads[w.UID] = true
+	}
+	for _, h := range snapshot.Health {
+		if h.Scope == "workload" {
+			if !activeWorkloads[h.UID] {
+				continue
+			}
+			seenHealth[h.UID] = true
+		}
+		c.resourceHealthy.observe(observer, h.Value(now), h.Scope, h.Ref.Namespace, h.Ref.Group, h.Ref.Version, h.Ref.Kind, h.Ref.Name, string(h.UID))
+	}
+	for _, w := range snapshot.Workloads {
+		if !seenHealth[w.UID] {
+			c.resourceHealthy.observe(observer, 0, "workload", w.Ref.Namespace, w.Ref.Group, w.Ref.Version, w.Ref.Kind, w.Ref.Name, string(w.UID))
+		}
+	}
 
 	for _, pod := range snapshot.Pods {
 		labels := []string{pod.Namespace, pod.Name, string(pod.UID),

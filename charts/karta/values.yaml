@@ -204,7 +204,7 @@ exporter:
     enabled: true
     interval: 30s
     resources: ["gpu", "cpu", "memory"]
-    levels: ["workload", "component", "component_instance"]
+    levels: ["workload", "component", "component_instance", "replica"]
     # Source metric names and join labels, adjustable without a release when
     # a relabeling scheme renames them (e.g. pod -> exported_pod).
     gpuUtilizationMetric: DCGM_FI_DEV_GPU_UTIL

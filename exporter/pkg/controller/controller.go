@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,8 +39,12 @@ var podGroupKind = schema.GroupKind{Group: "", Kind: "Pod"}
 type Options struct {
 	// FullPodCache disables the pod cache trim, for custom Kartas whose pod
 	// selectors read fields outside metadata, spec.nodeName, and status.phase.
-	FullPodCache bool
-	Resync       time.Duration
+	FullPodCache   bool
+	Resync         time.Duration
+	Namespace      string
+	HealthInterval time.Duration
+	HealthMaxAge   time.Duration
+	RequiredKinds  []schema.GroupVersionKind
 }
 
 // Controller watches Karta CRs, Karta-described workloads, their child
@@ -89,13 +94,22 @@ func New(
 	logger *slog.Logger,
 	options Options,
 ) (*Controller, error) {
+	if options.HealthInterval == 0 {
+		options.HealthInterval = 30 * time.Second
+	}
+	if options.HealthMaxAge == 0 {
+		options.HealthMaxAge = 2 * time.Minute
+	}
+	if options.HealthInterval <= 0 || options.HealthMaxAge <= 2*options.HealthInterval {
+		return nil, fmt.Errorf("health max age must exceed twice the positive verification interval")
+	}
 	attributionErrors, err := meter.Int64Counter(collector.MetricExporterAttributionErrors,
 		metric.WithDescription("Attribution and status evaluation errors, by reason."))
 	if err != nil {
 		return nil, fmt.Errorf("create attribution error counter: %w", err)
 	}
 	lastEvent, err := meter.Float64Gauge(collector.MetricExporterLastEventSeconds,
-		metric.WithDescription("Unix timestamp of the last processed watch event. A freshness witness."))
+		metric.WithDescription("Unix timestamp of the last processed watch event. Event activity only; not evidence of fresh observation."))
 	if err != nil {
 		return nil, fmt.Errorf("create last event gauge: %w", err)
 	}
@@ -114,6 +128,7 @@ func New(
 		attributionErrors: attributionErrors,
 		lastEvent:         lastEvent,
 	}
+	controller.initializeHealth()
 	return controller, nil
 }
 
@@ -145,6 +160,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		c.kubeClient, c.options.Resync,
 		informers.WithTransform(c.podTransform()),
+		informers.WithNamespace(c.options.Namespace),
 	)
 	c.podInformer = factory.Core().V1().Pods().Informer()
 	if _, err := c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -155,7 +171,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to add pod handler: %w", err)
 	}
 
-	c.kartaInformer = c.newDynamicInformer(kartaGVR, false)
+	c.kartaInformer = c.newDynamicInformer(kartaGVR, false, "")
 	if _, err := c.kartaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj any) { c.onKartaEvent(obj) },
 		UpdateFunc: func(_, newObj any) { c.onKartaEvent(newObj) },
@@ -164,22 +180,41 @@ func (c *Controller) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to add karta handler: %w", err)
 	}
 
+	if err := c.podInformer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
+		c.store.InvalidateHealth("", "Pod")
+		c.logger.Warn("pod observation failed", "error", err)
+	}); err != nil {
+		return err
+	}
+	if err := c.kartaInformer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
+		c.store.InvalidateHealth("run.ai", "Karta")
+		c.logger.Warn("definition observation failed", "error", err)
+	}); err != nil {
+		return err
+	}
 	factory.Start(ctx.Done())
 	go c.kartaInformer.RunWithContext(ctx)
 
-	if !cache.WaitForCacheSync(ctx.Done(), c.podInformer.HasSynced, c.kartaInformer.HasSynced) {
-		return fmt.Errorf("informer caches failed to sync")
-	}
-
-	// with a seeded catalog there may be no Karta events at all, so the
-	// watchers must be reconciled at least once after the initial sync
+	// Verification also runs during failed initial sync so startup failures remain visible.
 	c.reconcileWatchers()
 
 	c.startedMu.Lock()
 	c.started = true
 	c.startedMu.Unlock()
 
-	<-ctx.Done()
+	c.verifyHealth(ctx)
+	ticker := time.NewTicker(c.options.HealthInterval)
+	defer ticker.Stop()
+	for ctx.Err() == nil {
+		select {
+		case <-ctx.Done():
+		case <-ticker.C:
+			c.mapper.Reset()
+			c.reconcileWatchers()
+			c.retryPendingPods()
+			c.verifyHealth(ctx)
+		}
+	}
 	c.stopAllWatchers()
 	return nil
 }
@@ -214,23 +249,23 @@ func (c *Controller) podTransform() cache.TransformFunc {
 	}
 }
 
-func (c *Controller) newDynamicInformer(gvr schema.GroupVersionResource, isMetadata bool) cache.SharedIndexInformer {
+func (c *Controller) newDynamicInformer(gvr schema.GroupVersionResource, isMetadata bool, namespace string) cache.SharedIndexInformer {
 	if isMetadata {
 		return cache.NewSharedIndexInformer(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return c.metadataClient.Resource(gvr).Namespace(metav1.NamespaceAll).List(context.Background(), options)
+				return c.metadataClient.Resource(gvr).Namespace(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return c.metadataClient.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(context.Background(), options)
+				return c.metadataClient.Resource(gvr).Namespace(namespace).Watch(context.Background(), options)
 			},
 		}, &metav1.PartialObjectMetadata{}, c.options.Resync, cache.Indexers{})
 	}
 	return cache.NewSharedIndexInformer(&cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return c.dynamicClient.Resource(gvr).Namespace(metav1.NamespaceAll).List(context.Background(), options)
+			return c.dynamicClient.Resource(gvr).Namespace(namespace).List(context.Background(), options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return c.dynamicClient.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(context.Background(), options)
+			return c.dynamicClient.Resource(gvr).Namespace(namespace).Watch(context.Background(), options)
 		},
 	}, &unstructured.Unstructured{}, c.options.Resync, cache.Indexers{})
 }
@@ -242,12 +277,22 @@ func (c *Controller) reconcileWatchers() {
 	desiredRoots := make(map[schema.GroupVersionKind]struct{})
 	desiredChildren := make(map[schema.GroupVersionKind]struct{})
 	for _, entry := range c.registry.Entries() {
+		if entry.Catalog {
+			if _, err := c.mapper.RESTMapping(entry.RootGVK.GroupKind(), entry.RootGVK.Version); meta.IsNoMatchError(err) {
+				continue
+			}
+		}
 		desiredRoots[entry.RootGVK] = struct{}{}
 		for _, child := range entry.ChildKinds {
 			if child.GroupKind() == podGroupKind {
 				continue
 			}
 			desiredChildren[child] = struct{}{}
+		}
+	}
+	for _, gvk := range c.options.RequiredKinds {
+		if gvk != podGVK && gvk != kartaGVK {
+			desiredChildren[gvk] = struct{}{}
 		}
 	}
 	for gvk := range desiredRoots {
@@ -297,7 +342,11 @@ func (c *Controller) startWatcherLocked(gvk schema.GroupVersionKind, isRoot bool
 		return
 	}
 
-	informer := c.newDynamicInformer(mapping.Resource, !isRoot)
+	namespace := c.options.Namespace
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		namespace = ""
+	}
+	informer := c.newDynamicInformer(mapping.Resource, !isRoot, namespace)
 	w := &watcher{gvk: gvk, informer: informer, stop: make(chan struct{}), isRoot: isRoot}
 
 	var handlerErr error
@@ -319,6 +368,13 @@ func (c *Controller) startWatcherLocked(gvk schema.GroupVersionKind, isRoot bool
 		return
 	}
 
+	if err := informer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
+		c.store.InvalidateHealth(gvk.Group, gvk.Kind)
+		c.logger.Warn("resource observation failed", "gvk", gvk.String(), "error", err)
+	}); err != nil {
+		c.logger.Error("cannot register watch error handler", "error", err)
+		return
+	}
 	c.watchers[gvk] = w
 	go informer.Run(w.stop)
 	c.logger.Info("started watcher", "gvk", gvk.String(), "resource", mapping.Resource.String(), "root", isRoot)

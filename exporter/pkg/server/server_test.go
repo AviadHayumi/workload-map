@@ -13,13 +13,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestConcurrentScrapesRespectInitialSync(t *testing.T) {
+func TestMetricsRemainVisibleBeforeInitialSync(t *testing.T) {
 	var ready atomic.Bool
 	s := New(":0", prometheus.NewRegistry(), ready.Load)
 	before := httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(before, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	if before.Code != http.StatusServiceUnavailable {
-		t.Fatalf("initial scrape status = %d, want 503", before.Code)
+	if before.Code != http.StatusOK {
+		t.Fatalf("initial scrape status = %d, want 200", before.Code)
+	}
+	notReady := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(notReady, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if notReady.Code != http.StatusServiceUnavailable {
+		t.Fatal("readiness must remain false before sync")
 	}
 	ready.Store(true)
 	var wg sync.WaitGroup

@@ -56,7 +56,7 @@ spec:
         instanceIdPath: .spec.template.cliques[].name
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["grove.io/podclique"]
+            idPath: .metadata.labels as $labels | $labels["grove.io/podclique"] as $clique | if ($clique | type) == "string" and ($labels["app.kubernetes.io/part-of"] // "") != "" and ($labels["grove.io/podcliqueset-replica-index"] // "") != "" then $clique | ltrimstr($labels["app.kubernetes.io/part-of"] + "-" + $labels["grove.io/podcliqueset-replica-index"] + "-") else $clique end
           replicaSelector:
             keyPath: .metadata.labels["grove.io/podcliqueset-replica-index"]
       - name: scalinggroup
@@ -66,10 +66,10 @@ spec:
           kind: PodCliqueScalingGroup
         ownerRef: podcliqueset
         scaleDefinition:
-          replicasPath: (.spec.replicas // 1) * (.spec.template.podCliqueScalingGroups[].replicas // 1)
-          minReplicasPath: .spec.template.podCliqueScalingGroups[].scaleConfig.minReplicas
-          maxReplicasPath: .spec.template.podCliqueScalingGroups[].scaleConfig.maxReplicas
-        instanceIdPath: .spec.template.podCliqueScalingGroups[].name
+          replicasPath: (.spec.replicas // 1) as $replicas | (.spec.template.podCliqueScalingGroups // [])[] | $replicas * (.replicas // 1)
+          minReplicasPath: (.spec.template.podCliqueScalingGroups // [])[] | .scaleConfig.minReplicas
+          maxReplicasPath: (.spec.template.podCliqueScalingGroups // [])[] | .scaleConfig.maxReplicas
+        instanceIdPath: (.spec.template.podCliqueScalingGroups // [])[] | .name
         podSelector:
           componentInstanceSelector:
             idPath: .metadata.labels["grove.io/podcliquescalinggroup"]

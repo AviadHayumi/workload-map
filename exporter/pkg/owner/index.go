@@ -115,6 +115,25 @@ func (i *Index) ForgetPending(podKey string) {
 	}
 }
 
+// DrainPendingPods returns distinct pending Pod keys for a retry pass.
+// A failed retry parks the Pod again, including when its missing owner changes.
+func (i *Index) DrainPendingPods() []string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	seen := make(map[string]struct{})
+	for _, waiting := range i.pending {
+		for key := range waiting {
+			seen[key] = struct{}{}
+		}
+	}
+	clear(i.pending)
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 // PendingCount returns the number of parked pods.
 func (i *Index) PendingCount() int {
 	i.mu.RLock()

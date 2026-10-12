@@ -228,6 +228,8 @@ type ComponentInstanceSelector struct {
 type ReplicaSelector struct {
 	// KeyPath is the JQ path to the replica identifier on the pod.
 	// The evaluated result should be the replica index or group identifier (e.g., "0", "1").
+	// Return no results (jq empty) when a replica group does not apply to the pod.
+	// Null, empty strings and multiple results are errors.
 	// +kubebuilder:validation:Required
 	KeyPath string `json:"keyPath" jq:"validate"`
 }

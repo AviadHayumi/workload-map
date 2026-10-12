@@ -126,6 +126,7 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 
 	record, err := state.Build(context.Background(), entry, u, u.GetUID(), ref)
 	record.Generation = u.GetGeneration()
+	record.EvaluationFailed = err != nil
 	if err != nil {
 		c.attributionErrors.Add(context.Background(), 1, metric.WithAttributes(otelattribute.String(collector.LabelReason, collector.ReasonStatusEval)))
 		c.logger.Warn("workload state evaluation failed", "workload", ref.Namespace+"/"+ref.Name, "kind", ref.Kind, "error", err)
@@ -247,6 +248,14 @@ func (c *Controller) onPodDelete(obj any) {
 	c.markEvent()
 }
 
+// retryPendingPods closes the gap between an unsuccessful owner lookup and
+// parking the Pod: the owner event can arrive between those operations.
+func (c *Controller) retryPendingPods() {
+	for _, key := range c.index.DrainPendingPods() {
+		c.attributePodByKey(key)
+	}
+}
+
 func (c *Controller) attributePodByKey(podKey string) {
 	item, exists, err := c.podInformer.GetStore().GetByKey(podKey)
 	if err != nil || !exists {
@@ -279,6 +288,7 @@ func (c *Controller) attributePod(pod *corev1.Pod) {
 	switch result.Outcome {
 	case owner.OutcomeFound:
 	case owner.OutcomeMissing:
+		c.store.DeletePod(pod.UID)
 		c.index.MarkPending(result.Missing, podKey)
 		return
 	case owner.OutcomeDepthExceeded:

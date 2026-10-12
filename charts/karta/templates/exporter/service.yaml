@@ -8,6 +8,8 @@ metadata:
     {{- include "karta.exporter.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
+  # Observation failures must remain scrapeable before cache readiness.
+  publishNotReadyAddresses: true
   selector:
     {{- include "karta.exporter.selectorLabels" . | nindent 4 }}
   ports:

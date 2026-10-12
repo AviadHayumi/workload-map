@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+rule_files:
+  - .rendered/karta-rules.yaml
+evaluation_interval: 30s
+tests:
+  - name: preserve repeated groups within a component instance
+    interval: 30s
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="group-0-worker",gpu="0"}'
+        values: '90x10'
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="group-1-worker",gpu="0"}'
+        values: '1x10'
+      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="ungrouped",gpu="0"}'
+        values: '50x10'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="group-0-worker",uid="p0",workload="serve",workload_uid="w1",component="worker",component_instance="",replica="0"}'
+        values: '1x10'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="group-1-worker",uid="p1",workload="serve",workload_uid="w1",component="worker",component_instance="",replica="1"}'
+        values: '1x10'
+      - series: 'karta_pod_workload_info{namespace="demo",pod="ungrouped",uid="p2",workload="other",workload_uid="w2",component="worker",component_instance="",replica=""}'
+        values: '1x10'
+    promql_expr_test:
+      - expr: karta:gpu_utilization:replica
+        eval_time: 2m
+        exp_samples:
+          - labels: 'karta:gpu_utilization:replica{namespace="demo",workload="serve",workload_uid="w1",component="worker",replica="0"}'
+            value: 90
+          - labels: 'karta:gpu_utilization:replica{namespace="demo",workload="serve",workload_uid="w1",component="worker",replica="1"}'
+            value: 1
+      - expr: karta:gpu_utilization:component_instance{workload="serve"}
+        eval_time: 2m
+        exp_samples:
+          - labels: 'karta:gpu_utilization:component_instance{namespace="demo",workload="serve",workload_uid="w1",component="worker"}'
+            value: 45.5

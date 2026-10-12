@@ -77,10 +77,10 @@ var _ = Describe("Attribute", func() {
 
 		It("attributes a pod to its component instance from the pod label", func() {
 			result := Attribute(ctx,
-				pod(map[string]string{"jobset.sigs.k8s.io/replicatedjob-name": "decode"}, nil),
+				pod(map[string]string{"jobset.sigs.k8s.io/replicatedjob-name": "decode", "jobset.sigs.k8s.io/job-index": "1"}, nil),
 				entryFor(jobsetGVK), jobsetInstances)
 
-			Expect(result).To(Equal(Result{Component: "replicatedjob", Instance: "decode"}))
+			Expect(result).To(Equal(Result{Component: "replicatedjob", Instance: "decode", Replica: "1"}))
 		})
 
 		It("degrades to the unknown sentinel when the label matches no declared instance", func() {

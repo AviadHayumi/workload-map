@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+groups:
+- name: karta-attribution
+  interval: 30s
+  rules:
+  - record: karta:pod_attribution:unique
+    expr: "max by (namespace, pod, uid, workload, workload_group, workload_kind,\n\
+      \        workload_uid, component, component_instance, replica) (\n  karta_pod_workload_info\n\
+      )\nand on (namespace, pod)\n(count by (namespace, pod) (\n  group by (namespace,\
+      \ pod, uid, workload, workload_group, workload_kind,\n            workload_uid,\
+      \ component, component_instance, replica) (\n    karta_pod_workload_info\n \
+      \ )\n) == 1)"

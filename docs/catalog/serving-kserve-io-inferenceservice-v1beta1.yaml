@@ -21,19 +21,11 @@ spec:
         statusMappings:
           running:
             - byConditions:
-                - type: PredictorReady
-                  status: "True"
-                - type: RoutesReady
-                  status: "True"
-                - type: LatestDeploymentReady
+                - type: Ready
                   status: "True"
           failed:
             - byConditions:
-                - type: PredictorReady
-                  status: "False"
-                - type: PredictorConfigurationReady
-                  status: "False"
-                - type: RoutesReady
+                - type: Ready
                   status: "False"
     childComponents:
       - name: predictor
@@ -75,6 +67,16 @@ spec:
           componentTypeSelector:
             keyPath: .metadata.labels["component"]
             value: transformer
+    additionalChildKinds:
+      - group: serving.knative.dev
+        version: v1
+        kind: Service
+      - group: serving.knative.dev
+        version: v1
+        kind: Configuration
+      - group: serving.knative.dev
+        version: v1
+        kind: Revision
   optimizationInstructions:
     gangScheduling:
       podGroups:
