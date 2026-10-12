@@ -91,8 +91,8 @@ Sources:
   newer tag alone does not establish support or compatibility. It becomes
   `<NAME>_VERSION` in step 8. A Helm-installed operator pins the chart version:
   check that its `appVersion` is the tag the source was read at, and note any
-  difference next to the pin. Record the release evidence in
-  `hack/e2e/UPSTREAM_RELEASES.md` when adding an operator to this repository.
+  difference next to the pin. Explain non-obvious release rules in the
+  operator's `check-updates.sh`, linking to the inspected upstream commit.
 - An operator already in `hack/e2e/global.env`: read the source at that tag and
   leave the pin alone. A bump re-records every flow of that operator.
 - A Kubernetes builtin (apps, batch, core): do not clone kubernetes/kubernetes.
@@ -449,17 +449,14 @@ Operator install under `hack/e2e/`:
   `ALL_WORKLOADS` entry (install order) in `up.sh`, and `deps_of` only when it
   needs another operator first. With no `deps_of` and no dependents, it goes
   last in `ALL_WORKLOADS`.
-- Every external operator also needs an executable `check-updates.sh` using
-  `_updates.sh`, registration in `hack/e2e/check-updates.sh`, clone-verified
-  release evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and offline Go tests
-  under `hack/operator-updates/`. This includes infrastructure operators:
-  their install/verify/checker scripts and smoke manifest live together in
-  `hack/e2e/infra/<name>/`. `up.sh` invokes them before dependent workloads,
-  and their update checkers join the `infra` selector. The shared checker uses the Go
-  standard library; wrappers require Bash and Git and build it with the root
-  Go toolchain. `check-updates.sh` reports candidate tags and does not replace
-  the `verify.sh` smoke test or compatibility validation. Kubernetes builtins
-  and Karta built from the checkout need no upstream release checker.
+- Every external operator also needs an executable `check-updates.sh`,
+  aggregate registration, and offline tests. Follow
+  [the checker contract](../../hack/operator-updates/README.md#add-an-operator).
+  Infrastructure modules live under `hack/e2e/infra/<name>/`, with the same
+  install/verify/checker scripts and smoke manifest. `up.sh` invokes them
+  before dependent workloads. Update checks report candidate tags and do not
+  replace smoke or compatibility validation. Kubernetes builtins and locally
+  built Karta are exempt.
 - A new kind for an installed operator reuses its directory and keeps the pin,
   `version_of`, and `ALL_WORKLOADS`. Extend any `install.sh` flag that gates
   which kinds the controller serves. Add `<kind>-smoke.yaml` and a second

@@ -226,17 +226,11 @@ Adding one means, in order:
      `run_smoke` line in `verify.sh`. A Kubernetes builtin needs none of
      this.
    - Update checks: every external workload and infrastructure operator needs
-     a checker registered in `hack/e2e/check-updates.sh`. Infrastructure
-     modules keep `install.sh`, `verify.sh`, `check-updates.sh`, and
-     `smoke.yaml` together under `hack/e2e/infra/<name>/`; `up.sh` invokes
-     installation and verification before dependent workloads. Inspect a local upstream clone
-     for the installed artifact's release convention, document pinned source
-     evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and extend the offline Go
-     tests in `hack/operator-updates/`. Run `make test-e2e-updates`; its
-     registration check catches missing or non-executable wrappers. The
-     checker reports candidate tags, while support-policy review and
-     install/smoke/record/replay establish compatibility. It does not replace
-     `verify.sh`. Kubernetes builtins and locally built Karta are exempt.
+     an executable, registered `check-updates.sh` and offline tests. Follow the
+     [checker contract](hack/operator-updates/README.md#add-an-operator) and run
+     `make test-e2e-updates`. It reports candidate tags; installation, smoke
+     verification, recording, and replay establish compatibility. Kubernetes
+     builtins and locally built Karta are exempt.
    - Naming: the operator directory takes the upstream project's short name
      (`kuberay`, `spark-operator`). `Fixture.Operator` in the flow must equal
      that directory name; that is how the recording is filed under the

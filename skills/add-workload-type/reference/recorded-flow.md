@@ -109,30 +109,16 @@ fine in all three.
 
 ### Required update checker
 
-Every external workload and infrastructure operator has an executable
-`check-updates.sh` in addition to installation and smoke verification. Workload
-checkers live beside `install.sh` and `verify.sh`; infrastructure checkers live
-beside their install/verify scripts and smoke manifest under
-`hack/e2e/infra/<name>/`. `up.sh` installs and verifies external infrastructure before
-dependent workloads. The locally built system under test lives in
-`hack/e2e/infra/karta-operator/`, runs last, and has no external update checker.
-Update checkers source `hack/e2e/_updates.sh`, which builds the standard-library
-Go checker in `hack/operator-updates/` and runs it with the pin from `global.env`.
-The aggregate builds it once and shares the executable with each wrapper.
-
-Record the upstream tag repository, exact prefix, channel, and installed
-artifact mapping in `hack/e2e/UPSTREAM_RELEASES.md`, with public source links
-pinned to the release code inspected in a local clone. Register the group in
-`ALL_OPERATORS` in `hack/e2e/check-updates.sh`; infrastructure groups also join
-the `infra` selector. Add offline Go cases for its mapping and release
-exceptions. `make test-e2e-updates` checks tag handling, wrappers, and required
-checker registration without a cluster or live tag lookup.
+Every external workload and infrastructure operator needs an executable
+`check-updates.sh` beside its install/verify scripts and smoke manifest.
+Workloads live in `hack/e2e/operators/<name>/`; infrastructure lives in
+`hack/e2e/infra/<name>/` and is selected by `up.sh` before dependent workloads.
+Follow the [checker contract](../../../hack/operator-updates/README.md#add-an-operator)
+for clone inspection, release mappings, aggregate registration, and offline tests.
 
 `make e2e-operators-check-latest-supported-versions OPERATORS=<name>` reports
-candidate tags. It does not certify upstream support or Karta compatibility,
-change pins, or replace the `verify.sh` smoke test. The CLI and exit codes are
-documented in `hack/operator-updates/README.md`. Builtin workloads and locally
-built Karta have no external operator release to check.
+candidate tags. It does not establish support or compatibility, change pins,
+or replace `verify.sh`. Builtin workloads and locally built Karta are exempt.
 
 ### Builtins
 

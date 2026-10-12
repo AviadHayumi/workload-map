@@ -65,6 +65,11 @@ code matters; `go run` does not preserve the command's exit code 2.
 | `AHEAD` | The pin is newer than the latest matching tag. |
 | `ERROR` | The input or tag lookup failed; other checks continue. |
 
+With no selection, the aggregate checks all workload and infrastructure groups.
+`OPERATORS="jobset infra"` selects a subset; an individual infrastructure name
+such as `OPERATORS=cert-manager` works too. Run
+`./hack/e2e/check-updates.sh --help` to list all accepted names.
+
 The aggregate summary names groups with updates. Kubeflow checks Training
 Operator and MPI Operator; Knative checks Serving and Kourier. The `infra`
 selector covers cert-manager, Fake GPU Operator, and KAI Scheduler.
@@ -72,8 +77,18 @@ selector covers cert-manager, Fake GPU Operator, and KAI Scheduler.
 The checker uses the installed component's tag namespace and release channel,
 including Grove alpha releases and known KAI Scheduler retractions. Stable
 releases are otherwise the default. `--include-prereleases` includes prerelease
-tags within that namespace. The mappings and clone-verified release sources
-are in [UPSTREAM_RELEASES.md](../e2e/UPSTREAM_RELEASES.md).
+tags within that namespace. Each `check-updates.sh` declares its component's
+repository, prefix, and channel. Comments beside non-obvious mappings link to
+the upstream release sources that explain them.
+
+Prerelease counters such as `rc9` and `rc10` sort numerically. Grove's
+`alpha.N-rcM` sorts before `alpha.N`. Unrelated chart and Go module tag namespaces
+are excluded. Branch commits without a new tag are outside the check's scope.
+
+A matching tag does not guarantee its chart or release asset is available.
+Review the linked changes, upstream support policy, and installer assumptions
+before updating a pin. For example, Kubeflow Trainer v2 replaces the v1 APIs
+used by the existing installer and requires migration work.
 
 Script and binary exit codes are 0 for a successful report, 1 for input or
 lookup errors, and 2 for detected updates when `--fail-on-update` is set. Errors
@@ -89,8 +104,8 @@ Kubernetes builtins and Karta built from the checkout are exempt.
 
 1. Inspect a local clone of each upstream component's release workflow or guide.
    Confirm the repository, exact tag prefix, channel, and mapping to the chart
-   or manifest the installer uses. Document pinned public source evidence in
-   `hack/e2e/UPSTREAM_RELEASES.md`.
+   or manifest the installer uses. Explain non-obvious release rules beside
+   the wrapper mapping, with public source links pinned to the inspected commit.
 2. Add the Bash wrapper at `hack/e2e/operators/<name>/check-updates.sh`, beside
    `install.sh` and `verify.sh`, or `hack/e2e/infra/<name>/check-updates.sh` for
    infrastructure. Source `_updates.sh` and call `check_updates` with one
@@ -103,10 +118,13 @@ Kubernetes builtins and Karta built from the checkout are exempt.
    `up.sh` before dependent workloads.
 4. Add offline Go tests here for the repository and tag namespace, filtering,
    and any release exceptions. Preserve the regression that checks every
-   external workload installer module and infrastructure directory has an executable
-   checker and aggregate registration. Run `make test-e2e-updates` and
-   `make lint-shell`, then the install/smoke/record/replay checks for the
-   affected operator and `make check` before pushing.
+   workload installer module and infrastructure directory has an executable
+   checker and aggregate registration. Run `make test-e2e-updates`,
+   `make lint-shell`, installation and smoke verification for the affected
+   module, and `make check` before pushing. For a catalog addition or operator
+   version bump, record the affected workload flows and run replay validation;
+   see [Catalog Definitions](../../CONTRIBUTING.md#catalog-definitions).
+   Infrastructure modules do not need separate catalog definitions or recordings.
 
 The offline tests exercise the CLI, Bash wrappers, and Make target with fake Git
 responses. They do not query upstream or provision a cluster. The package also
