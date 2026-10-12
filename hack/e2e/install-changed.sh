@@ -26,6 +26,8 @@ while IFS= read -r path; do
       case "${operator}" in
         '' | -* | *[!a-z0-9-]*) echo all; exit 0 ;;
       esac
+      git -C "${REPO_ROOT}" cat-file -e "${head_ref}:hack/e2e/operators/${operator}/install.sh" 2>/dev/null ||
+        { echo all; exit 0; }
       operators+=("${operator}")
       ;;
     *) echo all; exit 0 ;;

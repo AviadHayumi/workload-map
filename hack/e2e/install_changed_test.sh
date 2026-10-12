@@ -87,6 +87,7 @@ while IFS='|' read -r expected path; do
   expect "input: ${path}" "${expected}" base pr
 done <<'CASES'
 all|hack/e2e/operators/_common.sh
+all|hack/e2e/operators/shared/helpers.sh
 kuberay|hack/e2e/operators/kuberay/install.sh
 new-operator|hack/e2e/operators/new-operator/install.sh
 all|hack/e2e/operators/-leading-hyphen/install.sh
@@ -140,16 +141,18 @@ expect 'default head includes current HEAD' all base
 while IFS='|' read -r expected source destination; do
   reset_fixture
   if [ "${destination}" = DELETE ]; then
-    git -C "${repo}" rm --quiet "${source}"
+    git -C "${repo}" rm --quiet -r "${source}"
   else
     git -C "${repo}" mv "${source}" "${destination}"
   fi
   commit_fixture
   expect "${source} -> ${destination}" "${expected}" base pr
 done <<'CASES'
-jobset|hack/e2e/operators/jobset/install.sh|DELETE
+all|hack/e2e/operators/jobset/install.sh|DELETE
+all|hack/e2e/operators/jobset|DELETE
+all|hack/e2e/operators/jobset|hack/e2e/operators/renamed-jobset
 all|hack/e2e/operators/_common.sh|DELETE
-jobset|hack/e2e/operators/jobset/install.sh|docs/moved-install.sh
+all|hack/e2e/operators/jobset/install.sh|docs/moved-install.sh
 all|hack/e2e/operators/_common.sh|docs/moved-common.sh
 jobset|docs/notes.md|hack/e2e/operators/jobset/notes.md
 jobset kuberay|hack/e2e/operators/jobset/verify.sh|hack/e2e/operators/kuberay/verify.sh

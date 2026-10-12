@@ -53,7 +53,7 @@ Changes under `hack/e2e/operators/` run two checks on separate fresh kind cluste
 
 - `Installation E2E (all)` installs every workload operator.
 - `Installation E2E (changed)` installs the changed operators and their dependencies.
-  Changes to shared files such as `operators/_common.sh` select all operators.
+  Shared operator helpers and removed operator directories select all operators.
 
 Both checks finish installing the selected operators and Karta before calling
 those operators' existing `verify.sh` scripts, followed by Karta's `verify.sh`.
