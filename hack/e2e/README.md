@@ -15,7 +15,6 @@ hack/e2e/
   up.sh                 orchestrator: base + selected operators (install then verify)
   check-updates.sh       report upstream workload and infrastructure operator tags
   _updates.sh           update-check helpers, independent of cluster provisioning
-  check_updates.py      shared tag filtering and comparison (Python standard library)
   infra/<name>/
     check-updates.sh     check cert-manager, fake-gpu-operator, or KAI Scheduler
   down.sh               tear the cluster down (and its kubeconfig for named clusters)
@@ -35,6 +34,10 @@ hack/e2e/
       smoke.yaml        the throwaway workload the smoke test applies
       <config>.yaml     optional co-located config (e.g. grove/values.yaml)
 ```
+
+The shared tag checker lives in `hack/operator-updates/`, in the root Go module.
+Its [README](../operator-updates/README.md) describes the CLI and release mapping
+contract.
 
 ## Usage
 
@@ -64,16 +67,24 @@ make e2e-operators-check-latest-supported-versions UPDATE_FLAGS=--include-prerel
 ./hack/e2e/infra/fake-gpu-operator/check-updates.sh
 JOBSET_VERSION=v0.11.0 ./hack/e2e/operators/jobset/check-updates.sh
 make test-e2e-updates                          # offline tests, also part of make check
+make build-operator-updates                    # optional: build bin/operator-updates
 ```
 
 Support status is not inferred from tag presence. This command currently checks
 available release tags. Upstream support-policy evaluation and Karta compatibility
 validation through installation, recording, and replay are separate steps.
 
-Requires Bash, Git, Python 3.9 or newer, and access to public GitHub repositories.
+Requires Bash, Git, the Go version from the root `go.mod`, and access to public
+GitHub repositories. The checker uses only the Go standard library.
 No cluster, Docker, Helm, GitHub CLI, or GitHub token is required. Version pins
 come from `global.env` and keep their environment overrides. The checks only
 read remote tags. They do not install anything or rewrite pins.
+
+`_updates.sh` builds `bin/operator-updates` once per aggregate invocation and
+shares that binary with the per-operator Bash wrappers. A standalone wrapper
+builds it before running. Set `E2E_OPERATOR_UPDATES_BIN` to an absolute path to an
+existing executable to reuse a build; that route does not require Go at runtime.
+The wrappers run the binary directly so exit code 2 remains distinguishable.
 
 The report shows `NEW`, `CURRENT`, `AHEAD`, or `ERROR`, the pin, the latest
 matching tag, and links to tags and changes. `AHEAD` means the pin is newer than
@@ -133,6 +144,12 @@ pins in one step. Available helpers:
 
 ## Adding an operator
 
+Every external workload and infrastructure operator requires installation,
+smoke verification, and an executable `check-updates.sh`. The update checker
+reports candidate versions; `verify.sh` still proves the installed operator can
+run its smoke workload. Kubernetes builtins and Karta built from this checkout
+have no upstream operator release to check and are exempt.
+
 Install side (this directory):
 
 1. Create `operators/<name>/install.sh` as a standalone script:
@@ -173,12 +190,28 @@ Install side (this directory):
 
 3. Pin the version(s) in `global.env`, and add a `version_of` case in `up.sh` so
    the operator shows in the install summary.
-4. Add `operators/<name>/check-updates.sh`, using `_updates.sh` and the upstream
-   tag namespace verified from its release source. Add the operator to
-   `ALL_OPERATORS` in `check-updates.sh`, document it in `UPSTREAM_RELEASES.md`,
-   and extend the offline update tests.
+4. Add an executable `operators/<name>/check-updates.sh` that sources
+   `_updates.sh`. Inspect a local clone of each upstream component's release
+   workflow or release guide to establish the tag repository, prefix, channel,
+   and mapping to the installed chart or manifest. Document the evidence with
+   pinned public source links in `UPSTREAM_RELEASES.md`. Register the group in
+   `ALL_OPERATORS` in `check-updates.sh` and add offline Go cases under
+   `hack/operator-updates/` for its repository, tag namespace, and any release
+   exceptions. Run `make test-e2e-updates`.
 5. Add `<name>` to `ALL_WORKLOADS` in `up.sh` (in install order), and a `deps_of`
    entry only if it depends on another operator.
 
-Before pushing: `make lint-shell` (shellcheck), then provision just that operator to
-confirm it installs and smoke-tests clean, for example `make e2e-up WORKLOADS=<name>`.
+For infrastructure installed centrally by `up.sh`, put the executable checker in
+`infra/<name>/check-updates.sh` and register it in both `ALL_OPERATORS` and the
+`infra` selector. The same release-source documentation and offline test
+requirements apply. A new kind served by an existing operator reuses its checker;
+extend it when installation adds a separately versioned component.
+
+The offline Go tests require checkers for workload installer modules and
+infrastructure directories and check their aggregate registration. Include the
+executable bit and registration in the same change as a new operator.
+
+Before pushing: run `make test-e2e-updates` and `make lint-shell` (shellcheck), then
+provision just that operator to confirm it installs and smoke-tests clean, for
+example `make e2e-up WORKLOADS=<name>`. Run `make check` as required by the
+contributing guide.

@@ -41,9 +41,10 @@ main() {
     done
     if [ "$valid" = false ]; then echo "unknown operator: $name" >&2; usage >&2; return 1; fi
   done
-  for arg in git python3; do
-    command -v "$arg" >/dev/null || { echo "missing required tool: $arg" >&2; return 1; }
-  done
+  command -v git >/dev/null || { echo "missing required tool: git" >&2; return 1; }
+  # shellcheck source=hack/e2e/_updates.sh
+  source "${E2E_DIR}/_updates.sh"
+  prepare_update_checker || return 1
   echo 'Candidate versions only: upstream support and Karta compatibility are not verified.'
   printf '%-8s %-20s %-28s %s\n' STATUS OPERATOR PINNED 'LATEST TAG'
   for name in "${ALL_OPERATORS[@]}"; do

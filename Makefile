@@ -104,7 +104,7 @@ lint: $(addprefix lint-,$(COMPONENTS)) ## Lint every component (read-only, never
 test: $(addprefix test-,$(COMPONENTS)) ## Test every component
 
 .PHONY: check
-check: $(addprefix check-,$(COMPONENTS)) test-e2e-updates ## Everything CI runs for Go. Run this before pushing
+check: $(addprefix check-,$(COMPONENTS)) ## Everything CI runs for Go. Run this before pushing
 
 .PHONY: build
 build: build-cli build-operator ## Build every binary into bin/ (the library has no artifact)
@@ -122,7 +122,7 @@ clean: ## Remove build outputs, coverage profiles, and release and plugin artifa
 		echo "refusing to clean $$dir: not a directory inside $(PROJECT_DIR)" >&2; \
 		exit 1; \
 	done
-	rm -fv "$(LOCALBIN)/kli" "$(LOCALBIN)/karta-operator" "$(LOCALBIN)/karta-operator-amd64" "$(LOCALBIN)/karta-operator-arm64"
+	rm -fv "$(LOCALBIN)/kli" "$(LOCALBIN)/karta-operator" "$(LOCALBIN)/karta-operator-amd64" "$(LOCALBIN)/karta-operator-arm64" "$(LOCALBIN)/operator-updates"
 	rm -fv "$(LOCALBIN)"/*-tidy.mod "$(LOCALBIN)"/*-tidy.sum "$(LOCALBIN)"/*-license.mod "$(LOCALBIN)"/*-license.sum "$(LOCALBIN)"/*deps.json
 	rm -fv operator/cover-unit.out operator/cover-integration.out
 	rm -fv karta-wasm/karta.wasm karta-wasm/wasm_exec.js
@@ -653,9 +653,13 @@ test-operator-e2e: ## Run the operator e2e against the current cluster (KARTA_WE
 e2e-operators-check-latest-supported-versions: ## Report newer workload and infra operator tags (OPERATORS="jobset infra", UPDATE_FLAGS="--fail-on-update --include-prereleases")
 	@bash ./hack/e2e/check-updates.sh $(UPDATE_FLAGS) $(OPERATORS)
 
+.PHONY: build-operator-updates
+build-operator-updates: $(LOCALBIN) ## Build the operator update checker into bin/
+	go build -o "$(LOCALBIN)/operator-updates" ./hack/operator-updates
+
 .PHONY: test-e2e-updates
-test-e2e-updates: ## Test operator update detection offline
-	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s hack/e2e -p 'test_check_updates.py'
+test-e2e-updates: ## Test operator update detection offline (also covered by test-lib)
+	go test ./hack/operator-updates/...
 
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)

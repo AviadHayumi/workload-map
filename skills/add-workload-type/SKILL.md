@@ -85,11 +85,14 @@ Sources:
   (`git clone --depth 1 --branch <tag>`), not from documentation alone. The
   controller code that assigns the phase or conditions is the source of truth
   for step 5, not the CRD enum.
-- Pin the newest non-prerelease tag
-  (`git ls-remote --tags --refs <repo-url> | sort -V -k2`); it becomes
+- Inspect the local clone's release workflow or guide to identify the tag
+  repository, namespace, channel, and installed artifact. Pin the newest
+  eligible release whose Kubernetes and API requirements fit the suite; a
+  newer tag alone does not establish support or compatibility. It becomes
   `<NAME>_VERSION` in step 8. A Helm-installed operator pins the chart version:
   check that its `appVersion` is the tag the source was read at, and note any
-  difference next to the pin.
+  difference next to the pin. Record the release evidence in
+  `hack/e2e/UPSTREAM_RELEASES.md` when adding an operator to this repository.
 - An operator already in `hack/e2e/global.env`: read the source at that tag and
   leave the pin alone. A bump re-records every flow of that operator.
 - A Kubernetes builtin (apps, batch, core): do not clone kubernetes/kubernetes.
@@ -440,16 +443,28 @@ Operator install under `hack/e2e/`:
   `Fixture.Operator` equals the first `Label`; the second label is `builtin`.
   Its fixtures land under the Kubernetes version, `v1.34.0`.
 - A new operator follows Adding an operator in `hack/e2e/README.md`:
-  `hack/e2e/operators/<name>/{install.sh,verify.sh,smoke.yaml}`, `<name>` the
+  `hack/e2e/operators/<name>/{install.sh,verify.sh,check-updates.sh,smoke.yaml}`, `<name>` the
   upstream project's short name (`kuberay`, `spark-operator`), a
   `<NAME>_VERSION` pin in `global.env`, a `version_of` case and an
   `ALL_WORKLOADS` entry (install order) in `up.sh`, and `deps_of` only when it
   needs another operator first. With no `deps_of` and no dependents, it goes
   last in `ALL_WORKLOADS`.
+- Every external operator also needs an executable `check-updates.sh` using
+  `_updates.sh`, registration in `hack/e2e/check-updates.sh`, clone-verified
+  release evidence in `hack/e2e/UPSTREAM_RELEASES.md`, and offline Go tests
+  under `hack/operator-updates/`. This includes infrastructure operators:
+  their checkers live in `hack/e2e/infra/<name>/` and join the `infra` selector,
+  even when `up.sh` installs them centrally. The shared checker uses the Go
+  standard library; wrappers require Bash and Git and build it with the root
+  Go toolchain. `check-updates.sh` reports candidate tags and does not replace
+  the `verify.sh` smoke test or compatibility validation. Kubernetes builtins
+  and Karta built from the checkout need no upstream release checker.
 - A new kind for an installed operator reuses its directory and keeps the pin,
   `version_of`, and `ALL_WORKLOADS`. Extend any `install.sh` flag that gates
   which kinds the controller serves. Add `<kind>-smoke.yaml` and a second
   `run_smoke` line in `verify.sh`.
+  Reuse its update checker too; extend it for any separately versioned
+  component the installation adds.
 - `verify.sh` drives the smoke manifest to a terminal or stable state with
   `run_smoke` on the fully qualified resource, `<plural>.<group>/<name>-smoke`;
   a bare `job/` resolves to `batch/v1`. A workload that never settles and
@@ -496,7 +511,9 @@ Operator install under `hack/e2e/`:
 - While fixing, run `install.sh` and `verify.sh` directly with `KUBECONFIG`
   exported. Run `make e2e-up` once at the end; it writes
   `.installed-versions-<cluster>`.
-- `make lint-shell` must pass on the new scripts.
+- `make lint-shell` must pass on the new scripts. Run `make test-e2e-updates`
+  for the offline Go tests, including executable checker and aggregate
+  registration coverage for new workload and infrastructure operators.
 
 Flow under `test/e2e/flows/` (read `test/e2e/recorder/README.md` first):
 
