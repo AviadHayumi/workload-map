@@ -29,7 +29,6 @@ type scriptCase struct {
 	args       []string
 	tags       map[string][]string
 	pins       map[string]string
-	wantExit   int
 	wantRows   map[string]string
 	wantOutput []string
 	wantRepos  []string
@@ -88,6 +87,15 @@ func TestOperatorUpdatesFakeGit(t *testing.T) {
 }
 
 func TestOperatorUpdatesScripts(t *testing.T) {
+	harness := newScriptHarness(t)
+	t.Run("success", harness.testSuccess)
+	t.Run("updates", harness.testUpdates)
+	t.Run("failures", harness.testFailures)
+	t.Run("inventory", harness.testInventory)
+}
+
+func newScriptHarness(t *testing.T) scriptHarness {
+	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -108,12 +116,13 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build checker: %v\n%s", err, output)
 	}
+	return harness
+}
+
+func (h scriptHarness) testSuccess(t *testing.T) {
 	jobset := "kubernetes-sigs/jobset"
-	serving := "knative/serving"
-	kourier := "knative-extensions/net-kourier"
-	grove := "ai-dynamo/grove"
 	jobsetTags := map[string][]string{jobset: {"v1.0.0", "v1.1.0"}}
-	cases := []scriptCase{
+	h.runCases(t, []scriptCase{
 		{
 			name: "standalone respects environment pin", script: "operators/jobset/check-updates.sh",
 			args: []string{"--fail-on-update"}, tags: jobsetTags,
@@ -121,35 +130,13 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 			wantRows: map[string]string{"jobset": "CURRENT"}, wantRepos: []string{jobset},
 		},
 		{
-			name: "standalone update exit", script: "operators/jobset/check-updates.sh",
-			args: []string{"--fail-on-update"}, tags: jobsetTags, wantExit: 2,
-			wantRows: map[string]string{"jobset": "NEW"}, wantRepos: []string{jobset},
-		},
-		{
 			name: "aggregate advisory exit", args: []string{"jobset"}, tags: jobsetTags,
 			wantRows: map[string]string{"jobset": "NEW"}, wantRepos: []string{jobset},
 			wantOutput: []string{"New tags in operator groups: jobset"},
 		},
 		{
-			name: "aggregate update exit", args: []string{"jobset", "--fail-on-update"},
-			tags: jobsetTags, wantExit: 2, wantRows: map[string]string{"jobset": "NEW"},
-			wantRepos: []string{jobset},
-		},
-		{
 			name: "repeated selectors are deduplicated", args: []string{"jobset", "jobset"},
 			tags: jobsetTags, wantRows: map[string]string{"jobset": "NEW"}, wantRepos: []string{jobset},
-		},
-		{
-			name: "invalid selector before lookup or build", args: []string{"jobset", "unknown"},
-			wantExit: 1, wantOutput: []string{"unknown operator"}, noBinary: true,
-		},
-		{
-			name: "invalid aggregate flag before lookup or build", args: []string{"jobset", "--unsupported"},
-			wantExit: 1, wantOutput: []string{"unknown flag"}, noBinary: true,
-		},
-		{
-			name: "standalone unknown flag is an error", script: "operators/jobset/check-updates.sh",
-			args: []string{"--unsupported"}, wantExit: 1,
 		},
 		{
 			name: "standalone help skips lookup", script: "operators/jobset/check-updates.sh",
@@ -158,30 +145,6 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 		{
 			name: "aggregate help skips build and lookup", args: []string{"--help"}, noBinary: true,
 			wantOutput: []string{"Operators:", "--fail-on-update"},
-		},
-		{
-			name: "standalone multi-component failure continues", script: "operators/knative/check-updates.sh",
-			args: []string{"--fail-on-update"}, tags: map[string][]string{serving: nil, kourier: {"knative-v1.1.0"}},
-			wantExit: 1, wantRows: map[string]string{"knative": "ERROR", "kourier": "NEW"},
-			wantRepos: []string{serving, kourier},
-		},
-		{
-			name: "partial group retains update in summary", args: []string{"knative", "--fail-on-update"},
-			tags: map[string][]string{serving: {"knative-v1.1.0"}, kourier: nil}, wantExit: 1,
-			wantRows: map[string]string{"knative": "NEW", "kourier": "ERROR"}, wantRepos: []string{serving, kourier},
-			wantOutput: []string{"New tags in operator groups: knative", "report is incomplete"},
-		},
-		{
-			name: "aggregate failure precedes successful updates", args: []string{"jobset", "knative", "--fail-on-update"},
-			tags:     map[string][]string{jobset: nil, serving: {"knative-v1.0.0"}, kourier: {"knative-v1.1.0"}},
-			wantExit: 1, wantRows: map[string]string{"jobset": "ERROR", "knative": "CURRENT", "kourier": "NEW"},
-			wantRepos: []string{jobset, serving, kourier}, wantOutput: []string{"report is incomplete"},
-		},
-		{
-			name: "aggregate failure follows successful updates", args: []string{"jobset", "knative", "--fail-on-update"},
-			tags:     map[string][]string{jobset: {"v1.1.0"}, serving: nil, kourier: {"knative-v1.0.0"}},
-			wantExit: 1, wantRows: map[string]string{"jobset": "NEW", "knative": "ERROR", "kourier": "CURRENT"},
-			wantRepos: []string{jobset, serving, kourier}, wantOutput: []string{"New tags in operator groups: jobset"},
 		},
 		{
 			name: "infra alias excludes retracted KAI tags", args: []string{"infra", "--fail-on-update"},
@@ -212,26 +175,92 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 			wantRows: map[string]string{"jobset": "NEW"}, wantRepos: []string{jobset},
 			wantOutput: []string{"v1.1.0-rc10", "New tags in operator groups: jobset"},
 		},
+	}, 0)
+}
+
+func (h scriptHarness) testUpdates(t *testing.T) {
+	jobset := "kubernetes-sigs/jobset"
+	grove := "ai-dynamo/grove"
+	jobsetTags := map[string][]string{jobset: {"v1.0.0", "v1.1.0"}}
+	h.runCases(t, []scriptCase{
+		{
+			name: "standalone update exit", script: "operators/jobset/check-updates.sh",
+			args: []string{"--fail-on-update"}, tags: jobsetTags,
+			wantRows: map[string]string{"jobset": "NEW"}, wantRepos: []string{jobset},
+		},
+		{
+			name: "aggregate update exit", args: []string{"jobset", "--fail-on-update"},
+			tags: jobsetTags, wantRows: map[string]string{"jobset": "NEW"},
+			wantRepos: []string{jobset},
+		},
 		{
 			name: "Grove defaults to promoted alpha releases", script: "operators/grove/check-updates.sh",
 			args: []string{"--fail-on-update"}, pins: map[string]string{"GROVE_VERSION": "v0.1.0-alpha.10-rc1"},
 			tags:     map[string][]string{grove: {"v0.1.0-alpha.10-rc1", "v0.1.0-alpha.10", "v0.1.0-alpha.11-rc1"}},
-			wantExit: 2, wantRows: map[string]string{"grove": "NEW"}, wantRepos: []string{grove},
+			wantRows: map[string]string{"grove": "NEW"}, wantRepos: []string{grove},
 			wantOutput: []string{"1 newer tag(s)"},
 		},
 		{
 			name: "Grove release candidates require flag", script: "operators/grove/check-updates.sh",
 			args: []string{"--include-prereleases", "--fail-on-update"}, pins: map[string]string{"GROVE_VERSION": "v0.1.0-alpha.10"},
 			tags:     map[string][]string{grove: {"v0.1.0-alpha.10", "v0.1.0-alpha.11-rc1"}},
-			wantExit: 2, wantRows: map[string]string{"grove": "NEW"}, wantRepos: []string{grove},
+			wantRows: map[string]string{"grove": "NEW"}, wantRepos: []string{grove},
 			wantOutput: []string{"v0.1.0-alpha.11-rc1"},
 		},
-	}
+	}, 2)
+}
+
+func (h scriptHarness) testFailures(t *testing.T) {
+	jobset := "kubernetes-sigs/jobset"
+	serving := "knative/serving"
+	kourier := "knative-extensions/net-kourier"
+	h.runCases(t, []scriptCase{
+		{
+			name: "invalid selector before lookup or build", args: []string{"jobset", "unknown"},
+			wantOutput: []string{"unknown operator"}, noBinary: true,
+		},
+		{
+			name: "invalid aggregate flag before lookup or build", args: []string{"jobset", "--unsupported"},
+			wantOutput: []string{"unknown flag"}, noBinary: true,
+		},
+		{
+			name: "standalone unknown flag is an error", script: "operators/jobset/check-updates.sh",
+			args: []string{"--unsupported"},
+		},
+		{
+			name: "standalone multi-component failure continues", script: "operators/knative/check-updates.sh",
+			args: []string{"--fail-on-update"}, tags: map[string][]string{serving: nil, kourier: {"knative-v1.1.0"}},
+			wantRows:  map[string]string{"knative": "ERROR", "kourier": "NEW"},
+			wantRepos: []string{serving, kourier},
+		},
+		{
+			name: "partial group retains update in summary", args: []string{"knative", "--fail-on-update"},
+			tags:     map[string][]string{serving: {"knative-v1.1.0"}, kourier: nil},
+			wantRows: map[string]string{"knative": "NEW", "kourier": "ERROR"}, wantRepos: []string{serving, kourier},
+			wantOutput: []string{"New tags in operator groups: knative", "report is incomplete"},
+		},
+		{
+			name: "aggregate failure precedes successful updates", args: []string{"jobset", "knative", "--fail-on-update"},
+			tags:      map[string][]string{jobset: nil, serving: {"knative-v1.0.0"}, kourier: {"knative-v1.1.0"}},
+			wantRows:  map[string]string{"jobset": "ERROR", "knative": "CURRENT", "kourier": "NEW"},
+			wantRepos: []string{jobset, serving, kourier}, wantOutput: []string{"report is incomplete"},
+		},
+		{
+			name: "aggregate failure follows successful updates", args: []string{"jobset", "knative", "--fail-on-update"},
+			tags:      map[string][]string{jobset: {"v1.1.0"}, serving: nil, kourier: {"knative-v1.0.0"}},
+			wantRows:  map[string]string{"jobset": "NEW", "knative": "ERROR", "kourier": "CURRENT"},
+			wantRepos: []string{jobset, serving, kourier}, wantOutput: []string{"New tags in operator groups: jobset"},
+		},
+	}, 1)
+}
+
+func (h scriptHarness) runCases(t *testing.T, cases []scriptCase, wantExit int) {
+	t.Helper()
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			result := harness.run(t, test)
-			if result.exitCode != test.wantExit {
-				t.Fatalf("exit = %d, want %d\n%s", result.exitCode, test.wantExit, result.output)
+			result := h.run(t, test)
+			if result.exitCode != wantExit {
+				t.Fatalf("exit = %d, want %d\n%s", result.exitCode, wantExit, result.output)
 			}
 			for _, want := range test.wantOutput {
 				if !strings.Contains(result.output, want) {
@@ -258,6 +287,9 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (h scriptHarness) testInventory(t *testing.T) {
 	prefixes := map[string]string{
 		"cert-manager/cert-manager": "v", "run-ai/fake-gpu-operator": "v", "kai-scheduler/KAI-Scheduler": "v",
 		"kubernetes-sigs/lws": "v", "kubernetes-sigs/jobset": "v", "ray-project/kuberay-helm": "kuberay-operator-",
@@ -272,7 +304,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 	}
 	t.Run("all components use installer release namespaces", func(t *testing.T) {
 		for _, args := range [][]string{nil, {"all"}} {
-			result := harness.run(t, scriptCase{tags: tags, args: args})
+			result := h.run(t, scriptCase{tags: tags, args: args})
 			if result.exitCode != 0 || len(result.repos) != len(prefixes) {
 				t.Fatalf("exit = %d, queries = %v\n%s", result.exitCode, result.repos, result.output)
 			}
@@ -289,7 +321,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 		}
 	})
 	t.Run("every operator has an executable registered checker", func(t *testing.T) {
-		installers, err := filepath.Glob(filepath.Join(root, "hack", "e2e", "operators", "*", "install.sh"))
+		installers, err := filepath.Glob(filepath.Join(h.root, "hack", "e2e", "operators", "*", "install.sh"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +332,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 		for _, installer := range installers {
 			directories = append(directories, filepath.Dir(installer))
 		}
-		infra := filepath.Join(root, "hack", "e2e", "infra")
+		infra := filepath.Join(h.root, "hack", "e2e", "infra")
 		entries, err := os.ReadDir(infra)
 		if err != nil {
 			t.Fatal(err)
@@ -312,7 +344,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 				directories = append(directories, filepath.Join(infra, entry.Name()))
 			}
 		}
-		result := harness.run(t, scriptCase{args: []string{"--help"}, noBinary: true})
+		result := h.run(t, scriptCase{args: []string{"--help"}, noBinary: true})
 		if result.exitCode != 0 {
 			t.Fatalf("read aggregate inventory: %s", result.output)
 		}
@@ -336,7 +368,7 @@ func TestOperatorUpdatesScripts(t *testing.T) {
 		if !slices.Equal(expected, registered) {
 			t.Errorf("aggregate registered groups = %v, installer/infra groups = %v", registered, expected)
 		}
-		infraResult := harness.run(t, scriptCase{args: []string{"infra"}, tags: tags})
+		infraResult := h.run(t, scriptCase{args: []string{"infra"}, tags: tags})
 		if infraResult.exitCode != 0 {
 			t.Fatalf("run infra alias: exit %d\n%s", infraResult.exitCode, infraResult.output)
 		}

@@ -47,6 +47,12 @@ type options struct {
 	help               bool
 }
 
+type releaseSelection struct {
+	latestTag string
+	newer     int
+	status    string
+}
+
 type tagLookup func(context.Context, string) ([]string, error)
 
 func main() {
@@ -93,18 +99,11 @@ func parseArgs(args []string) (options, error) {
 		args = args[1:]
 		switch {
 		case arg == "--operator":
-			if len(args) < 6 {
-				return opts, fmt.Errorf("--operator requires NAME PIN REPO PREFIX CHANNEL NOTE")
+			op, err := parseOperatorArgs(args)
+			if err != nil {
+				return opts, err
 			}
-			for _, value := range args[:6] {
-				if strings.HasPrefix(value, "--") {
-					return opts, fmt.Errorf("--operator requires NAME PIN REPO PREFIX CHANNEL NOTE")
-				}
-			}
-			opts.operators = append(opts.operators, operator{
-				name: args[0], pinned: args[1], repository: args[2],
-				prefix: args[3], channel: args[4], note: args[5],
-			})
+			opts.operators = append(opts.operators, op)
 			args = args[6:]
 		case arg == "--exclude-tag":
 			if len(args) == 0 || strings.HasPrefix(args[0], "--") {
@@ -133,6 +132,21 @@ func parseArgs(args []string) (options, error) {
 	return opts, nil
 }
 
+func parseOperatorArgs(args []string) (operator, error) {
+	if len(args) < 6 {
+		return operator{}, fmt.Errorf("--operator requires NAME PIN REPO PREFIX CHANNEL NOTE")
+	}
+	for _, value := range args[:6] {
+		if strings.HasPrefix(value, "--") {
+			return operator{}, fmt.Errorf("--operator requires NAME PIN REPO PREFIX CHANNEL NOTE")
+		}
+	}
+	return operator{
+		name: args[0], pinned: args[1], repository: args[2],
+		prefix: args[3], channel: args[4], note: args[5],
+	}, nil
+}
+
 func checkOperator(ctx context.Context, op operator, opts options, stdout io.Writer, lookup tagLookup) (bool, error) {
 	if op.channel != "stable" && op.channel != "alpha" {
 		return false, fmt.Errorf("invalid release channel: %s", op.channel)
@@ -152,9 +166,17 @@ func checkOperator(ctx context.Context, op operator, opts options, stdout io.Wri
 	if err != nil {
 		return false, err
 	}
+	selected, err := selectLatestRelease(op, current, tags, opts)
+	if err != nil {
+		return false, err
+	}
+	writeOperatorReport(stdout, op, pinned, tags, selected)
+	return selected.newer > 0, nil
+}
+
+func selectLatestRelease(op operator, current version, tags []string, opts options) (releaseSelection, error) {
 	var latest version
-	var latestTag string
-	var newer int
+	selected := releaseSelection{status: "CURRENT"}
 	for _, tag := range tags {
 		raw, matches := strings.CutPrefix(tag, op.prefix)
 		if !matches || slices.Contains(opts.excludedTags, tag) {
@@ -168,30 +190,33 @@ func checkOperator(ctx context.Context, op operator, opts options, stdout io.Wri
 		if len(candidate.prerelease) > 0 && !isAlpha && !opts.includePrereleases {
 			continue
 		}
-		if latestTag == "" || candidate.compare(latest) > 0 || (candidate.compare(latest) == 0 && tag > latestTag) {
-			latest, latestTag = candidate, tag
+		if selected.latestTag == "" || candidate.compare(latest) > 0 || (candidate.compare(latest) == 0 && tag > selected.latestTag) {
+			latest, selected.latestTag = candidate, tag
 		}
 		if candidate.compare(current) > 0 {
-			newer++
+			selected.newer++
 		}
 	}
-	if latestTag == "" {
-		return false, fmt.Errorf("no matching %s tags in %s (prefix '%s')", op.channel, op.repository, op.prefix)
+	if selected.latestTag == "" {
+		return selected, fmt.Errorf("no matching %s tags in %s (prefix '%s')", op.channel, op.repository, op.prefix)
 	}
-	status := "CURRENT"
-	if newer > 0 {
-		status = "NEW"
+	if selected.newer > 0 {
+		selected.status = "NEW"
 	} else if current.compare(latest) > 0 {
-		status = "AHEAD"
+		selected.status = "AHEAD"
 	}
-	fmt.Fprintf(stdout, "%-8s %-20s %-28s %s\n", status, op.name, op.pinned, latestTag)
+	return selected, nil
+}
+
+func writeOperatorReport(stdout io.Writer, op operator, pinned string, tags []string, selected releaseSelection) {
+	fmt.Fprintf(stdout, "%-8s %-20s %-28s %s\n", selected.status, op.name, op.pinned, selected.latestTag)
 	base := "https://github.com/" + op.repository
 	fmt.Fprintf(stdout, "  Tags: %s/tags\n", base)
-	if newer > 0 {
+	if selected.newer > 0 {
 		currentTag := op.prefix + pinned
-		fmt.Fprintf(stdout, "  %d newer tag(s)\n", newer)
+		fmt.Fprintf(stdout, "  %d newer tag(s)\n", selected.newer)
 		if slices.Contains(tags, currentTag) {
-			fmt.Fprintf(stdout, "  Changes: %s/compare/%s...%s\n", base, escapeTag(currentTag), escapeTag(latestTag))
+			fmt.Fprintf(stdout, "  Changes: %s/compare/%s...%s\n", base, escapeTag(currentTag), escapeTag(selected.latestTag))
 		} else {
 			fmt.Fprintf(stdout, "  Pinned tag %s was not found; no comparison is available.\n", currentTag)
 		}
@@ -199,7 +224,6 @@ func checkOperator(ctx context.Context, op operator, opts options, stdout io.Wri
 	if op.note != "" {
 		fmt.Fprintf(stdout, "  Note: %s\n", op.note)
 	}
-	return newer > 0, nil
 }
 
 func escapeTag(tag string) string {

@@ -8,11 +8,52 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestParseArgs(t *testing.T) {
+	first := operator{name: "one", pinned: "1.0.0", repository: "owner/one", prefix: "v", channel: "stable"}
+	second := operator{name: "two", pinned: "0.1.0-alpha.1", repository: "owner/two", channel: "alpha", note: "release policy"}
+	for _, tt := range []struct {
+		name string
+		args []string
+		want options
+	}{
+		{
+			name: "default options",
+			args: []string{"--operator", "one", "1.0.0", "owner/one", "v", "stable", ""},
+			want: options{operators: []operator{first}},
+		},
+		{
+			name: "flags around repeated operators",
+			args: []string{
+				"--include-prereleases", "--exclude-tag", "v2.0.0",
+				"--operator", "one", "1.0.0", "owner/one", "v", "stable", "",
+				"--fail-on-update", "--exclude-tag=v2.1.0",
+				"--operator", "two", "0.1.0-alpha.1", "owner/two", "", "alpha", "release policy",
+				"--no-header",
+			},
+			want: options{
+				operators: []operator{first, second}, excludedTags: []string{"v2.0.0", "v2.1.0"},
+				includePrereleases: true, failOnUpdate: true, noHeader: true,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseArgs(tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseArgs() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestCheckOperator(t *testing.T) {
 	tests := []struct {
@@ -220,7 +261,7 @@ func TestNoMatchingTags(t *testing.T) {
 	}
 }
 
-func TestRunStatus(t *testing.T) {
+func TestRunReportsVersions(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args []string
@@ -277,15 +318,33 @@ func TestRunContinuesAfterError(t *testing.T) {
 }
 
 func TestRunInvalidArguments(t *testing.T) {
-	for _, args := range [][]string{nil, {"--operator", "example"}, {"--operator", "name", "1.0.0", "owner/repo", "v", "stable", "--fail-on-update"}, {"--exclude-tag"}, {"--unsupported"}, {"--operator", "name", "1.0.0", "owner/repo", "v", "stable", "", "--unsupported"}} {
-		lookup := func(context.Context, string) ([]string, error) {
-			t.Error("lookup called for invalid arguments")
-			return nil, nil
-		}
-		var stdout, stderr bytes.Buffer
-		if got := run(t.Context(), args, &stdout, &stderr, lookup); got != 1 || stdout.Len() != 0 || stderr.Len() == 0 {
-			t.Errorf("run(%v) = %d, stdout %q, stderr %q; want 1 with usage on stderr only", args, got, stdout.String(), stderr.String())
-		}
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{name: "missing operator"},
+		{name: "incomplete operator", args: []string{"--operator", "example"}},
+		{
+			name: "flag instead of operator value",
+			args: []string{"--operator", "name", "1.0.0", "owner/repo", "v", "stable", "--fail-on-update"},
+		},
+		{name: "missing excluded tag", args: []string{"--exclude-tag"}},
+		{name: "unknown flag", args: []string{"--unsupported"}},
+		{
+			name: "unknown flag after operator",
+			args: []string{"--operator", "name", "1.0.0", "owner/repo", "v", "stable", "", "--unsupported"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			lookup := func(context.Context, string) ([]string, error) {
+				t.Error("lookup called for invalid arguments")
+				return nil, nil
+			}
+			var stdout, stderr bytes.Buffer
+			if got := run(t.Context(), tt.args, &stdout, &stderr, lookup); got != 1 || stdout.Len() != 0 || stderr.Len() == 0 {
+				t.Errorf("run(%v) = %d, stdout %q, stderr %q; want 1 with usage on stderr only", tt.args, got, stdout.String(), stderr.String())
+			}
+		})
 	}
 }
 

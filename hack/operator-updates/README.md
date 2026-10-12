@@ -66,6 +66,10 @@ code matters; `go run` does not preserve the command's exit code 2.
 | `AHEAD` | The pin is newer than the latest matching tag. |
 | `ERROR` | The input or tag lookup failed; other checks continue. |
 
+For example, pin `v1.0.0` with latest matching tag `v1.1.0` is `NEW`;
+swapping those versions is `AHEAD`. A pin can be ahead when its tag is absent
+from the selected release channel.
+
 With no selection, the aggregate checks all workload and infrastructure groups.
 `OPERATORS="jobset infra"` selects a subset; an individual infrastructure name
 such as `OPERATORS=cert-manager` works too. Run
