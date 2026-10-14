@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{
+  "apiVersion": "milvus.io/v1beta1",
+  "kind": "Milvus",
+  "metadata": {
+    "name": "matrix-milvus"
+  },
+  "spec": {
+    "mode": "standalone",
+    "dependencies": {
+      "etcd": {
+        "inCluster": {
+          "values": {
+            "replicaCount": 1
+          }
+        }
+      },
+      "storage": {
+        "inCluster": {
+          "values": {
+            "mode": "standalone",
+            "resources": {
+              "requests": {
+                "memory": "256Mi"
+              }
+            },
+            "image": {
+              "repository": "karta-milvus-minio",
+              "tag": "matrix",
+              "pullPolicy": "IfNotPresent"
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "standalone": {
+        "replicas": 1,
+        "resources": {
+          "requests": {
+            "cpu": "250m",
+            "memory": "1Gi"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,28 +1,125 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
+
 rule_files:
-  - .rendered/karta-uid-rules.yaml
+- kep-rules.yaml
 evaluation_interval: 30s
 tests:
-  - name: producing Pod UID rejects old telemetry despite a reused Pod name
-    interval: 30s
-    input_series:
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",uid="old",gpu="0"}'
-        values: '80x4'
-      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="new",workload="train",workload_uid="w2",component="worker"}'
-        values: '1x4'
-    promql_expr_test:
-      - expr: karta:gpu_utilization:workload
-        eval_time: 2m
-        exp_samples: []
-  - name: matching source UID propagates workload UID
-    interval: 30s
-    input_series:
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="demo",pod="worker",uid="p1",gpu="0"}'
-        values: '80x4'
-      - series: 'karta_pod_workload_info{namespace="demo",pod="worker",uid="p1",workload="train",workload_uid="w1",component="worker"}'
-        values: '1x4'
-    promql_expr_test:
-      - expr: karta:gpu_utilization:workload
-        eval_time: 2m
-        exp_samples: [{labels: 'karta:gpu_utilization:workload{namespace="demo",workload="train",workload_uid="w1"}', value: 80}]
+- name: conflicting-pod_uid-rejected
+  interval: 30s
+  input_series:
+  - &id001
+    series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - &id002
+    series: karta_workload_status{karta="dynamo-definition",karta_source="catalog",namespace="team-a",owner_resolution="resolved",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - &id003
+    series: karta_exporter_observation_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",reason="none",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
+    values: 1x20
+  - &id004
+    series: DCGM_FI_DEV_GPU_UTIL{UUID="gpu-a",namespace="team-a",pod="decode-0"}
+    values: 1x20
+  - &id005
+    series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
+    values: 100+6x20
+  - &id006
+    series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
+    values: 536870912x20
+  - series: karta_pod_workload_info{component="service",component_instance="decode",instance="second-exporter",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-replacement",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  promql_expr_test:
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        rate(container_cpu_usage_seconds_total{
+          namespace!="", pod!="", container!="", container!="POD"
+        }[5m])
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples: []
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
+    eval_time: 5m
+    exp_samples: []
+- name: conflicting-workload_uid-rejected
+  interval: 30s
+  input_series:
+  - *id001
+  - *id002
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - series: karta_pod_workload_info{component="service",component_instance="decode",instance="second-exporter",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-replacement",workload_version="v1alpha1"}
+    values: 1x20
+  promql_expr_test:
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        rate(container_cpu_usage_seconds_total{
+          namespace!="", pod!="", container!="", container!="POD"
+        }[5m])
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples: []
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
+    eval_time: 5m
+    exp_samples: []
+- name: replacement-removes-current-old-pod-identity
+  interval: 30s
+  input_series:
+  - *id002
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x4 stale _x15
+  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-replacement",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: _x5 1x15
+  promql_expr_test:
+  - expr: karta:pod_attribution:unique
+    eval_time: 5m
+    exp_samples:
+    - labels: karta:pod_attribution:unique{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-replacement",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+      value: 1

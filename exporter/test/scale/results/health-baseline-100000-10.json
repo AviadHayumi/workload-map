@@ -1,0 +1,31 @@
+{
+  "scenario": {
+    "Workloads": 100000,
+    "Pods": 10
+  },
+  "environment": "synthetic loopback HTTP API; not a production Kubernetes cluster",
+  "implementation": "full-object first Pod LIST pass, before metadata projection",
+  "verification_ms": 62187.569042,
+  "setup_and_verification_ms": 73830,
+  "lists": {
+    "Jobs": 91,
+    "Pods": 1000,
+    "Kartas": 1
+  },
+  "required_lists": {
+    "Jobs": 100,
+    "Pods": 2000,
+    "Kartas": 1
+  },
+  "fallback_gets": 0,
+  "unexpected_requests": 0,
+  "page_limit": 1000,
+  "client_qps": 50,
+  "client_burst": 100,
+  "verification_deadline_seconds": 60,
+  "passed": false,
+  "failure_reason": "api_unavailable",
+  "failure": "verification deadline expired before complete coverage",
+  "sampled_rss_kib_at_69_seconds": 6411952,
+  "sampled_rss_is_not_peak": true
+}

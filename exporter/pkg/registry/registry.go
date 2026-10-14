@@ -85,7 +85,11 @@ func (r *Registry) Set(karta *v1alpha1.Karta) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	state := kartaState{karta: karta}
+	state := kartaState{karta: karta.DeepCopy()}
+	karta = state.karta
+	if rootKind := karta.Spec.StructureDefinition.RootComponent.Kind; rootKind != nil {
+		state.rootGK = schema.GroupKind{Group: rootKind.Group, Kind: rootKind.Kind}
+	}
 	if err := v1alpha1.NewKartaValidator(karta).Validate(); err != nil {
 		state.err = fmt.Errorf("invalid karta: %w", err)
 	} else if karta.Spec.StructureDefinition.RootComponent.Kind == nil {
@@ -190,9 +194,14 @@ func (r *Registry) recomputeLocked() {
 		if _, ok := chosen[groupKind]; ok {
 			continue
 		}
-		// catalog entries have no creation time; name-descending picks the
-		// newest API version when the catalog carries several for one kind
-		sort.Slice(kartas, func(i, j int) bool { return kartas[i].Name > kartas[j].Name })
+		// Catalog definitions use the same deterministic tie rule as CRs.
+		sort.Slice(kartas, func(i, j int) bool {
+			iTime, jTime := kartas[i].CreationTimestamp, kartas[j].CreationTimestamp
+			if !iTime.Equal(&jTime) {
+				return iTime.Before(&jTime)
+			}
+			return kartas[i].Name < kartas[j].Name
+		})
 
 		entry, err := newEntry(kartas[0])
 		if err != nil {
@@ -247,4 +256,22 @@ func newEntry(karta *v1alpha1.Karta) (*Entry, error) {
 	}
 
 	return entry, nil
+}
+
+// InvalidKinds identifies only definitions whose target kind cannot be served.
+// Invalid definitions do not poison unrelated valid definitions.
+func (r *Registry) InvalidKinds() []schema.GroupVersionKind {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []schema.GroupVersionKind
+	for _, state := range r.kartas {
+		if state.err == nil {
+			continue
+		}
+		kind := state.karta.Spec.StructureDefinition.RootComponent.Kind
+		if kind != nil {
+			result = append(result, schema.GroupVersionKind{Group: kind.Group, Version: kind.Version, Kind: kind.Kind})
+		}
+	}
+	return result
 }

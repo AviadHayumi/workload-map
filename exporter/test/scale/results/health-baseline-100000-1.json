@@ -1,0 +1,23 @@
+{
+  "scenario": {
+    "Workloads": 100000,
+    "Pods": 1
+  },
+  "environment": "synthetic loopback HTTP API; not a production Kubernetes cluster",
+  "verification_ms": 12254.158416,
+  "setup_and_verification_ms": 17520,
+  "workload_health_rows": 100000,
+  "resource_type_health_rows": 3,
+  "healthy_rows": 100003,
+  "lists": {
+    "Jobs": 100,
+    "Pods": 200,
+    "Kartas": 1
+  },
+  "fallback_gets": 0,
+  "page_limit": 1000,
+  "client_qps": 50,
+  "client_burst": 100,
+  "verification_deadline_seconds": 60,
+  "passed": true
+}

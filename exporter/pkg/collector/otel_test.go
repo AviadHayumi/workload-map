@@ -6,14 +6,11 @@ package collector
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
@@ -50,43 +47,6 @@ func testGatherer(t testingT, s *store.Store, options Options) *prometheus.Regis
 	return registry
 }
 
-func TestOTelMatchesLegacyAcrossCollections(t *testing.T) {
-	for _, mode := range []string{PodMetricsCounts, PodMetricsInventory, PodMetricsBoth} {
-		t.Run(mode, func(t *testing.T) {
-			s := fixtureStore()
-			options := Options{PodMetricsMode: mode, PendingPods: func() int { return 2 }, KartaCounts: func() (int, int, int) { return 3, 1, 1 }}
-			current := testGatherer(t, s, options)
-			legacy := prometheus.NewRegistry()
-			legacy.MustRegister(newLegacy(s, options))
-			for step := range 4 {
-				switch step {
-				case 1:
-					pod, _ := s.Pod("p1")
-					s.DeletePod("p1")
-					pod.UID = "replacement"
-					pod.Instance = "new-instance"
-					s.UpsertPod(pod)
-				case 2:
-					s.DeleteWorkload("w1")
-				}
-				got, err := current.Gather()
-				if err != nil {
-					t.Fatal(err)
-				}
-				want, err := legacy.Gather()
-				if err != nil {
-					t.Fatal(err)
-				}
-				// Health is an additive contract introduced after the legacy collector.
-				got = slices.DeleteFunc(got, func(f *dto.MetricFamily) bool { return f.GetName() == MetricExporterResourceHealthy })
-				if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-					t.Fatalf("collection %d differs (-legacy +OTel):\n%s", step, diff)
-				}
-			}
-		})
-	}
-}
-
 func TestOTelPreservesMoreThanDefaultCardinality(t *testing.T) {
 	s := fixtureStore()
 	pod, _ := s.Pod("p1")
@@ -117,7 +77,7 @@ func TestOTelPreservesMoreThanDefaultCardinality(t *testing.T) {
 				t.Fatalf("pass %d: pod mappings = %d, want 2502", pass, len(family.Metric))
 			}
 			for _, m := range family.Metric {
-				if label(m, LabelUID) == "" {
+				if label(m, LabelPodUID) == "" {
 					t.Fatal("lost a pod identity to cardinality overflow")
 				}
 			}
@@ -130,7 +90,7 @@ func TestOTelPreservesMoreThanDefaultCardinality(t *testing.T) {
 
 func TestConcurrentOTelScrapesAndUpdates(t *testing.T) {
 	s := fixtureStore()
-	registry := testGatherer(t, s, Options{PodMetricsMode: PodMetricsInventory})
+	registry := testGatherer(t, s, Options{})
 	pod, _ := s.Pod("p1")
 	var wg sync.WaitGroup
 	wg.Go(func() {

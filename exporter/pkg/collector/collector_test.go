@@ -4,162 +4,135 @@
 package collector
 
 import (
-	"strings"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
-
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"slices"
+	"testing"
+	"time"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
+	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 )
-
-// goldenContract is the label-contract regression gate: any change to metric
-// names, label names, or series shape fails this test visibly.
-const goldenContract = `# HELP karta_pod_workload_info Pod to workload, component, and component instance attribution derived from the Karta definition. Value is always 1.
-# TYPE karta_pod_workload_info gauge
-karta_pod_workload_info{component="replicatedjob",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p2",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-karta_pod_workload_info{component="replicatedjob",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p1",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-# HELP karta_workload_component_pods Observed pod count per component instance, broken down by pod phase.
-# TYPE karta_workload_component_pods gauge
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="decode",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Pending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Succeeded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_component_pods{component="replicatedjob",component_instance="prefill",namespace="team-a",phase="Unknown",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-# HELP karta_workload_component_replicas Desired replicas per component instance, from the workload spec.
-# TYPE karta_workload_component_replicas gauge
-karta_workload_component_replicas{component="replicatedjob",component_instance="decode",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-karta_workload_component_replicas{component="replicatedjob",component_instance="prefill",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 2
-# HELP karta_workload_created_timestamp_seconds The workload's metadata.creationTimestamp as unix seconds. Steps forward when a workload is deleted and recreated under the same name.
-# TYPE karta_workload_created_timestamp_seconds gauge
-karta_workload_created_timestamp_seconds{namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1.7556e+09
-# HELP karta_workload_generation The workload's metadata.generation. A step change marks a spec change.
-# TYPE karta_workload_generation gauge
-karta_workload_generation{namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 3
-# HELP karta_workload_info Identity and provenance of a Karta-described workload. Value is always 1.
-# TYPE karta_workload_info gauge
-karta_workload_info{karta="jobset-x-k8s-io-jobset-v1alpha2",namespace="team-a",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1",workload_version="v1alpha2"} 1
-# HELP karta_workload_status Normalized workload status. One series per phase; several phases can be 1 at the same time.
-# TYPE karta_workload_status gauge
-karta_workload_status{namespace="team-a",phase="Completed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Degraded",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Failed",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Initializing",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Resuming",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Running",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 1
-karta_workload_status{namespace="team-a",phase="Suspended",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Suspending",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-karta_workload_status{namespace="team-a",phase="Undefined",workload="llm",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w1"} 0
-`
 
 func fixtureStore() *store.Store {
 	s := store.New()
 	ref := store.WorkloadRef{Namespace: "team-a", Name: "llm", Group: "jobset.x-k8s.io", Version: "v1alpha2", Kind: "JobSet"}
-
-	s.UpsertWorkload(store.WorkloadRecord{
-		UID:              "w1",
-		Ref:              ref,
-		Karta:            "jobset-x-k8s-io-jobset-v1alpha2",
-		Generation:       3,
-		CreatedTimestamp: 1755600000,
-		HasStatus:        true,
-		Phases:           []v1alpha1.ResourceStatus{v1alpha1.RunningStatus},
-		Components: []store.ComponentState{
-			{Component: "replicatedjob", Instance: "prefill", Replicas: ptr.To(int32(2))},
-			{Component: "replicatedjob", Instance: "decode", Replicas: ptr.To(int32(1))},
-		},
-	})
-	s.UpsertPod(store.PodRecord{
-		UID: "p1", Namespace: "team-a", Name: "prefill-0", WorkloadUID: "w1", Workload: ref,
-		Component: "replicatedjob", Instance: "prefill", Phase: corev1.PodRunning,
-	})
-	s.UpsertPod(store.PodRecord{
-		UID: "p2", Namespace: "team-a", Name: "decode-0", WorkloadUID: "w1", Workload: ref,
-		Component: "replicatedjob", Instance: "decode", Phase: corev1.PodPending,
-	})
+	s.UpsertWorkload(store.WorkloadRecord{UID: "w1", Ref: ref, Karta: "jobset-x-k8s-io-jobset-v1alpha2", KartaSource: "catalog", OwnerResolution: "resolved", HasStatus: true, Phases: []v1alpha1.ResourceStatus{v1alpha1.RunningStatus}})
+	s.UpsertPod(store.PodRecord{UID: "p1", Namespace: "team-a", Name: "prefill-0", WorkloadUID: "w1", Workload: ref, OwnerResolution: "resolved", Component: "replicatedjob", Instance: "prefill"})
+	s.UpsertPod(store.PodRecord{UID: "p2", Namespace: "team-a", Name: "decode-0", WorkloadUID: "w1", Workload: ref, OwnerResolution: "resolved", Component: "replicatedjob", Instance: "decode"})
+	s.SetHealth([]store.HealthRecord{{Scope: "workload", UID: "w1", Ref: ref, Healthy: true, VerifiedAt: time.Now(), MaxAge: time.Minute}}, s.HealthEpoch())
 	return s
 }
 
-var _ = Describe("Collector", func() {
-	contractFamilies := []string{
-		MetricPodWorkloadInfo,
-		MetricWorkloadInfo,
-		MetricWorkloadStatus,
-		MetricComponentReplicas,
-		MetricComponentPods,
-		MetricWorkloadGeneration,
-		MetricWorkloadCreated,
+func TestExactKEPContract(t *testing.T) {
+	metrics := gather(t, fixtureStore(), Options{})
+	wantLabels := map[string][]string{
+		"karta_pod_workload_info":            {"namespace", "workload", "workload_group", "workload_version", "workload_kind", "workload_uid", "owner_resolution", "pod", "pod_uid", "component", "component_instance", "replica_group_id"},
+		"karta_workload_status":              {"namespace", "workload", "workload_group", "workload_version", "workload_kind", "workload_uid", "phase", "owner_resolution", "karta", "karta_source"},
+		"karta_exporter_observation_healthy": {"scope", "namespace", "group", "version", "kind", "workload", "workload_uid", "reason"},
 	}
+	if len(metrics) != len(wantLabels) {
+		t.Fatalf("published %d metric families, want exactly %d: %v", len(metrics), len(wantLabels), metrics)
+	}
+	for name, labels := range wantLabels {
+		slices.Sort(labels)
+		if len(metrics[name]) == 0 {
+			t.Fatalf("missing metric family %s", name)
+		}
+		for _, m := range metrics[name] {
+			got := make([]string, 0, len(m.Label))
+			for _, pair := range m.Label {
+				got = append(got, pair.GetName())
+			}
+			slices.Sort(got)
+			if !slices.Equal(got, labels) || m.Gauge == nil {
+				t.Fatalf("%s labels=%v, want %v; gauge=%v", name, got, labels, m.Gauge)
+			}
+		}
+	}
+	if len(metrics[MetricPodWorkloadInfo]) != 2 || len(metrics[MetricWorkloadStatus]) != 9 || len(metrics[MetricExporterObservationHealthy]) != 1 {
+		t.Fatal("unexpected snapshot cardinality")
+	}
+	for _, m := range metrics[MetricPodWorkloadInfo] {
+		if label(m, LabelWorkloadUID) != "w1" || label(m, LabelPodUID) == "" || label(m, LabelWorkloadVersion) != "v1alpha2" || label(m, LabelOwnerResolution) != "resolved" || m.GetGauge().GetValue() != 1 {
+			t.Fatalf("incorrect Pod identity: %v", m)
+		}
+	}
+	for _, m := range metrics[MetricWorkloadStatus] {
+		want := 0.0
+		if label(m, LabelPhase) == "Running" {
+			want = 1
+		}
+		if m.GetGauge().GetValue() != want || label(m, LabelKartaSource) != "catalog" || label(m, LabelKarta) != "jobset-x-k8s-io-jobset-v1alpha2" {
+			t.Fatalf("incorrect dense phase or provenance: %v", m)
+		}
+	}
+}
 
-	It("renders the exact metric contract from a snapshot", func() {
-		c := testGatherer(GinkgoT(), fixtureStore(), Options{})
-
-		Expect(testutil.GatherAndCompare(c, strings.NewReader(goldenContract), contractFamilies...)).To(Succeed())
-	})
-
-	It("passes promlint", func() {
-		c := testGatherer(GinkgoT(), fixtureStore(), Options{
-			PendingPods: func() int { return 1 },
-			KartaCounts: func() (int, int, int) { return 1, 0, 0 },
+func TestRootStatusAndUnknownOwner(t *testing.T) {
+	for _, tc := range []struct {
+		name                   string
+		resolution             string
+		failure                string
+		status                 bool
+		wantStatus, wantHealth int
+	}{
+		{name: "confirmed", resolution: "resolved", status: true, wantStatus: 9, wantHealth: 1},
+		{name: "ignored boundary", resolution: "ignored_owner", status: true, wantStatus: 9, wantHealth: 1},
+		{name: "confirmed child", status: true},
+		{name: "unresolved zero-Pod root", failure: "unresolved_owner", status: true, wantHealth: 1},
+		{name: "no status definition", resolution: "resolved", wantHealth: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := store.New()
+			s.UpsertWorkload(store.WorkloadRecord{UID: "root", Ref: store.WorkloadRef{Namespace: "ns", Name: "root"}, OwnerResolution: tc.resolution, OwnerFailure: tc.failure, HasStatus: tc.status})
+			metrics := gather(t, s, Options{})
+			if len(metrics[MetricWorkloadStatus]) != tc.wantStatus || len(metrics[MetricExporterObservationHealthy]) != tc.wantHealth {
+				t.Fatalf("status/health count %d/%d; want %d/%d", len(metrics[MetricWorkloadStatus]), len(metrics[MetricExporterObservationHealthy]), tc.wantStatus, tc.wantHealth)
+			}
+			if tc.failure != "" && label(metrics[MetricExporterObservationHealthy][0], LabelReason) != tc.failure {
+				t.Fatal("missing immediate owner failure")
+			}
 		})
+	}
+}
 
-		problems, err := testutil.GatherAndLint(c)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(problems).To(BeEmpty())
-	})
-
-	It("emits the created timestamp for workloads without a StatusDefinition", func() {
-		s := store.New()
-		s.UpsertWorkload(store.WorkloadRecord{
-			UID:              "w9",
-			Ref:              store.WorkloadRef{Namespace: "team-a", Name: "t", Group: "example.io", Version: "v1", Kind: "Thing"},
-			CreatedTimestamp: 1755600000,
-		})
-		c := testGatherer(GinkgoT(), s, Options{})
-
-		Expect(testutil.GatherAndCount(c, MetricWorkloadCreated)).To(Equal(1))
-	})
-
-	It("omits status series for workloads without a StatusDefinition", func() {
-		s := store.New()
-		s.UpsertWorkload(store.WorkloadRecord{
-			UID: "w9",
-			Ref: store.WorkloadRef{Namespace: "team-a", Name: "t", Group: "example.io", Version: "v1", Kind: "Thing"},
-		})
-		c := testGatherer(GinkgoT(), s, Options{})
-
-		count, err := testutil.GatherAndCount(c, MetricWorkloadStatus)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(BeZero())
-	})
-
-	It("counts unattributed pods by reason", func() {
-		s := fixtureStore()
-		ref := store.WorkloadRef{Namespace: "team-a", Name: "llm", Group: "jobset.x-k8s.io", Version: "v1alpha2", Kind: "JobSet"}
-		s.UpsertPod(store.PodRecord{
-			UID: "p3", Namespace: "team-a", Name: "weird-0", WorkloadUID: "w1", Workload: ref,
-			Component: "replicatedjob", Instance: SentinelUnknown, Reason: ReasonUnknownInstance, Phase: corev1.PodRunning,
-		})
-		c := testGatherer(GinkgoT(), s, Options{
-			PendingPods: func() int { return 2 },
-			KartaCounts: func() (int, int, int) { return 1, 1, 0 },
-		})
-
-		expected := `# HELP karta_exporter_unattributed_pods Pods the exporter could not fully attribute, by reason.
-# TYPE karta_exporter_unattributed_pods gauge
-karta_exporter_unattributed_pods{reason="jq_error"} 0
-karta_exporter_unattributed_pods{reason="no_owner"} 2
-karta_exporter_unattributed_pods{reason="unknown_instance"} 1
-`
-		Expect(testutil.GatherAndCompare(c, strings.NewReader(expected), MetricExporterUnattributedPods)).To(Succeed())
-	})
-})
+func TestRecoveryReplacesReasonAndDeletionRemovesSeries(t *testing.T) {
+	s := fixtureStore()
+	registry := testGatherer(t, s, Options{})
+	s.InvalidateWorkload("w1", store.ReasonPermissionDenied)
+	assertHealth := func(value float64, reason string) {
+		t.Helper()
+		families, err := registry.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		for _, family := range families {
+			if family.GetName() != MetricExporterObservationHealthy {
+				continue
+			}
+			for _, m := range family.Metric {
+				count++
+				if m.GetGauge().GetValue() != value || label(m, LabelReason) != reason {
+					t.Fatalf("health = %v", m)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("health rows = %d, want 1", count)
+		}
+	}
+	assertHealth(0, "permission_denied")
+	workload, _ := s.Workload("w1")
+	s.UpsertWorkload(workload)
+	assertHealth(0, "permission_denied")
+	s.SetHealth([]store.HealthRecord{{Scope: "workload", UID: "w1", Ref: workload.Ref, Healthy: true, VerifiedAt: time.Now(), MaxAge: time.Minute}}, s.HealthEpoch())
+	assertHealth(1, "none")
+	s.DeleteWorkload("w1")
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(families) != 0 {
+		t.Fatalf("deleted workload retained current series: %v", families)
+	}
+}

@@ -56,17 +56,7 @@ var _ = Describe("Build", func() {
 	ctx := context.Background()
 	ref := store.WorkloadRef{Namespace: "team-a", Name: "llm", Group: "jobset.x-k8s.io", Version: "v1alpha2", Kind: "JobSet"}
 
-	replicas := func(record store.WorkloadRecord) map[string]int32 {
-		result := map[string]int32{}
-		for _, componentState := range record.Components {
-			if componentState.Replicas != nil {
-				result[componentState.Component+"/"+componentState.Instance] = *componentState.Replicas
-			}
-		}
-		return result
-	}
-
-	It("extracts matched phases and per-instance desired replicas", func() {
+	It("extracts matched phases and Pod-producing component instances", func() {
 		workload := jobsetObject(map[string]any{
 			"conditions": []any{},
 			"replicatedJobsStatus": []any{
@@ -80,12 +70,30 @@ var _ = Describe("Build", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(record.HasStatus).To(BeTrue())
 		Expect(record.Phases).To(ConsistOf(v1alpha1.RunningStatus))
-		Expect(replicas(record)).To(Equal(map[string]int32{
-			"replicatedjob/prefill": 2,
-			"replicatedjob/decode":  1,
-		}))
+		Expect(record.Components).To(ConsistOf(
+			store.ComponentState{Component: "replicatedjob", Instance: "prefill"},
+			store.ComponentState{Component: "replicatedjob", Instance: "decode"},
+		))
 		Expect(record.Karta).To(Equal("jobset-x-k8s-io-jobset-v1alpha2"))
 		Expect(record.CreatedTimestamp).To(Equal(int64(1787133600)))
+	})
+
+	It("does not evaluate unused scale selectors", func() {
+		entry := jobsetEntry()
+		entry.Karta = entry.Karta.DeepCopy()
+		unused := `error("unused scale")`
+		entry.Karta.Spec.StructureDefinition.RootComponent.ScaleDefinition = &v1alpha1.ScaleDefinition{ReplicasPath: &unused}
+		entry.Karta.Spec.StructureDefinition.ChildComponents[0].ScaleDefinition.ReplicasPath = &unused
+		workload := jobsetObject(map[string]any{"conditions": []any{}, "replicatedJobsStatus": []any{}})
+
+		record, err := Build(ctx, entry, workload, "wl-1", ref)
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(record.Phases).To(ConsistOf(v1alpha1.UndefinedStatus))
+		Expect(record.Components).To(ConsistOf(
+			store.ComponentState{Component: "replicatedjob", Instance: "prefill"},
+			store.ComponentState{Component: "replicatedjob", Instance: "decode"},
+		))
 	})
 
 	It("leaves the created timestamp zero when the object has none", func() {

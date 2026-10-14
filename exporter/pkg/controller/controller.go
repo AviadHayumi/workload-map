@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,7 +24,6 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/dsx-ai-factory/workload-map/exporter/pkg/collector"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/owner"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
@@ -39,12 +37,13 @@ var podGroupKind = schema.GroupKind{Group: "", Kind: "Pod"}
 type Options struct {
 	// FullPodCache disables the pod cache trim, for custom Kartas whose pod
 	// selectors read fields outside metadata, spec.nodeName, and status.phase.
-	FullPodCache   bool
-	Resync         time.Duration
-	Namespace      string
-	HealthInterval time.Duration
-	HealthMaxAge   time.Duration
-	RequiredKinds  []schema.GroupVersionKind
+	FullPodCache      bool
+	Resync            time.Duration
+	Namespace         string
+	HealthInterval    time.Duration
+	HealthMaxAge      time.Duration
+	RequiredKinds     []schema.GroupVersionKind
+	IgnoredOwnerKinds []schema.GroupVersionKind
 }
 
 // Controller watches Karta CRs, Karta-described workloads, their child
@@ -65,11 +64,13 @@ type Controller struct {
 	podInformer   cache.SharedIndexInformer
 	kartaInformer cache.SharedIndexInformer
 
-	mu       sync.Mutex
-	watchers map[schema.GroupVersionKind]*watcher
-
-	attributionErrors metric.Int64Counter
-	lastEvent         metric.Float64Gauge
+	mu               sync.Mutex
+	watchers         map[schema.GroupVersionKind]*watcher
+	discoveredOwners map[schema.GroupVersionKind]struct{}
+	pendingWorkloads sync.Map
+	deletedWorkloads sync.Map
+	podLocks         [256]sync.Mutex
+	workloadLocks    [256]sync.Mutex
 
 	startedMu sync.RWMutex
 	started   bool
@@ -90,7 +91,6 @@ func New(
 	reg *registry.Registry,
 	index *owner.Index,
 	s *store.Store,
-	meter metric.Meter,
 	logger *slog.Logger,
 	options Options,
 ) (*Controller, error) {
@@ -103,30 +103,18 @@ func New(
 	if options.HealthInterval <= 0 || options.HealthMaxAge <= 2*options.HealthInterval {
 		return nil, fmt.Errorf("health max age must exceed twice the positive verification interval")
 	}
-	attributionErrors, err := meter.Int64Counter(collector.MetricExporterAttributionErrors,
-		metric.WithDescription("Attribution and status evaluation errors, by reason."))
-	if err != nil {
-		return nil, fmt.Errorf("create attribution error counter: %w", err)
-	}
-	lastEvent, err := meter.Float64Gauge(collector.MetricExporterLastEventSeconds,
-		metric.WithDescription("Unix timestamp of the last processed watch event. Event activity only; not evidence of fresh observation."))
-	if err != nil {
-		return nil, fmt.Errorf("create last event gauge: %w", err)
-	}
-	lastEvent.Record(context.Background(), 0)
 	controller := &Controller{
-		dynamicClient:     dynamicClient,
-		metadataClient:    metadataClient,
-		kubeClient:        kubeClient,
-		mapper:            mapper,
-		options:           options,
-		logger:            logger,
-		registry:          reg,
-		index:             index,
-		store:             s,
-		watchers:          make(map[schema.GroupVersionKind]*watcher),
-		attributionErrors: attributionErrors,
-		lastEvent:         lastEvent,
+		dynamicClient:    dynamicClient,
+		metadataClient:   metadataClient,
+		kubeClient:       kubeClient,
+		mapper:           mapper,
+		options:          options,
+		logger:           logger,
+		registry:         reg,
+		index:            index,
+		store:            s,
+		watchers:         make(map[schema.GroupVersionKind]*watcher),
+		discoveredOwners: make(map[schema.GroupVersionKind]struct{}),
 	}
 	controller.initializeHealth()
 	return controller, nil
@@ -181,13 +169,13 @@ func (c *Controller) Run(ctx context.Context) error {
 	}
 
 	if err := c.podInformer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
-		c.store.InvalidateHealth("", "Pod")
+		c.store.InvalidateHealth("", "Pod", collectionFailureReason(err))
 		c.logger.Warn("pod observation failed", "error", err)
 	}); err != nil {
 		return err
 	}
 	if err := c.kartaInformer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
-		c.store.InvalidateHealth("run.ai", "Karta")
+		c.store.InvalidateHealth("run.ai", "Karta", collectionFailureReason(err))
 		c.logger.Warn("definition observation failed", "error", err)
 	}); err != nil {
 		return err
@@ -203,16 +191,18 @@ func (c *Controller) Run(ctx context.Context) error {
 	c.startedMu.Unlock()
 
 	c.verifyHealth(ctx)
-	ticker := time.NewTicker(c.options.HealthInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(c.options.HealthInterval)
+	defer timer.Stop()
 	for ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
-		case <-ticker.C:
+		case <-timer.C:
 			c.mapper.Reset()
 			c.reconcileWatchers()
 			c.retryPendingPods()
+			c.retryPendingWorkloads()
 			c.verifyHealth(ctx)
+			timer.Reset(c.options.HealthInterval)
 		}
 	}
 	c.stopAllWatchers()
@@ -284,7 +274,7 @@ func (c *Controller) reconcileWatchers() {
 		}
 		desiredRoots[entry.RootGVK] = struct{}{}
 		for _, child := range entry.ChildKinds {
-			if child.GroupKind() == podGroupKind {
+			if child.GroupKind() == podGroupKind || c.isIgnored(child) {
 				continue
 			}
 			desiredChildren[child] = struct{}{}
@@ -295,12 +285,43 @@ func (c *Controller) reconcileWatchers() {
 			desiredChildren[gvk] = struct{}{}
 		}
 	}
+	var restoredOwners []owner.Ref
+	var pendingPods []string
+	c.mu.Lock()
+	defer func() {
+		c.mu.Unlock()
+		for _, ref := range restoredOwners {
+			c.reattributeDescendants(ref.UID)
+		}
+		for _, key := range pendingPods {
+			c.attributePodByKey(key)
+		}
+	}()
+	for _, gvk := range c.index.OwnerKinds() {
+		if gvk.Kind != "" && gvk != podGVK && !c.isIgnored(gvk) {
+			c.discoveredOwners[gvk] = struct{}{}
+		}
+	}
+	for gvk := range c.discoveredOwners {
+		if !c.index.HasOwnerKind(gvk) {
+			delete(c.discoveredOwners, gvk)
+			continue
+		}
+		if selected, ok := c.registry.EntryFor(gvk.GroupKind()); ok && selected.RootGVK != gvk {
+			continue
+		}
+		desiredChildren[gvk] = struct{}{}
+	}
+	// A formerly described workload can remain an intermediate owner.
+	for gvk, watcher := range c.watchers {
+		if watcher.isRoot && !c.registry.IsRoot(gvk.GroupKind()) && c.index.HasOwnerKind(gvk) {
+			desiredChildren[gvk] = struct{}{}
+			c.discoveredOwners[gvk] = struct{}{}
+		}
+	}
 	for gvk := range desiredRoots {
 		delete(desiredChildren, gvk)
 	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	for gvk, w := range c.watchers {
 		_, wantRoot := desiredRoots[gvk]
@@ -310,12 +331,40 @@ func (c *Controller) reconcileWatchers() {
 		}
 		close(w.stop)
 		delete(c.watchers, gvk)
-		// a stopped informer fires no delete events; drop its owner edges
-		for _, item := range w.informer.GetStore().List() {
-			if objectMeta, ok := item.(metav1.Object); ok {
-				c.index.DeleteObject(objectMeta.GetUID())
+		if gvk != podGVK {
+			for _, ref := range c.index.ForgetKind(gvk) {
+				if _, deleted := c.deletedWorkloads.Load(ref.UID); deleted {
+					continue
+				}
+				key := ref.Name
+				if ref.Namespace != "" {
+					key = ref.Namespace + "/" + ref.Name
+				}
+				for aliasGVK, alias := range c.watchers {
+					_, keepRoot := desiredRoots[aliasGVK]
+					_, keepChild := desiredChildren[aliasGVK]
+					if aliasGVK.GroupKind() != gvk.GroupKind() ||
+						(alias.isRoot && !keepRoot) || (!alias.isRoot && !keepChild) {
+						continue
+					}
+					item, exists, err := alias.informer.GetStore().GetByKey(key)
+					if err != nil || !exists {
+						continue
+					}
+					current, err := meta.Accessor(item)
+					if err != nil || current.GetUID() != ref.UID || current.GetName() != ref.Name || current.GetNamespace() != ref.Namespace {
+						continue
+					}
+					// A surviving alias may already be synced and never send another
+					// Add for this UID. Reuse its cache before retiring the last node.
+					_, drained := c.index.UpsertTrackedObject(current, aliasGVK)
+					pendingPods = append(pendingPods, drained...)
+					restoredOwners = append(restoredOwners, ref)
+					break
+				}
 			}
 		}
+
 		c.logger.Info("stopped watcher", "gvk", gvk.String())
 	}
 
@@ -353,14 +402,14 @@ func (c *Controller) startWatcherLocked(gvk schema.GroupVersionKind, isRoot bool
 	if isRoot {
 		_, handlerErr = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj any) { c.onWorkloadEvent(obj) },
-			UpdateFunc: func(_, newObj any) { c.onWorkloadEvent(newObj) },
+			UpdateFunc: c.onWorkloadUpdate,
 			DeleteFunc: func(obj any) { c.onWorkloadDelete(obj) },
 		})
 	} else {
 		_, handlerErr = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj any) { c.onChildEvent(obj) },
-			UpdateFunc: func(_, newObj any) { c.onChildEvent(newObj) },
-			DeleteFunc: func(obj any) { c.onChildDelete(obj) },
+			AddFunc:    func(obj any) { c.onChildEvent(obj, gvk) },
+			UpdateFunc: func(oldObj, newObj any) { c.onChildUpdate(oldObj, newObj, gvk) },
+			DeleteFunc: func(obj any) { c.onChildDelete(obj, gvk) },
 		})
 	}
 	if handlerErr != nil {
@@ -369,7 +418,7 @@ func (c *Controller) startWatcherLocked(gvk schema.GroupVersionKind, isRoot bool
 	}
 
 	if err := informer.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
-		c.store.InvalidateHealth(gvk.Group, gvk.Kind)
+		c.store.InvalidateHealth(gvk.Group, gvk.Kind, collectionFailureReason(err))
 		c.logger.Warn("resource observation failed", "gvk", gvk.String(), "error", err)
 	}); err != nil {
 		c.logger.Error("cannot register watch error handler", "error", err)
@@ -400,6 +449,30 @@ func (c *Controller) rootWatcherStore(groupKind schema.GroupKind) cache.Store {
 	return nil
 }
 
-func (c *Controller) markEvent() {
-	c.lastEvent.Record(context.Background(), float64(time.Now().UnixNano())/1e9)
+func (c *Controller) isIgnored(gvk schema.GroupVersionKind) bool {
+	for _, ignored := range c.options.IgnoredOwnerKinds {
+		if ignored == gvk {
+			return true
+		}
+	}
+	return false
+}
+
+// Observe unknown intermediate kinds so a recovered owner updates descendants.
+func (c *Controller) observeOwner(gvk schema.GroupVersionKind) {
+	if gvk.Kind == "" || gvk == podGVK || c.isIgnored(gvk) {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.discoveredOwners == nil {
+		c.discoveredOwners = make(map[schema.GroupVersionKind]struct{})
+	}
+	if _, discovered := c.discoveredOwners[gvk]; discovered {
+		return
+	}
+	c.discoveredOwners[gvk] = struct{}{}
+	if c.watchers[gvk] == nil {
+		c.startWatcherLocked(gvk, false)
+	}
 }

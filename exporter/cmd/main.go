@@ -38,30 +38,28 @@ import (
 
 func main() {
 	var (
-		metricsAddr     string
-		metricsExporter string
-		kubeconfig      string
-		fullPodCache    bool
-		useCatalog      bool
-		resync          time.Duration
-		workloadPhases  string
-		podPhases       string
-		podMetricsMode  string
-		namespace       string
-		requiredKinds   string
-		healthInterval  time.Duration
-		healthMaxAge    time.Duration
+		metricsAddr       string
+		metricsExporter   string
+		kubeconfig        string
+		fullPodCache      bool
+		useCatalog        bool
+		resync            time.Duration
+		workloadPhases    string
+		namespace         string
+		requiredKinds     string
+		ignoredOwnerKinds string
+		healthInterval    time.Duration
+		healthMaxAge      time.Duration
 	)
 	flag.StringVar(&metricsExporter, "metrics-exporter", os.Getenv("OTEL_METRICS_EXPORTER"), "Metric delivery: prometheus (default). Overrides OTEL_METRICS_EXPORTER; other outputs are not supported yet.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address to serve /metrics, /healthz, and /readyz on.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig; empty means in-cluster configuration.")
-	flag.BoolVar(&fullPodCache, "full-pod-cache", false, "Cache full pod objects instead of the trimmed shape. Needed only for custom Kartas whose pod selectors read fields outside metadata, spec.nodeName, and status.phase.")
+	flag.BoolVar(&fullPodCache, "full-pod-cache", true, "Cache full Pod objects for arbitrary definition selectors. Setting false trims to metadata, spec.nodeName and status.phase and is valid only when every selected definition uses that shape.")
 	flag.BoolVar(&useCatalog, "use-catalog", false, "Use the built-in catalog definitions for workload kinds that have no Karta CR on the cluster. A Karta CR always overrides the catalog.")
 	flag.DurationVar(&resync, "resync-period", 10*time.Hour, "Informer resync period.")
 	flag.StringVar(&workloadPhases, "workload-phases", "all", "Normalized states to emit: all, none, or a comma-separated list. Selected states retain dense 0/1 samples.")
-	flag.StringVar(&podPhases, "pod-phases", "all", "Component Pod count phases to emit: all, none, or a comma-separated list.")
-	flag.StringVar(&podMetricsMode, "pod-metrics-mode", collector.PodMetricsCounts, "Pod metrics: counts (default), inventory (phase on attribution plus component inventory), or both (comparison mode).")
 	flag.StringVar(&namespace, "namespace", "", "Observe one namespace; empty observes all namespaces. Karta definitions remain cluster scoped.")
+	flag.StringVar(&ignoredOwnerKinds, "ignored-owner-kinds", "", "Owner-walk boundaries: comma-separated group/version/Kind (core: v1/Pod); stop before reading that owner.")
 	flag.StringVar(&requiredKinds, "required-kinds", "", "Required kinds even before discovery: comma-separated group/version/Kind (core: v1/Pod).")
 	flag.DurationVar(&healthInterval, "health-check-interval", 30*time.Second, "Interval between fresh API and attribution verification passes.")
 	flag.DurationVar(&healthMaxAge, "health-max-age", 2*time.Minute, "Maximum age of a successful verification; must exceed twice the check interval.")
@@ -73,28 +71,22 @@ func main() {
 		logger.Error("invalid metric delivery", "error", err)
 		os.Exit(1)
 	}
-	metricOptions, err := collector.ParseOptions(workloadPhases, podPhases, podMetricsMode)
+	metricOptions, err := collector.ParseOptions(workloadPhases)
 	if err != nil {
 		logger.Error("invalid metric selection", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("metric delivery configured", "exporter", metricsExporter)
 	controllerOptions := controller.Options{FullPodCache: fullPodCache, Resync: resync, Namespace: namespace, HealthInterval: healthInterval, HealthMaxAge: healthMaxAge}
-	for _, kind := range strings.Split(requiredKinds, ",") {
-		if kind == "" {
-			continue
-		}
-		parts := strings.Split(kind, "/")
-		if len(parts) < 2 || len(parts) > 3 || parts[len(parts)-1] == "" {
-			logger.Error("invalid required kind", "kind", kind)
-			os.Exit(1)
-		}
-		gv, err := schema.ParseGroupVersion(strings.Join(parts[:len(parts)-1], "/"))
-		if err != nil {
-			logger.Error("invalid required kind", "error", err)
-			os.Exit(1)
-		}
-		controllerOptions.RequiredKinds = append(controllerOptions.RequiredKinds, gv.WithKind(parts[len(parts)-1]))
+	controllerOptions.RequiredKinds, err = parseKinds(requiredKinds)
+	if err != nil {
+		logger.Error("invalid required kinds", "error", err)
+		os.Exit(1)
+	}
+	controllerOptions.IgnoredOwnerKinds, err = parseKinds(ignoredOwnerKinds)
+	if err != nil {
+		logger.Error("invalid ignored owner kinds", "error", err)
+		os.Exit(1)
 	}
 	if err := run(metricsAddr, kubeconfig, useCatalog, controllerOptions, metricOptions, logger); err != nil {
 		logger.Error("exporter failed", "error", err)
@@ -111,6 +103,9 @@ func run(metricsAddr, kubeconfig string, useCatalog bool, controllerOptions cont
 		return fmt.Errorf("failed to build rest config: %w", err)
 	}
 
+	// Paginated verification shares the API budget with informer lists and watches.
+	restConfig.QPS = 50
+	restConfig.Burst = 100
 	restConfig.Timeout = 30 * time.Second
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
@@ -159,7 +154,7 @@ func run(metricsAddr, kubeconfig string, useCatalog bool, controllerOptions cont
 	exporterController, err := controller.New(
 		dynamicClient, metadataClient, kubeClient, mapper,
 		kartaRegistry, ownerIndex, metricsStore,
-		meter, logger,
+		logger,
 		controllerOptions,
 	)
 
@@ -167,11 +162,6 @@ func run(metricsAddr, kubeconfig string, useCatalog bool, controllerOptions cont
 		return err
 	}
 
-	metricOptions.PendingPods = ownerIndex.PendingCount
-	metricOptions.KartaCounts = func() (int, int, int) {
-		stats := kartaRegistry.Stats()
-		return stats.Valid, stats.Invalid, stats.Shadowed
-	}
 	registration, err := collector.New(meter, metricsStore, metricOptions)
 	if err != nil {
 		return fmt.Errorf("register workload observations: %w", err)
@@ -209,4 +199,34 @@ func buildRESTConfig(kubeconfig string) (*rest.Config, error) {
 	}
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{}).ClientConfig()
+}
+
+func parseKinds(value string) ([]schema.GroupVersionKind, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	var kinds []schema.GroupVersionKind
+	seen := make(map[schema.GroupVersionKind]bool)
+	for _, value := range strings.Split(value, ",") {
+		value = strings.TrimSpace(value)
+		parts := strings.Split(value, "/")
+		if len(parts) < 2 || len(parts) > 3 {
+			return nil, fmt.Errorf("invalid kind %q: expected group/version/Kind or version/Kind", value)
+		}
+		for _, part := range parts {
+			if part == "" || strings.ContainsAny(part, " \t\r\n*") {
+				return nil, fmt.Errorf("invalid kind %q: every segment must be nonempty and exact", value)
+			}
+		}
+		gv, err := schema.ParseGroupVersion(strings.Join(parts[:len(parts)-1], "/"))
+		if err != nil {
+			return nil, fmt.Errorf("invalid kind %q: %w", value, err)
+		}
+		gvk := gv.WithKind(parts[len(parts)-1])
+		if !seen[gvk] {
+			kinds = append(kinds, gvk)
+			seen[gvk] = true
+		}
+	}
+	return kinds, nil
 }

@@ -3,6 +3,11 @@
 
 # Workload and component metric attribution: what the panel does, and what Karta should do
 
+This is historical prototype research. Its proposed metric families and bundled
+recording rules were superseded by [KEP-0001](../../keps/0001-metrics-exporter/README.md).
+The [current exporter guide](../Metrics%20Exporter.md) describes the implementation.
+The [scale decision](metrics-exporter-scale-decision.md) adds measured capacity evidence.
+
 ## Purpose and method
 
 Question: how do OSS projects attribute per-pod metrics to workload and

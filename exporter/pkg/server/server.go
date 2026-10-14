@@ -21,7 +21,9 @@ type Server struct {
 
 func New(addr string, gatherer prometheus.Gatherer, ready func() bool) *Server {
 	mux := http.NewServeMux()
-	metricsHandler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
+	// Collection materializes every identity through the SDK. Bound overlapping
+	// scrapes so one slow client cannot multiply the full dataset in memory.
+	metricsHandler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{MaxRequestsInFlight: 1})
 	mux.Handle("/metrics", metricsHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

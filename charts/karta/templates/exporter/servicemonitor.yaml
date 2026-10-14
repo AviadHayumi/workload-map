@@ -1,4 +1,4 @@
-{{- if and .Values.exporter.enabled .Values.exporter.serviceMonitor.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") -}}
+{{- if and .Values.exporter.enabled .Values.exporter.serviceMonitor.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") -}}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

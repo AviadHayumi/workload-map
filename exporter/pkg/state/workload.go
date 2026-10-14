@@ -17,16 +17,20 @@ import (
 )
 
 // Build computes the stored state of a workload from its live object:
-// matched normalized statuses of the root, and per component instance the
-// desired replicas. A root without a StatusDefinition yields HasStatus false,
+// matched normalized statuses of the root and Pod-producing component instances.
+// A root without a StatusDefinition yields HasStatus false,
 // which is a different fact from Undefined (mappings present, none matched).
 func Build(ctx context.Context, entry *registry.Entry, workload resource.KubernetesObject, uid types.UID, ref store.WorkloadRef) (store.WorkloadRecord, error) {
 	factory := resource.NewComponentFactoryFromObject(entry.Karta, workload)
 
 	record := store.WorkloadRecord{
-		UID:   uid,
-		Ref:   ref,
-		Karta: entry.Karta.Name,
+		UID:         uid,
+		Ref:         ref,
+		Karta:       entry.Karta.Name,
+		KartaSource: "cluster",
+	}
+	if entry.Catalog {
+		record.KartaSource = "catalog"
 	}
 	if created := workload.GetCreationTimestamp(); !created.IsZero() {
 		record.CreatedTimestamp = created.Unix()
@@ -67,15 +71,10 @@ func Build(ctx context.Context, entry *registry.Entry, workload resource.Kuberne
 	return record, statusErr
 }
 
-// componentStates lists the instances of one component with their desired
-// replicas. Components without a pod definition and without a scale are
-// skipped: they produce no pods and no replica expectation.
+// componentStates lists instances needed for Pod attribution. Scale selectors
+// are not attribution inputs and must not affect exporter observation health.
 func componentStates(ctx context.Context, component *resource.Component) ([]store.ComponentState, error) {
-	scales, err := component.GetScale(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if scales == nil && !component.HasPodDefinition() {
+	if !component.HasPodDefinition() {
 		return nil, nil
 	}
 
@@ -89,9 +88,6 @@ func componentStates(ctx context.Context, component *resource.Component) ([]stor
 		componentState := store.ComponentState{
 			Component: component.Name(),
 			Instance:  instanceID,
-		}
-		if scale, ok := scales[instanceID]; ok {
-			componentState.Replicas = scale.Replicas
 		}
 		states = append(states, componentState)
 	}

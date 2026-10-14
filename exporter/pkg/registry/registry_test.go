@@ -109,7 +109,7 @@ var _ = ginkgo.Describe("Registry", func() {
 			dynamoGroupKind := schema.GroupKind{Group: "nvidia.com", Kind: "DynamoGraphDeployment"}
 			entry, ok := r.EntryFor(dynamoGroupKind)
 			Expect(ok).To(BeTrue())
-			Expect(entry.RootGVK.Version).To(Equal("v1beta1"))
+			Expect(entry.RootGVK.Version).To(Equal("v1alpha1"))
 		})
 
 		ginkgo.It("lets a cluster CR override the catalog entry", func() {

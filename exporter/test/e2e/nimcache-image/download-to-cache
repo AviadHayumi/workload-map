@@ -1,0 +1,5 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+sleep 15
+printf "%s\n" "CPU fixture: simulated cache download completed"

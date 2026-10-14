@@ -116,9 +116,8 @@ crdUpgrader:
       cpu: 200m
       memory: 128Mi
 
-# Karta metrics exporter. Publishes pod-to-workload attribution, normalized
-# workload status, and replica series. The bundled recording rules join them
-# with existing DCGM and cadvisor series into the karta:* aggregate names.
+# Karta metrics exporter. Publishes Pod attribution, root workload status
+# and observation health. Platform teams own measurement queries and rules.
 exporter:
   enabled: false
   replicaCount: 1
@@ -132,10 +131,17 @@ exporter:
   ports:
     metrics: 8080
 
-  # The exporter caches pods trimmed to metadata, spec.nodeName, and
-  # status.phase. Set true only for custom Kartas whose pod selectors read
-  # other pod fields.
-  fullPodCache: false
+  # Observation scope; this does not change the release namespace or RBAC.
+  namespace: ""
+
+  # Native OTLP delivery is deferred.
+  metricsExporter: prometheus
+
+  # Exact group/version/Kind boundaries; stop before reading the ignored owner.
+  ignoredOwnerKinds: []
+
+  # Expected APIs, even before discovery. Missing or unreadable APIs fail health.
+  requiredKinds: []
 
   # Use the built-in catalog definitions for workload kinds that have no
   # Karta CR on the cluster. A Karta CR always overrides the catalog.
@@ -144,13 +150,6 @@ exporter:
   metrics:
     # all, none, or an explicit list. Selected states retain 0/1 samples.
     workloadPhases: ["all"]
-    podPhases: ["all"]
-    # counts keeps existing output. inventory replaces component Pod counts
-    # with component info and adds pod_phase to attribution. both compares them.
-    podMetricsMode: counts
-
-  # Extra flags appended after the chart's default args.
-  extraArgs: []
 
   podAnnotations: {}
 
@@ -197,27 +196,6 @@ exporter:
     interval: 30s
     # The exposition grows with pod count; 10s is too tight on large clusters.
     scrapeTimeout: 25s
-
-  prometheusRule:
-    # Rendered only when the prometheus-operator CRDs are installed.
-    # The karta:* record names are part of the exporter's metric contract.
-    enabled: true
-    interval: 30s
-    resources: ["gpu", "cpu", "memory"]
-    levels: ["workload", "component", "component_instance", "replica"]
-    # Source metric names and join labels, adjustable without a release when
-    # a relabeling scheme renames them (e.g. pod -> exported_pod).
-    gpuUtilizationMetric: DCGM_FI_DEV_GPU_UTIL
-    gpuMemoryUsedMetric: DCGM_FI_DEV_FB_USED
-    gpuMemoryFreeMetric: DCGM_FI_DEV_FB_FREE
-    cpuUsageMetric: container_cpu_usage_seconds_total
-    memoryWorkingSetMetric: container_memory_working_set_bytes
-    # Name-only matching is a compatibility fallback. Use [namespace, pod, uid]
-    # when every selected source carries the producing Pod UID as uid.
-    # Normalize external UID label names before these rules; a current-name
-    # lookup cannot recover the producing incarnation of an older sample.
-    joinLabels: ["namespace", "pod"]
-    cpuRateWindow: 5m
 
   networkPolicy:
     # The metrics endpoint serves cluster-wide workload identity

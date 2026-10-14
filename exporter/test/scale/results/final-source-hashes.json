@@ -1,0 +1,9 @@
+{
+  "exporter/pkg/collector/collector.go": "21a9d3f89dcf3627bd6cbc1b3baf44171fb47e87da79716dc788d5035e0e886b",
+  "exporter/pkg/store/store.go": "73824823458794cd882e77ae92d7044a37fa04523e2bbd215198153f2b1f5a0d",
+  "exporter/pkg/telemetry/provider.go": "7127d5960b32036ed28ebceeef653a7e8c5f1c06cf56eff3aabf0df06282f658",
+  "exporter/pkg/server/server.go": "13520ab3fd50787f04f72a385620c331728f88dcba9cfad9e186986ad81de1c2",
+  "exporter/test/scale/fixture.go": "bd3a28815e6259f561a82ac7a2f23025764e0566396cb0763d34b62c0c13fc54",
+  "exporter/test/scale/oracle.go": "96500ffdf1683883b5d9a84f465740c69fc9d429d77ac5df43dc084534557cc2",
+  "exporter/test/scale/cmd/main.go": "6545e3b9089031aa6ee158f7591b2d3c5924e42347e7cc5cb1494e0f2a6b37bd"
+}

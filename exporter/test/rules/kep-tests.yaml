@@ -5,595 +5,126 @@ rule_files:
 - kep-rules.yaml
 evaluation_interval: 30s
 tests:
-- name: busy-and-low-components-and-groups
+- name: identical-exporter-replicas-do-not-double-usage
   interval: 30s
   input_series:
-  - &id002
-    series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
+  - &id001
+    series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
     values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
+  - &id002
+    series: karta_workload_status{karta="dynamo-definition",karta_source="catalog",namespace="team-a",owner_resolution="resolved",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
   - &id003
-    series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
+    series: karta_exporter_observation_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",reason="none",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
     values: 1x20
   - &id004
-    series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
+    series: DCGM_FI_DEV_GPU_UTIL{UUID="gpu-a",namespace="team-a",pod="decode-0"}
     values: 1x20
   - &id005
-    series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - &id006
-    series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - &id007
-    series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - &id008
-    series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - &id009
-    series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - &id010
-    series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - &id011
-    series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - &id012
-    series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x20
-  - &id013
-    series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - &id014
-    series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - &id015
-    series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - &id016
-    series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - &id017
     series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
     values: 100+6x20
-  - &id018
+  - &id006
     series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
     values: 536870912x20
+  - series: karta_pod_workload_info{component="service",component_instance="decode",instance="second-exporter",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - series: karta_workload_status{instance="second-exporter",karta="dynamo-definition",karta_source="catalog",namespace="team-a",owner_resolution="resolved",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - series: karta_exporter_observation_healthy{group="nvidia.com",instance="second-exporter",kind="DynamoGraphDeployment",namespace="team-a",reason="none",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
+    values: 1x20
   promql_expr_test:
-  - expr: "sum by (namespace, workload_group, workload_kind, workload, workload_uid,\n        component,\
-      \ component_instance, replica) (\n  rate(container_cpu_usage_seconds_total{\n    namespace!=\"\"\
-      , pod!=\"\", container!=\"\", container!=\"POD\"\n  }[5m])\n  * on (namespace, pod)\n    group_left\
-      \ (workload_group, workload_kind, workload, workload_uid,\n                component, component_instance,\
-      \ replica)\n    karta:pod_attribution:unique{component!=\"<unknown>\", component_instance!=\"<unknown>\"\
-      }\n)"
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        rate(container_cpu_usage_seconds_total{
+          namespace!="", pod!="", container!="", container!="POD"
+        }[5m])
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
     eval_time: 5m
     exp_samples:
-    - labels: '{component="service",component_instance="decode",namespace="team-a",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}'
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
       value: 0.2
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
     eval_time: 5m
-    exp_samples: &id019
-    - labels: '{component="service",component_instance="decode",namespace="team-a",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}'
+    exp_samples:
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
       value: 1
-    - &id001
-      labels: '{component="worker",namespace="team-a",replica="0",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}'
-      value: 1
-  - expr: "sum by (namespace, workload_group, workload_kind, workload, workload_uid,\n        component,\
-      \ component_instance, replica) (\n  container_memory_working_set_bytes{namespace!=\"\",pod!=\"\"\
-      ,container!=\"\",container!=\"POD\"}\n  * on (namespace, pod)\n    group_left (workload_group, workload_kind,\
-      \ workload, workload_uid,\n                component, component_instance, replica)\n    karta:pod_attribution:unique{component!=\"\
-      <unknown>\", component_instance!=\"<unknown>\"}\n)"
-    eval_time: 5m
-    exp_samples:
-    - labels: '{component="service",component_instance="decode",namespace="team-a",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}'
-      value: 536870912
-- name: failed-observation
+- name: one-unhealthy-exporter-blocks-low-activity
   interval: 30s
   input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x8 0x12
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples:
-    - *id001
-- name: recovered-with-failure-in-window
-  interval: 30s
-  input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x5 0x2 1x13
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples:
-    - *id001
-- name: missing-busy-device-is-not-detectable
-  interval: 30s
-  input_series:
+  - *id001
   - *id002
   - *id003
   - *id004
   - *id005
   - *id006
-  - *id007
-  - *id008
-  - *id009
-  - *id010
-  - *id011
-  - *id012
-  - *id013
-  - *id014
-  - *id015
-  - *id016
-  - *id017
-  - *id018
+  - series: karta_exporter_observation_healthy{group="nvidia.com",instance="second-exporter",kind="DynamoGraphDeployment",namespace="team-a",reason="permission_denied",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
+    values: '0x20'
   promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
     eval_time: 5m
-    exp_samples: *id019
-- name: only-recent-health-is-not-a-full-window
+    exp_samples: []
+- name: missing-health-is-unknown
   interval: 30s
   input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: _x8 1x12
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: _x8 1x12
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: _x8 1x12
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples: *id019
-- name: missing-telemetry-is-empty-not-zero
-  interval: 30s
-  input_series:
+  - *id001
   - *id002
-  - *id003
+  - *id004
   - *id005
-  - *id007
-  - *id009
-  - *id011
-  - *id012
-  - *id013
-  - *id014
-  - *id015
-  - *id016
-  - *id017
-  - *id018
+  - *id006
   promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
     eval_time: 5m
     exp_samples: []
-- name: missing-target
-  interval: 30s
-  input_series: []
-  promql_expr_test:
-  - expr: (up{job="karta"} == 0) or absent(up{job="karta"})
-    eval_time: 5m
-    exp_samples:
-    - labels: '{job="karta"}'
-      value: 1
-- name: failed-target
-  interval: 30s
-  input_series:
-  - series: up{job="karta"}
-    values: '0x20'
-  promql_expr_test:
-  - expr: (up{job="karta"} == 0) or absent(up{job="karta"})
-    eval_time: 5m
-    exp_samples:
-    - labels: up{job="karta"}
-      value: 0
-- name: missing-required-kind
-  interval: 30s
-  input_series: []
-  promql_expr_test:
-  - expr: "absent(karta_exporter_resource_healthy{\n  scope=\"kind\",namespace=\"team-a\",group=\"jobset.x-k8s.io\"\
-      ,\n  version=\"v1alpha2\",kind=\"JobSet\"\n})"
-    eval_time: 5m
-    exp_samples:
-    - labels: '{scope="kind",namespace="team-a",group="jobset.x-k8s.io",version="v1alpha2",kind="JobSet"}'
-      value: 1
-- name: duplicate-identities
-  interval: 30s
-  input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",instance="second-exporter",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",instance="second-exporter",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",instance="second-exporter",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  promql_expr_test:
-  - expr: "sum by (namespace, workload_group, workload_kind, workload, workload_uid,\n        component,\
-      \ component_instance, replica) (\n  rate(container_cpu_usage_seconds_total{\n    namespace!=\"\"\
-      , pod!=\"\", container!=\"\", container!=\"POD\"\n  }[5m])\n  * on (namespace, pod)\n    group_left\
-      \ (workload_group, workload_kind, workload, workload_uid,\n                component, component_instance,\
-      \ replica)\n    karta:pod_attribution:unique{component!=\"<unknown>\", component_instance!=\"<unknown>\"\
-      }\n)"
-    eval_time: 5m
-    exp_samples:
-    - labels: '{component="service",component_instance="decode",namespace="team-a",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}'
-      value: 0.2
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples: *id019
-- name: conflicting-pod-uid
-  interval: 30s
-  input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",instance="second-exporter",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",instance="second-exporter",namespace="team-a",pod="decode-0",replica="",uid="replaced-pod",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",instance="second-exporter",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  promql_expr_test:
-  - expr: "sum by (namespace, workload_group, workload_kind, workload, workload_uid,\n        component,\
-      \ component_instance, replica) (\n  rate(container_cpu_usage_seconds_total{\n    namespace!=\"\"\
-      , pod!=\"\", container!=\"\", container!=\"POD\"\n  }[5m])\n  * on (namespace, pod)\n    group_left\
-      \ (workload_group, workload_kind, workload, workload_uid,\n                component, component_instance,\
-      \ replica)\n    karta:pod_attribution:unique{component!=\"<unknown>\", component_instance!=\"<unknown>\"\
-      }\n)"
-    eval_time: 5m
-    exp_samples: []
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples:
-    - *id001
-- name: conflicting-component
-  interval: 30s
-  input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",instance="second-exporter",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",instance="second-exporter",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",instance="second-exporter",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",instance="second-exporter",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  promql_expr_test:
-  - expr: "sum by (namespace, workload_group, workload_kind, workload, workload_uid,\n        component,\
-      \ component_instance, replica) (\n  rate(container_cpu_usage_seconds_total{\n    namespace!=\"\"\
-      , pod!=\"\", container!=\"\", container!=\"POD\"\n  }[5m])\n  * on (namespace, pod)\n    group_left\
-      \ (workload_group, workload_kind, workload, workload_uid,\n                component, component_instance,\
-      \ replica)\n    karta:pod_attribution:unique{component!=\"<unknown>\", component_instance!=\"<unknown>\"\
-      }\n)"
-    eval_time: 5m
-    exp_samples: []
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples:
-    - *id001
-- name: one-unhealthy-exporter-must-block
-  interval: 30s
-  input_series:
-  - series: karta_pod_workload_info{component="service",component_instance="prefill",namespace="team-a",pod="prefill-0",replica="",uid="p-d1",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d1",namespace="team-a",pod="prefill-0"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",pod="decode-0",replica="",uid="p-d2",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-d2",namespace="team-a",pod="decode-0"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-0-1",replica="0",uid="p-l1",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l1",namespace="team-a",pod="serve-0-1"}
-    values: 1x20
-  - series: karta_pod_workload_info{component="worker",component_instance="",namespace="team-a",pod="serve-1-1",replica="1",uid="p-l2",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-l2",namespace="team-a",pod="serve-1-1"}
-    values: 90x20
-  - series: karta_pod_workload_info{component="replicatedjob",component_instance="worker",namespace="team-a",pod="train-worker-0",replica="0",uid="p-j1",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: DCGM_FI_DEV_GPU_UTIL{UUID="GPU-p-j1",namespace="team-a",pod="train-worker-0"}
-    values: 90x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="serve",workload_group="leaderworkerset.x-k8s.io",workload_kind="LeaderWorkerSet",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="leaderworkerset.x-k8s.io",kind="LeaderWorkerSet",namespace="team-a",scope="workload",version="v1alpha1",workload="serve",workload_uid="w-l"}
-    values: 1x20
-  - series: karta_workload_status{namespace="team-a",phase="Running",workload="train",workload_group="jobset.x-k8s.io",workload_kind="JobSet",workload_uid="w-j"}
-    values: 1x20
-  - series: karta_exporter_resource_healthy{group="jobset.x-k8s.io",kind="JobSet",namespace="team-a",scope="workload",version="v1alpha1",workload="train",workload_uid="w-j"}
-    values: 1x20
-  - series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
-    values: 100+6x20
-  - series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
-    values: 536870912x20
-  - series: karta_exporter_resource_healthy{group="nvidia.com",instance="unhealthy-exporter",kind="DynamoGraphDeployment",namespace="team-a",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
-    values: '0x20'
-  promql_expr_test:
-  - expr: "(\n  max by (namespace, workload_group, workload_kind, workload, workload_uid,\n          component,\
-      \ component_instance, replica) (\n    max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!=\"\",pod!=\"\
-      \"}[5m])\n    * on (namespace, pod)\n      group_left (workload_group, workload_kind, workload,\
-      \ workload_uid,\n                  component, component_instance, replica)\n      karta:pod_attribution:unique{component!=\"\
-      <unknown>\",component_instance!=\"<unknown>\"}\n  ) < 5\n)\nand on (namespace, workload_uid)\n \
-      \ (min by (namespace, workload_uid) (karta_workload_status{phase=\"Running\"}) == 1)\nand on (namespace,\
-      \ workload_uid)\n  (min by (namespace, workload_uid) (\n    min_over_time(karta_exporter_resource_healthy{scope=\"\
-      workload\"}[5m])\n  ) == 1)"
-    eval_time: 5m
-    exp_samples:
-    - *id001

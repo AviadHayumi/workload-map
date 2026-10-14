@@ -1,0 +1,30 @@
+{
+  "scenario": {
+    "Workloads": 100000,
+    "Pods": 10
+  },
+  "environment": "synthetic loopback HTTP API; not a production Kubernetes cluster",
+  "implementation": "metadata-only first Pod pass, typed PodList fixture encoding, before snapshot Pod pointer index",
+  "verification_ms": 60150.028042,
+  "setup_and_verification_ms": 69520,
+  "workload_health_rows": 100000,
+  "resource_type_health_rows": 3,
+  "healthy_rows": 100003,
+  "lists": {
+    "Jobs": 100,
+    "Pods": 2000,
+    "Kartas": 1
+  },
+  "pod_list_modes": {
+    "metadata": 1000,
+    "full": 1000
+  },
+  "fallback_gets": 0,
+  "page_limit": 1000,
+  "client_qps": 50,
+  "client_burst": 100,
+  "verification_deadline_seconds": 60,
+  "coverage_passed": true,
+  "verification_wall_time_within_deadline": false,
+  "qualification": "API coverage completed; postprocessing made total verification wall time exceed 60 seconds"
+}

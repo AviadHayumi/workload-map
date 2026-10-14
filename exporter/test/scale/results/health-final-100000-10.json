@@ -1,0 +1,33 @@
+{
+  "scenario": {
+    "Workloads": 100000,
+    "Pods": 10
+  },
+  "environment": "synthetic loopback HTTP API; not a production Kubernetes cluster",
+  "implementation": "metadata-only first Pod pass and immutable snapshot Pod pointer index; typed PodList fixture encoding",
+  "source_hashes_sha256": {
+    "exporter/pkg/controller/health.go": "f26ea7e8883b4b11716dea7bec04c614476540dc14874840e4d041b958b68794",
+    "exporter/pkg/controller/scale_test.go": "cd840b7dd5a07d32fd5a04cb58940f5bd4a81a867e0144e4d6ee2b7c5d367834"
+  },
+  "verification_ms": 58568.248875,
+  "setup_and_verification_ms": 67090,
+  "workload_health_rows": 100000,
+  "resource_type_health_rows": 3,
+  "healthy_rows": 100003,
+  "lists": {
+    "Jobs": 100,
+    "Pods": 2000,
+    "Kartas": 1
+  },
+  "pod_list_modes": {
+    "metadata": 1000,
+    "full": 1000
+  },
+  "fallback_gets": 0,
+  "page_limit": 1000,
+  "client_qps": 50,
+  "client_burst": 100,
+  "verification_deadline_seconds": 60,
+  "verification_deadline_headroom_ms": 1431.751125,
+  "passed": true
+}

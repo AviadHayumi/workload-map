@@ -180,19 +180,9 @@ helm-validate: exporter-rules-test ## Validate the chart renders and the CRD Con
 	@set -e; tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; helm template $(KARTA_CHART_DIR) -s templates/hooks/pre/crd-upgrader-configmap.yaml > "$$tmp"; s=$$(wc -c < "$$tmp"); echo "crd-upgrader ConfigMap: $$s bytes (max $(CRD_CONFIGMAP_MAX_BYTES))"; test $$s -le $(CRD_CONFIGMAP_MAX_BYTES) || { echo "error: CRD ConfigMap is $$s bytes, over the $(CRD_CONFIGMAP_MAX_BYTES) limit; it must fit in a single ~1 MiB etcd object"; exit 1; }
 
 .PHONY: exporter-rules-test
-exporter-rules-test: ## Render the chart's recording rules and run the promtool unit tests
-	@set -e; \
-	if ! command -v promtool >/dev/null 2>&1; then \
-		echo "promtool not found, skipping recording-rule tests"; exit 0; \
-	fi; \
-	mkdir -p exporter/test/rules/.rendered; \
-	helm template rules-test $(KARTA_CHART_DIR) --set exporter.enabled=true --api-versions monitoring.coreos.com/v1 \
-		| python3 hack/extract-prometheus-rules.py > exporter/test/rules/.rendered/karta-rules.yaml; \
-	promtool check rules exporter/test/rules/.rendered/karta-rules.yaml; \
-	helm template rules-test $(KARTA_CHART_DIR) --set exporter.enabled=true --api-versions monitoring.coreos.com/v1 \
-		--set 'exporter.prometheusRule.joinLabels={namespace,pod,uid}' \
-		| python3 hack/extract-prometheus-rules.py > exporter/test/rules/.rendered/karta-uid-rules.yaml; \
-	promtool check rules exporter/test/rules/.rendered/karta-uid-rules.yaml; \
+exporter-rules-test: ## Validate platform-owned KEP query examples with promtool
+	@command -v promtool >/dev/null 2>&1 || { echo "promtool is required for exporter query tests"; exit 1; }
+	promtool check rules exporter/test/rules/kep-rules.yaml
 	cd exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml replica-tests.yaml kep-tests.yaml
 
 ##@ Air-gap

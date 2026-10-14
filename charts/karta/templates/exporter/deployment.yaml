@@ -1,4 +1,7 @@
 {{- if .Values.exporter.enabled -}}
+{{- if ne .Values.exporter.metricsExporter "prometheus" -}}
+{{- fail "exporter.metricsExporter must be prometheus; native OTLP delivery is deferred" -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,18 +36,20 @@ spec:
           imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
           args:
             - --metrics-bind-address=:{{ .Values.exporter.ports.metrics }}
-            {{- if .Values.exporter.fullPodCache }}
-            - --full-pod-cache
+            - --metrics-exporter={{ .Values.exporter.metricsExporter }}
+            {{- with .Values.exporter.namespace }}
+            - {{ printf "--namespace=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.exporter.ignoredOwnerKinds }}
+            - {{ printf "--ignored-owner-kinds=%s" (join "," .) | quote }}
+            {{- end }}
+            {{- with .Values.exporter.requiredKinds }}
+            - {{ printf "--required-kinds=%s" (join "," .) | quote }}
             {{- end }}
             {{- if .Values.exporter.useCatalog }}
             - --use-catalog
             {{- end }}
             - --workload-phases={{ .Values.exporter.metrics.workloadPhases | join "," }}
-            - --pod-phases={{ .Values.exporter.metrics.podPhases | join "," }}
-            - --pod-metrics-mode={{ .Values.exporter.metrics.podMetricsMode }}
-            {{- range .Values.exporter.extraArgs }}
-            - {{ . | quote }}
-            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.exporter.ports.metrics }}

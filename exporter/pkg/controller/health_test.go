@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/metric/noop"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery/cached/memory"
 	discoveryfake "k8s.io/client-go/discovery/fake"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -53,10 +53,21 @@ func fixture(t *testing.T) (*Controller, *dynamicfake.FakeDynamicClient, *unstru
 		t.Fatal(err)
 	}
 	reg.Set(definition)
-	c, err := New(client, metadatafake.NewSimpleMetadataClient(scheme), k, restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discovery)), reg, owner.New(), store.New(), noop.NewMeterProvider().Meter("test"), slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Namespace: "test", HealthInterval: time.Second, HealthMaxAge: time.Minute})
+	c, err := New(client, metadatafake.NewSimpleMetadataClient(scheme), k, restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discovery)), reg, owner.New(), store.New(), slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Namespace: "test", HealthInterval: time.Second, HealthMaxAge: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.metadataClient.(*metadatafake.FakeMetadataClient).PrependReactor("list", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+		list, err := c.dynamicClient.Resource(action.GetResource()).Namespace(action.GetNamespace()).List(context.Background(), metav1.ListOptions{Limit: verificationPageSize})
+		if err != nil {
+			return true, nil, err
+		}
+		result := &metav1.List{ListMeta: metav1.ListMeta{ResourceVersion: list.GetResourceVersion(), Continue: list.GetContinue()}}
+		for _, obj := range list.Items {
+			result.Items = append(result.Items, runtime.RawExtension{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: obj.GetName(), Namespace: obj.GetNamespace(), UID: obj.GetUID(), ResourceVersion: obj.GetResourceVersion(), OwnerReferences: obj.GetOwnerReferences()}}})
+		}
+		return true, result, nil
+	})
 	informer := func(items ...any) cache.SharedIndexInformer {
 		i := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{})
 		for _, item := range items {
@@ -103,7 +114,6 @@ func TestHealthPermissionFailureAndQuietRecovery(t *testing.T) {
 		t.Fatal("permission loss must invalidate workload")
 	}
 	denied = false
-	c.markEvent()
 	if workloadHealth(t, c) != 0 {
 		t.Fatal("an unrelated event must not recover health")
 	}
@@ -129,7 +139,7 @@ func TestHealthCacheLagAndUnknownKind(t *testing.T) {
 	c.verifyHealth(context.Background())
 	found := false
 	for _, h := range c.store.Snapshot().Health {
-		if h.Scope == "kind" && h.Ref.Kind == "Missing" {
+		if h.Scope == "resource_type" && h.Ref.Kind == "Missing" {
 			found = true
 			if h.Healthy {
 				t.Fatal("unknown kind healthy")
@@ -167,7 +177,7 @@ func TestMalformedWorkloadDoesNotPoisonPeer(t *testing.T) {
 	broken := job.DeepCopy()
 	broken.SetName("broken")
 	broken.SetUID("job-b")
-	if err := unstructured.SetNestedField(broken.Object, map[string]any{"invalid": true}, "spec", "parallelism"); err != nil {
+	if err := unstructured.SetNestedField(broken.Object, int64(1), "status", "conditions"); err != nil {
 		t.Fatal(err)
 	}
 	jobs := client.Resource(schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}).Namespace("test")
@@ -189,7 +199,7 @@ func TestMalformedWorkloadDoesNotPoisonPeer(t *testing.T) {
 		}
 	}
 	fixed := broken.DeepCopy()
-	if err := unstructured.SetNestedField(fixed.Object, int64(1), "spec", "parallelism"); err != nil {
+	if err := unstructured.SetNestedField(fixed.Object, []any{}, "status", "conditions"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := jobs.Update(context.Background(), fixed, metav1.UpdateOptions{}); err != nil {
@@ -225,6 +235,9 @@ func TestHealthDetectsMissingAttributionAndPodReplacement(t *testing.T) {
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(pod.Object, typed); err != nil {
 		t.Fatal(err)
 	}
+	if err := c.podInformer.GetStore().Update(typed); err != nil {
+		t.Fatal(err)
+	}
 	c.attributePod(typed)
 	c.verifyHealth(context.Background())
 	if workloadHealth(t, c) != 1 {
@@ -247,6 +260,9 @@ func TestHealthDetectsMissingAttributionAndPodReplacement(t *testing.T) {
 	}
 	c.store.DeletePod("pod-a")
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(replacement.Object, typed); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.podInformer.GetStore().Update(typed); err != nil {
 		t.Fatal(err)
 	}
 	c.attributePod(typed)
@@ -285,6 +301,161 @@ func TestHealthMissingOptionalChildAPI(t *testing.T) {
 			c.verifyHealth(t.Context())
 			if got := workloadHealth(t, c); got != tc.want {
 				t.Fatalf("workload health = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHealthCacheMismatchIsolatedToAffectedRoots(t *testing.T) {
+	for _, scenario := range []string{"pod_version", "job_version", "pod_deleted", "pod_deleted_unattributed", "pod_added", "pod_reparented", "unknown_owner", "list_denied"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, client, firstJob := fixture(t)
+			jobs := []*unstructured.Unstructured{firstJob}
+			for _, suffix := range []string{"b", "c"} {
+				job := firstJob.DeepCopy()
+				job.SetName("job-" + suffix)
+				job.SetUID(types.UID("job-" + suffix))
+				putJob(t, c, client, job)
+				jobs = append(jobs, job)
+			}
+			pods := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "pods"}).Namespace("test")
+			freshPods := make([]*unstructured.Unstructured, len(jobs))
+			for n, job := range jobs {
+				pod := &corev1.Pod{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"}, ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("pod-%d", n), Namespace: "test", UID: types.UID(fmt.Sprintf("pod-%d", n)), ResourceVersion: "1", OwnerReferences: jobOwner(job.GetName(), job.GetUID())}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+				raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pod)
+				if err != nil {
+					t.Fatal(err)
+				}
+				obj := &unstructured.Unstructured{Object: raw}
+				if _, err := pods.Create(t.Context(), obj, metav1.CreateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+				if err := c.podInformer.GetStore().Add(pod); err != nil {
+					t.Fatal(err)
+				}
+				c.attributePod(pod)
+				freshPods[n] = obj
+			}
+			c.verifyHealth(t.Context())
+			for _, h := range c.store.Snapshot().Health {
+				if !h.Healthy {
+					t.Fatalf("fixture unhealthy: %+v", h)
+				}
+			}
+			collection := "Pod"
+			switch scenario {
+			case "job_version":
+				collection = "Job"
+				updated := firstJob.DeepCopy()
+				updated.SetResourceVersion("2")
+				if _, err := client.Resource(schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}).Namespace("test").Update(t.Context(), updated, metav1.UpdateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			case "pod_deleted", "pod_deleted_unattributed":
+				if scenario == "pod_deleted_unattributed" {
+					c.store.DeletePod(freshPods[0].GetUID())
+				}
+				if err := pods.Delete(t.Context(), freshPods[0].GetName(), metav1.DeleteOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			case "list_denied":
+				client.PrependReactor("list", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", fmt.Errorf("denied"))
+				})
+			case "pod_added":
+				added := freshPods[0].DeepCopy()
+				added.SetUID("new-pod")
+				added.SetName("new-pod")
+				if _, err := pods.Create(t.Context(), added, metav1.CreateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				updated := freshPods[0].DeepCopy()
+				updated.SetResourceVersion("2")
+				if scenario == "pod_reparented" {
+					updated.SetOwnerReferences(jobOwner(jobs[1].GetName(), jobs[1].GetUID()))
+				}
+				if scenario == "unknown_owner" {
+					updated.SetOwnerReferences(jobOwner("missing", "missing"))
+				}
+				if _, err := pods.Update(t.Context(), updated, metav1.UpdateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			c.verifyHealth(t.Context())
+			found := map[types.UID]bool{}
+			collectionFound := false
+			for _, h := range c.store.Snapshot().Health {
+				if h.Scope == "resource_type" && h.Ref.Kind == collection {
+					collectionFound = true
+					if h.Healthy {
+						t.Fatal("collection coverage ignored cache mismatch")
+					}
+				}
+				if h.Scope != "workload" {
+					continue
+				}
+				found[h.UID] = true
+				wantHealthy := scenario != "list_denied" && scenario != "unknown_owner" && h.UID != firstJob.GetUID() && (scenario != "pod_reparented" || h.UID != jobs[1].GetUID())
+				if h.Healthy != wantHealthy {
+					t.Fatalf("health not isolated: scenario=%s row=%+v wantHealthy=%v", scenario, h, wantHealthy)
+				}
+			}
+			if len(found) != len(jobs) || !collectionFound {
+				t.Fatal("missing health observations")
+			}
+		})
+	}
+}
+
+func TestHealthDefinitionCacheMismatchIsolatedByKind(t *testing.T) {
+	for _, scenario := range []string{"unrelated", "retargeted", "deleted", "invalid_target"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, client, job := fixture(t)
+			entry, _ := c.registry.EntryFor(job.GroupVersionKind().GroupKind())
+			definition := entry.Karta.DeepCopy()
+			definition.Name = "other-definition"
+			definition.UID = "other-definition"
+			definition.ResourceVersion = "1"
+			definition.Spec.StructureDefinition.RootComponent.Kind.Kind = "OtherJob"
+			c.registry.Set(definition)
+			raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cached := &unstructured.Unstructured{Object: raw}
+			cached.SetGroupVersionKind(kartaGVK)
+			if err := c.kartaInformer.GetStore().Add(cached); err != nil {
+				t.Fatal(err)
+			}
+			kartas := client.Resource(kartaGVR)
+			if scenario != "deleted" {
+				fresh := cached.DeepCopy()
+				fresh.SetResourceVersion("2")
+				if scenario == "invalid_target" {
+					unstructured.RemoveNestedField(fresh.Object, "spec", "structureDefinition", "rootComponent", "kind")
+				}
+				if scenario == "retargeted" {
+					if err := unstructured.SetNestedField(fresh.Object, "Job", "spec", "structureDefinition", "rootComponent", "kind", "kind"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := kartas.Create(t.Context(), fresh, metav1.CreateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			c.verifyHealth(t.Context())
+			want := float64(1)
+			if scenario == "retargeted" {
+				want = 0
+			}
+			if got := workloadHealth(t, c); got != want {
+				t.Fatalf("health=%v want=%v", got, want)
+			}
+			for _, h := range c.store.Snapshot().Health {
+				if h.Scope == "resource_type" && h.Ref.Kind == "Karta" && h.Healthy {
+					t.Fatal("Karta coverage falsely healthy")
+				}
 			}
 		})
 	}

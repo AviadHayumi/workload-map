@@ -1,0 +1,399 @@
+{
+  "cronjob": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "cronjob",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "deployment": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "deployment",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "deployment-zero": {
+    "pods": 0,
+    "mapped": 0,
+    "groups": [],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "dynamo": {
+    "pods": 3,
+    "mapped": 3,
+    "groups": [
+      {
+        "component": "service",
+        "component_instance": "Frontend",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "service",
+        "component_instance": "decode",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "service",
+        "component_instance": "prefill",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "grove": {
+    "pods": 4,
+    "mapped": 4,
+    "groups": [
+      {
+        "component": "clique",
+        "component_instance": "worker",
+        "pods": 2,
+        "replica_group_id": "0"
+      },
+      {
+        "component": "clique",
+        "component_instance": "worker",
+        "pods": 2,
+        "replica_group_id": "1"
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "job": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "job",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Completed"
+    ],
+    "optionalPhases": []
+  },
+  "jobset": {
+    "pods": 3,
+    "mapped": 3,
+    "groups": [
+      {
+        "component": "replicatedjob",
+        "component_instance": "chief",
+        "pods": 1,
+        "replica_group_id": "0"
+      },
+      {
+        "component": "replicatedjob",
+        "component_instance": "workers",
+        "pods": 1,
+        "replica_group_id": "0"
+      },
+      {
+        "component": "replicatedjob",
+        "component_instance": "workers",
+        "pods": 1,
+        "replica_group_id": "1"
+      }
+    ],
+    "phases": [
+      "Completed"
+    ]
+  },
+  "knative": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "revision",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "kserve": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "predictor",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "kserve-raw": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "predictor",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "lws": {
+    "pods": 6,
+    "mapped": 6,
+    "groups": [
+      {
+        "component": "leader",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": "0"
+      },
+      {
+        "component": "leader",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": "1"
+      },
+      {
+        "component": "worker",
+        "component_instance": "",
+        "pods": 2,
+        "replica_group_id": "0"
+      },
+      {
+        "component": "worker",
+        "component_instance": "",
+        "pods": 2,
+        "replica_group_id": "1"
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "milvus": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "standalone",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "mpi": {
+    "pods": 3,
+    "mapped": 3,
+    "groups": [
+      {
+        "component": "launcher",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "worker",
+        "component_instance": "",
+        "pods": 2,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Initializing",
+      "Running"
+    ]
+  },
+  "nim": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "nimservice",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ]
+  },
+  "nimcache": {
+    "pods": 2,
+    "mapped": 2,
+    "groups": [
+      {
+        "component": "nimcache",
+        "component_instance": "",
+        "pods": 2,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Completed"
+    ],
+    "optionalPhases": [
+      "Initializing"
+    ]
+  },
+  "pod": {
+    "pods": 1,
+    "mapped": 0,
+    "groups": [],
+    "phases": [],
+    "optionalPhases": []
+  },
+  "pytorch": {
+    "pods": 3,
+    "mapped": 3,
+    "groups": [
+      {
+        "component": "master",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "worker",
+        "component_instance": "",
+        "pods": 2,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Initializing",
+      "Running"
+    ]
+  },
+  "raycluster": {
+    "pods": 2,
+    "mapped": 2,
+    "groups": [
+      {
+        "component": "head",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "worker",
+        "component_instance": "workers",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "rayjob": {
+    "pods": 3,
+    "mapped": 3,
+    "groups": [
+      {
+        "component": "head",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "submitter",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "worker",
+        "component_instance": "workers",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Completed"
+    ]
+  },
+  "rayservice": {
+    "pods": 2,
+    "mapped": 2,
+    "groups": [
+      {
+        "component": "head",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      },
+      {
+        "component": "worker",
+        "component_instance": "workers",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  },
+  "statefulset": {
+    "pods": 1,
+    "mapped": 1,
+    "groups": [
+      {
+        "component": "statefulset",
+        "component_instance": "",
+        "pods": 1,
+        "replica_group_id": ""
+      }
+    ],
+    "phases": [
+      "Running"
+    ],
+    "optionalPhases": []
+  }
+}

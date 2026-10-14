@@ -1,102 +1,142 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
-#
-# promtool unit tests for the recording rules shipped by the Helm chart.
-# The rules file is rendered from the chart by `make exporter-rules-test`
-# (root Makefile), so template drift is caught here.
-#
-# Scenario: a JobSet "llm" with a prefill instance (one pod, 8 GPUs at 90)
-# and a decode instance (one pod, 1 GPU at 0), plus one unattributed pod.
-# The decode pod has two identical observations from different exporters.
-# Deduplication must preserve the measurement value.
 
 rule_files:
-  - .rendered/karta-rules.yaml
-
+- kep-rules.yaml
 evaluation_interval: 30s
-
 tests:
-  - interval: 30s
-    input_series:
-      # prefill: one pod, 8 GPUs at 90 percent
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="0"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="1"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="2"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="3"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="4"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="5"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="6"}'
-        values: '90x10'
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-prefill-0-0", gpu="7"}'
-        values: '90x10'
-      # decode: one pod, 1 GPU, idle
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-a", pod="llm-decode-0-0", gpu="0"}'
-        values: '0x10'
-      # GPU memory for the decode pod: 1000 MiB used, 3000 MiB free
-      - series: 'DCGM_FI_DEV_FB_USED{namespace="team-a", pod="llm-decode-0-0", gpu="0"}'
-        values: '1000x10'
-      - series: 'DCGM_FI_DEV_FB_FREE{namespace="team-a", pod="llm-decode-0-0", gpu="0"}'
-        values: '3000x10'
-      # a pod no Karta describes: must stay out of every karta:* aggregate
-      - series: 'DCGM_FI_DEV_GPU_UTIL{namespace="team-b", pod="stray-0", gpu="0"}'
-        values: '50x10'
-
-      # identity series from the exporter
-      - series: 'karta_pod_workload_info{namespace="team-a", pod="llm-prefill-0-0", uid="p1", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="prefill", replica=""}'
-        values: '1x10'
-      # Identical attribution from a second exporter must not double usage.
-      - series: 'karta_pod_workload_info{namespace="team-a", pod="llm-decode-0-0", uid="p2", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="decode", replica=""}'
-        values: '1x10'
-      - series: 'karta_pod_workload_info{namespace="team-a", pod="llm-decode-0-0", uid="p2", instance="second-exporter", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="decode", replica=""}'
-        values: '1x10'
-
-    promql_expr_test:
-      # REQ-1: workload-level utilization is GPU-observation-weighted from the raw join,
-      # never an average of instance averages (which would be 45 here).
-      - expr: karta:gpu_utilization:workload
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:gpu_utilization:workload{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1"}'
-            value: 80
-
-      # REQ-2b / UC-2: the prefill and decode imbalance is directly visible.
-      - expr: karta:gpu_utilization:component_instance
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:gpu_utilization:component_instance{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="decode"}'
-            value: 0
-          - labels: 'karta:gpu_utilization:component_instance{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="prefill"}'
-            value: 90
-
-      # REQ-2a: component level (single component here, so it matches the
-      # workload number).
-      - expr: karta:gpu_utilization:component
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:gpu_utilization:component{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob"}'
-            value: 80
-
-      # REQ-3: used and reported GPU memory in bytes (used + free = 4000 MiB).
-      - expr: karta:gpu_memory_used_bytes:component_instance{component_instance="decode"}
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:gpu_memory_used_bytes:component_instance{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="decode"}'
-            value: 1048576000
-      - expr: karta:gpu_memory_total_bytes:component_instance{component_instance="decode"}
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:gpu_memory_total_bytes:component_instance{namespace="team-a", workload="llm", workload_kind="JobSet", workload_group="jobset.x-k8s.io", workload_uid="w1", component="replicatedjob", component_instance="decode"}'
-            value: 4194304000
-
-      # Attribution health: 9 of 10 GPU series join (the stray pod does not).
-      - expr: karta:join_coverage:ratio
-        eval_time: 2m
-        exp_samples:
-          - labels: 'karta:join_coverage:ratio{}'
-            value: 0.9
+- name: cpu-and-memory-units
+  interval: 30s
+  input_series:
+  - &id001
+    series: karta_pod_workload_info{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",pod="decode-0",pod_uid="p-d",replica_group_id="",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - &id002
+    series: karta_workload_status{karta="dynamo-definition",karta_source="catalog",namespace="team-a",owner_resolution="resolved",phase="Running",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - &id003
+    series: karta_exporter_observation_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",reason="none",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
+    values: 1x20
+  - &id004
+    series: DCGM_FI_DEV_GPU_UTIL{UUID="gpu-a",namespace="team-a",pod="decode-0"}
+    values: 1x20
+  - &id005
+    series: container_cpu_usage_seconds_total{container="worker",namespace="team-a",pod="decode-0"}
+    values: 100+6x20
+  - &id006
+    series: container_memory_working_set_bytes{container="worker",namespace="team-a",pod="decode-0"}
+    values: 536870912x20
+  promql_expr_test:
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        rate(container_cpu_usage_seconds_total{
+          namespace!="", pod!="", container!="", container!="POD"
+        }[5m])
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
+      value: 0.2
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        container_memory_working_set_bytes{namespace!="",pod!="",container!="",container!="POD"}
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
+      value: 536870912
+- name: sandbox-and-empty-container-excluded
+  interval: 30s
+  input_series:
+  - *id001
+  - *id002
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - series: container_cpu_usage_seconds_total{container="POD",namespace="team-a",pod="decode-0"}
+    values: 0+90x20
+  - series: container_cpu_usage_seconds_total{container="",namespace="team-a",pod="decode-0"}
+    values: 0+90x20
+  - series: container_memory_working_set_bytes{container="POD",namespace="team-a",pod="decode-0"}
+    values: 999999999x20
+  promql_expr_test:
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        rate(container_cpu_usage_seconds_total{
+          namespace!="", pod!="", container!="", container!="POD"
+        }[5m])
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
+      value: 0.2
+  - expr: |-
+      sum by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+              owner_resolution, component, component_instance, replica_group_id) (
+        container_memory_working_set_bytes{namespace!="",pod!="",container!="",container!="POD"}
+        * on (namespace, pod)
+          group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                      owner_resolution, component, component_instance, replica_group_id)
+          karta:pod_attribution:unique{component!="<unknown>", component_instance!="<unknown>"}
+      )
+    eval_time: 5m
+    exp_samples:
+    - labels: '{component="service",component_instance="decode",namespace="team-a",owner_resolution="resolved",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}'
+      value: 536870912
+- name: missing-gpu-is-absent-not-zero
+  interval: 30s
+  input_series:
+  - *id001
+  - *id002
+  - *id003
+  - *id005
+  - *id006
+  promql_expr_test:
+  - expr: |-
+      (
+        max by (namespace, workload_group, workload_version, workload_kind, workload, workload_uid,
+                owner_resolution, component, component_instance, replica_group_id) (
+          max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod!=""}[5m])
+          * on (namespace, pod)
+            group_left (workload_group, workload_version, workload_kind, workload, workload_uid,
+                        owner_resolution, component, component_instance, replica_group_id)
+            karta:pod_attribution:unique{component!="<unknown>",component_instance!="<unknown>"}
+        ) < 5
+      )
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (karta_workload_status{phase="Running"}) == 1)
+      and on (namespace, workload_uid)
+        (min by (namespace, workload_uid) (
+          min_over_time(karta_exporter_observation_healthy{scope="workload"}[5m])
+        ) == 1)
+    eval_time: 5m
+    exp_samples: []
+- name: failed-application-is-not-an-observation-failure
+  interval: 30s
+  input_series:
+  - series: karta_workload_status{karta="dynamo-definition",karta_source="catalog",namespace="team-a",owner_resolution="resolved",phase="Failed",workload="dynamo",workload_group="nvidia.com",workload_kind="DynamoGraphDeployment",workload_uid="w-d",workload_version="v1alpha1"}
+    values: 1x20
+  - series: karta_exporter_observation_healthy{group="nvidia.com",kind="DynamoGraphDeployment",namespace="team-a",reason="none",scope="workload",version="v1alpha1",workload="dynamo",workload_uid="w-d"}
+    values: 1x20
+  promql_expr_test:
+  - expr: min by (namespace, workload_uid) (karta_exporter_observation_healthy)
+    eval_time: 5m
+    exp_samples:
+    - labels: '{namespace="team-a",workload_uid="w-d"}'
+      value: 1

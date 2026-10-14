@@ -6,36 +6,21 @@ package collector
 import "testing"
 
 func TestParseOptions(t *testing.T) {
-	tests := []struct {
-		name, workload, pod, mode string
-		wantWorkload, wantPod     int
-		wantError                 bool
+	for _, tc := range []struct {
+		value   string
+		count   int
+		invalid bool
 	}{
-		{"defaults", "all", "all", "counts", 9, 5, false},
-		{"selected", "Running,Failed", "Running", "both", 2, 1, false},
-		{"disabled", "none", "none", "inventory", 0, 0, false},
-		{"invalid state", "Ready", "all", "counts", 0, 0, true},
-		{"invalid pod phase", "all", "Completed", "counts", 0, 0, true},
-		{"duplicate", "Running,Running", "all", "counts", 0, 0, true},
-		{"duplicate pod phase", "all", "Running,Running", "counts", 0, 0, true},
-		{"empty", "", "all", "counts", 0, 0, true},
-		{"mixed all", "all,Running", "all", "counts", 0, 0, true},
-		{"invalid mode", "all", "all", "compact", 0, 0, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options, err := ParseOptions(tt.workload, tt.pod, tt.mode)
-			if (err != nil) != tt.wantError {
-				t.Fatalf("error = %v, wantError = %v", err, tt.wantError)
+		{value: "all", count: 9}, {value: "Running,Failed", count: 2}, {value: "none"},
+		{value: "Ready", invalid: true}, {value: "", invalid: true}, {value: "Running,Running", invalid: true}, {value: "all,Running", invalid: true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			options, err := ParseOptions(tc.value)
+			if (err != nil) != tc.invalid {
+				t.Fatalf("error=%v, invalid=%v", err, tc.invalid)
 			}
-			if err != nil {
-				return
-			}
-			if len(options.WorkloadPhases) != tt.wantWorkload || len(options.PodPhases) != tt.wantPod {
-				t.Fatalf("unexpected phase selection: %+v", options)
-			}
-			if options.WorkloadPhases == nil || options.PodPhases == nil {
-				t.Fatal("explicit none must remain distinguishable from defaults")
+			if err == nil && (options.WorkloadPhases == nil || len(options.WorkloadPhases) != tc.count) {
+				t.Fatalf("unexpected phases %v", options.WorkloadPhases)
 			}
 		})
 	}

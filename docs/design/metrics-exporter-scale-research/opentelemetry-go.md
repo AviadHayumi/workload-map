@@ -1,0 +1,74 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
+
+# OpenTelemetry Go: 100,000-workload exporter implications
+
+Source: `open-telemetry/opentelemetry-go`, pinned to `5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6`. Only the provided local reference checkout was inspected. No network requests, benchmark execution, dependency inspection, or source edits were performed. This is source evidence and design inference, not measured capacity. Findings apply to this revision; verify Karta's dependency version before applying version-specific configuration.
+
+## TLDR
+
+- Observable gauges have the right deletion behavior for current workload state: each collection includes only observations made in that collection. A deleted workload disappears from exporter output when the callback stops observing it.
+- The pinned SDK defaults to 2,000 data points per instrument per collection. Its implementation reserves one slot for overflow, admitting 1,999 distinct normal attribute sets before collapsing new sets into `otel.metric.overflow=true`. Gauge overflow retains the last observed value. It does not preserve workload identity or compute a meaningful total.
+- Once the limit is deliberately raised, the path is still a full scan: callback observations build SDK aggregation state, aggregation copies values into data point slices, then the Prometheus exporter translates every data point into labels, a descriptor, and a constant metric. An application snapshot copy adds another pass; OTel does not provide an application snapshot.
+- Callbacks run sequentially under one reader pipeline mutex. Additional callbacks do not add parallel collection. Additional readers have independent pipelines and invoke callbacks independently, so callbacks must be concurrent safe.
+- Existing upstream benchmarks do not establish 100,000-workload performance. The Prometheus benchmark reaches 10,000 separate counters with no workload attributes, while the gauge aggregation benchmark uses only 1, 10, and 100 attribute sets.
+
+## How it works
+
+The Prometheus collector constructs a `ManualReader` using cumulative temporality. On every scrape, `Collect` obtains a `ResourceMetrics` wrapper and calls the reader. The pipeline holds its mutex while running instrument callbacks, registered multi-instrument callbacks, and all aggregation functions. It then returns the assembled data point slices to the Prometheus translation pass. [E1, E2]
+
+An observable gauge selects `PrecomputedLastValue`, unlike a synchronous gauge's `LastValue`. An observation looks up a distinct attribute set in a limited concurrent map, creates a last-value point when necessary, and stores the value. Collection swaps the hot and cold maps, waits for pending writes, copies values and attribute sets into data points, and clears the cold map. Even cumulative observable gauge collection uses this copy-and-clear operation. The tests explicitly verify empty output when the next collection makes no observations. [E3, E4]
+
+The attribute set assignment into a data point is a value assignment of an immutable `attribute.Set`, not a deep copy of an entire workload or all label strings. However, the SDK still creates per-series aggregation entries and output slices. Clearing entries means retained series must create new aggregation entries on subsequent collections. With normal trace-based exemplar filtering, observable instruments use a drop reservoir because they do not carry trace context. Configuring always-on exemplars changes that memory path. [E3, E5, E6]
+
+`WithAttributes` explicitly copies the supplied key-value slice, constructs a set, and performs sorting and deduplication. `WithAttributeSet` can reuse a previously built immutable set. Its returned measurement option can also be cached when immutable; constructing the option again remains work. Passing multiple attribute options can merge sets and allocate again. Precompute complete workload attributes when identity changes, rather than reconstructing them for every gauge on every scrape. [E5]
+
+The Prometheus collector clears all fields of the pooled `ResourceMetrics` before returning it to its pool. Consequently, the top-level wrapper is pooled but its previous data point slices are not retained through that wrapper for the next scrape. The SDK's slice-reuse opportunities do not remove these allocations on this exporter path. For each gauge data point, the exporter creates key and value slices, appends resource and scope labels, constructs a new descriptor and constant metric, and sends the metric through a channel. With the default underscore-escaping translation strategy, attribute translation also builds a map of sanitized keys and value slices. [E1, E7]
+
+There is no scrape request context here: the collector passes `context.TODO()` to the reader. The callback API requires finite execution and honoring a supplied deadline, but this exporter does not supply an HTTP scrape deadline. The SDK checks initial cancellation before acquiring the pipeline lock and then completes callbacks and aggregation to avoid corrupting state. A slow callback therefore occupies this collection path until it finishes. [E1, E2, E8]
+
+## Relevance to Karta in general
+
+These are design implications for a workload exporter, not assertions about Karta's current implementation.
+
+For 100,000 workloads with one unique attribute set each, one gauge needs 100,000 normal series. With the pinned limit implementation, a finite limit of exactly 100,000 still reserves one slot for overflow. Configure headroom beyond the largest normal-series count and verify output counts. Setting the provider limit to zero or negative disables the limit, but also removes this memory bound. A reader selector can override the provider limit by instrument kind. A deliberate finite budget is preferable when the workload ceiling is known. [E9]
+
+If each workload contributes G gauges and there are R readers, the aggregate series count is approximately `100,000 * G * R`, before extra dimensions or streams created by views. This is arithmetic, not a byte estimate. Shared immutable attribute sets can reduce application allocation, but each aggregation still has its own points. Constant resource/scope attributes add payload and conversion work without necessarily multiplying series count; changing label combinations does multiply it. [E2, E3, E7, E10]
+
+Take one consistent, immutable projection of workload state per callback and observe all relevant gauges from it. A combined callback avoids independently obtaining or copying the same 100,000-workload snapshot for each instrument. The projection should contain scalar metric values and reusable complete attribute sets, not require full Kubernetes object deep copies during collection. OTel guarantees neither snapshot consistency across application fields nor safe concurrent access to the application's cache. Those remain exporter responsibilities. The immutable projection is a recommendation inferred from the API concurrency contract and collection path. [E2, E5, E8]
+
+Deletion has two separate responsibilities: remove the workload from the application projection, then omit its observations. The SDK removes the gauge from its next output. This repository alone does not establish downstream Prometheus server staleness timing. A rename or label change similarly stops the old attribute set and emits the new set. A transient callback failure that omits observations can have the same disappearance behavior, so incomplete-cache handling needs an explicit policy. [E3, E4, E8]
+
+Concurrent scrapes on the same reader serialize callback and aggregation execution, but one scrape's Prometheus translation can overlap the next scrape's collection because translation happens after `reader.Collect` returns. Peak memory must therefore be measured under overlapping requests, not inferred from a single scrape. Multiple readers can invoke the same callback independently and concurrently. A cached mutable observation option shared between callbacks would undermine the benefits of an immutable set. [E1, E2, E8, E10]
+
+## Evidence: pinned GitHub paths
+
+- E1: [Prometheus reader construction, pooled output, collection, context](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/exporters/prometheus/exporter.go#L111-L204).
+- E2: [Pipeline mutex, sequential callbacks, aggregation and slice reuse](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/pipeline.go#L128-L184).
+- E3: [Per-series last-value state, copy-and-clear, observable cumulative behavior](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/internal/aggregate/lastvalue.go#L15-L225); [observable versus synchronous gauge selection](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/pipeline.go#L518-L524).
+- E4: [Cumulative observable gauge omission and overflow tests](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/internal/aggregate/lastvalue_test.go#L405-L506).
+- E5: [Attribute set immutability](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/attribute/set.go#L16-L41); [option merging, set reuse and WithAttributes copies](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/metric/instrument.go#L317-L402).
+- E6: [Observable trace-based exemplar drop path](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/exemplar.go#L20-L38).
+- E7: [Gauge conversion and attribute translation allocations](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/exporters/prometheus/exporter.go#L579-L656); [default escaping strategy](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/exporters/prometheus/config.go#L27-L44); [scope and resource label additions](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/exporters/prometheus/exporter.go#L246-L278).
+- E8: [Callback concurrency, deadline and uniqueness contract](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/metric/meter.go#L262-L320); [omission semantics and callback registration per pipeline](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/meter.go#L471-L542).
+- E9: [Default cardinality limit and disabling it](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/config.go#L177-L194); [overflow slot and lookup implementation](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/internal/aggregate/atomic.go#L243-L291); [reader limit override](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/pipeline.go#L435-L445).
+- E10: [One pipeline per reader](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/pipeline.go#L630-L647).
+- E11: [Prometheus benchmarks: 1 to 10,000 distinct counters](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/exporters/prometheus/benchmark_test.go#L16-L53); [aggregation benchmark sizes and phase separation](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/internal/aggregate/aggregate_test.go#L231-L283); [gauge benchmark uses precomputed last value](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/internal/aggregate/lastvalue_test.go#L575-L577).
+- E12: [SDK collect benchmark: one observation and reused output](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/benchmark_test.go#L250-L287); [async new-attribute benchmark observes one ID per collection](https://github.com/open-telemetry/opentelemetry-go/blob/5d3fed7f57c15e55167bbf9b1e0d6e5bb307dfa6/sdk/metric/benchmark_test.go#L751-L797).
+
+## Lessons
+
+1. Treat output cardinality as a correctness assertion. A fast scrape with 2,000 output points is not a successful 100,000-workload test. Assert unique workload identities, no overflow, and expected metrics per workload.
+2. Separate application projection cost, callback/SDK cost, registry gather cost, and HTTP encoding cost. Upstream's reader benchmark reuses output, while the Prometheus exporter clears its pooled output; direct reader numbers cannot stand in for full scrape allocation. [E1, E12]
+3. Benchmark 1,000, 10,000 and 100,000 workloads with realistic label counts and lengths, actual gauges per workload, one and overlapping scrapes, and one versus multiple readers. Record allocations per scrape, bytes per scrape, heap after GC, peak heap, callback duration and full scrape latency. These are proposed measurements, not reported results.
+4. Include churn: delete a fraction, rename labels, replace the full workload population, then remove everything. Assert stale identities disappear and distinguish steady-state retained heap from transient allocation.
+5. Cache complete immutable attributes and reuse a single workload projection across the instruments in one callback. Measure whether snapshot publication is cheaper on updates or at scrape time for the actual update/scrape ratio.
+
+## What not to copy
+
+- Do not copy the 2,000-series default as a capacity plan for per-workload metrics or describe gauge overflow as an aggregate workload total.
+- Do not substitute synchronous cumulative gauges for observable gauges without designing retention: synchronous cumulative last-value collection retains prior attribute sets and contains an explicit stale-state memory TODO. [E3]
+- Do not assume `sync.Pool`, SDK slice reuse, or precomputed attributes make the full Prometheus path allocation-free. [E1, E7]
+- Do not create a metric instrument or callback for every workload. Use stable instruments and workload attributes; the upstream 10,000-counter benchmark's shape is not a suggested workload exporter architecture. [E11]
+- Do not infer 100,000-workload latency or memory from upstream microbenchmarks, or rely on scrape cancellation reaching callbacks in this exporter revision. [E1, E11, E12]
+- Do not reproduce the SDK's hot/cold maps in application code solely because the SDK uses them. Publish the simplest safe immutable projection that satisfies application consistency, then measure.
