@@ -219,6 +219,12 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 	}
 	c.observeOwner(missingGVK)
 
+	if gvk == podGVK {
+		// The dedicated observer may index a Pod before its Karta exists.
+		// Descendant retries and existing mappings do not include that Pod itself.
+		c.attributePodByKey(u.GetNamespace() + "/" + u.GetName())
+	}
+
 	for _, podKey := range drained {
 		c.attributePodByKey(podKey)
 	}

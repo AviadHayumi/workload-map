@@ -350,58 +350,62 @@ func TestFullPodCacheEvaluatesCustomResourceSelector(t *testing.T) {
 }
 
 func TestBarePodRequiresExplicitDefinition(t *testing.T) {
-	c, client, _ := fixture(t)
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "bare", Namespace: "test", UID: "bare"}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "worker", Image: "example"}}}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
-	if err := c.podInformer.GetStore().Update(pod); err != nil {
-		t.Fatal(err)
-	}
-	c.attributePod(pod)
-	if _, ok := c.store.Pod(pod.UID); ok {
-		t.Fatal("bare Pod attributed without explicit definition")
-	}
-	definition, err := catalog.Get(podGVK)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.registry.Set(definition)
-	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pod)
-	if err != nil {
-		t.Fatal(err)
-	}
-	obj := &unstructured.Unstructured{Object: raw}
-	obj.SetGroupVersionKind(podGVK)
-	informer := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{})
-	if err := informer.GetStore().Add(obj); err != nil {
-		t.Fatal(err)
-	}
-	c.watchers[podGVK] = &watcher{gvk: podGVK, isRoot: true, informer: syncedInformer{informer}}
-	c.processWorkload(obj, true)
-	if err := c.podInformer.GetStore().Update(pod); err != nil {
-		t.Fatal(err)
-	}
-	c.attributePod(pod)
-	record, ok := c.store.Pod(pod.UID)
-	if !ok || record.WorkloadUID != pod.UID || record.OwnerResolution != "resolved" || record.Reason != "" {
-		t.Fatalf("explicit Pod definition did not attribute self: %+v", record)
-	}
-	if _, err := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "pods"}).Namespace("test").Create(t.Context(), obj, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.podInformer.GetStore().Add(pod); err != nil {
-		t.Fatal(err)
-	}
-	c.verifyHealth(t.Context())
-	found := false
-	for _, h := range c.store.Snapshot().Health {
-		if h.UID == pod.UID {
-			found = true
-			if !h.Healthy {
-				t.Fatalf("explicit Pod root not freshly verified: %+v", h)
+	for _, forceReattribute := range []bool{false, true} {
+		t.Run(fmt.Sprintf("force_reattribute_%t", forceReattribute), func(t *testing.T) {
+			c, client, _ := fixture(t)
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "bare", Namespace: "test", UID: "bare"}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "worker", Image: "example"}}}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+			if err := c.podInformer.GetStore().Update(pod); err != nil {
+				t.Fatal(err)
 			}
-		}
-	}
-	if !found {
-		t.Fatal("explicit Pod root lacks workload health")
+			c.attributePod(pod)
+			if _, ok := c.store.Pod(pod.UID); ok {
+				t.Fatal("bare Pod attributed without explicit definition")
+			}
+			definition, err := catalog.Get(podGVK)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.registry.Set(definition)
+			raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			obj := &unstructured.Unstructured{Object: raw}
+			obj.SetGroupVersionKind(podGVK)
+			informer := cache.NewSharedIndexInformer(&cache.ListWatch{}, &unstructured.Unstructured{}, 0, cache.Indexers{})
+			if err := informer.GetStore().Add(obj); err != nil {
+				t.Fatal(err)
+			}
+			c.watchers[podGVK] = &watcher{gvk: podGVK, isRoot: true, informer: syncedInformer{informer}}
+			if forceReattribute {
+				c.processWorkload(obj, true)
+			} else {
+				c.onWorkloadEvent(obj)
+			}
+			record, ok := c.store.Pod(pod.UID)
+			if !ok || record.WorkloadUID != pod.UID || record.OwnerResolution != "resolved" || record.Reason != "" {
+				t.Fatalf("explicit Pod definition did not attribute self: %+v", record)
+			}
+			if _, err := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "pods"}).Namespace("test").Create(t.Context(), obj, metav1.CreateOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.podInformer.GetStore().Add(pod); err != nil {
+				t.Fatal(err)
+			}
+			c.verifyHealth(t.Context())
+			found := false
+			for _, h := range c.store.Snapshot().Health {
+				if h.UID == pod.UID {
+					found = true
+					if !h.Healthy {
+						t.Fatalf("explicit Pod root not freshly verified: %+v", h)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("explicit Pod root lacks workload health")
+			}
+		})
 	}
 }
 
