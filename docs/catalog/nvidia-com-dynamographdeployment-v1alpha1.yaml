@@ -47,7 +47,7 @@ spec:
           componentInstanceSelector:
             idPath: .metadata.labels["nvidia.com/dynamo-component"]
           replicaSelector:
-            keyPath: if any(.metadata.ownerReferences[]?; .controller == true and .kind == "ReplicaSet") then empty else .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] end
+            keyPath: if any(.metadata.ownerReferences[]?; .controller == true and .kind == "ReplicaSet") then empty else .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["grove.io/podcliqueset-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] end
     additionalChildKinds:
       - group: nvidia.com
         version: v1alpha1

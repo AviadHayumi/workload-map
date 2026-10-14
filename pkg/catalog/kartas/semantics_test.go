@@ -148,8 +148,11 @@ func TestDynamoReplicaApplicability(t *testing.T) {
 				wantError   bool
 			}{
 				{name: "deployment", owner: "ReplicaSet"},
+				{name: "deployment with inherited group label", owner: "ReplicaSet", labels: map[string]string{"grove.io/podcliqueset-replica-index": "0"}},
 				{name: "lws", owner: "StatefulSet", labels: map[string]string{"leaderworkerset.sigs.k8s.io/group-index": "1"}, want: "1"},
-				{name: "grove", owner: "PodClique", labels: map[string]string{"grove.io/podcliquescalinggroup-replica-index": "2"}, want: "2"},
+				{name: "grove scaling group", owner: "PodClique", labels: map[string]string{"grove.io/podcliquescalinggroup-replica-index": "2"}, want: "2"},
+				{name: "grove clique set", owner: "PodClique", labels: map[string]string{"grove.io/podcliqueset-replica-index": "0"}, want: "0"},
+				{name: "grove scaling group within clique set", owner: "PodClique", labels: map[string]string{"grove.io/podcliquescalinggroup-replica-index": "2", "grove.io/podcliqueset-replica-index": "0"}, want: "2"},
 				{name: "missing grouped key", owner: "PodClique", wantError: true},
 			} {
 				t.Run(tc.name, func(t *testing.T) {

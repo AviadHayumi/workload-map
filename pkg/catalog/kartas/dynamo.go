@@ -63,7 +63,7 @@ func Dynamo() *v1alpha1.Karta {
 							},
 							ReplicaSelector: &v1alpha1.ReplicaSelector{
 								// Deployment-backed services have no repeated multi-Pod group.
-								KeyPath: `if any(.metadata.ownerReferences[]?; .controller == true and .kind == "ReplicaSet") then empty else .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] end`,
+								KeyPath: `if any(.metadata.ownerReferences[]?; .controller == true and .kind == "ReplicaSet") then empty else .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["grove.io/podcliqueset-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] end`,
 							},
 						},
 					},
