@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: finite-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: finite-workload-submitter
+  namespace: demo-control
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finite-workload-submitter
+  namespace: finite-demo
+data: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: finite-workload-submitter
+  namespace: finite-demo
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [finite-workload-submitter]
+    verbs: [get, update]
+  - apiGroups: [jobset.x-k8s.io]
+    resources: [jobsets]
+    verbs: [get, list, create, delete]
+  - apiGroups: [kubeflow.org]
+    resources: [pytorchjobs]
+    verbs: [get, list, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: finite-workload-submitter
+  namespace: finite-demo
+subjects:
+  - kind: ServiceAccount
+    name: finite-workload-submitter
+    namespace: demo-control
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: finite-workload-submitter
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: finite-workload-submitter
+  namespace: demo-control
+spec:
+  schedule: "*/5 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 60
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 1200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: finite-workload-submitter
+        spec:
+          serviceAccountName: finite-workload-submitter
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: submitter
+              image: ghcr.io/example/finite-workload-submitter:replace-with-built-digest
+              args: [--namespace=finite-demo]
+              env:
+                - name: POD_UID
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.uid
+              resources:
+                requests: {cpu: 25m, memory: 64Mi}
+                limits: {cpu: 200m, memory: 128Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
