@@ -4,7 +4,7 @@
 
 # KEP-0001: Karta metrics exporter
 
-- Status: provisional; backed by a prototype
+- Status: provisional; implemented with recorded validation
 - Authors: @AviadHayumi
 - Issue: https://github.com/dsx-ai-factory/workload-map/issues/343
 - Created: 2026-10-12
@@ -356,7 +356,7 @@ Before acting, check:
 4. Each device is counted once. For shared or partitioned GPUs, confirm whose usage each measurement represents.
 5. The application has no queued requests or jobs waiting to run. GPU metrics alone cannot tell you that.
 
-Real GPU hardware and sharing modes have not been tested in this prototype.
+Real GPU hardware and sharing modes have not been tested with this implementation.
 See [NVIDIA's GPU-sharing limitations](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 when using shared GPUs.
 
@@ -532,7 +532,7 @@ Accept: text/plain; version=0.0.4
 
 The response uses the Prometheus sample format shown in the metric examples above.
 
-For direct scraping, set `honor_labels: true` and a `30s` interval. The prototype has no endpoint TLS/authentication;
+For direct scraping, set `honor_labels: true` and a `30s` interval. The exporter has no endpoint TLS/authentication;
 restrict access or use an authenticated proxy. A scrape does not refresh verification.
 
 </details>
@@ -544,13 +544,20 @@ HTTP pull uses the OTel SDK's Prometheus reader. Changing an endpoint does not
 convert Prometheus exposition into OTLP; native and combined OTLP modes remain deferred.
 
 <details>
-<summary>Collector bridge: external integration, still untested</summary>
+<summary>Collector bridge: tested external integration</summary>
 
 ![A Collector scrapes Karta and forwards OTLP to a backend.](collector-forwarding.png)
 
 An [OTel Collector](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/)
 converts and forwards samples. It does not run the PromQL joins shown above;
 those need a compatible query backend. Test identity translation, deletion and freshness.
+
+The [transport acceptance test](../../docs/Exporter%20Acceptance.md#prometheus-and-collector-transport)
+verified Prometheus 3.14.0 and Collector contrib 0.148.0 against both exporter
+replicas. Names, labels, values and counts matched before and after rollout.
+Deletion and same-name UID replacement passed with a timestamp freshness guard
+for the OTLP backend. This validates that configuration, not every backend's
+retention policy or native OTLP delivery from the exporter.
 
 </details>
 
@@ -606,4 +613,6 @@ collected Prometheus history remains.
 
 ## History
 
-- 2026-10-12 to 2026-10-13: Proposed three metric families, replica-group identity, observation health and an HTTP-pull design backed by prototype tests. Clarified fault handling and recovery; implementation of the revised contract remains pending, and native OTLP delivery is deferred.
+- 2026-10-12 to 2026-10-13: Proposed three metric families, replica-group identity, observation health and an HTTP-pull design backed by prototype tests. Clarified fault handling and recovery; implementation of the revised contract was pending at that stage, with native OTLP delivery deferred.
+
+- 2026-10-14: Implemented the revised contract and Helm configuration. Validation passed 21 workload cases, 21 fault/recovery checks, four transport checks and synthetic measurements through 100,000 roots with one million Pods. See the [implementation audit](../../docs/design/metrics-exporter-implementation.md) for evidence and capacity limits. Native OTLP delivery remains deferred.

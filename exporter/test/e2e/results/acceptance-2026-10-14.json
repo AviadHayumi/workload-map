@@ -1,0 +1,644 @@
+{
+  "license": "SPDX-License-Identifier: Apache-2.0",
+  "copyright": "Copyright (c) 2026 NVIDIA Corporation",
+  "date": "2026-10-14",
+  "passed": true,
+  "production": {
+    "commit": "02a613462995f11ac3825c6b3db7a7f51c485e0c",
+    "immutableBuildSourceManifestSHA256": "f162d5bce4228c7b5d1933cdf457c441cc044d198e2faec8ff83f0f33fc6d6cf",
+    "buildRecipeSHA256": "66ceaef0285eec5bff82a85839a135ef4a189cb3743ea41908b95a8f7bbcdfe0",
+    "buildRecipeAdjustment": "GOMAXPROCS=2 and go build -p 2 in temporary Dockerfile; VERSION is production commit",
+    "imageTag": "karta-exporter:acceptance-final-f162d5bce422",
+    "dockerInspectId": "sha256:94970e132414690fc922dd4f9af1503bb70e928c25f50a40752ae8125fff96b4",
+    "dockerDescriptorMediaType": "application/vnd.oci.image.index.v1+json",
+    "dockerDescriptorDigest": "sha256:94970e132414690fc922dd4f9af1503bb70e928c25f50a40752ae8125fff96b4",
+    "savedArm64ManifestDigest": "sha256:22a36347ef4ea7e936644895ff768e5a01bf7844b531e5cd39b218d409e21e6c",
+    "savedImageConfigDigest": "sha256:2e39b30076bd020c1b4be89ae6c30e745bad8c0d3c1b91ab9d0c9b18980542e2",
+    "kubernetesContainerStatusImageID": "sha256:2e39b30076bd020c1b4be89ae6c30e745bad8c0d3c1b91ab9d0c9b18980542e2",
+    "unchangedAcrossFinalRuns": true,
+    "runtimeVerification": [
+      {
+        "image": "docker.io/library/karta-exporter:acceptance-final-f162d5bce422",
+        "imageID": "sha256:2e39b30076bd020c1b4be89ae6c30e745bad8c0d3c1b91ab9d0c9b18980542e2",
+        "ready": true,
+        "restartCount": 0
+      },
+      {
+        "image": "docker.io/library/karta-exporter:acceptance-final-f162d5bce422",
+        "imageID": "sha256:2e39b30076bd020c1b4be89ae6c30e745bad8c0d3c1b91ab9d0c9b18980542e2",
+        "ready": true,
+        "restartCount": 0
+      }
+    ]
+  },
+  "environment": {
+    "kubernetesVersion": "v1.34.3",
+    "architectures": [
+      "arm64"
+    ],
+    "nodeCount": 3,
+    "environment": "dedicated kind cluster",
+    "operatorPayloads": "CPU and mock fixtures; no GPU execution claim"
+  },
+  "matrix": {
+    "casesPassed": 21,
+    "ownedPodObservations": 40,
+    "mappedPodObservations": 39,
+    "results": [
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "deployment",
+        "passed": true,
+        "seconds": 26.7,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/deployment/result.json",
+        "resultArtifactSHA256": "da84cc7807fb60fbfe030fff545ecd29cacbdca6ef320c037da620d73118cc57"
+      },
+      {
+        "ownedPods": 0,
+        "mappedPods": 0,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "deployment-zero",
+        "passed": true,
+        "seconds": 26.7,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/deployment-zero/result.json",
+        "resultArtifactSHA256": "1b81d167a6cbf4a8519def4d2faedb8d9d6bdc39c4ab6acce8ff14511495b218"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "statefulset",
+        "passed": true,
+        "seconds": 32.0,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/statefulset/result.json",
+        "resultArtifactSHA256": "064f2024e93072bab0c9e36467d4a0e9afeacdb9e9d8c95f9ae9b4a098846efd"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Completed"
+        ],
+        "case": "job",
+        "passed": true,
+        "seconds": 32.0,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/job/result.json",
+        "resultArtifactSHA256": "846fb2cd20fb18bfb58ba02dc7c363a112bce091ae90470ea7d67e94fef92229"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "cronjob",
+        "passed": true,
+        "seconds": 68.8,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/cronjob/result.json",
+        "resultArtifactSHA256": "57d55ddf4ba38f717e191a0cf14223827234d2cd84bc6563163cee3080603488"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 0,
+        "roots": 0,
+        "case": "pod",
+        "passed": true,
+        "seconds": 5.6,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/pod/result.json",
+        "resultArtifactSHA256": "bbac9e64963172730634f593520b77bb8d24d577e0e0c1f0f39436e0d27f62d5"
+      },
+      {
+        "ownedPods": 3,
+        "mappedPods": 3,
+        "roots": 1,
+        "activePhases": [
+          "Completed"
+        ],
+        "case": "jobset",
+        "passed": true,
+        "seconds": 32.0,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/jobset/result.json",
+        "resultArtifactSHA256": "4adade71c5aeea3343f2da98052437f7179a7ef4fa90df676e20aae50c712a86"
+      },
+      {
+        "ownedPods": 6,
+        "mappedPods": 6,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "lws",
+        "passed": true,
+        "seconds": 26.7,
+        "batch": "native",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-native/lws/result.json",
+        "resultArtifactSHA256": "f18b3ce5d0e576b8ace8c4149f1f5f08293b835b817759f7ff3d5e6b47ebaa34"
+      },
+      {
+        "ownedPods": 3,
+        "mappedPods": 3,
+        "roots": 1,
+        "activePhases": [
+          "Initializing",
+          "Running"
+        ],
+        "case": "pytorch",
+        "passed": true,
+        "seconds": 26.7,
+        "batch": "training",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-training/pytorch/result.json",
+        "resultArtifactSHA256": "70320e0a0b04e6bd0ff64dd4c46aa919b8a20222b423c69449b514e84ed11e9f"
+      },
+      {
+        "ownedPods": 3,
+        "mappedPods": 3,
+        "roots": 1,
+        "activePhases": [
+          "Initializing",
+          "Running"
+        ],
+        "case": "mpi",
+        "passed": true,
+        "seconds": 58.3,
+        "batch": "training",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-training/mpi/result.json",
+        "resultArtifactSHA256": "3bbaa2989e855266d4736cc7e01ca747da8c1a05ec434697008ec2d8738cd3a4"
+      },
+      {
+        "ownedPods": 2,
+        "mappedPods": 2,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "raycluster",
+        "passed": true,
+        "seconds": 26.7,
+        "batch": "ray",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-ray/raycluster/result.json",
+        "resultArtifactSHA256": "ae94c3eaa74be717ac49e2695d4809e6d95647234c74870aa9c63175aa204fc6"
+      },
+      {
+        "ownedPods": 3,
+        "mappedPods": 3,
+        "roots": 1,
+        "activePhases": [
+          "Completed"
+        ],
+        "case": "rayjob",
+        "passed": true,
+        "seconds": 27.6,
+        "batch": "ray",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-ray/rayjob/result.json",
+        "resultArtifactSHA256": "461590995b8ee577a07126cfb5adbeee1d09e97dd9e6ed3e466bdd1e67e4a636"
+      },
+      {
+        "ownedPods": 2,
+        "mappedPods": 2,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "rayservice",
+        "passed": true,
+        "seconds": 27.1,
+        "batch": "rayservice-retry",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-rayservice-retry/rayservice/result.json",
+        "resultArtifactSHA256": "fa04eb2e70542d17fbf91747ba6645c8b67a68348ab00f8fbcea283158c59854"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "knative",
+        "passed": true,
+        "seconds": 566.9,
+        "batch": "serving",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-serving/knative/result.json",
+        "resultArtifactSHA256": "6645a15ac2ad7f5c2774bff1de61bd928bfc1412b1ad354ed72ba8a23fc157e2"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "kserve",
+        "passed": true,
+        "seconds": 59.3,
+        "batch": "serving",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-serving/kserve/result.json",
+        "resultArtifactSHA256": "9254bb1c4d02c90dba9b2a939d0fa058475de703dde0b237cbc62a981dafbb6a"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "kserve-raw",
+        "passed": true,
+        "seconds": 58.3,
+        "batch": "serving",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-serving/kserve-raw/result.json",
+        "resultArtifactSHA256": "790ebda4d976b13d3b3c34fd7c4f06fed442334732f4fd259b1738bca8724368"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "nim",
+        "passed": true,
+        "seconds": 47.7,
+        "batch": "nim-v302",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-nim-v302/nim/result.json",
+        "resultArtifactSHA256": "6ee7a9c9c621bdb9fb7e1157bf7942d42fc714cfa7c8d02b09110a4e0a6f795e"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 1,
+        "activePhases": [
+          "Completed",
+          "Initializing"
+        ],
+        "case": "nimcache",
+        "passed": true,
+        "seconds": 37.2,
+        "batch": "nim-v302",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-nim-v302/nimcache/result.json",
+        "resultArtifactSHA256": "17f12ee47c5a04e173038d9af9924eebd432badd9395d9f7457d7dbf71b72710"
+      },
+      {
+        "ownedPods": 4,
+        "mappedPods": 4,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "grove",
+        "passed": true,
+        "seconds": 27.1,
+        "batch": "grove",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-grove/grove/result.json",
+        "resultArtifactSHA256": "0cf154bfca4bc9ccd6ac87579669be8ef349017757e27d56391f0241626d9870"
+      },
+      {
+        "ownedPods": 3,
+        "mappedPods": 3,
+        "roots": 1,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "dynamo",
+        "passed": true,
+        "seconds": 27.5,
+        "batch": "dynamo",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-dynamo/dynamo/result.json",
+        "resultArtifactSHA256": "2c76f925c5fc53ac3c3aa0c1f0eac1079f790500f36b42f2ec69e29c63c29cc4"
+      },
+      {
+        "ownedPods": 1,
+        "mappedPods": 1,
+        "roots": 3,
+        "activePhases": [
+          "Running"
+        ],
+        "case": "milvus",
+        "passed": true,
+        "seconds": 159.8,
+        "batch": "milvus",
+        "exporterReplicas": 2,
+        "resultArtifact": "final-milvus/milvus/result.json",
+        "resultArtifactSHA256": "e7670a508ff55623e506bbba72348734fc98fe457ac7e89a32b5a7c235043d0d"
+      }
+    ],
+    "assertions": [
+      "two consecutive successful observations per case",
+      "exact per-replica namespace sample identity and values",
+      "Kubernetes UID and controller ownership parity",
+      "exact mapping count, component, instance and repeated-group identity",
+      "nine dense phases per described root, including zero-Pod roots",
+      "healthy current workload observation without stale reason rows",
+      "independent Ready or terminal owned-Pod gate"
+    ]
+  },
+  "faults": {
+    "casesPassed": 21,
+    "results": [
+      {
+        "case": "startup-permission-denied",
+        "passed": true
+      },
+      {
+        "case": "main-replicas-observe-fault-definition",
+        "passed": true,
+        "exporterReplicas": 2
+      },
+      {
+        "case": "permission-granted-zero-pod-roots",
+        "passed": true
+      },
+      {
+        "case": "required-api-missing",
+        "passed": true
+      },
+      {
+        "case": "required-api-late-discovery",
+        "passed": true
+      },
+      {
+        "case": "required-api-disappeared",
+        "passed": true
+      },
+      {
+        "case": "required-api-reappeared",
+        "passed": true
+      },
+      {
+        "case": "permission-revoked",
+        "passed": true
+      },
+      {
+        "case": "fresh-recovery-replaces-reason",
+        "passed": true
+      },
+      {
+        "case": "valid-definition-evaluation-failed",
+        "passed": true
+      },
+      {
+        "case": "definition-evaluation-fresh-recovery",
+        "passed": true
+      },
+      {
+        "case": "full-pod-selector-through-middle-owner",
+        "passed": true
+      },
+      {
+        "case": "existing-pod-reparented-after-middle-owner-update",
+        "passed": true
+      },
+      {
+        "case": "nested-zero-pod-child-has-no-status",
+        "passed": true
+      },
+      {
+        "case": "missing-owner-fails-namespace-observation",
+        "passed": true
+      },
+      {
+        "case": "missing-owner-removed-fresh-recovery",
+        "passed": true
+      },
+      {
+        "case": "uid-mismatched-owner-fails-namespace-observation",
+        "passed": true
+      },
+      {
+        "case": "uid-mismatched-owner-removed-fresh-recovery",
+        "passed": true
+      },
+      {
+        "case": "ignored-wrapper-not-read",
+        "passed": true
+      },
+      {
+        "case": "root-deletion-removes-all-current-rows",
+        "passed": true
+      },
+      {
+        "case": "definition-deletion-removes-main-replica-rows",
+        "passed": true,
+        "exporterReplicas": 2
+      }
+    ]
+  },
+  "transport": {
+    "casesPassed": 4,
+    "images": {
+      "prometheus": "quay.io/prometheus/prometheus:v3.14.0",
+      "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.148.0"
+    },
+    "results": [
+      {
+        "case": "direct-and-bridge-parity",
+        "passed": true,
+        "countsPerExporterReplica": {
+          "direct": {
+            "karta_pod_workload_info": [
+              1,
+              1
+            ],
+            "karta_workload_status": [
+              9,
+              9
+            ],
+            "karta_exporter_observation_healthy": [
+              1,
+              1
+            ]
+          },
+          "bridge": {
+            "karta_pod_workload_info": [
+              1,
+              1
+            ],
+            "karta_workload_status": [
+              9,
+              9
+            ],
+            "karta_exporter_observation_healthy": [
+              1,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "case": "replica-rollout-parity",
+        "passed": true
+      },
+      {
+        "case": "deleted-lifetime-freshness",
+        "passed": true,
+        "bridge_freshness_seconds": 10
+      },
+      {
+        "case": "same-name-new-uid",
+        "passed": true
+      }
+    ]
+  },
+  "harnessCorrections": {
+    "productionCommit": "02a613462995f11ac3825c6b3db7a7f51c485e0c",
+    "productionImageUnchanged": true,
+    "harnessSHA256": {
+      "exporter/test/e2e/fixtures/rayservice.yaml": "1224badc8d80aaae520c5d4ee8d761f75c624348bc0d3998beb8b3efefd526b3",
+      "exporter/test/e2e/fixtures/nimcache.yaml": "0514ba1b66a0ba334968910bb88545af619c49d725eaebef61b459a2c28f1d3e",
+      "exporter/test/e2e/expectations.json": "0bcadd2adbd9912bee849d0fb203a3bc5ef2775df3a75bb50e03a2605231aa31",
+      "exporter/test/e2e/nimcache-image/Dockerfile": "dca5210ed57b656fe46fd64ab87c4d449abc9dccf5e9b1ce7963a19a63bef059",
+      "exporter/test/e2e/nimcache-image/huggingface-cli": "55939d1f732071ecbf20de9331c929c053d4d8402f82aee3b7bd622e0a822c22",
+      "exporter/test/e2e/acceptance.py": "07ab3966461a4b3f65a634dcfcdc66206c94b50b18c2192083cc9afbe578d4da",
+      "exporter/test/e2e/faults.py": "782bdabfccdd96601aa197e5c65ae47ce0d2d3f017eb5cb1257846ff1d97efcb",
+      "exporter/test/e2e/transport.py": "cafeeeb166535541aa69caddc35c844cac3040bdebc988832c0547ff26e77c41",
+      "hack/e2e/global.env": "b8679be50babed5168c5f34945e4bd500b516d78b1d46be5b17526a9d2310375",
+      "hack/e2e/operators/nim/install.sh": "ba55a5c690de72475a316bb7ffbbfca3531cc77adc1ebf5be0fc271e1cb2d10e"
+    },
+    "nimOperatorImage": "nvcr.io/nvidia/cloud-native/k8s-nim-operator:v3.0.2@sha256:28a83f7f3f0322ac721b81385b0a7e1639286226564035809e07802f424fb7b8",
+    "nimMockImageIndexDigest": "sha256:90ffe038d9c8180abed6afaa4167363eebee68c29468e25e6f99fa17d6d9741f",
+    "nimMockImageManifestDigest": "sha256:0433b9917ddab48cf8509b79ba767f2b4ff6d42ff58802952eaaab08d7d440aa"
+  },
+  "controlPlaneChecks": [
+    {
+      "batch": "native",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "training",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "ray",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "rayservice-retry",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "serving",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "nim-v302",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "grove",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "dynamo",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "milvus",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    },
+    {
+      "batch": "faults",
+      "schedulerRestartsBefore": 10,
+      "schedulerRestartsAfter": 10,
+      "controllerManagerRestartsBefore": 10,
+      "controllerManagerRestartsAfter": 10
+    }
+  ],
+  "attemptsRequiringCorrection": [
+    {
+      "case": "rayservice",
+      "status": "interrupted-fixture-readiness-failure",
+      "cause": "Serve actor placed on head, leaving worker without a local Serve proxy; worker readiness failed",
+      "metricOnlyDiagnostic": "both exporter replicas independently passed exact 2 mappings, 9 phases and 1 fresh workload-health row",
+      "correction": "head num-cpus=0 forces the Serve actor onto worker; affected case passed in a fresh namespace"
+    },
+    {
+      "case": "nimcache",
+      "status": "interrupted-operator-crd-mismatch",
+      "cause": "moving release-3.0 image repeatedly created a manifest helper because v3.0.2 CRD pruned status.type",
+      "correction": "pin official v3.0.2 operator; mock the actual huggingface-cli command; one download Pod matches the pinned HF source path; both NIM cases rerun and passed"
+    },
+    {
+      "case": "knative",
+      "status": "passed-after-image-cache-repair",
+      "cause": "digest-only offline import created an unnamed containerd alias that CRI normalized to a missing name",
+      "correction": "restored the fully qualified alias to the identical pinned arm64 image blobs; no image content or test assertion changed",
+      "timingIncludesRepair": true
+    }
+  ],
+  "limitations": [
+    "CPU/mock training and serving fixtures validate real operator ownership and exporter behavior, not GPU execution, utilization, sharing or application idleness.",
+    "Workloads ran sequentially in memory-conscious operator batches, not concurrently at production scale.",
+    "Owned and mapped Pod totals sum observations for fixture roots across separate cases; independent dependency roots are checked separately and excluded from those totals; they are not peak cardinality.",
+    "Collector forwarding is an OTLP bridge; the exporter itself exposes Prometheus and does not send native OTLP.",
+    "OTLP deletion uses a 10-second source-timestamp freshness guard; it does not assert identical backend retention semantics.",
+    "Transport evidence records explicit Prometheus and Collector version tags; it does not record their immutable runtime digests.",
+    "Raw local evidence includes superseded images and failed warmups; only the explicitly listed final results are claimed as passing.",
+    "The immutable build source manifest predates documented test-fixture corrections; production source hashes were rechecked unchanged before each batch."
+  ]
+}

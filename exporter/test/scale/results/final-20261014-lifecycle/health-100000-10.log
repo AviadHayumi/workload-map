@@ -1,0 +1,7 @@
+=== RUN   TestScaleHealthVerification
+=== RUN   TestScaleHealthVerification/workloads_100000/pods_10
+    scale_test.go:279: verification finished: workloads=100000 pods=1000000 duration=47.229059583s lists_jobs=100 lists_pods=2000 lists_kartas=1 unexpected_requests=0
+    scale_test.go:279: workloads=100000 pods=1000000 health_rows=100003 healthy=100003 lists_jobs=100 lists_pods=2000 lists_kartas=1 fallback_gets=0 duration=47.229059583s
+--- PASS: TestScaleHealthVerification (54.81s)
+    --- PASS: TestScaleHealthVerification/workloads_100000/pods_10 (54.81s)
+PASS

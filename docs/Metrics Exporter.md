@@ -169,6 +169,10 @@ API-server load or recovery latency at scale.
 
 [Exporter Acceptance](Exporter%20Acceptance.md) documents the 21 real-operator
 fixtures, isolated fault tests and evidence limits. The
+[recorded acceptance run](../exporter/test/e2e/results/acceptance-2026-10-14.json)
+passed all 21 workload cases, 21 fault checks and four transport checks on arm64
+Kubernetes 1.34.3 with two exporter replicas. These CPU/mock cases establish
+attribution and observation behavior. The
 [scale harness](../exporter/test/scale/README.md) separates synthetic snapshot costs
 from API-backed workload tests. Current results and outstanding evidence belong in
 the [implementation audit](design/metrics-exporter-implementation.md). A local kind

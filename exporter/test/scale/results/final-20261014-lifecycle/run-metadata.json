@@ -1,0 +1,20 @@
+{
+  "coverage_limits": "Synthetic HTTP handler exposition and separate loopback API health verification. No combined scrape-plus-health peak, real API-server throughput, watch ingestion, network transport, or Prometheus ingestion capacity measurement.",
+  "dirty_scope": "Documentation, e2e fixtures and NIM installer outside the measured source manifest.",
+  "host": {
+    "logical_cpus": 14,
+    "memory_gib": 48,
+    "processor": "Apple M4 Pro",
+    "provenance": "Host description supplied by the coordinating validation session."
+  },
+  "isolation": "One scale process at a time after live acceptance; no concurrent build, race suite, image build, or acceptance load during measurement. The dedicated acceptance cluster remained idle; this was not an empty host.",
+  "measurement_date": "2026-10-14",
+  "measurement_worktree_dirty": true,
+  "performance_gomaxprocs": 14,
+  "production_commit": "02a613462995f11ac3825c6b3db7a7f51c485e0c",
+  "published_log_sanitization": "Startup panic stacks replace absolute workspace and toolchain paths with relative or descriptive paths; local listen address is a placeholder. Original raw output is retained outside the repository.",
+  "source_files": 123,
+  "source_matches_clean_build_manifest": true,
+  "source_unchanged_during_measurement": true,
+  "startup_failures": "Both initial health processes exited 2 before fixture creation because the sandbox denied a loopback listener. Both were rerun with loopback access and passed. These are not health-capacity measurements."
+}

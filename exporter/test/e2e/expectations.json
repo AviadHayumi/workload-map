@@ -263,13 +263,13 @@
     ]
   },
   "nimcache": {
-    "pods": 2,
-    "mapped": 2,
+    "pods": 1,
+    "mapped": 1,
     "groups": [
       {
         "component": "nimcache",
         "component_instance": "",
-        "pods": 2,
+        "pods": 1,
         "replica_group_id": ""
       }
     ],

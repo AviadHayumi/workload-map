@@ -3,9 +3,17 @@
 
 # Recorded synthetic scale measurements
 
-Recorded on 2026-10-13. These are synthetic local measurements, not production
-Kubernetes capacity results. See the [decision](../../../../docs/design/metrics-exporter-scale-decision.md)
+Recorded on 2026-10-13 and 2026-10-14. These are synthetic local measurements,
+not production Kubernetes capacity results. See the [decision](../../../../docs/design/metrics-exporter-scale-decision.md)
 and [reproduction guide](../README.md).
+
+- `final-20261014-lifecycle/`: final frozen-source matrix, churn, and fresh-health
+  validation at commit `02a613462995f11ac3825c6b3db7a7f51c485e0c`. All nine
+  scrape scenarios and both health cases passed. This supersedes older matrix
+  and health capacity observations for the current implementation.
+
+All files below outside `final-20261014-lifecycle/` are historical 2026-10-13
+measurements; their original names are preserved.
 
 - `baseline-N-P.json`: original attribute construction, N roots and P Pods/root.
 - `final-N-P.json`: fixed scratch attributes with `WithAttributeSet`.
@@ -30,13 +38,18 @@ Each HTTP matrix case starts a fresh process, verifies all output, then measures
 three serial uncompressed scrapes. `process_peak_rss_bytes` includes fixture and
 oracle high-water memory. `retained_heap_bytes` is measured after a final GC while
 the fixture and handler remain live. Allocation fields describe timed scrapes.
-The current recorded matrix predates the later same-snapshot Pod/root confirmation
-check. The recorded health runs predate per-object cache-mismatch isolation.
-Source hashes identify the exact implementations; refreshed measurements require
-an isolated heavy benchmark window.
+The parent-directory matrix predates the later same-snapshot Pod/root confirmation
+check, and its health runs predate per-object cache-mismatch isolation. The final
+2026-10-14 series repeats those cases after the lifecycle changes. Its
+`source-build.json` identifies a clean build and its before/after manifests record
+123 unchanged source/module hashes, GOMAXPROCS 14, Go 1.26.3 on darwin/arm64,
+and a dirty worktree caused by documentation and acceptance edits outside that
+manifest. All processes ran serially in an isolated heavy-test window. Binary
+hashes and all exit statuses are included. The two initial sandbox listener
+failures are preserved separately from the successful health retries.
 
 The baseline 100,000-root, 10-Pod case overlapped other benchmark work. Its timing
-is contended. The final matrix was serialized against heavy benchmarks. Three
+is contended. Both later matrices were serialized against heavy benchmarks. Three
 samples do not establish statistical significance or portable latency budgets.
 The cache-control experiment also overlapped baseline work; the retained-memory
 increase is the reason for rejection, not a claim of precise latency regression.

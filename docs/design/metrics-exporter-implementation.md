@@ -58,7 +58,7 @@ Test files are under `exporter/` unless another location is stated.
 | High cardinality | OTel preserves all expected series instead of overflowing at its default cardinality limit. Fixed-size attribute construction reduces transient allocation without retaining a million label sets. | `TestOTelPreservesMoreThanDefaultCardinality`, `TestConcurrentOTelScrapesAndUpdates`, `TestScalePrometheusExposition` |
 | Snapshot ownership races | A late Pod upsert after root deletion, ownership failure or identity change cannot restore an orphan mapping. Pod output requires a matching confirmed root in the same store snapshot, even when status is absent. | `pkg/collector`: `TestPodMappingRequiresConfirmedRootInSameSnapshot` |
 | Concurrent scrape memory | Only one metrics request is served at a time, bounding overlapping OTel collection allocation while health endpoints remain responsive. | `pkg/server`: `TestConcurrentScrapeIsBoundedAndHealthStaysResponsive` |
-| Failure bookkeeping lifecycle | Completed verification prunes workload and collection failure epochs at or before that pass epoch, retaining failures that arrived concurrently. This bounds stale UID bookkeeping after deletion and late Pod upserts. | `pkg/store`: `TestVerificationRetiresFailureEpochsAfterDeletion`; implementation owner reported the focused state/store/collector/attribute race run passed |
+| Failure bookkeeping lifecycle | Completed verification prunes workload and collection failure epochs at or before that pass epoch, retaining failures that arrived concurrently. This bounds stale UID bookkeeping after deletion and late Pod upserts. | `pkg/store`: `TestVerificationRetiresFailureEpochsAfterDeletion` |
 | Pending owner index | Removing one pending Pod no longer scans every missing-owner bucket. | `TestLargePendingIndexForgetsOnlyRequestedPod`, `BenchmarkAffectedDescendants` |
 
 Fresh verification uses 1,000-item LIST pages, a pass budget of half the maximum
@@ -78,42 +78,48 @@ nonroots publish neither workload status nor workload health.
 
 ## Measured scale evidence
 
-The original full-object first Pod pass failed the strict 100,000-workload,
-one-million-Pod health case: verification took 62.187569042 seconds and completed
-only 1,092 of 2,101 required LISTs before its 60-second budget expired. Health
-reported api_unavailable rather than accepting partial coverage. The metadata
-first-pass optimization addresses that duplicate full-object decode cost; its
-initial repeat reached 1,800 of 2,101 requests before timing out. Correcting the
-fixture to serialize typed PodList responses directly completed all reads and
-100,003 healthy rows in 60.150028042 seconds, with almost no deadline margin.
-The verifier now indexes immutable snapshot Pod records by pointer instead of
-copying each large record again. The next isolated run passed in 58.568248875
-seconds (67.09 seconds including setup/assertions), with all 100,003 health rows
-healthy, all 2,101 LISTs complete and no fallback GETs. This leaves only about
-1.43 seconds of API-deadline headroom in the synthetic fixture. The original
-failure remains part of the evidence. These capacity runs preceded the final
-localized cache-churn fix; their source hashes are preserved with the results.
+The frozen `02a613462995f11ac3825c6b3db7a7f51c485e0c` implementation passed all
+nine scrape scenarios: 1,000, 10,000 and 100,000 roots with zero, one and ten Pods
+per root. Each fresh process ran an independent complete-output oracle before
+three timed scrapes. The 100,000-root deletion and UID-replacement oracle also
+passed. Before/after manifests matched all 123 measured source files. The worktree
+was dirty only in documentation, acceptance fixtures and installer corrections;
+production and scale-harness source remained unchanged.
 
-`TestScaleHealthVerification/workloads_100000/pods_1` passed in an isolated run:
-100,000 Jobs and 100,000 Pods yielded 100,003 healthy rows. Verification took
-13.225716542 seconds (20.43 seconds including fixture setup and assertions),
-using 100 Job LISTs, 200 Pod LISTs, one Karta LIST and zero fallback GETs.
-The first Pod LIST pass uses metadata and the second uses full objects.
-The fixture uses real HTTP pagination and the production request budget, but a
-loopback server and prepopulated informer stores. This is not a production API
-server or informer-startup throughput claim.
+Fresh verification passed with the unchanged 60-second pass budget:
 
-The 1,000-workload health matrix also passed for zero, one and ten Pods per
-workload, with respectively 4, 4 and 22 LISTs and all 1,003 health rows healthy.
-The affected-descendant lookup benchmark took 118.9 ns/op among 1,000 owners and
-127.2 ns/op among 100,000 owners, with one allocation and 96 bytes per lookup.
-That benchmark measures lookup isolation, not complete event processing.
+| Roots | Pods | Healthy rows | LIST requests | Fallback GETs | Verification seconds | Deadline headroom seconds |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100,000 | 100,000 | 100,003 | 301 | 0 | 8.749 | 51.251 |
+| 100,000 | 1,000,000 | 100,003 | 2,101 | 0 | 47.229 | 12.771 |
 
-See the [scale decision](metrics-exporter-scale-decision.md) and
-[raw scale results](../../exporter/test/scale/results/) for final scrape,
-allocation, RSS and churn evidence. Dense nine-phase status alone requires
-900,000 rows at 100,000 roots. A finite overflow cap would break completeness.
-The capacity decision must account for total series and Pod ratio, not just roots.
+These cases use 1,000-item pages, QPS 50 / burst 100, loopback HTTP and prepopulated
+informer stores. Initial sandbox attempts could not bind the local test server;
+those startup failures supplied no capacity measurement and are retained
+separately. The two health cases were repeated with loopback access.
+
+The largest scrape emitted 2,000,000 samples and about 558 MB of text. Median
+scrape time was 18.423 seconds and process peak RSS was 9.325 GB, including fixture
+and oracle work. That RSS is higher than the earlier 7.812 GB measurement; the
+optimization does not establish uniformly lower memory use. The default 1 GiB
+chart limit is insufficient for these 100,000-root scenarios. The [scale decision](metrics-exporter-scale-decision.md)
+and [raw results](../../exporter/test/scale/results/) record every timing, exact
+allocation/RSS value, runtime, source hash and deployment limit.
+
+Earlier failures remain evidence. The original full-object first Pod pass failed
+at one million Pods after 62.188 seconds, completing only 1,092 of 2,101 LISTs.
+The metadata-first experiment reached 1,800 requests before timing out. Correcting
+the fixture to encode typed Pod lists completed coverage in 60.150 seconds;
+indexing immutable snapshot Pod records by pointer subsequently passed in
+58.568 seconds. Those older source manifests are preserved rather than relabeled
+as final measurements. Partial API coverage never counted as healthy.
+
+The measurements are synthetic, isolated from other heavy test jobs, and use
+compact fixtures on a local 14-core host. They do not establish production API
+server or informer-startup throughput, combined health-plus-scrape memory,
+network transfer, or Prometheus ingestion capacity. Dense nine-phase status alone
+requires 900,000 rows at 100,000 roots; a finite overflow cap would break the
+contract. Capacity depends on total series and Pod size as well as root count.
 
 ## Peer review
 
@@ -128,52 +134,61 @@ the controller or replace execution evidence. A final completed five-file Sonnet
 and reported no concrete bugs. Failure-epoch pruning was added after that review
 and has its own lifecycle regression.
 
+## Acceptance setup corrections
+
+- EXP-030: The NIM 3.0.2 source chart used the mutable `release-3.0` image.
+  Its newer controller wrote fields absent from the pinned CRDs and repeatedly
+  recreated a NIMCache helper. The installer now selects the matching official
+  release by digest and rejects mismatched existing releases. Both the controller
+  and CRD hook render that image. Local installer checks cover fresh, matching
+  existing and mismatched existing releases. The CPU fixture now implements the
+  actual 3.0.2 Hugging Face command; the stable expected population is one
+  completed download Pod. Both NIMService and NIMCache passed live on both
+  exporter replicas after correction.
+- EXP-031: The RayService CPU fixture allowed its only Serve actor on the head,
+  leaving the worker without the local Serve proxy required by its readiness
+  probe. Reserving zero Ray task CPUs on the head places the actor on the worker.
+  The fresh RayService retry passed with both Pods ready and both exporter
+  replicas agreeing. Exporter code and metric expectations were unchanged.
+- The first Knative attempt encountered a container-runtime image alias problem
+  despite having the pinned image content. Repairing that alias in the dedicated
+  cluster restored the Pod. Its recorded elapsed time includes the repair; it is
+  not a normal startup-latency measurement.
+
+The [acceptance evidence](../Exporter%20Acceptance.md) retains failed attempts,
+fixture changes and successful retries separately from production provenance.
+
 ## Validation status
 
-Completed and reported by the responsible implementation workers:
+The implementation is committed as `02a613462995f11ac3825c6b3db7a7f51c485e0c`.
+The following checks passed on October 14:
 
-- Normal, non-overlay `go test -race ./pkg/controller ./pkg/owner ./pkg/registry`
-  after the final controller peer fixes.
-- Controller/owner/registry golangci-lint with the repository configuration:
-  zero issues. Scoped `git diff --check` passed.
-- Focused `go test -race ./pkg/collector ./pkg/store ./pkg/server` after the
-  latest store and scrape-concurrency changes, including the bounded-scrape
-  health-responsiveness regression.
-- Actual-tree `go test ./cmd -count=1`, Helm lint, all six promtool suites
-  (25 scenarios), and 14 Python acceptance-inspector regressions.
-- The health scale cases and owner lookup benchmark described above.
+- Root `make check` on the clean commit, including generation and license checks,
+  library and CLI tests, CLI lint and version stamping. No generated-file drift.
+- `make -C exporter check`: formatting, vet, lint with zero issues, and all
+  exporter packages under the race detector. This includes every lifecycle and
+  watcher-pruning regression in the tables above.
+- Helm lint and rendering validation, all six promtool suites (25 scenarios),
+  image-lock verification and fixture tests, and shell lint.
+- All 16 Python acceptance-inspector regressions.
 
-The focused controller race checks also passed after the final cache-churn
-localization change. A repeat of large capacity measurements on that exact
-revision is deferred while the live cluster stabilizes.
+The Go checks used `GOMAXPROCS=2 GOFLAGS=-p=2` to limit compilation and test load
+while preparing the dedicated kind cluster. These are correctness checks, not
+performance measurements.
 
-The final whole-repository `make check`, live operator matrix, fault/recovery
-suite and delivery-mode acceptance results are not established by this audit
-revision. The integration owner will update their final status. Source exists
-for those harnesses, but source presence is not evidence of a completed run.
+Direct Prometheus and external Collector transport acceptance passed on this
+commit: exact two-replica parity, rollout, deletion freshness and same-name UID
+replacement. The bridge uses an explicit timestamp freshness guard; native OTLP
+remains deferred.
 
-The October 14 lifecycle review reproduced a metadata-alias deletion that retained
-a confirmed workload record. Deletion now removes that record and its pending
-retry under the same publication lock. The normal-source focused race command
-`GOMAXPROCS=2 GOFLAGS=-p=2 go test -race ./pkg/controller ./pkg/owner ./pkg/registry -count=1`
-passed after the fix: controller 2.141s, owner 2.256s, registry 1.517s. This result
-includes the deletion and relist regression; it does not establish live acceptance
-or repeat the earlier large capacity measurements.
+The final kind run passed all 21 workload cases and all 21 fault/recovery
+checks against the same frozen exporter image. Every workload case required two
+consecutive passing observations from both exporter replicas. Fault cleanup
+removed obsolete API-group rows from both replicas without a restart. The
+exporter replicas had zero restarts, and the control-plane restart counts did
+not increase during the final matrix. These CPU/mock fixtures validate
+attribution and observation, not real GPU execution or application performance.
 
-Follow-up regressions reproduced two teardown races: an event from a stopped
-metadata watcher could restore its index entry, and the first publication of a
-root could arrive after definition cleanup found no stored record. Both now
-recheck publication under the controller lock shared with watcher teardown and
-production registry mutation. The final focused race repeat passed on normal
-source: controller 3.080s, owner 3.013s, registry 1.524s. Scoped golangci-lint
-reported zero issues, and scoped `git diff --check` passed.
-
-Final watcher-pruning review reproduced a served-version handoff bug: retiring
-the last-publishing alias could remove an owner still present in another active
-cache. Teardown now restores only the same namespace/name/UID from a surviving
-desired watcher, using that watch's resource GVK and honoring deletion barriers.
-The permanent regression covers a matching lifetime, replacement UID, absence,
-a lagging deleted lifetime, and pending Pod recovery. The normal focused race
-run passed: controller 2.713s, owner 1.816s, registry 1.408s. Scoped lint reported
-zero issues after an equivalent boolean-expression simplification; scoped
-whitespace validation passed.
+The final nine-case synthetic scrape matrix, deletion/UID churn and both large
+fresh-health checks passed on this production commit. Earlier measured results
+retain their original source provenance and limits.

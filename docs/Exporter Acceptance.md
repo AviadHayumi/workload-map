@@ -54,8 +54,8 @@ done
 
 docker build -f exporter/Dockerfile -t "$EXPORTER_IMAGE" .
 kind load docker-image "$EXPORTER_IMAGE" --name "$CLUSTER_NAME"
-docker build -t karta-nimcache-cpu:matrix-v2 exporter/test/e2e/nimcache-image
-kind load docker-image karta-nimcache-cpu:matrix-v2 --name "$CLUSTER_NAME"
+docker build -t karta-nimcache-cpu:matrix-v3 exporter/test/e2e/nimcache-image
+kind load docker-image karta-nimcache-cpu:matrix-v3 --name "$CLUSTER_NAME"
 docker pull milvusdb/minio@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3
 docker tag milvusdb/minio@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3 karta-milvus-minio:matrix
 MINIO_PLATFORM="$(docker image inspect karta-milvus-minio:matrix --format '{{.Os}}/{{.Architecture}}')"
@@ -76,7 +76,7 @@ helm upgrade karta charts/karta --kubeconfig "$KUBECONFIG" \
 ```
 
 Stop if any installer fails. The Ray installer loads the architecture-specific image
-as ray-e2e:local. The NIM installer builds nim-cpu:e2e. The NIMCache helper above simulates
+as ray-e2e:local. The NIM installer builds nim-cpu:e2e. The NIMCache image above simulates
 a cache download. It never downloads model data or uses real credentials. Placeholder
 Secrets are created only in the test namespace. The pinned MinIO image was used in the
 recorded arm64 matrix; validate availability for the selected node architecture.
@@ -142,7 +142,7 @@ The following cases are available through --cases, separated by commas:
 | kserve-raw | 1 | Deployment-backed predictor status |
 | milvus | 1 | owned standalone Pod; independent dependencies remain separate |
 | nim | 1 | CPU fixture attributed to nimservice |
-| nimcache | 2 | downloader and helper attributed to nimcache |
+| nimcache | 1 | completed HF downloader attributed to nimcache |
 | deployment | 1 | Deployment above ReplicaSet |
 | deployment-zero | 0 | root status and health without Pods |
 | statefulset | 1 | StatefulSet ownership |
@@ -152,6 +152,15 @@ The following cases are available through --cases, separated by commas:
 
 Phases can overlap. MPI/PyTorch can be Initializing and Running; NIMCache can be
 Initializing and Completed. The expectations retain these catalog semantics.
+
+NIMCache uses the v3.0.2 HF source path, which skips the manifest helper and invokes
+huggingface-cli in one download Job. Its CPU image validates that command and writes
+a placeholder into the cache PVC. See the pinned upstream
+[helper gate](https://github.com/NVIDIA/k8s-nim-operator/blob/v3.0.2/internal/controller/nimcache_controller.go#L578-L584)
+and [download command](https://github.com/NVIDIA/k8s-nim-operator/blob/v3.0.2/internal/nimsource/hf.go#L16-L30).
+The operator image must match its CRDs; a moving release-3.0 image is not a v3.0.2 pin.
+The installer rejects an existing release with a different image. Align its chart,
+CRDs and image together before retrying; it does not silently upgrade that release.
 
 ## Run faults separately
 
@@ -194,6 +203,25 @@ exporter Pod. Failed cases retain their last captured metrics and the failure te
 Ownership snapshots contain GVK/name/UID/owner references, not Secrets, Pod environment
 values, node identities or API endpoint addresses. Record the tested source commit,
 working-tree changes and exporter image digest alongside the results.
+
+The [2026-10-14 evidence summary](../exporter/test/e2e/results/acceptance-2026-10-14.json)
+records a passing run of all 21 workload cases, 21 isolated fault checks and four
+transport checks. The exporter was built from commit
+02a613462995f11ac3825c6b3db7a7f51c485e0c and ran with two replicas on a three-node
+arm64 kind cluster with Kubernetes 1.34.3. Every workload case passed two consecutive
+observations with exact per-replica parity. The cases observed 40 fixture-owned Pods
+across separate runs, with 39 mappings; the bare Pod intentionally had none. Independent
+Milvus dependencies were checked as separate roots. The definition-deletion fault
+removed every row for its unique API group on both main replicas without a restart.
+
+The summary separates the immutable source manifest, Docker OCI index, arm64 image
+manifest, runtime image configuration and later harness hashes. Production source
+remained unchanged across all batches. The run corrected RayService actor placement
+and a NIM operator/CRD mismatch, then reran the affected cases. It also repaired a
+Knative image-cache alias without changing image content. Interrupted attempts are
+recorded as such; the summary does not count them as passing batches. Detailed raw
+snapshots remain local, while the checked-in summary omits endpoints, node identities,
+credentials and raw object manifests.
 
 These checks establish exporter attribution and observation behavior. The CPU/mock
 fixtures do not establish real training, GPU utilization, GPU sharing or application

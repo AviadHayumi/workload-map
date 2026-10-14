@@ -1,0 +1,8 @@
+{
+  "git_head": "02a613462995f11ac3825c6b3db7a7f51c485e0c",
+  "binaries_sha256": {
+    "karta-exporter-scale-02a6134": "ba3a44d51acef79e143ea1cc75619aa3030bd4cc09901cbd143ad6a5861e3719",
+    "karta-exporter-controller-scale-02a6134.test": "5506017ed818583dae71dff1696554383ab15e6ef934fefe3b2abea569d0b1f4",
+    "karta-exporter-collector-scale-02a6134.test": "fec94203f40d5244f045ef7dd59b02ac35dec3295cbc434b02150319393c2847"
+  }
+}

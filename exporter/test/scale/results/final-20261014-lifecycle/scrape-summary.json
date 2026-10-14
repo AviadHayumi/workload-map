@@ -1,0 +1,272 @@
+[
+  {
+    "allocated_bytes_per_scrape": 37941760,
+    "allocations_per_scrape": 633097,
+    "exposition_bytes": 2425136,
+    "file": "scrape-1000-0.json",
+    "fixture_build_ms": 0.541167,
+    "gc_cycles_during_scrapes": 11,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 43.588,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 61128704,
+    "retained_heap_bytes": 1588664,
+    "samples": {
+      "Health": 1000,
+      "Pods": 0,
+      "Status": 9000
+    },
+    "scenario": {
+      "Pods": 0,
+      "Workloads": 1000
+    },
+    "scrape_ms": [
+      43.588,
+      41.601417,
+      43.611625
+    ],
+    "verification_ms": 59.104833
+  },
+  {
+    "allocated_bytes_per_scrape": 43364864,
+    "allocations_per_scrape": 706486,
+    "exposition_bytes": 2728829,
+    "file": "scrape-1000-1.json",
+    "fixture_build_ms": 1.162625,
+    "gc_cycles_during_scrapes": 10,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 51.498959,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 71647232,
+    "retained_heap_bytes": 2240816,
+    "samples": {
+      "Health": 1000,
+      "Pods": 1000,
+      "Status": 9000
+    },
+    "scenario": {
+      "Pods": 1,
+      "Workloads": 1000
+    },
+    "scrape_ms": [
+      51.498959,
+      51.5485,
+      47.7735
+    ],
+    "verification_ms": 70.804167
+  },
+  {
+    "allocated_bytes_per_scrape": 93042965,
+    "allocations_per_scrape": 1367029,
+    "exposition_bytes": 5460869,
+    "file": "scrape-1000-10.json",
+    "fixture_build_ms": 4.451833,
+    "gc_cycles_during_scrapes": 10,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 106.864541,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 121962496,
+    "retained_heap_bytes": 5464352,
+    "samples": {
+      "Health": 1000,
+      "Pods": 10000,
+      "Status": 9000
+    },
+    "scenario": {
+      "Pods": 10,
+      "Workloads": 1000
+    },
+    "scrape_ms": [
+      106.864541,
+      113.262416,
+      103.249708
+    ],
+    "verification_ms": 139.095958
+  },
+  {
+    "allocated_bytes_per_scrape": 378396768,
+    "allocations_per_scrape": 6329180,
+    "exposition_bytes": 24448136,
+    "file": "scrape-10000-0.json",
+    "fixture_build_ms": 6.788417,
+    "gc_cycles_during_scrapes": 13,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 607.752375,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 385843200,
+    "retained_heap_bytes": 7447032,
+    "samples": {
+      "Health": 10000,
+      "Pods": 0,
+      "Status": 90000
+    },
+    "scenario": {
+      "Pods": 0,
+      "Workloads": 10000
+    },
+    "scrape_ms": [
+      607.752375,
+      586.765083,
+      608.871958
+    ],
+    "verification_ms": 808.980167
+  },
+  {
+    "allocated_bytes_per_scrape": 433384992,
+    "allocations_per_scrape": 7063131,
+    "exposition_bytes": 27523829,
+    "file": "scrape-10000-1.json",
+    "fixture_build_ms": 11.536833,
+    "gc_cycles_during_scrapes": 11,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 636.848125,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 492699648,
+    "retained_heap_bytes": 13761936,
+    "samples": {
+      "Health": 10000,
+      "Pods": 10000,
+      "Status": 90000
+    },
+    "scenario": {
+      "Pods": 1,
+      "Workloads": 10000
+    },
+    "scrape_ms": [
+      720.048083,
+      636.848125,
+      621.931667
+    ],
+    "verification_ms": 789.895375
+  },
+  {
+    "allocated_bytes_per_scrape": 931109642,
+    "allocations_per_scrape": 13668411,
+    "exposition_bytes": 55203869,
+    "file": "scrape-10000-10.json",
+    "fixture_build_ms": 46.63525,
+    "gc_cycles_during_scrapes": 12,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 1350.891958,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 897384448,
+    "retained_heap_bytes": 45216864,
+    "samples": {
+      "Health": 10000,
+      "Pods": 100000,
+      "Status": 90000
+    },
+    "scenario": {
+      "Pods": 10,
+      "Workloads": 10000
+    },
+    "scrape_ms": [
+      1319.306,
+      1350.891958,
+      1356.099459
+    ],
+    "verification_ms": 1744.679958
+  },
+  {
+    "allocated_bytes_per_scrape": 3808946581,
+    "allocations_per_scrape": 63264571,
+    "exposition_bytes": 246478136,
+    "file": "scrape-100000-0.json",
+    "fixture_build_ms": 60.570583,
+    "gc_cycles_during_scrapes": 13,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 7469.185458,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 4223909888,
+    "retained_heap_bytes": 64981112,
+    "samples": {
+      "Health": 100000,
+      "Pods": 0,
+      "Status": 900000
+    },
+    "scenario": {
+      "Pods": 0,
+      "Workloads": 100000
+    },
+    "scrape_ms": [
+      7469.185458,
+      7418.765375,
+      7591.633458
+    ],
+    "verification_ms": 8599.02525
+  },
+  {
+    "allocated_bytes_per_scrape": 4357160672,
+    "allocations_per_scrape": 70603467,
+    "exposition_bytes": 277633829,
+    "file": "scrape-100000-1.json",
+    "fixture_build_ms": 117.722041,
+    "gc_cycles_during_scrapes": 12,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 8340.643084,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 4582866944,
+    "retained_heap_bytes": 126352608,
+    "samples": {
+      "Health": 100000,
+      "Pods": 100000,
+      "Status": 900000
+    },
+    "scenario": {
+      "Pods": 1,
+      "Workloads": 100000
+    },
+    "scrape_ms": [
+      8387.33525,
+      8340.643084,
+      8178.211625
+    ],
+    "verification_ms": 9542.889042
+  },
+  {
+    "allocated_bytes_per_scrape": 9359988992,
+    "allocations_per_scrape": 136633065,
+    "exposition_bytes": 558033869,
+    "file": "scrape-100000-10.json",
+    "fixture_build_ms": 621.226834,
+    "gc_cycles_during_scrapes": 12,
+    "go_version": "go1.26.3",
+    "gomaxprocs": 14,
+    "median_scrape_ms": 18422.939875,
+    "peak_rss_available": true,
+    "platform": "darwin/arm64",
+    "process_peak_rss_bytes": 9324740608,
+    "retained_heap_bytes": 462648192,
+    "samples": {
+      "Health": 100000,
+      "Pods": 1000000,
+      "Status": 900000
+    },
+    "scenario": {
+      "Pods": 10,
+      "Workloads": 100000
+    },
+    "scrape_ms": [
+      16972.312583,
+      18422.939875,
+      19426.71525
+    ],
+    "verification_ms": 20415.794625
+  }
+]
