@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gpu-demo-randomizer
+  namespace: gpu-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karta-gpu-demo-round
+  namespace: gpu-demo
+data:
+  state.json: ""
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gpu-demo-randomizer
+  namespace: gpu-demo
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list, patch]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [karta-gpu-demo-round]
+    verbs: [get, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gpu-demo-randomizer
+  namespace: gpu-demo
+subjects:
+  - kind: ServiceAccount
+    name: gpu-demo-randomizer
+    namespace: gpu-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gpu-demo-randomizer
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gpu-demo-randomizer
+  namespace: gpu-demo
+spec:
+  schedule: "* * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 60
+      ttlSecondsAfterFinished: 1200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: gpu-demo-randomizer
+        spec:
+          serviceAccountName: gpu-demo-randomizer
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: randomizer
+              image: ghcr.io/example/gpu-demo-randomizer:replace-with-built-digest
+              args:
+                - --namespace=gpu-demo
+                - --karta-url=http://karta-exporter.monitoring.svc:8080/metrics
+              env:
+                - name: POD_UID
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.uid
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]

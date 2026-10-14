@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/run-ai/fake-gpu-operator/internal/common/topology"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+)
+
+type snapshot struct {
+	metrics []prometheus.Metric
+	at      time.Time
+	healthy bool
+}
+type producer struct {
+	mu                                  sync.RWMutex
+	current                             snapshot
+	node                                string
+	util, used, free, timestamp, health *prometheus.Desc
+}
+
+var labels = []string{"node", "UUID", "gpu", "namespace", "pod", "container", "pod_uid", "source"}
+
+func newProducer(node string) *producer {
+	return &producer{node: node,
+		util:      prometheus.NewDesc("DCGM_FI_DEV_GPU_UTIL", "Synthetic GPU utilization using fake GPU operator allocation state.", labels, nil),
+		used:      prometheus.NewDesc("DCGM_FI_DEV_FB_USED", "Synthetic framebuffer usage in MiB.", labels, nil),
+		free:      prometheus.NewDesc("DCGM_FI_DEV_FB_FREE", "Synthetic free framebuffer in MiB.", labels, nil),
+		timestamp: prometheus.NewDesc("fake_gpu_source_sample_timestamp_seconds", "Time the synthetic sample and its UID-bearing allocation were generated together from a successful topology read.", labels, nil),
+		health:    prometheus.NewDesc("fake_gpu_source_healthy", "One for a successful topology read within fifteen seconds.", []string{"node", "source"}, nil)}
+}
+func (p *producer) Describe(ch chan<- *prometheus.Desc) {
+	for _, d := range []*prometheus.Desc{p.util, p.used, p.free, p.timestamp, p.health} {
+		ch <- d
+	}
+}
+func (p *producer) Collect(ch chan<- prometheus.Metric) {
+	p.mu.RLock()
+	s := p.current
+	p.mu.RUnlock()
+	healthy := s.healthy && time.Since(s.at) <= 15*time.Second
+	value := 0.0
+	if healthy {
+		value = 1
+		for _, m := range s.metrics {
+			ch <- m
+		}
+	}
+	ch <- prometheus.MustNewConstMetric(p.health, prometheus.GaugeValue, value, p.node, "synthetic")
+}
+func (p *producer) update(t *topology.NodeTopology, now time.Time) {
+	s := snapshot{at: now, healthy: t != nil}
+	if t != nil {
+		for index, gpu := range t.Gpus {
+			// Only a singleton usage map certifies which Pod UID produced this sample.
+			// Empty or shared assignments retain an empty UID and cannot prove ownership.
+			uid := ""
+			valid := gpu.ID != "" && t.GpuMemory >= 0
+			for key, usage := range gpu.Status.PodGpuUsageStatus {
+				valid = valid && usage.Utilization.Min >= 0 && usage.Utilization.Max <= 100 && usage.Utilization.Min <= usage.Utilization.Max && usage.FbUsed >= 0 && !usage.UseKnativeUtilization
+				if len(gpu.Status.PodGpuUsageStatus) == 1 {
+					uid = string(key)
+				}
+			}
+			if !valid {
+				continue
+			}
+			allocation := gpu.Status.AllocatedBy
+			if allocation.Namespace == "" || allocation.Pod == "" || allocation.Container == "" {
+				uid = ""
+			}
+			values := []string{p.node, gpu.ID, strconv.Itoa(index), allocation.Namespace, allocation.Pod, allocation.Container, uid, "synthetic"}
+			utilization := gpu.Status.PodGpuUsageStatus.Utilization()
+			used := gpu.Status.PodGpuUsageStatus.FbUsed(t.GpuMemory)
+			for _, metric := range []struct {
+				desc  *prometheus.Desc
+				value float64
+			}{{p.util, float64(utilization)}, {p.used, float64(used)}, {p.free, float64(t.GpuMemory - used)}, {p.timestamp, float64(now.UnixNano()) / 1e9}} {
+				s.metrics = append(s.metrics, prometheus.MustNewConstMetric(metric.desc, prometheus.GaugeValue, metric.value, values...))
+			}
+		}
+	}
+	p.mu.Lock()
+	p.current = s
+	p.mu.Unlock()
+}
+func main() {
+	if err := run(); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
+func run() error {
+	var namespace, name, node, listen string
+	flag.StringVar(&namespace, "namespace", "", "Namespace of the fake GPU topology ConfigMap")
+	flag.StringVar(&name, "configmap", "", "Exact fake GPU node topology ConfigMap")
+	flag.StringVar(&node, "node", "", "Verified node represented by this ConfigMap")
+	flag.StringVar(&listen, "listen-address", ":9400", "HTTP listen address")
+	flag.Parse()
+	if namespace == "" || name == "" || node == "" {
+		return errors.New("namespace, configmap and node are required")
+	}
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
+	cfg.Timeout = 4 * time.Second
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	p := newProducer(node)
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(p)
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	server := &http.Server{Addr: listen, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	errs := make(chan error, 1)
+	go func() { errs <- server.ListenAndServe() }()
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			cm, readErr := client.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
+			var t *topology.NodeTopology
+			if readErr == nil {
+				t, readErr = topology.FromNodeTopologyCM(cm)
+			}
+			if readErr != nil {
+				t = nil
+				log.Printf("topology read unavailable: %v", readErr)
+			}
+			p.update(t, time.Now())
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	select {
+	case err = <-errs:
+		if !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve source: %w", err)
+		}
+	case <-ctx.Done():
+	}
+	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return server.Shutdown(shutdown)
+}
