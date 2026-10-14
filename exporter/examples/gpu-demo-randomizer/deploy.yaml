@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: gpu-demo-randomizer
-  namespace: gpu-demo
+  namespace: gpu-demo-control
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -36,7 +36,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: gpu-demo-randomizer
-    namespace: gpu-demo
+    namespace: gpu-demo-control
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -46,7 +46,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: gpu-demo-randomizer
-  namespace: gpu-demo
+  namespace: gpu-demo-control
 spec:
   schedule: "* * * * *"
   timeZone: Etc/UTC

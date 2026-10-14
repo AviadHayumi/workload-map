@@ -53,7 +53,13 @@ for arbitrary production workload scales. An empty eligible cohort is an error.
 
 Build from the repository root with the example Dockerfile. Publish to an
 accessible registry and use its immutable digest. Adapt `deploy.yaml` to a
-preexisting demo namespace and the direct Karta exporter Service URL. Keep the
+preexisting target namespace (`gpu-demo`), a separate control namespace
+(`gpu-demo-control`), and the direct Karta exporter Service URL. The CronJob and
+ServiceAccount run in the control namespace. The Pod mutation Role and state
+ConfigMap remain in the target namespace; the RoleBinding names the control
+ServiceAccount. This keeps completed Job/Pod garbage collection outside the
+observed workload inventory, where transient missing owners correctly invalidate
+namespace evidence. Keep the
 Role namespace scoped. Its Pod patch permission is limited by code to opted-in
 fixtures; Kubernetes RBAC cannot express label-scoped patch permission.
 
@@ -63,11 +69,11 @@ other namespaces. Keep this account exclusive to the demo Job.
 
 ```sh
 kubectl --context DEMO_CONTEXT apply -f deploy.yaml
-kubectl --context DEMO_CONTEXT -n gpu-demo create job --from=cronjob/gpu-demo-randomizer gpu-demo-manual
-kubectl --context DEMO_CONTEXT -n gpu-demo logs job/gpu-demo-manual
+kubectl --context DEMO_CONTEXT -n gpu-demo-control create job --from=cronjob/gpu-demo-randomizer gpu-demo-manual
+kubectl --context DEMO_CONTEXT -n gpu-demo-control logs job/gpu-demo-manual
 kubectl --context DEMO_CONTEXT -n gpu-demo get configmap karta-gpu-demo-round -o jsonpath='{.data.state\.json}'
-kubectl --context DEMO_CONTEXT -n gpu-demo patch cronjob gpu-demo-randomizer --type=merge -p '{"spec":{"suspend":true}}'
-kubectl --context DEMO_CONTEXT -n gpu-demo patch cronjob gpu-demo-randomizer --type=merge -p '{"spec":{"suspend":false}}'
+kubectl --context DEMO_CONTEXT -n gpu-demo-control patch cronjob gpu-demo-randomizer --type=merge -p '{"spec":{"suspend":true}}'
+kubectl --context DEMO_CONTEXT -n gpu-demo-control patch cronjob gpu-demo-randomizer --type=merge -p '{"spec":{"suspend":false}}'
 ```
 
 Suspending prevents future scheduled Jobs; an already running Job can finish.
