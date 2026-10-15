@@ -73,7 +73,14 @@ type indexOwnerName struct {
 
 type indexResolution struct {
 	root      types.UID
+	depth     int
 	namespace string
+}
+
+type indexedWorkload struct {
+	object      *unstructured.Unstructured
+	pods        []*corev1.Pod
+	observation Observation
 }
 
 var _ IndexedReader = (*Index)(nil)
@@ -413,6 +420,88 @@ func (i *Index) Capture(ctx context.Context, seed ObjectRef) (*Capture, error) {
 	return capture, nil
 }
 
+// snapshotWorkload shares immutable records only with this package. Public
+// Capture still returns detached copies for arbitrary callers.
+func (i *Index) snapshotWorkload(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int) (*indexedWorkload, error) {
+	started := time.Now()
+	i.mu.RLock()
+	snapshot, err := i.workloadLocked(ctx, seed, requireRoot, maxDepth)
+	i.mu.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	snapshot.object = snapshot.object.DeepCopy()
+	sort.Slice(snapshot.pods, func(a, b int) bool { return podLess(snapshot.pods[a], snapshot.pods[b]) })
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	snapshot.observation.Started = started
+	snapshot.observation.Completed = time.Now()
+	return snapshot, nil
+}
+
+func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int) (*indexedWorkload, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := i.ready(); err != nil {
+		return nil, err
+	}
+	state := i.state
+	object, err := state.get(seed)
+	if err != nil {
+		return nil, err
+	}
+	path, err := state.trace(ctx, object)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrIncompleteOwnership, err)
+	}
+	terminal := path[len(path)-1].Ref
+	root, err := state.get(terminal)
+	if err != nil {
+		return nil, err
+	}
+	if terminal.Namespace == "" && state.namespace != "" {
+		return nil, ErrInsufficientScope
+	}
+	if err := state.complete(ctx, terminal.Namespace); err != nil {
+		return nil, err
+	}
+	if reference(object) != seed {
+		return nil, fmt.Errorf("%w: seed identity or namespace differs", ownership.ErrScope)
+	}
+	if len(path)-1 > maxDepth {
+		if _, err := state.traceDepth(ctx, object, maxDepth); err != nil {
+			return nil, err
+		}
+		return nil, ErrIncompleteOwnership
+	}
+	if requireRoot && terminal.UID != seed.UID {
+		return nil, ErrNotWorkloadRoot
+	}
+	snapshot := &indexedWorkload{object: root, pods: make([]*corev1.Pod, 0, len(state.rootPods[terminal.UID])), observation: Observation{
+		Source: "indexed", Namespace: terminal.Namespace, Generation: i.generation, PodResourceVersion: state.podVersion,
+	}}
+	var excessive *corev1.Pod
+	for uid, pod := range state.rootPods[terminal.UID] {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if state.resolved[uid].depth > maxDepth && (excessive == nil || podLess(pod, excessive)) {
+			excessive = pod
+		}
+		snapshot.pods = append(snapshot.pods, pod)
+	}
+	if excessive != nil {
+		pod := state.records[excessive.UID].aliases[podGVK]
+		if _, err := state.traceDepth(ctx, pod, maxDepth); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrIncompleteOwnership, err)
+		}
+		return nil, ErrIncompleteOwnership
+	}
+	return snapshot, nil
+}
+
 func (i *Index) captureLocked(ctx context.Context, seed ObjectRef) (*Capture, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -567,6 +656,10 @@ func (s *indexState) get(ref ObjectRef) (*unstructured.Unstructured, error) {
 }
 
 func (s *indexState) trace(ctx context.Context, object *unstructured.Unstructured) ([]ownership.Object, error) {
+	return s.traceDepth(ctx, object, len(s.records))
+}
+
+func (s *indexState) traceDepth(ctx context.Context, object *unstructured.Unstructured, maxDepth int) ([]ownership.Object, error) {
 	start := s.records[object.GetUID()].metadata
 	// Aliases share validated ownership metadata, but retain the exact served
 	// version selected by get for this traversal.
@@ -582,7 +675,7 @@ func (s *indexState) trace(ctx context.Context, object *unstructured.Unstructure
 		metadata := s.records[owner.GetUID()].metadata
 		metadata.Ref.GVK = owner.GroupVersionKind()
 		return metadata, nil
-	}, len(s.records))
+	}, maxDepth)
 }
 
 func (s *indexState) add(uid types.UID, record *indexRecord) {
@@ -671,6 +764,7 @@ func (s *indexState) resolve(ctx context.Context, uid types.UID) error {
 		s.unresolved[namespace][uid] = struct{}{}
 	} else {
 		resolution.root = path[len(path)-1].Ref.UID
+		resolution.depth = len(path) - 1
 		if record.pod != nil {
 			if s.rootPods[resolution.root] == nil {
 				s.rootPods[resolution.root] = make(map[types.UID]*corev1.Pod)

@@ -148,6 +148,13 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	if err := validateRef(seed); err != nil {
 		return nil, err
 	}
+	if index, ok := r.reader.(*Index); ok {
+		snapshot, err := index.snapshotWorkload(ctx, seed, requireRoot, r.maxDepth)
+		if err != nil {
+			return nil, err
+		}
+		return buildWorkload(ctx, snapshot.object, snapshot.pods, r.plans[snapshot.object.GroupVersionKind()], snapshot.observation)
+	}
 	if indexed, ok := r.reader.(IndexedReader); ok {
 		capture, err := indexed.Capture(ctx, seed)
 		if err != nil {

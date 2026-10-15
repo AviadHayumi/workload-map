@@ -217,9 +217,9 @@ It uses captured copies and issues no cluster requests.
 ## Initialize a caller-fed index
 
 `Index` implements both `Reader` and `IndexedReader`. It owns object copies,
-identity bindings, reverse owner edges, and root-to-Pod membership. Resolver uses
-its atomic `Capture` capability without falling back to direct requests. An
-uninitialized or invalidated index returns `ErrNotSynced`.
+identity bindings, reverse owner edges, and root-to-Pod membership. Resolver takes
+an atomic snapshot without falling back to direct requests. An uninitialized or
+invalidated index returns `ErrNotSynced`.
 
 The following initializes a complete observation. Pass explicit zero-Pod roots
 through `extraRoots`; Pod enumeration alone cannot discover arbitrary empty CRs.
@@ -289,6 +289,14 @@ apparently complete empty set. Changing a mapping's resource identity or scope
 requires replacement. Indexed publication recomputes affected descendants, and
 capture copies the selected generation without holding the lock during all
 output copying.
+
+For the built-in `Index`, the resolver reuses immutable Pod records from the
+selected generation internally. It copies the root before interpretation and
+keeps a private ordered membership slice. Public getters still return detached
+copies. Updates publish new records, so retained workloads keep their original
+values. Cached ownership depths enforce the resolver's depth limit, including
+siblings deeper than the requested Pod. External `IndexedReader` implementations
+continue through defensive capture copying and validation.
 
 The SDK owns no watch fleet, resync loop, or background refresh. Existing informer
 consumers can publish their existing canonical cache. Direct-only callers can
