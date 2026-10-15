@@ -100,6 +100,24 @@ The interval does not prove that all objects existed in one simultaneous cluster
 state. Indexed capture is coherent within one published local generation; it
 does not establish how recently the producer observed the cluster.
 
+## Pod list ownership
+
+Ordinary `Reader` results are copied before owner reads so later reader activity
+cannot change the captured Pods. A reader can optionally implement
+`PodTransferReader.ListPodsForTransfer` to transfer the complete list without
+copying every nested field again. Collection keeps a compact array of Pod values
+so a small result cannot retain hidden portions of the reader's backing array.
+The list, its backing array, and all reachable mutable data must be exclusive to
+the caller. The reader must not retain, mutate or reuse them, and
+Pods must not share mutable data with other Pods or earlier or later results.
+
+The client-go adapter implements this capability using its freshly decoded Pod
+list. Existing callers need no configuration change. Collection applies the same
+coverage, identity and ownership checks to either path; a transfer error never
+falls back to another list request. A partial workload result still detaches its
+selected Pods from the full list allocation. Public result accessors return
+copies, and public `Collect` retains complete owner bodies.
+
 ## Definitions and generic workloads
 
 `Options.Definitions` overrides the built-in catalog by exact group, version,

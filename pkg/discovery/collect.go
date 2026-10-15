@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -24,6 +25,8 @@ type objectKey struct {
 }
 
 type collection struct {
+	metadataOnly bool
+
 	reader     Reader
 	mappings   map[schema.GroupVersionKind]*meta.RESTMapping
 	objects    map[objectKey]*unstructured.Unstructured
@@ -82,7 +85,30 @@ func (c *collection) get(ctx context.Context, ref ObjectRef) (*unstructured.Unst
 		} else {
 			object, err = c.reader.Get(ctx, ref)
 			if object != nil {
-				object = object.DeepCopy()
+				if c.metadataOnly {
+					data := make(map[string]any, 3)
+					for _, key := range []string{"apiVersion", "kind"} {
+						if value, exists := object.Object[key]; exists {
+							data[key] = runtime.DeepCopyJSONValue(value)
+						}
+					}
+					if value, exists := object.Object["metadata"]; exists {
+						if metadata, ok := value.(map[string]any); ok && metadata != nil {
+							fields := make(map[string]any, 5)
+							for _, key := range []string{"name", "namespace", "uid", "resourceVersion", "ownerReferences"} {
+								if field, exists := metadata[key]; exists {
+									fields[key] = runtime.DeepCopyJSONValue(field)
+								}
+							}
+							data["metadata"] = fields
+						} else {
+							data["metadata"] = runtime.DeepCopyJSONValue(value)
+						}
+					}
+					object = &unstructured.Unstructured{Object: data}
+				} else {
+					object = object.DeepCopy()
+				}
 			}
 		}
 		if err != nil {
@@ -168,7 +194,14 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	if err := ctx.Err(); err != nil {
 		return Dataset{}, err
 	}
-	list, err := c.reader.ListPods(ctx, namespace)
+	var list *corev1.PodList
+	var err error
+	transfer, ownsPods := c.reader.(PodTransferReader)
+	if ownsPods {
+		list, err = transfer.ListPodsForTransfer(ctx, namespace)
+	} else {
+		list, err = c.reader.ListPods(ctx, namespace)
+	}
 	if err != nil {
 		return Dataset{}, fmt.Errorf("list Pods in %q: %w", namespace, err)
 	}
@@ -186,12 +219,18 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	c.podUIDs = make(map[types.UID]*corev1.Pod, len(list.Items))
 	c.roots = make(map[types.UID]types.UID, len(list.Items))
 	ownedPods := make([]corev1.Pod, len(list.Items))
+	if ownsPods {
+		// Even a clipped subslice can retain a larger Pod backing array.
+		copy(ownedPods, list.Items)
+	}
 	for index := range list.Items {
 		if err := ctx.Err(); err != nil {
 			return Dataset{}, err
 		}
 		pod := &ownedPods[index]
-		list.Items[index].DeepCopyInto(pod)
+		if !ownsPods {
+			list.Items[index].DeepCopyInto(pod)
+		}
 		if namespace != "" && pod.Namespace != namespace {
 			return Dataset{}, fmt.Errorf("%w: Pod outside requested namespace", ErrInsufficientScope)
 		}
@@ -213,8 +252,11 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 		dataset.Pods = append(dataset.Pods, pod)
 	}
 	// Index the entire Pod list first because a Pod can itself control another Pod.
+	// These detached Pods already passed podIdentity. Later owner reads are
+	// checked against podUIDs by remember before entering the object cache.
 	for _, pod := range dataset.Pods {
-		root, err := c.rootForPod(ctx, pod, depth)
+		start := ownership.Object{Ref: podReference(pod), Owners: pod.OwnerReferences, Namespaced: true}
+		root, err := ownership.TraceRoot(ctx, start, c.lookup, depth)
 		if err != nil {
 			return Dataset{}, fmt.Errorf("%w: Pod %s/%s: %w", ErrIncompleteOwnership, pod.Namespace, pod.Name, err)
 		}

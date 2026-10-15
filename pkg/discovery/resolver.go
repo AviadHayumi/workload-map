@@ -179,6 +179,9 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	if requireRoot && root.UID != seed.UID {
 		return nil, ErrNotWorkloadRoot
 	}
+	// The initial trace retains the full root. Further owner reads only need
+	// metadata to establish membership and validate observation consistency.
+	c.metadataOnly = true
 	scope := root.Namespace
 	data, err := collect(ctx, c, scope, r.maxDepth, root)
 	if err != nil {

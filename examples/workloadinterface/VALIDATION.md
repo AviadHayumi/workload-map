@@ -106,3 +106,25 @@ go test ./pkg/ownership -run '^$' -bench '^BenchmarkTraceResult$' -benchmem
 
 This benchmark measures traversal only. It does not measure Kubernetes requests,
 full namespace acquisition, semantic grouping or production cluster capacity.
+
+## Fresh client results
+
+The client-go adapter can transfer its freshly decoded Pod list to discovery.
+The SDK keeps a compact Pod value array and adopts the transferred nested data;
+ordinary readers retain the defensive-copy path. Later direct owner reads copy
+only ownership metadata, while the selected root and Pods retain their complete
+payloads. Public `Collect` retains complete owner objects.
+
+Regression tests cover [transfer validation and backing-array retention](../../pkg/discovery/transfer_test.go),
+[full roots and raw ownership metadata](../../pkg/discovery/direct_projection_test.go),
+and [paginated client-go decoding and nested isolation](../../pkg/discovery/clientgo/reader_transfer_test.go).
+The adapter benchmark compares transfer with the same adapter behind the ordinary
+Reader interface:
+
+```bash
+go test ./pkg/discovery/clientgo -run '^$' -bench '^BenchmarkReaderWorkloadPodTransfer$' -benchmem
+```
+
+This benchmark decodes HTTP JSON through an in-process transport. It includes
+acquisition but excludes the final public getter copies and payload assertions.
+It does not measure API-server latency or establish production cluster capacity.

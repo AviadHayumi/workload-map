@@ -36,6 +36,17 @@ type Reader interface {
 	ListPods(context.Context, string) (*corev1.PodList, error)
 }
 
+// PodTransferReader optionally transfers exclusive ownership of a complete Pod
+// list. ListPodsForTransfer has the same coverage and error rules as ListPods.
+// The list, its Items array, and all reachable mutable data must not be retained,
+// reused, or mutated by the reader after return. Pods must not share mutable data
+// with each other or with earlier or later results. The caller may retain and
+// mutate the result. Readers without this capability use defensive list copies.
+type PodTransferReader interface {
+	Reader
+	ListPodsForTransfer(context.Context, string) (*corev1.PodList, error)
+}
+
 // IndexedReader captures the seed, its complete terminal workload, and all
 // relevant owner objects from one local generation. Errors never trigger an
 // implicit direct-read fallback.

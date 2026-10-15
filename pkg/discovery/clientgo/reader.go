@@ -28,6 +28,8 @@ type reader struct {
 	mapper meta.RESTMapper
 }
 
+var _ discovery.PodTransferReader = (*reader)(nil)
+
 const podPageSize = 500
 
 // NewReader uses caller-owned dependencies and performs no API discovery or
@@ -105,6 +107,12 @@ func (r *reader) Get(ctx context.Context, ref discovery.ObjectRef) (*unstructure
 		return nil, &ownership.Error{Kind: ownership.ErrUIDMismatch, Expected: ref, Actual: actual}
 	}
 	return object.DeepCopy(), nil
+}
+
+// ListPodsForTransfer transfers the complete Pod list and its nested data to the
+// caller. Each invocation constructs fresh typed Pods and retains no aliases.
+func (r *reader) ListPodsForTransfer(ctx context.Context, namespace string) (*corev1.PodList, error) {
+	return r.ListPods(ctx, namespace)
 }
 
 func (r *reader) ListPods(ctx context.Context, namespace string) (*corev1.PodList, error) {
