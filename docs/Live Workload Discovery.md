@@ -328,6 +328,15 @@ explicitly collect and replace when needed. Index memory, initial collection,
 feed acquisition, publication, and output copies are costs of this mode; a warm
 indexed lookup does not measure the cost of maintaining its source.
 
+Plan for workload turnover as well as live population. Retired UIDs and observed
+GVK mappings remain until a successful `Replace`; a continuous `Apply` feed can
+therefore grow memory even when the live object count stays constant.
+`Invalidate` retains this state. Producers that need a memory bound must arrange
+complete authoritative replacements while preserving feed ordering. A rebuild
+needs room for the old index, replacement input and new index at the same time.
+Retaining old workload observations also retains their selected Pod data; release
+observations when the consumer no longer needs them.
+
 ## Errors and validation
 
 Use `errors.Is` for SDK and ownership sentinels. Kubernetes errors remain wrapped,
