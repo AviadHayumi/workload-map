@@ -327,6 +327,57 @@ func TestListPodsForTransferDiscardsIncompleteObservation(t *testing.T) {
 	}
 }
 
+func TestReaderWorkloadPodTransfer(t *testing.T) {
+	for _, mode := range []string{"transfer", "fallback"} {
+		t.Run(mode, func(t *testing.T) {
+			const fanout = 2
+			f := newPodTransferFixture(t, 4, fanout, false)
+			backend := f.reader
+			if mode == "fallback" {
+				backend = struct{ discovery.Reader }{backend}
+			}
+			resolver, err := discovery.New(backend, discovery.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				workload, err := resolver.WorkloadForPod(t.Context(), f.seed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := validatePodTransferWorkload(workload, f, fanout); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if f.gets != 2*(f.rootCount+1) || f.lists != 2*len(f.pages) {
+				t.Fatalf("adapter calls GET=%d LIST=%d, want %d and %d", f.gets, f.lists, 2*(f.rootCount+1), 2*len(f.pages))
+			}
+		})
+	}
+}
+
+func validatePodTransferWorkload(workload *discovery.Workload, f *podTransferFixture, fanout int) error {
+	if got := workload.Root(); got != f.root {
+		return fmt.Errorf("workload root = %+v, want %+v", got, f.root)
+	}
+	if got := workload.Object(); !reflect.DeepEqual(got, f.rootObject) {
+		return fmt.Errorf("workload root payload = %#v, want %#v", got.Object, f.rootObject.Object)
+	}
+	pods := workload.Pods()
+	if len(pods) != fanout {
+		return fmt.Errorf("workload Pod count = %d, want %d", len(pods), fanout)
+	}
+	for i, pod := range pods {
+		if !reflect.DeepEqual(pod, &f.pods[i]) {
+			return fmt.Errorf("workload Pod %d payload = %+v, want %+v", i, pod, &f.pods[i])
+		}
+	}
+	if issues := workload.MembershipIssues(); len(issues) != 0 {
+		return fmt.Errorf("workload membership issues = %+v, want none", issues)
+	}
+	return nil
+}
+
 func BenchmarkReaderWorkloadPodTransfer(b *testing.B) {
 	for _, count := range []int{1000, 10000} {
 		for _, mode := range []string{"transfer", "fallback"} {
@@ -353,8 +404,8 @@ func BenchmarkReaderWorkloadPodTransfer(b *testing.B) {
 						b.Fatal(err)
 					}
 				}
-				if last.Root() != f.root || !reflect.DeepEqual(last.Object(), f.rootObject) || !reflect.DeepEqual(last.Pods(), f.pods[:fanout]) || len(last.MembershipIssues()) != 0 {
-					b.Fatal("adapter workload lost exact root, Pod membership, or full payload")
+				if err := validatePodTransferWorkload(last, f, fanout); err != nil {
+					b.Fatal(err)
 				}
 				if f.gets != b.N*(f.rootCount+1) || f.lists != b.N*len(f.pages) {
 					b.Fatalf("adapter calls GET=%d LIST=%d, want %d and %d", f.gets, f.lists, b.N*(f.rootCount+1), b.N*len(f.pages))
