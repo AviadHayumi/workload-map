@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,15 +28,22 @@ type objectKey struct {
 type collection struct {
 	metadataOnly bool
 
-	reader     Reader
-	mappings   map[schema.GroupVersionKind]*meta.RESTMapping
-	objects    map[objectKey]*unstructured.Unstructured
-	identities map[types.UID]*unstructured.Unstructured
-	roots      map[types.UID]types.UID
-	pods       map[objectKey]*corev1.Pod
-	podUIDs    map[types.UID]*corev1.Pod
-	metadata   map[*unstructured.Unstructured]*ownership.Object
-	lookups    map[ObjectRef]*ownership.Object
+	reader           Reader
+	mappings         map[schema.GroupVersionKind]*meta.RESTMapping
+	objects          map[objectKey]*unstructured.Unstructured
+	identities       map[types.UID]*unstructured.Unstructured
+	roots            map[types.UID]types.UID
+	pods             map[objectKey]*corev1.Pod
+	podUIDs          map[types.UID]*corev1.Pod
+	metadata         map[*unstructured.Unstructured]*ownership.Object
+	lookups          map[ObjectRef]*ownership.Object
+	directOwners     map[objectKey]*ownerRecord
+	directIdentities map[types.UID]*ownerRecord
+}
+
+type ownerRecord struct {
+	ownership.Object
+	resourceVersion string
 }
 
 func newCollection(reader Reader) *collection {
@@ -64,18 +72,26 @@ func (c *collection) mapping(ctx context.Context, gvk schema.GroupVersionKind) (
 	return mapping, nil
 }
 
-func (c *collection) get(ctx context.Context, ref ObjectRef) (*unstructured.Unstructured, error) {
+func (c *collection) scopedRef(ctx context.Context, ref ObjectRef) (ObjectRef, error) {
 	if err := validateRef(ref); err != nil {
-		return nil, err
+		return ObjectRef{}, err
 	}
 	mapping, err := c.mapping(ctx, ref.GVK)
 	if err != nil {
-		return nil, err
+		return ObjectRef{}, err
 	}
 	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
 		ref.Namespace = ""
 	} else if ref.Namespace == "" {
-		return nil, fmt.Errorf("%w: namespaced lookup has no dependent namespace", ownership.ErrScope)
+		return ObjectRef{}, fmt.Errorf("%w: namespaced lookup has no dependent namespace", ownership.ErrScope)
+	}
+	return ref, nil
+}
+
+func (c *collection) get(ctx context.Context, ref ObjectRef) (*unstructured.Unstructured, error) {
+	ref, err := c.scopedRef(ctx, ref)
+	if err != nil {
+		return nil, err
 	}
 	key := objectKey{ref.GVK, ref.Namespace, ref.Name}
 	object := c.objects[key]
@@ -137,16 +153,85 @@ func (c *collection) lookup(ctx context.Context, ref ObjectRef) (ownership.Objec
 		}
 		return *result, nil
 	}
-	object, err := c.get(ctx, ref)
-	if err != nil {
-		return ownership.Object{}, err
+	var result *ownership.Object
+	var err error
+	if c.metadataOnly && ref.GVK != podGVK {
+		result, err = c.lookupOwner(ctx, ref)
+	} else {
+		var object *unstructured.Unstructured
+		object, err = c.get(ctx, ref)
+		if err == nil {
+			result, err = c.ownershipMetadata(object)
+		}
 	}
-	result, err := c.ownershipMetadata(object)
 	if err != nil {
 		return ownership.Object{}, err
 	}
 	c.lookups[ref] = result
 	return *result, nil
+}
+
+// Newly fetched direct owners need only detached ownership data. Full initial
+// objects and exact Pod owners stay on the body-preserving acquisition path.
+func (c *collection) lookupOwner(ctx context.Context, ref ObjectRef) (*ownership.Object, error) {
+	ref, err := c.scopedRef(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	key := objectKey{ref.GVK, ref.Namespace, ref.Name}
+	if object := c.objects[key]; object != nil {
+		if object.GetUID() != ref.UID {
+			return nil, &ownership.Error{Kind: ownership.ErrUIDMismatch, Expected: ref, Actual: reference(object)}
+		}
+		return c.ownershipMetadata(object)
+	}
+	record := c.directOwners[key]
+	if record == nil {
+		object, err := c.reader.Get(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		if object == nil {
+			return nil, fmt.Errorf("%w: nil result for %s", ErrInvalidInput, ref.Name)
+		}
+		actual := reference(object)
+		if actual.GVK != ref.GVK || actual.Name != ref.Name || actual.Namespace != ref.Namespace {
+			return nil, fmt.Errorf("%w: lookup coordinates disagree for %s", ErrStaleInput, ref.Name)
+		}
+		if err := validateOwnerReferences(object); err != nil {
+			return nil, err
+		}
+		// GetOwnerReferences allocates its slice and both boolean pointees. Decode
+		// before another reader callback can reuse the returned JSON storage.
+		record = &ownerRecord{Object: ownership.Object{Ref: actual, Owners: object.GetOwnerReferences(), Namespaced: actual.Namespace != ""}, resourceVersion: object.GetResourceVersion()}
+		if pod := c.podUIDs[actual.UID]; pod != nil {
+			if actual != podReference(pod) || record.resourceVersion != pod.ResourceVersion || !sameOwnerReferences(record.Owners, pod.OwnerReferences) {
+				return nil, fmt.Errorf("%w: Pod identity disagrees with owner observation", ErrStaleInput)
+			}
+		}
+		if prior := c.identities[actual.UID]; prior != nil && !record.agreesWith(reference(prior), prior.GetResourceVersion(), prior.GetOwnerReferences()) {
+			return nil, fmt.Errorf("%w: inconsistent observed aliases for UID %s", ErrStaleInput, actual.UID)
+		}
+		if prior := c.directIdentities[actual.UID]; prior != nil && !prior.agreesWith(actual, record.resourceVersion, record.Owners) {
+			return nil, fmt.Errorf("%w: inconsistent observed aliases for UID %s", ErrStaleInput, actual.UID)
+		}
+		if c.directOwners == nil {
+			c.directOwners = make(map[objectKey]*ownerRecord)
+			c.directIdentities = make(map[types.UID]*ownerRecord)
+		}
+		// Like get/remember, retain the observation before checking the requested
+		// UID. A mismatched request still never enters the successful lookup cache.
+		c.directOwners[key] = record
+		c.directIdentities[actual.UID] = record
+	}
+	if record.Ref.UID != ref.UID {
+		return nil, &ownership.Error{Kind: ownership.ErrUIDMismatch, Expected: ref, Actual: record.Ref}
+	}
+	return &record.Object, nil
+}
+
+func (r *ownerRecord) agreesWith(ref ObjectRef, resourceVersion string, owners []metav1.OwnerReference) bool {
+	return r.Ref.GVK.GroupKind() == ref.GVK.GroupKind() && r.Ref.Namespace == ref.Namespace && r.Ref.Name == ref.Name && r.resourceVersion == resourceVersion && sameOwnerReferences(r.Owners, owners)
 }
 
 func (c *collection) trace(ctx context.Context, object *unstructured.Unstructured, depth int) ([]ownership.Object, error) {
@@ -330,6 +415,9 @@ func (c *collection) remember(object *unstructured.Unstructured) error {
 		if previous.GVK.GroupKind() != ref.GVK.GroupKind() || previous.Namespace != ref.Namespace || previous.Name != ref.Name || prior.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(prior.GetOwnerReferences(), object.GetOwnerReferences()) {
 			return fmt.Errorf("%w: inconsistent observed aliases for UID %s", ErrStaleInput, ref.UID)
 		}
+	}
+	if prior := c.directIdentities[ref.UID]; prior != nil && !prior.agreesWith(ref, object.GetResourceVersion(), object.GetOwnerReferences()) {
+		return fmt.Errorf("%w: inconsistent observed aliases for UID %s", ErrStaleInput, ref.UID)
 	}
 	c.identities[ref.UID] = object
 	c.objects[objectKey{ref.GVK, ref.Namespace, ref.Name}] = object

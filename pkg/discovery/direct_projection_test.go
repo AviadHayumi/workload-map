@@ -90,7 +90,7 @@ func directProjectionFixture(t *testing.T) (*directProjectionReader, []*unstruct
 	return reader, objects
 }
 
-func TestDirectCollectionProjectsOnlyNewOwnerBodies(t *testing.T) {
+func TestDirectCollectionRetainsOnlyInitialOwnerBodies(t *testing.T) {
 	reader, objects := directProjectionFixture(t)
 	ctx := context.Background()
 	c := newCollection(reader)
@@ -116,28 +116,28 @@ func TestDirectCollectionProjectsOnlyNewOwnerBodies(t *testing.T) {
 			}
 			continue
 		}
-		metadata := map[string]any{"name": ref.Name, "namespace": ref.Namespace, "uid": string(ref.UID), "resourceVersion": "1"}
-		if i == 3 {
-			metadata["ownerReferences"] = original.Object["metadata"].(map[string]any)["ownerReferences"]
+		if actual != nil {
+			t.Fatalf("new owner %s retained an unstructured body", ref.Name)
 		}
-		want := map[string]any{"apiVersion": original.Object["apiVersion"], "kind": original.Object["kind"], "metadata": metadata}
-		if !reflect.DeepEqual(actual.Object, want) {
-			t.Fatalf("new owner %s projection = %#v, want raw ownership fields %#v", ref.Name, actual.Object, want)
+		record := c.directOwners[objectKey{ref.GVK, ref.Namespace, ref.Name}]
+		want, err := ownershipObject(original, c.mappings[ref.GVK])
+		if err != nil || record == nil || !reflect.DeepEqual(record.Object, want) || record.resourceVersion != original.GetResourceVersion() {
+			t.Fatalf("new owner %s record = %#v, want %+v, %v", ref.Name, record, want, err)
 		}
 	}
 	aliasRef := reference(objects[3])
-	alias := c.objects[objectKey{aliasRef.GVK, aliasRef.Namespace, aliasRef.Name}]
+	alias := c.directOwners[objectKey{aliasRef.GVK, aliasRef.Namespace, aliasRef.Name}]
 	reader.returned[aliasRef].Object["metadata"].(map[string]any)["extension"].(map[string]any)["nested"].([]any)[0].(map[string]any)["value"] = "changed"
-	reader.returned[aliasRef].Object["metadata"].(map[string]any)["ownerReferences"].([]any)[0].(map[string]any)["extension"].(map[string]any)["nested"].([]any)[0] = "changed"
-	if !reflect.DeepEqual(alias.Object["metadata"].(map[string]any)["ownerReferences"], objects[3].Object["metadata"].(map[string]any)["ownerReferences"]) {
-		t.Fatal("reader mutation changed retained raw owner references")
+	reader.returned[aliasRef].Object["metadata"].(map[string]any)["ownerReferences"].([]any)[0].(map[string]any)["name"] = "changed"
+	if !reflect.DeepEqual(alias.Owners, objects[3].GetOwnerReferences()) {
+		t.Fatal("reader mutation changed detached owner references")
 	}
 	actualRoot, err := c.get(ctx, root)
 	if err != nil || !reflect.DeepEqual(actualRoot, objects[0]) || reader.gets[root] != 1 {
 		t.Fatalf("root lookup = %#v, %v, reads = %d, want original full v1 root and one read", actualRoot, err, reader.gets[root])
 	}
-	if c.identities[root.UID] != alias {
-		t.Fatal("fixture did not exercise replacement of the UID alias slot")
+	if c.directIdentities[root.UID] != alias || c.identities[root.UID] != actualRoot {
+		t.Fatal("served alias did not remain separate from the initial full root")
 	}
 }
 
