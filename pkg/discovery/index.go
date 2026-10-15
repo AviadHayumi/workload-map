@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -53,9 +54,10 @@ type indexState struct {
 }
 
 type indexRecord struct {
-	object  *unstructured.Unstructured
-	aliases map[schema.GroupVersionKind]*unstructured.Unstructured
-	pod     *corev1.Pod
+	object   *unstructured.Unstructured
+	aliases  map[schema.GroupVersionKind]*unstructured.Unstructured
+	pod      *corev1.Pod
+	metadata ownership.Object
 }
 
 type indexName struct {
@@ -508,7 +510,8 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 		if mapping == nil {
 			mapping = s.mappings[gvk]
 		}
-		if _, err := ownershipObject(object, mapping); err != nil {
+		metadata, err := ownershipObject(object, mapping)
+		if err != nil {
 			return nil, err
 		}
 		if s.namespace != "" && object.GetNamespace() != "" && object.GetNamespace() != s.namespace {
@@ -517,9 +520,9 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 		uid := object.GetUID()
 		record := groups[uid]
 		if record == nil {
-			record = &indexRecord{object: object, aliases: make(map[schema.GroupVersionKind]*unstructured.Unstructured)}
+			record = &indexRecord{object: object, aliases: make(map[schema.GroupVersionKind]*unstructured.Unstructured), metadata: metadata}
 			groups[uid] = record
-		} else if objectName(record.object) != objectName(object) || record.object.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(record.object.GetOwnerReferences(), object.GetOwnerReferences()) {
+		} else if objectName(record.object) != objectName(object) || record.object.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(record.metadata.Owners, metadata.Owners) {
 			return nil, fmt.Errorf("%w: inconsistent served-version aliases for UID %s", ErrStaleInput, uid)
 		}
 		if _, exists := record.aliases[gvk]; exists {
@@ -532,6 +535,7 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 				return nil, err
 			}
 			record.pod = pod
+			record.metadata.Owners = pod.OwnerReferences
 		}
 	}
 	return groups, nil
@@ -563,10 +567,10 @@ func (s *indexState) get(ref ObjectRef) (*unstructured.Unstructured, error) {
 }
 
 func (s *indexState) trace(ctx context.Context, object *unstructured.Unstructured) ([]ownership.Object, error) {
-	start, err := ownershipObject(object, s.mappings[object.GroupVersionKind()])
-	if err != nil {
-		return nil, err
-	}
+	start := s.records[object.GetUID()].metadata
+	// Aliases share validated ownership metadata, but retain the exact served
+	// version selected by get for this traversal.
+	start.Ref.GVK = object.GroupVersionKind()
 	return ownership.Trace(ctx, start, func(ctx context.Context, ref ObjectRef) (ownership.Object, error) {
 		if err := ctx.Err(); err != nil {
 			return ownership.Object{}, err
@@ -575,7 +579,9 @@ func (s *indexState) trace(ctx context.Context, object *unstructured.Unstructure
 		if err != nil {
 			return ownership.Object{}, err
 		}
-		return ownershipObject(owner, s.mappings[owner.GroupVersionKind()])
+		metadata := s.records[owner.GetUID()].metadata
+		metadata.Ref.GVK = owner.GroupVersionKind()
+		return metadata, nil
 	}, len(s.records))
 }
 
@@ -585,8 +591,12 @@ func (s *indexState) add(uid types.UID, record *indexRecord) {
 	for gvk, object := range record.aliases {
 		s.objects[objectKey{gvk, object.GetNamespace(), object.GetName()}] = object
 	}
-	s.graph.UpsertTrackedObject(record.object, record.object.GroupVersionKind())
-	for _, owner := range record.object.GetOwnerReferences() {
+	var tracked metav1.Object = record.object
+	if record.pod != nil {
+		tracked = record.pod
+	}
+	s.graph.UpsertTrackedObject(tracked, record.metadata.Ref.GVK)
+	for _, owner := range record.metadata.Owners {
 		if owner.Controller == nil || !*owner.Controller {
 			continue
 		}
@@ -624,7 +634,7 @@ func (s *indexState) remove(uid types.UID) {
 		delete(s.objects, objectKey{gvk, object.GetNamespace(), object.GetName()})
 	}
 	s.graph.DeleteObject(uid)
-	for _, owner := range record.object.GetOwnerReferences() {
+	for _, owner := range record.metadata.Owners {
 		gv, err := schema.ParseGroupVersion(owner.APIVersion)
 		if err != nil {
 			continue

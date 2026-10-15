@@ -31,10 +31,11 @@ type collection struct {
 	roots      map[types.UID]types.UID
 	pods       map[objectKey]*corev1.Pod
 	podUIDs    map[types.UID]*corev1.Pod
+	metadata   map[*unstructured.Unstructured]ownership.Object
 }
 
 func newCollection(reader Reader) *collection {
-	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), roots: make(map[types.UID]types.UID), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod)}
+	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), roots: make(map[types.UID]types.UID), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]ownership.Object)}
 }
 
 func (c *collection) mapping(ctx context.Context, gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
@@ -107,19 +108,32 @@ func (c *collection) lookup(ctx context.Context, ref ObjectRef) (ownership.Objec
 	if err != nil {
 		return ownership.Object{}, err
 	}
-	return ownershipObject(object, c.mappings[object.GroupVersionKind()])
+	return c.ownershipMetadata(object)
 }
 
 func (c *collection) trace(ctx context.Context, object *unstructured.Unstructured, depth int) ([]ownership.Object, error) {
-	mapping, err := c.mapping(ctx, object.GroupVersionKind())
-	if err != nil {
+	if _, err := c.mapping(ctx, object.GroupVersionKind()); err != nil {
 		return nil, err
 	}
-	start, err := ownershipObject(object, mapping)
+	start, err := c.ownershipMetadata(object)
 	if err != nil {
 		return nil, err
 	}
 	return ownership.Trace(ctx, start, c.lookup, depth)
+}
+
+// Collection objects are detached and immutable. Pointer keys keep metadata
+// separate for each served version and each observed object body.
+func (c *collection) ownershipMetadata(object *unstructured.Unstructured) (ownership.Object, error) {
+	if metadata, ok := c.metadata[object]; ok {
+		return metadata, nil
+	}
+	metadata, err := ownershipObject(object, c.mappings[object.GroupVersionKind()])
+	if err != nil {
+		return ownership.Object{}, err
+	}
+	c.metadata[object] = metadata
+	return metadata, nil
 }
 
 // Collect captures a complete Pod list and its owner closure. extraRoots adds
