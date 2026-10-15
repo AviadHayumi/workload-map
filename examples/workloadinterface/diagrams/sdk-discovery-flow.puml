@@ -1,0 +1,175 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+
+skinparam shadowing false
+skinparam sequence {
+    ArrowFontSize 12
+    ParticipantFontSize 13
+    BoxFontSize 12
+    GroupFontSize 12
+}
+skinparam noteFontSize 12
+skinparam maxMessageSize 270
+hide footbox
+
+title From one Pod to one observed workload\n<size:14>Direct reader mode | Illustrative acquisition</size>
+caption Direct reader mode. Illustrative objects and counts; no live cluster execution.
+
+box "Consumer process (owns client, mapper and lifecycle)" #EFF5FC
+participant "Application\nconsumer code" as App #263D56
+participant "Karta SDK\ndiscoverer + observation" as SDK #24638B
+participant "Karta attribution\nlocal definition evaluation" as Rules #417770
+participant "Injected reader\nclient-go adapter" as Reader #426381
+end box
+box "External service" #F1F3F5
+participant "Kubernetes API\nobjects and Pod lists" as API #53616F
+end box
+
+legend left
+  <color:#315E8C>Blue arrows</color>: calls / reads    <color:#39746B>Green arrows</color>: local decisions
+  Dashed arrows: returned data    <color:#A54848>Red</color>: failure returns
+endlegend
+
+== A. Construct once ==
+App -[#315E8C]> SDK: karta.NewDiscoverer(reader, options)
+SDK -[#315E8C]> Rules: Compile catalog + exact-GVK overrides
+Rules --> SDK: Validated, copied definition plans
+SDK --> App: discoverer
+note over App, Reader
+  The caller wraps its dynamic client and RESTMapper with clientgo.NewReader.
+  Construction performs no Kubernetes reads and starts no background work.
+end note
+
+== B. Resolve the seed's terminal controller ==
+App -[#315E8C]> SDK: discoverer.WorkloadForPod(ctx, podRef)\nexample/training-0-pod, UID training-0-pod
+SDK -[#315E8C]> Reader: Get Pod example/training-0-pod (UID training-0-pod)
+Reader -[#315E8C]> API: GET Pod example/training-0-pod
+API --> Reader: Pod, UID training-0-pod; controller Job training-0
+Reader --> SDK: Detached Pod; requested UID verified
+SDK -[#39746B]> SDK: Follow controller ownerReferences
+SDK -[#315E8C]> Reader: Get Job example/training-0 (UID training-0)
+Reader -[#315E8C]> API: GET Job example/training-0
+API --> Reader: Job, UID training-0; controller JobSet training-set
+Reader --> SDK: Detached Job; owner UID verified
+SDK -[#315E8C]> Reader: Get JobSet example/training-set (UID jobset-uid)
+Reader -[#315E8C]> API: GET JobSet example/training-set
+API --> Reader: JobSet, UID jobset-uid; no controller owner
+Reader --> SDK: Detached JobSet; owner UID verified
+SDK -[#39746B]> SDK: Terminal root = JobSet example/training-set, UID jobset-uid
+note over SDK, Reader
+  Exact GVK mappings determine resource and namespace scope.
+  Each edge checks identity, UID and scope; cycles, multiple controllers
+  and excessive depth fail. Mapping calls are abbreviated here.
+end note
+
+== C. Acquire complete membership ==
+SDK -[#315E8C]> Reader: ListPods(ctx, "example")
+loop Every page, until continuation is empty
+  Reader -[#315E8C]> API: LIST Pods in example; no label or phase filter
+  API --> Reader: Pod page + resourceVersion + continuation
+end
+Reader --> SDK: Complete Pod list (illustration: 5 Pods)
+note over SDK, API
+  Scope comes from the terminal root. A cluster-scoped root requires all namespaces.
+  Completed, terminating and unscheduled Pods remain in the list.
+end note
+loop Every listed Pod, including Pods outside this workload
+  SDK -[#39746B]> SDK: TraceRoot: resolve its terminal controller
+  loop Each required owner absent from this acquisition
+    SDK -[#315E8C]> Reader: Get owner using its GVK, name, namespace and UID
+    Reader -[#315E8C]> API: GET owner object
+    API --> Reader: Owner object
+    Reader --> SDK: Detached owner; requested UID verified
+  end
+  SDK -[#39746B]> SDK: Validate the full chain; reuse acquired owners
+end
+break Incomplete list, unreadable owner or invalid ownership
+  SDK -[#A54848]-> App: nil, error (for example ErrIncompleteOwnership)
+  note over App, SDK #FDE9E7
+    Acquisition fails; no partial or false-empty workload is returned.
+    A changed or missing seed during collection also fails.
+  end note
+end
+SDK -[#39746B]> SDK: Keep Pods whose terminal UID is jobset-uid; sort\nIllustration: 3 members, 2 unrelated Pods excluded
+
+== D. Attach definition semantics ==
+alt Exact root GVK has a Karta definition (this JobSet)
+  SDK -[#315E8C]> Rules: Prepare declared instances from captured root
+  Rules --> SDK: Instance IDs: "training", "evaluation"
+  SDK -[#315E8C]> Rules: Evaluate each selected Pod's membership
+  Rules --> SDK: Component, instance and replica coordinates; issues
+  SDK -[#39746B]> SDK: Index membership for local scope queries
+else Root GVK has no matching definition
+  SDK -[#39746B]> SDK: Assign all members to generic component "pods"\nNo definition-derived semantics are inferred
+end
+SDK --> App: observed (*discovery.Workload), nil
+note over App, Rules
+  observed.Root() is the terminal root; observed.Pods() retains all confirmed members.
+  Known kind: Definition() != nil, Generic() == false. Unknown kind: nil, true.
+  This is a detached observation, not a cross-resource Kubernetes transaction.
+end note
+
+== E. Query the captured observation ==
+App -[#315E8C]> SDK: observed.Pods()
+SDK --> App: Deep copies of all 3 confirmed Pods
+App -[#39746B]> App: CountPods(observed): total 3, running 3
+note left of App
+  Example fixture:
+  training/0, training/1, evaluation/0.
+end note
+opt This JobSet example: Generic() == false
+App -[#315E8C]> SDK: observed.Component("replicatedjob")
+SDK --> App: component scope, nil
+App -[#315E8C]> SDK: component.Instance("training")
+SDK --> App: training scope, nil
+App -[#315E8C]> SDK: training.Replica("0")
+SDK --> App: first replica scope, nil
+App -[#315E8C]> SDK: first.Pods()
+alt Relevant membership is resolved
+  SDK --> App: 1 Pod copy in training / replica 0\nA valid empty scope returns 0
+else A Pod may belong but attribution is unresolved
+  SDK -[#A54848]-> App: nil, ErrIncompleteAttribution
+end
+end
+note over App, Rules
+  A generic workload exposes its confirmed members through Component("pods").
+  These queries perform no reader or API calls. Unknown component or instance,
+  or a missing replica axis, returns an error. Outer scope bindings stay intact.
+  Acquire again to refresh. Local karta.Workload edits do not change this observation.
+end note
+
+@enduml

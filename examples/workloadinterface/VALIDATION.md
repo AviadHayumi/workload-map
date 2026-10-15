@@ -28,6 +28,14 @@ isolation, instance targeting, malformed patches, and unsupported capabilities.
 The fake records mutation intent; it does not simulate a cluster or provide a
 populated inspection tree.
 
+## SDK usage examples
+
+Eight runnable examples cover inventory inspection, template updates, Pod counts,
+component scopes, discovery from a Pod, zero-Pod workloads, generic workload types,
+and suspend/resume. The [additional recipes](recipes_test.go) assert terminal
+JobSet ownership, desired versus observed counts, generic capability errors, and
+local mutation isolation. They run without a cluster.
+
 ## Reproduce the checks
 
 From the repository root:
