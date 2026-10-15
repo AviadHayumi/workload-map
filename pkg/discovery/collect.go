@@ -185,6 +185,11 @@ func Collect(ctx context.Context, reader Reader, namespace string, extraRoots ..
 	if err != nil {
 		return Dataset{}, err
 	}
+	if _, transferred := reader.(PodTransferReader); transferred {
+		if err := compactPodArray(ctx, dataset.Pods); err != nil {
+			return Dataset{}, err
+		}
+	}
 	sort.Slice(dataset.Objects, func(i, j int) bool { return string(dataset.Objects[i].GetUID()) < string(dataset.Objects[j].GetUID()) })
 	sort.Slice(dataset.Pods, func(i, j int) bool { return podLess(dataset.Pods[i], dataset.Pods[j]) })
 	return dataset, nil
@@ -218,10 +223,9 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	c.pods = make(map[objectKey]*corev1.Pod, len(list.Items))
 	c.podUIDs = make(map[types.UID]*corev1.Pod, len(list.Items))
 	c.roots = make(map[types.UID]types.UID, len(list.Items))
-	ownedPods := make([]corev1.Pod, len(list.Items))
-	if ownsPods {
-		// Even a clipped subslice can retain a larger Pod backing array.
-		copy(ownedPods, list.Items)
+	ownedPods := list.Items
+	if !ownsPods {
+		ownedPods = make([]corev1.Pod, len(list.Items))
 	}
 	for index := range list.Items {
 		if err := ctx.Err(); err != nil {
@@ -281,6 +285,23 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	}
 	dataset.Mappings = c.mappings
 	return dataset, nil
+}
+
+// Even a clipped transferred slice can retain a larger backing array. Compact
+// only the Pods that escape collection, reusing their exclusively owned fields.
+func compactPodArray(ctx context.Context, pods []*corev1.Pod) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	ownedPods := make([]corev1.Pod, len(pods))
+	for i, pod := range pods {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		ownedPods[i] = *pod
+		pods[i] = &ownedPods[i]
+	}
+	return ctx.Err()
 }
 
 func podLess(a, b *corev1.Pod) bool {

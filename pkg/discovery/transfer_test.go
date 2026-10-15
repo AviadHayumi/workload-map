@@ -7,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sort"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/discovery"
 	"github.com/dsx-ai-factory/workload-map/pkg/ownership"
@@ -30,7 +32,7 @@ type sdkArrayTransferReader struct {
 	*sdkReader
 	shape                string
 	arrayStart, arrayEnd uintptr
-	containerAddress     uintptr
+	containerAddresses   map[types.UID]uintptr
 }
 
 func (r *sdkTransferReader) ListPods(ctx context.Context, namespace string) (*corev1.PodList, error) {
@@ -269,59 +271,123 @@ func (r *sdkArrayTransferReader) ListPodsForTransfer(ctx context.Context, namesp
 	storage := make([]corev1.Pod, 256)
 	r.arrayStart = reflect.ValueOf(&storage[0]).Pointer()
 	r.arrayEnd = r.arrayStart + uintptr(len(storage))*reflect.TypeOf(corev1.Pod{}).Size()
+	count := len(list.Items)
+	var transferred []corev1.Pod
 	switch r.shape {
 	case "oversized":
-		storage[0] = list.Items[0]
-		list.Items = storage[:1]
+		transferred = storage[:count]
 	case "clipped_prefix":
-		storage[0] = list.Items[0]
-		list.Items = storage[:1:1]
+		transferred = storage[:count:count]
 	case "clipped_suffix":
-		last := len(storage) - 1
-		storage[last] = list.Items[0]
-		list.Items = storage[last : last+1 : last+1]
+		transferred = storage[len(storage)-count : len(storage) : len(storage)]
 	}
-	r.containerAddress = reflect.ValueOf(&list.Items[0].Spec.Containers[0]).Pointer()
+	copy(transferred, list.Items)
+	list.Items = transferred
+	r.containerAddresses = make(map[types.UID]uintptr, count)
+	for i := range list.Items {
+		pod := &list.Items[i]
+		r.containerAddresses[pod.UID] = reflect.ValueOf(&pod.Spec.Containers[0]).Pointer()
+	}
 	return list, nil
+}
+
+func sdkAssertTransferStorage(t *testing.T, reader *sdkArrayTransferReader, retained reflect.Value, want []*corev1.Pod, deep bool) {
+	t.Helper()
+	if retained.Len() != len(want) {
+		t.Fatalf("retained Pods = %d, want %d", retained.Len(), len(want))
+	}
+	seen := make(map[uintptr]bool, retained.Len())
+	for i, pod := range want {
+		item := retained.Index(i)
+		address := item.Pointer()
+		if address >= reader.arrayStart && address < reader.arrayEnd {
+			t.Fatalf("Pod %s retained the transferred backing array and inaccessible Pods", pod.Name)
+		}
+		if seen[address] {
+			t.Fatalf("Pod %s shares another output Pod's address", pod.Name)
+		}
+		seen[address] = true
+		container := item.Elem().FieldByName("Spec").FieldByName("Containers").Index(0).Addr().Pointer()
+		if copied := container != reader.containerAddresses[pod.UID]; copied != deep {
+			t.Fatalf("Pod %s nested storage copied = %v, want %v", pod.Name, copied, deep)
+		}
+	}
 }
 
 func TestPodTransferDetachesOversizedBackingArrays(t *testing.T) {
 	for _, shape := range []string{"oversized", "clipped_prefix", "clipped_suffix"} {
 		t.Run(shape, func(t *testing.T) {
-			for _, acquisition := range []string{"collect", "all_selected_workload"} {
+			for _, acquisition := range []string{"collect", "all_selected_workload", "subset_workload"} {
 				t.Run(acquisition, func(t *testing.T) {
 					root := sdkObject(sdkBundleGVK, "team", "root", "root", nil)
-					pod := sdkPod("pod", root, map[string]string{"snapshot": "original"})
-					reader := &sdkArrayTransferReader{sdkReader: sdkNewReader(t, []*unstructured.Unstructured{root}, pod), shape: shape}
+					other := sdkObject(sdkBundleGVK, "team", "other", "other", nil)
+					pods := []*corev1.Pod{sdkPod("z-last", root, map[string]string{"snapshot": "last"}), sdkPod("m-middle", root, map[string]string{"snapshot": "middle"}), sdkPod("a-first", root, map[string]string{"snapshot": "first"})}
+					pods[0].Status.Phase = corev1.PodSucceeded
+					pods[1].Status.Phase = corev1.PodPending
+					pods[2].Status.Phase = corev1.PodRunning
+					want := []*corev1.Pod{pods[2].DeepCopy(), pods[1].DeepCopy(), pods[0].DeepCopy()}
+					if acquisition == "subset_workload" {
+						pods = append(pods, sdkPod("unrelated", other, nil))
+					}
+					reader := &sdkArrayTransferReader{sdkReader: sdkNewReader(t, []*unstructured.Unstructured{root, other}, pods...), shape: shape}
 					var retained reflect.Value
 					if acquisition == "collect" {
 						dataset, err := discovery.Collect(context.Background(), reader, "team")
 						if err != nil {
 							t.Fatal(err)
 						}
-						if len(dataset.Pods) != 1 || !reflect.DeepEqual(dataset.Pods[0], pod) {
-							t.Fatal("transferred dataset lost Pod data")
+						if !reflect.DeepEqual(dataset.Pods, want) {
+							t.Fatal("transferred dataset lost Pod data or sorted order")
 						}
-						retained = reflect.ValueOf(dataset.Pods[0])
+						retained = reflect.ValueOf(dataset.Pods)
 					} else {
 						workload, err := sdkResolver(t, reader).Workload(context.Background(), sdkRef(root))
 						if err != nil {
 							t.Fatal(err)
 						}
-						if observed := workload.Pods(); len(observed) != 1 || !reflect.DeepEqual(observed[0], pod) {
-							t.Fatal("transferred workload lost Pod data")
+						if !reflect.DeepEqual(workload.Pods(), want) {
+							t.Fatal("transferred workload lost Pod data or sorted order")
 						}
-						// Public accessors copy Pods, so inspect only the retained address.
-						retained = reflect.ValueOf(workload).Elem().FieldByName("pods").Index(0)
+						// Public accessors copy Pods, so inspect only retained addresses.
+						retained = reflect.ValueOf(workload).Elem().FieldByName("pods")
 					}
-					address := retained.Pointer()
-					if address >= reader.arrayStart && address < reader.arrayEnd {
-						t.Fatal("observation retained the transferred backing array and inaccessible Pods")
+					sdkAssertTransferStorage(t, reader, retained, want, acquisition == "subset_workload")
+				})
+			}
+		})
+	}
+}
+
+func TestPodTransferCompactsWorkloadsRootedAtPods(t *testing.T) {
+	for _, shape := range []string{"oversized", "clipped_prefix", "clipped_suffix"} {
+		t.Run(shape, func(t *testing.T) {
+			for _, seed := range []string{"root", "child"} {
+				t.Run(seed, func(t *testing.T) {
+					root := sdkPod("m-root", nil, map[string]string{"snapshot": "root"})
+					root.Annotations = map[string]string{"retained": "full root"}
+					root.Status.Phase = corev1.PodRunning
+					rootIdentity := sdkObject(sdkPodGVK, root.Namespace, root.Name, root.UID, nil)
+					first := sdkPod("z-child", rootIdentity, map[string]string{"snapshot": "first"})
+					last := sdkPod("a-child", rootIdentity, map[string]string{"snapshot": "last"})
+					reader := &sdkArrayTransferReader{sdkReader: sdkNewReader(t, nil, first, root, last), shape: shape}
+					wantRoot := reader.objects[sdkKey(sdkPodGVK, root.Namespace, root.Name)].DeepCopy()
+					want := []*corev1.Pod{first.DeepCopy(), root.DeepCopy(), last.DeepCopy()}
+					sort.Slice(want, func(i, j int) bool { return want[i].Name < want[j].Name })
+					resolver := sdkResolver(t, reader)
+					var workload *discovery.Workload
+					var err error
+					if seed == "root" {
+						workload, err = resolver.Workload(context.Background(), sdkPodRef(root))
+					} else {
+						workload, err = resolver.WorkloadForPod(context.Background(), sdkPodRef(first))
 					}
-					container := retained.Elem().FieldByName("Spec").FieldByName("Containers").Index(0).Addr().Pointer()
-					if container != reader.containerAddress {
-						t.Fatal("compaction deep-copied exclusively owned nested Pod data")
+					if err != nil {
+						t.Fatal(err)
 					}
+					if workload.Root() != sdkPodRef(root) || !reflect.DeepEqual(workload.Object(), wantRoot) || !reflect.DeepEqual(workload.Pods(), want) {
+						t.Fatal("compaction changed the full root Pod or descendant observation")
+					}
+					sdkAssertTransferStorage(t, reader, reflect.ValueOf(workload).Elem().FieldByName("pods"), want, false)
 				})
 			}
 		})

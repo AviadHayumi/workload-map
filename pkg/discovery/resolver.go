@@ -204,6 +204,10 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 		for i, pod := range members {
 			members[i] = pod.DeepCopy()
 		}
+	} else if _, transferred := r.reader.(PodTransferReader); transferred {
+		if err := compactPodArray(ctx, members); err != nil {
+			return nil, err
+		}
 	}
 	rootObject, err := c.get(ctx, root)
 	if err != nil {
