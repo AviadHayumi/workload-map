@@ -28,6 +28,7 @@ import (
 
 	sdk "github.com/dsx-ai-factory/workload-map/pkg/discovery"
 	sdkclient "github.com/dsx-ai-factory/workload-map/pkg/discovery/clientgo"
+	"github.com/dsx-ai-factory/workload-map/pkg/karta"
 )
 
 type identity struct {
@@ -154,7 +155,7 @@ func TestLiveOperatorMembership(t *testing.T) {
 		reader sdk.Reader
 	}{{"direct", reader}, {"indexed", index}} {
 		t.Run(mode.name, func(t *testing.T) {
-			resolver, err := sdk.New(mode.reader, sdk.Options{})
+			resolver, err := karta.NewDiscoverer(mode.reader, sdk.Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -165,6 +166,7 @@ func TestLiveOperatorMembership(t *testing.T) {
 						t.Fatal(err)
 					}
 					assertPods(t, workload.Pods(), item.PodUIDs)
+					assertInterfaceConsumers(t, ctx, workload, len(item.PodUIDs))
 					if len(workload.MembershipIssues()) != 0 {
 						t.Fatalf("unexpected attribution issues: %v", workload.MembershipIssues())
 					}

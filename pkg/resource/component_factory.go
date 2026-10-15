@@ -81,6 +81,14 @@ func NewComponentFactoryFromObject(karta *v1alpha1.Karta, object KubernetesObjec
 	return NewComponentFactory(karta, accessor)
 }
 
+// NewComponentFactoryFromPrimitiveObject creates a factory over an object
+// whose map holds only JSON-primitive values - the result of a runner's
+// GetObject or a json.Unmarshal. It skips the defensive JSON round-trip
+// NewComponentFactoryFromObject performs on first evaluation.
+func NewComponentFactoryFromPrimitiveObject(karta *v1alpha1.Karta, object *unstructured.Unstructured) *ComponentFactory {
+	return NewComponentFactory(karta, NewAccessor(execution.NewPrimitiveRunner(object.Object)))
+}
+
 // GetComponent retrieves a component by name
 func (f *ComponentFactory) GetComponent(name string) (*Component, error) {
 	definition, exists := f.componentDefinitionsByName[name]

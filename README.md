@@ -85,6 +85,16 @@ With the pre-built [LeaderWorkerSet Karta definition](docs/samples/lws.yaml), an
 
 The structure in this view comes from Karta path expressions: the group, leader, and worker components, their replica counts, the per-pod GPU counts, and the workload status mapped from LeaderWorkerSet conditions to a common vocabulary. The gang semantics come from the same definition's gang-scheduling instructions, which declare each group's pods as one gang. None of it is LeaderWorkerSet-specific code. Point the same code at a RayCluster or a JobSet with their Karta definitions and the view keeps working. [KAI Scheduler](https://github.com/kai-scheduler/KAI-Scheduler) consumes the gang instructions today through its Karta-based pod grouper to admit each gang all-or-nothing, and any scheduler with a gang primitive can translate them the same way.
 
+## Workload interfaces on this branch
+
+The [workload interface examples](examples/workloadinterface/README.md) show
+EWI-style inspection and template updates, plus metrics-exporter-style live Pod
+queries. They combine `karta.Workload` with a separate read-only
+`karta.Discoverer`, include runnable Go examples, and explain the difference
+between desired templates and observed Pods. This branch uses the module path
+`github.com/dsx-ai-factory/workload-map`; use that guide for branch-specific
+installation and tests.
+
 ## Quick Start
 
 ### Install the CRD

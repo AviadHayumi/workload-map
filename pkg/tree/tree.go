@@ -4,19 +4,23 @@
 package tree
 
 import (
+	"iter"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/resource"
 )
 
-// WorkloadTree is the raw tree produced by Build().
-// It contains Karta-extracted data for the workload hierarchy. The root
-// component itself is not included; its status is in Status and its metadata
-// lives on the workload object.
+// WorkloadTree contains the desired hierarchy and extracted data from Build.
 type WorkloadTree struct {
-	// Status is nil when no status was evaluated, e.g. an offline pre-submission
-	// tree built from a manifest that has not reached the cluster.
-	Status   *WorkloadStatus
+	// Root includes the root component's instances, templates, scale and children.
+	Root *ComponentNode
+	// RootStatus preserves the raw phase, conditions and normalized statuses.
+	RootStatus *resource.Status
+	// Status projects the normalized phases from RootStatus.
+	Status *WorkloadStatus
+	// Children exposes the first root instance's children for compatibility.
+	// It excludes Root, including when Root has a pod definition.
 	Children []ComponentNode
 }
 
@@ -53,4 +57,26 @@ type InstanceNode struct {
 	Scale             *resource.Scale
 	ExtractedInstance *resource.ExtractedInstance
 	Children          []ComponentNode
+}
+
+// Instances yields every child component and instance pair depth-first.
+// It traverses Children, including nested descendants, and excludes Root.
+func (t *WorkloadTree) Instances() iter.Seq2[ComponentNode, InstanceNode] {
+	return func(yield func(ComponentNode, InstanceNode) bool) {
+		walkInstances(t.Children, yield)
+	}
+}
+
+func walkInstances(nodes []ComponentNode, yield func(ComponentNode, InstanceNode) bool) bool {
+	for _, component := range nodes {
+		for _, instance := range component.Instances {
+			if !yield(component, instance) {
+				return false
+			}
+			if !walkInstances(instance.Children, yield) {
+				return false
+			}
+		}
+	}
+	return true
 }

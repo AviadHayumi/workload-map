@@ -151,6 +151,11 @@ An oracle error should be investigated before regeneration. A discovery failure
 must not be resolved by dropping completed, unscheduled, or generic workloads
 from the expected sets.
 
+The live workload test also acquires observations through `karta.Discoverer` and
+runs the [README consumer adapters](../../examples/workloadinterface/README.md).
+It checks observed Pod totals, completed Job counting, root-inclusive desired
+templates and isolation of local template edits from live observations.
+
 The regular SDK tests use fake readers and explicit expected membership sets.
 They do not require a cluster:
 

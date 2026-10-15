@@ -28,14 +28,13 @@ func Build(
 		return nil, fmt.Errorf("failed to get root component: %w", err)
 	}
 
-	// Build the root as a node; the root is not exposed, only its hoisted children are used.
 	rootNodes, err := buildComponentNodes(ctx, []*resource.Component{rootComponent}, factory)
 	if err != nil {
 		return nil, err
 	}
-	rootNode := rootNodes[0]
+	rootNode := &rootNodes[0]
 
-	tree := &WorkloadTree{}
+	tree := &WorkloadTree{Root: rootNode}
 	if len(rootNode.Instances) > 0 {
 		tree.Children = rootNode.Instances[0].Children
 	}
@@ -44,6 +43,7 @@ func Build(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root status: %w", err)
 	}
+	tree.RootStatus = status
 	if status != nil {
 		tree.Status = &WorkloadStatus{Phases: matchedStatusStrings(status)}
 	}
