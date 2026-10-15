@@ -47,6 +47,24 @@ type PodTransferReader interface {
 	ListPodsForTransfer(context.Context, string) (*corev1.PodList, error)
 }
 
+// OwnerMetadataReader opts into owner identity derived from the exact mapped
+// resource and requested GVK, rather than the original response GVK. It is used
+// only for new non-core-v1-Pod owners after the initial full trace.
+// GetOwnerMetadata returns name, namespace, UID, resourceVersion and the complete
+// ownerReferences list; other ObjectMeta fields are unspecified. TypeMeta must
+// be empty or describe meta.k8s.io/v1 PartialObjectMetadata, not the source GVK.
+// Clients and mappings must describe one authority and consistent exact versions.
+//
+// Decoders must preserve every owner-reference element or return an error, never
+// discard malformed entries. Discovery validates every typed owner identity,
+// including non-controllers; the reader need not perform that semantic check.
+// Returned mutable data must be detached from mutable client/cache storage.
+// This is not an exclusive transfer. Errors never trigger a full-read fallback.
+type OwnerMetadataReader interface {
+	Reader
+	GetOwnerMetadata(context.Context, ObjectRef) (*metav1.PartialObjectMetadata, error)
+}
+
 // IndexedReader captures the seed, its complete terminal workload, and all
 // relevant owner objects from one local generation. Errors never trigger an
 // implicit direct-read fallback.
@@ -218,6 +236,18 @@ func validateOwnerReferences(object *unstructured.Unstructured) error {
 					return fmt.Errorf("%w: metadata.ownerReferences[%d].%s must be a boolean", ErrInvalidInput, i, field)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// Typed decoding turns a null list element into a zero owner reference. Validate
+// non-controllers too so malformed entries cannot become an apparent root.
+func validateMetadataOwnerReferences(owners []metav1.OwnerReference) error {
+	for i, owner := range owners {
+		gv, err := schema.ParseGroupVersion(owner.APIVersion)
+		if err != nil || gv.Version == "" || owner.Kind == "" || owner.Name == "" || owner.UID == "" {
+			return fmt.Errorf("%w: metadata.ownerReferences[%d] has incomplete or invalid identity", ErrInvalidInput, i)
 		}
 	}
 	return nil

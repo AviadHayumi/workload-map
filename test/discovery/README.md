@@ -5,9 +5,9 @@
 
 The `live_discovery` build tag runs public SDK checks against a dedicated kind
 cluster. An independent Python oracle reads fixture identities and upstream
-operator labels, then compares exact root and Pod UID sets against direct and
-indexed discovery. It imports no Karta code and does not derive expectations from
-the resolver under test.
+operator labels, then compares exact root and Pod UID sets against default direct,
+opt-in owner metadata and indexed discovery. It imports no Karta code and does not
+derive expectations from the resolver under test.
 
 The reproducible fixture contains seven roots and fourteen Pods:
 
@@ -28,13 +28,14 @@ components with anonymous instances. The oracle cross-checks explicit LWS Pod
 names and JobSet Job ownership. Physical Pods and StatefulSets are not relabeled
 as semantic component instances.
 
-The implementation acceptance run passed all fourteen workload subtests: seven
-roots in each of direct and indexed mode. Separate ownership churn checks passed
-for reparenting, immutable prior observations, terminating and unscheduled Pods,
-RBAC denial, owner-name reuse, rejected retired UIDs, and invalidation. A cluster-scoped
-root also passed exact membership across two namespaces, and a namespace-only
-index rejected that query as incomplete coverage. These are
-correctness checks, not performance claims.
+The membership suite checks twenty-one workload subtests: seven roots in each
+of default direct, opt-in owner metadata and indexed mode. It also requires the
+metadata route to perform owner reads against the live API. Separate ownership
+churn checks passed for reparenting, immutable prior observations, terminating and
+unscheduled Pods, RBAC denial, owner-name reuse, rejected retired UIDs, and
+invalidation. A cluster-scoped root also passed exact membership across two
+namespaces, and a namespace-only index rejected that query as incomplete coverage.
+These are correctness checks, not performance claims.
 
 ## Prepare the dedicated cluster
 

@@ -73,6 +73,36 @@ root with no Pods. An intermediate owner returns `ErrNotWorkloadRoot`.
 make acquisition return `ErrNoClient`; they do not return a successful empty
 workload. The client-go adapter rejects nil dependencies during construction.
 
+## Optional metadata reads for owners
+
+For direct discovery, `clientgo.NewReaderWithOwnerMetadata(dynamicClient,
+metadataClient, mapper)` accepts an existing `k8s.io/client-go/metadata.Interface`
+as well. Both clients and the mapper must refer to the same Kubernetes authority
+and exact resource versions. The constructor performs no network work.
+
+This opt-in reader uses `PartialObjectMetadata` for newly encountered owners
+other than core v1 Pods, after the initial full seed-to-root trace. The root and
+returned Pods stay complete. Initial ancestors, core v1 Pod owners, public `Collect` and indexed
+capture keep their existing full-object paths. A server that supports metadata
+responses can omit owner spec/status from those later GETs. A server returning
+ordinary JSON may still transfer the full body in the same response. Large
+annotations or managed fields remain part of metadata responses, so this option
+primarily helps when owner spec/status bodies dominate the payload.
+
+Choose this option when identity from the requested GVK and exact mapped resource
+is sufficient. Metadata envelopes do not independently prove the original object
+GVK; client-go's full-JSON fallback can discard it. The default `NewReader` keeps
+checking the original response GVK. The metadata route also requires complete
+identity fields on every owner reference, including non-controllers. It rejects
+malformed entries that a full reader could otherwise ignore. Errors never trigger
+an additional full GET.
+
+Custom adapters can implement `discovery.OwnerMetadataReader`. They must preserve
+the complete owner-reference list or return a decode error. The SDK validates the
+envelope and every typed owner identity, then copies retained references. The
+adapter returns detached identity, resourceVersion and owner references; other
+metadata fields are unspecified. It does not start or own a cache or watch.
+
 ## Ownership and observation boundaries
 
 Discovery follows controller references, validates every owner UID and identity,

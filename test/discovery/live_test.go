@@ -17,11 +17,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	kdiscovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -60,6 +62,11 @@ type oracle struct {
 		SemanticComponents []semantic
 	}
 	APIObjects []identity
+}
+
+type countingOwnerMetadataReader struct {
+	sdk.OwnerMetadataReader
+	ownerReads int
 }
 
 func liveClient(t *testing.T) (context.Context, *rest.Config, dynamic.Interface, meta.RESTMapper, sdk.Reader) {
@@ -115,8 +122,29 @@ func assertPods(t *testing.T, pods []*corev1.Pod, expected []string) {
 	}
 }
 
+func (r *countingOwnerMetadataReader) GetOwnerMetadata(ctx context.Context, ref sdk.ObjectRef) (*metav1.PartialObjectMetadata, error) {
+	r.ownerReads++
+	return r.OwnerMetadataReader.GetOwnerMetadata(ctx, ref)
+}
+
+func (r *countingOwnerMetadataReader) ListPodsForTransfer(ctx context.Context, namespace string) (*corev1.PodList, error) {
+	return r.OwnerMetadataReader.(sdk.PodTransferReader).ListPodsForTransfer(ctx, namespace)
+}
+
 func TestLiveOperatorMembership(t *testing.T) {
-	ctx, _, _, _, reader := liveClient(t)
+	ctx, config, client, mapper, reader := liveClient(t)
+	metadataClient, err := metadata.NewForConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadataReader, err := sdkclient.NewReaderWithOwnerMetadata(client, metadataClient, mapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := metadataReader.(sdk.PodTransferReader); !ok {
+		t.Fatal("owner metadata adapter must retain Pod transfer")
+	}
+	counted := &countingOwnerMetadataReader{OwnerMetadataReader: metadataReader}
 	path := os.Getenv("KARTA_DISCOVERY_ORACLE")
 	if path == "" {
 		t.Fatal("set KARTA_DISCOVERY_ORACLE to the independent fixture UID oracle")
@@ -153,7 +181,7 @@ func TestLiveOperatorMembership(t *testing.T) {
 	for _, mode := range []struct {
 		name   string
 		reader sdk.Reader
-	}{{"direct", reader}, {"indexed", index}} {
+	}{{"direct", reader}, {"direct-owner-metadata", counted}, {"indexed", index}} {
 		t.Run(mode.name, func(t *testing.T) {
 			resolver, err := karta.NewDiscoverer(mode.reader, sdk.Options{})
 			if err != nil {
@@ -251,7 +279,11 @@ func TestLiveOperatorMembership(t *testing.T) {
 			}
 		})
 	}
+	if counted.ownerReads == 0 {
+		t.Fatal("live fixtures did not exercise owner metadata reads")
+	}
+	t.Logf("owner metadata reads: %d", counted.ownerReads)
 	if !t.Failed() {
-		fmt.Printf("Independent oracle verified: %d workloads / %d Pods, direct and indexed\n", len(expected.Workloads), expected.PodCount)
+		fmt.Printf("Independent oracle verified: %d workloads / %d Pods, direct, owner metadata and indexed\n", len(expected.Workloads), expected.PodCount)
 	}
 }

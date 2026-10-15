@@ -58,8 +58,8 @@ a clean checkout; run it after committing the intended changes.
 
 The [kind guide](../../test/discovery/README.md) includes fixture provisioning,
 operator versions, the independent UID oracle and the live command. The interface
-checks run as part of `TestLiveOperatorMembership` in both direct and indexed
-modes. They execute the same consumer functions linked from the README.
+checks run as part of `TestLiveOperatorMembership` in default direct, opt-in owner
+metadata and indexed modes. They execute the same consumer functions linked from the README.
 
 | Real fixture | Observed Pods | Desired template locations |
 | --- | --- | --- |
@@ -128,3 +128,18 @@ go test ./pkg/discovery/clientgo -run '^$' -bench '^BenchmarkReaderWorkloadPodTr
 This benchmark decodes HTTP JSON through an in-process transport. It includes
 acquisition but excludes the final public getter copies and payload assertions.
 It does not measure API-server latency or establish production cluster capacity.
+
+## Optional owner metadata reads
+
+`NewReaderWithOwnerMetadata` uses metadata responses for later direct owner reads.
+Full roots, Pods and public `Collect` results stay complete. This is an explicit
+[acquisition option](../../docs/Live%20Workload%20Discovery.md#optional-metadata-reads-for-owners):
+owner GVK comes from the exact request and mapper, and every typed owner reference
+must have complete identity fields. Default full reads retain their existing checks.
+
+[SDK tests](../../pkg/discovery/owner_metadata_test.go) cover dispatch, full bodies,
+aliases and copy isolation. [Validation tests](../../pkg/discovery/owner_metadata_validation_test.go)
+cover malformed ownership and failures without fallback. [Transport tests](../../pkg/discovery/clientgo/owner_metadata_transport_test.go)
+cover JSON, protobuf, full-JSON responses, errors and cancellation through real HTTP.
+The live suite checks the same seven workloads in all three modes and requires
+actual metadata reads against the dedicated kind API.

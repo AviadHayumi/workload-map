@@ -187,23 +187,53 @@ func (c *collection) lookupOwner(ctx context.Context, ref ObjectRef) (*ownership
 	}
 	record := c.directOwners[key]
 	if record == nil {
-		object, err := c.reader.Get(ctx, ref)
-		if err != nil {
-			return nil, err
+		if reader, ok := c.reader.(OwnerMetadataReader); ok {
+			metadata, err := reader.GetOwnerMetadata(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			if metadata == nil {
+				return nil, fmt.Errorf("%w: nil owner metadata for %s", ErrInvalidInput, ref.Name)
+			}
+			if (metadata.APIVersion != "" || metadata.Kind != "") && (metadata.APIVersion != "meta.k8s.io/v1" || metadata.Kind != "PartialObjectMetadata") {
+				return nil, fmt.Errorf("%w: invalid owner metadata envelope", ErrInvalidInput)
+			}
+			// Metadata responses identify their envelope, not the source GVK.
+			actual := ObjectRef{GVK: ref.GVK, Namespace: metadata.Namespace, Name: metadata.Name, UID: metadata.UID}
+			if actual.Name != ref.Name || actual.Namespace != ref.Namespace {
+				return nil, fmt.Errorf("%w: lookup coordinates disagree for %s", ErrStaleInput, ref.Name)
+			}
+			if err := validateMetadataOwnerReferences(metadata.OwnerReferences); err != nil {
+				return nil, err
+			}
+			var owners []metav1.OwnerReference
+			if metadata.OwnerReferences != nil {
+				owners = make([]metav1.OwnerReference, len(metadata.OwnerReferences))
+				for i := range metadata.OwnerReferences {
+					metadata.OwnerReferences[i].DeepCopyInto(&owners[i])
+				}
+			}
+			record = &ownerRecord{Object: ownership.Object{Ref: actual, Owners: owners, Namespaced: actual.Namespace != ""}, resourceVersion: metadata.ResourceVersion}
+		} else {
+			object, err := c.reader.Get(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			if object == nil {
+				return nil, fmt.Errorf("%w: nil result for %s", ErrInvalidInput, ref.Name)
+			}
+			actual := reference(object)
+			if actual.GVK != ref.GVK || actual.Name != ref.Name || actual.Namespace != ref.Namespace {
+				return nil, fmt.Errorf("%w: lookup coordinates disagree for %s", ErrStaleInput, ref.Name)
+			}
+			if err := validateOwnerReferences(object); err != nil {
+				return nil, err
+			}
+			// GetOwnerReferences allocates its slice and both boolean pointees. Decode
+			// before another reader callback can reuse the returned JSON storage.
+			record = &ownerRecord{Object: ownership.Object{Ref: actual, Owners: object.GetOwnerReferences(), Namespaced: actual.Namespace != ""}, resourceVersion: object.GetResourceVersion()}
 		}
-		if object == nil {
-			return nil, fmt.Errorf("%w: nil result for %s", ErrInvalidInput, ref.Name)
-		}
-		actual := reference(object)
-		if actual.GVK != ref.GVK || actual.Name != ref.Name || actual.Namespace != ref.Namespace {
-			return nil, fmt.Errorf("%w: lookup coordinates disagree for %s", ErrStaleInput, ref.Name)
-		}
-		if err := validateOwnerReferences(object); err != nil {
-			return nil, err
-		}
-		// GetOwnerReferences allocates its slice and both boolean pointees. Decode
-		// before another reader callback can reuse the returned JSON storage.
-		record = &ownerRecord{Object: ownership.Object{Ref: actual, Owners: object.GetOwnerReferences(), Namespaced: actual.Namespace != ""}, resourceVersion: object.GetResourceVersion()}
+		actual := record.Ref
 		if pod := c.podUIDs[actual.UID]; pod != nil {
 			if actual != podReference(pod) || record.resourceVersion != pod.ResourceVersion || !sameOwnerReferences(record.Owners, pod.OwnerReferences) {
 				return nil, fmt.Errorf("%w: Pod identity disagrees with owner observation", ErrStaleInput)
