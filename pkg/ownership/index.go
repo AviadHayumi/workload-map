@@ -343,7 +343,7 @@ func (i *Index) Resolve(ownerRefs []metav1.OwnerReference, isRoot func(schema.Gr
 		}
 		return false
 	}}
-	_, err := walk(context.Background(), Object{Ref: Ref{Namespace: namespace}, Owners: ownerRefs}, lookup, maxWalkDepth, policy)
+	_, err := walk(context.Background(), Object{Ref: Ref{Namespace: namespace}, Owners: ownerRefs}, lookup, maxWalkDepth, policy, nil)
 	if err != nil {
 		if errors.Is(err, ErrDepthExceeded) {
 			return WalkResult{Outcome: OutcomeDepthExceeded}
@@ -362,8 +362,12 @@ func (i *Index) Resolve(ownerRefs []metav1.OwnerReference, isRoot func(schema.Gr
 }
 
 func controllerRef(ownerRefs []metav1.OwnerReference) *metav1.OwnerReference {
-	ref, _ := selectController(ownerRefs, false)
-	return ref
+	index, _ := selectController(ownerRefs, false)
+	if index < 0 {
+		return nil
+	}
+	ref := ownerRefs[index]
+	return &ref
 }
 
 func refGVK(ref *metav1.OwnerReference) schema.GroupVersionKind {

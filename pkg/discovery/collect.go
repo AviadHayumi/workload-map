@@ -32,10 +32,11 @@ type collection struct {
 	pods       map[objectKey]*corev1.Pod
 	podUIDs    map[types.UID]*corev1.Pod
 	metadata   map[*unstructured.Unstructured]ownership.Object
+	lookups    map[ObjectRef]ownership.Object
 }
 
 func newCollection(reader Reader) *collection {
-	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), roots: make(map[types.UID]types.UID), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]ownership.Object)}
+	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), roots: make(map[types.UID]types.UID), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]ownership.Object), lookups: make(map[ObjectRef]ownership.Object)}
 }
 
 func (c *collection) mapping(ctx context.Context, gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
@@ -104,11 +105,22 @@ func (c *collection) get(ctx context.Context, ref ObjectRef) (*unstructured.Unst
 }
 
 func (c *collection) lookup(ctx context.Context, ref ObjectRef) (ownership.Object, error) {
+	if result, ok := c.lookups[ref]; ok {
+		if err := ctx.Err(); err != nil {
+			return ownership.Object{}, err
+		}
+		return result, nil
+	}
 	object, err := c.get(ctx, ref)
 	if err != nil {
 		return ownership.Object{}, err
 	}
-	return c.ownershipMetadata(object)
+	result, err := c.ownershipMetadata(object)
+	if err != nil {
+		return ownership.Object{}, err
+	}
+	c.lookups[ref] = result
+	return result, nil
 }
 
 func (c *collection) trace(ctx context.Context, object *unstructured.Unstructured, depth int) ([]ownership.Object, error) {
@@ -143,7 +155,13 @@ func Collect(ctx context.Context, reader Reader, namespace string, extraRoots ..
 	if isNil(reader) {
 		return Dataset{}, ErrNoClient
 	}
-	return collect(ctx, newCollection(reader), namespace, 32, extraRoots...)
+	dataset, err := collect(ctx, newCollection(reader), namespace, 32, extraRoots...)
+	if err != nil {
+		return Dataset{}, err
+	}
+	sort.Slice(dataset.Objects, func(i, j int) bool { return string(dataset.Objects[i].GetUID()) < string(dataset.Objects[j].GetUID()) })
+	sort.Slice(dataset.Pods, func(i, j int) bool { return podLess(dataset.Pods[i], dataset.Pods[j]) })
+	return dataset, nil
 }
 
 func collect(ctx context.Context, c *collection, namespace string, depth int, extras ...ObjectRef) (Dataset, error) {
@@ -161,28 +179,32 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 		return Dataset{}, err
 	}
 	dataset := Dataset{Namespace: namespace, PodResourceVersion: list.ResourceVersion}
-	seen := make(map[types.UID]bool, len(list.Items))
-	seenNames := make(map[objectKey]bool, len(list.Items))
+	if len(list.Items) > 0 {
+		dataset.Pods = make([]*corev1.Pod, 0, len(list.Items))
+	}
+	c.pods = make(map[objectKey]*corev1.Pod, len(list.Items))
+	c.podUIDs = make(map[types.UID]*corev1.Pod, len(list.Items))
+	c.roots = make(map[types.UID]types.UID, len(list.Items))
+	ownedPods := make([]corev1.Pod, len(list.Items))
 	for index := range list.Items {
 		if err := ctx.Err(); err != nil {
 			return Dataset{}, err
 		}
-		pod := list.Items[index].DeepCopy()
+		pod := &ownedPods[index]
+		list.Items[index].DeepCopyInto(pod)
 		if namespace != "" && pod.Namespace != namespace {
 			return Dataset{}, fmt.Errorf("%w: Pod outside requested namespace", ErrInsufficientScope)
 		}
 		if _, err := c.podIdentity(ctx, pod); err != nil {
 			return Dataset{}, err
 		}
-		if seen[pod.UID] {
+		if c.podUIDs[pod.UID] != nil {
 			return Dataset{}, fmt.Errorf("%w: duplicate Pod UID %s", ErrInvalidInput, pod.UID)
 		}
-		seen[pod.UID] = true
 		key := objectKey{podGVK, pod.Namespace, pod.Name}
-		if seenNames[key] {
+		if c.pods[key] != nil {
 			return Dataset{}, fmt.Errorf("%w: duplicate Pod coordinates", ErrInvalidInput)
 		}
-		seenNames[key] = true
 		if previous := c.objects[key]; previous != nil && (previous.GetUID() != pod.UID || previous.GetResourceVersion() != pod.ResourceVersion) {
 			return Dataset{}, fmt.Errorf("%w: Pod changed during collection", ErrStaleInput)
 		}
@@ -192,11 +214,11 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	}
 	// Index the entire Pod list first because a Pod can itself control another Pod.
 	for _, pod := range dataset.Pods {
-		path, err := c.tracePod(ctx, pod, depth)
+		root, err := c.rootForPod(ctx, pod, depth)
 		if err != nil {
 			return Dataset{}, fmt.Errorf("%w: Pod %s/%s: %w", ErrIncompleteOwnership, pod.Namespace, pod.Name, err)
 		}
-		c.roots[pod.UID] = path[len(path)-1].Ref.UID
+		c.roots[pod.UID] = root.UID
 	}
 	for _, ref := range extras {
 		object, err := c.get(ctx, ref)
@@ -208,15 +230,13 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 		}
 	}
 	for _, object := range c.objects {
-		if object.GroupVersionKind() == podGVK && !seen[object.GetUID()] {
+		if object.GroupVersionKind() == podGVK && c.podUIDs[object.GetUID()] == nil {
 			return Dataset{}, fmt.Errorf("%w: owner Pod was absent from complete Pod list", ErrStaleInput)
 		}
 		if object.GroupVersionKind() != podGVK {
 			dataset.Objects = append(dataset.Objects, object)
 		}
 	}
-	sort.Slice(dataset.Objects, func(i, j int) bool { return string(dataset.Objects[i].GetUID()) < string(dataset.Objects[j].GetUID()) })
-	sort.Slice(dataset.Pods, func(i, j int) bool { return podLess(dataset.Pods[i], dataset.Pods[j]) })
 	dataset.Mappings = c.mappings
 	return dataset, nil
 }
@@ -281,4 +301,12 @@ func (c *collection) tracePod(ctx context.Context, pod *corev1.Pod, depth int) (
 		return nil, err
 	}
 	return ownership.Trace(ctx, start, c.lookup, depth)
+}
+
+func (c *collection) rootForPod(ctx context.Context, pod *corev1.Pod, depth int) (ObjectRef, error) {
+	start, err := c.podIdentity(ctx, pod)
+	if err != nil {
+		return ObjectRef{}, err
+	}
+	return ownership.TraceRoot(ctx, start, c.lookup, depth)
 }

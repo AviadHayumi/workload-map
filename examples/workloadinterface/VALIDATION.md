@@ -68,3 +68,33 @@ unscheduled and terminating Pods, index invalidation, and a cluster-scoped owner
 with Pods in two namespaces. These fixtures verify ownership and SDK semantics.
 They do not rerun GPU, MIG, DRA or DCGM validation, migrate production EWI, or
 establish production capacity at 100,000 workloads.
+
+## Discovery allocation follow-up
+
+The discovery path keeps the same membership, error, ordering and copy contracts.
+The optimization sorts only the selected workload during a direct query, reuses
+collection-local owner metadata, and allocates the complete Pod snapshot together.
+A partial workload result copies its selected Pods so it cannot retain that
+complete snapshot. Public `Collect` still returns the sorted complete dataset.
+
+`ownership.TraceRoot` shares the full `Trace` traversal and validation algorithm.
+It returns only the terminal reference, with the same typed failure and verified
+error prefix. Short successful traversals use a local path buffer.
+
+Regression coverage includes:
+
+- [Ordering and duplicate identities](../../pkg/discovery/collection_ordering_test.go).
+- [Exact-reference caching, cancellation and served aliases](../../pkg/discovery/collection_lookup_test.go).
+- [Reader mutation during acquisition and result isolation](../../pkg/discovery/collection_copy_test.go).
+- [Root-only traversal and error parity](../../pkg/ownership/trace_root_test.go).
+- [GroupVersion and validation precedence](../../pkg/ownership/trace_validation_test.go).
+- [Controller selection and retained reference copies](../../pkg/ownership/controller_selection_test.go).
+
+The root-only traversal benchmark can be reproduced independently:
+
+```bash
+go test ./pkg/ownership -run '^$' -bench '^BenchmarkTraceResult$' -benchmem
+```
+
+This benchmark measures traversal only. It does not measure Kubernetes requests,
+full namespace acquisition, semantic grouping or production cluster capacity.

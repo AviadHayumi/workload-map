@@ -186,17 +186,8 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	}
 	// A requested Pod must occur in the complete list. Its disappearance cannot
 	// be represented by an apparently successful observation of its old owner.
-	if seed.GVK == podGVK {
-		found := false
-		for _, pod := range data.Pods {
-			if pod.UID == seed.UID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("%w: seed Pod disappeared during collection", ErrStaleInput)
-		}
+	if seed.GVK == podGVK && c.podUIDs[seed.UID] == nil {
+		return nil, fmt.Errorf("%w: seed Pod disappeared during collection", ErrStaleInput)
 	}
 
 	members := make([]*corev1.Pod, 0)
@@ -205,10 +196,17 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 			members = append(members, pod)
 		}
 	}
+	if len(members) < len(data.Pods) {
+		// A partial workload must not retain the allocation for the complete Pod list.
+		for i, pod := range members {
+			members[i] = pod.DeepCopy()
+		}
+	}
 	rootObject, err := c.get(ctx, root)
 	if err != nil {
 		return nil, err
 	}
+	sort.Slice(members, func(i, j int) bool { return podLess(members[i], members[j]) })
 	observation := Observation{Source: "direct", Namespace: scope, Started: started, Completed: time.Now(), PodResourceVersion: data.PodResourceVersion}
 	return buildWorkload(ctx, rootObject, members, r.plans[root.GVK], observation)
 }

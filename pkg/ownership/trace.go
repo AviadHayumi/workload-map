@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,10 +81,22 @@ func (e *Error) Unwrap() []error {
 // terminal seed. On failure, Trace returns the verified prefix and a typed Error.
 // Different served API versions may identify the same group-kind and UID.
 func Trace(ctx context.Context, start Object, lookup Lookup, maxDepth int) ([]Object, error) {
-	return walk(ctx, start, lookup, maxDepth, walkPolicy{strict: true})
+	return walk(ctx, start, lookup, maxDepth, walkPolicy{strict: true}, nil)
 }
 
-func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy walkPolicy) ([]Object, error) {
+// TraceRoot follows controller ownership and returns the terminal object's reference.
+// Validation and depth limits match Trace. On failure, the returned reference is
+// empty and the typed Error contains the same verified prefix as Trace.
+func TraceRoot(ctx context.Context, start Object, lookup Lookup, maxDepth int) (Ref, error) {
+	var scratch [8]Object
+	path, err := walk(ctx, start, lookup, maxDepth, walkPolicy{strict: true}, scratch[:0])
+	if err != nil {
+		return Ref{}, err
+	}
+	return path[len(path)-1].Ref, nil
+}
+
+func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy walkPolicy, scratch []Object) ([]Object, error) {
 	var path []Object
 	var seen map[types.UID]struct{}
 	if policy.strict {
@@ -96,7 +109,15 @@ func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy
 		if err := validateObject(start); err != nil {
 			return nil, walkError(err, nil, start.Ref, start.Ref, nil)
 		}
-		path = []Object{start}
+		path = scratch[:0]
+		if cap(path) == 0 {
+			capacity := 1
+			if len(start.Owners) != 0 {
+				capacity += min(maxDepth, 3)
+			}
+			path = make([]Object, 0, capacity)
+		}
+		path = append(path, start)
 		seen = map[types.UID]struct{}{start.Ref.UID: {}}
 	}
 	current := start
@@ -104,16 +125,17 @@ func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy
 		if err := ctx.Err(); err != nil {
 			return path, walkError(nil, path, current.Ref, Ref{}, err)
 		}
-		owner, err := selectController(current.Owners, policy.strict)
+		ownerIndex, err := selectController(current.Owners, policy.strict)
 		if err != nil {
 			return path, walkError(err, path, current.Ref, Ref{}, nil)
 		}
-		if owner == nil {
+		if ownerIndex < 0 {
 			return path, nil
 		}
-		next := Ref{Namespace: current.Ref.Namespace, UID: owner.UID, GVK: refGVK(owner), Name: owner.Name}
+		owner := current.Owners[ownerIndex]
+		gv, parseErr := schema.ParseGroupVersion(owner.APIVersion)
+		next := Ref{Namespace: current.Ref.Namespace, UID: owner.UID, GVK: gv.WithKind(owner.Kind), Name: owner.Name}
 		if policy.strict {
-			gv, parseErr := schema.ParseGroupVersion(owner.APIVersion)
 			if parseErr != nil || gv.Version == "" || validateRef(next) != nil {
 				return path, walkError(ErrInvalidReference, path, next, Ref{}, parseErr)
 			}
@@ -185,24 +207,23 @@ func validateRef(ref Ref) error {
 	if ref.UID == "" || ref.Name == "" || ref.GVK.Kind == "" || ref.GVK.Version == "" {
 		return ErrInvalidReference
 	}
-	gv, err := schema.ParseGroupVersion(ref.GVK.GroupVersion().String())
-	if err != nil || gv != ref.GVK.GroupVersion() {
+	if strings.Contains(ref.GVK.Group, "/") || strings.Contains(ref.GVK.Version, "/") {
 		return ErrInvalidReference
 	}
 	return nil
 }
 
-func selectController(ownerRefs []metav1.OwnerReference, strict bool) (*metav1.OwnerReference, error) {
-	var controller *metav1.OwnerReference
+func selectController(ownerRefs []metav1.OwnerReference, strict bool) (int, error) {
+	controller := -1
 	for index := range ownerRefs {
 		ref := ownerRefs[index]
 		if ref.Controller == nil || !*ref.Controller {
 			continue
 		}
-		if controller != nil {
-			return nil, ErrMultipleControllers
+		if controller >= 0 {
+			return -1, ErrMultipleControllers
 		}
-		controller = &ref
+		controller = index
 		if !strict {
 			break
 		}
