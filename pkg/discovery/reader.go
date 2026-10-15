@@ -180,7 +180,47 @@ func ownershipObject(object *unstructured.Unstructured, mapping *meta.RESTMappin
 	if namespaced != (object.GetNamespace() != "") {
 		return ownership.Object{}, fmt.Errorf("%w: namespace disagrees with scope of %s", ownership.ErrScope, object.GetName())
 	}
+	if err := validateOwnerReferences(object); err != nil {
+		return ownership.Object{}, err
+	}
 	return ownership.Object{Ref: reference(object), Owners: object.GetOwnerReferences(), Namespaced: namespaced}, nil
+}
+
+// GetOwnerReferences silently drops malformed lists and property values. Check
+// their raw types before decoding or comparing normalized owner references.
+func validateOwnerReferences(object *unstructured.Unstructured) error {
+	value, found, err := unstructured.NestedFieldNoCopy(object.Object, "metadata", "ownerReferences")
+	if err != nil {
+		return fmt.Errorf("%w: metadata.ownerReferences is inaccessible", ErrInvalidInput)
+	}
+	if !found || value == nil {
+		return nil
+	}
+	owners, ok := value.([]any)
+	if !ok {
+		return fmt.Errorf("%w: metadata.ownerReferences must be a list", ErrInvalidInput)
+	}
+	for i, value := range owners {
+		owner, ok := value.(map[string]any)
+		if !ok || owner == nil {
+			return fmt.Errorf("%w: metadata.ownerReferences[%d] must be an object", ErrInvalidInput, i)
+		}
+		for _, field := range []string{"apiVersion", "kind", "name", "uid"} {
+			if value := owner[field]; value != nil {
+				if _, ok := value.(string); !ok {
+					return fmt.Errorf("%w: metadata.ownerReferences[%d].%s must be a string", ErrInvalidInput, i, field)
+				}
+			}
+		}
+		for _, field := range []string{"controller", "blockOwnerDeletion"} {
+			if value := owner[field]; value != nil {
+				if _, ok := value.(bool); !ok {
+					return fmt.Errorf("%w: metadata.ownerReferences[%d].%s must be a boolean", ErrInvalidInput, i, field)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func podObject(pod *corev1.Pod) (*unstructured.Unstructured, error) {

@@ -316,6 +316,9 @@ func podLess(a, b *corev1.Pod) bool {
 
 // remember rejects conflicting versions of one lifetime within an observation.
 func (c *collection) remember(object *unstructured.Unstructured) error {
+	if err := validateOwnerReferences(object); err != nil {
+		return err
+	}
 	ref := reference(object)
 	if pod := c.podUIDs[ref.UID]; pod != nil {
 		if ref != podReference(pod) || object.GetResourceVersion() != pod.ResourceVersion || !sameOwnerReferences(object.GetOwnerReferences(), pod.OwnerReferences) {
