@@ -43,6 +43,14 @@ SHA-256 values identify the Markdown used for author verification and PDF input.
 
 ## Publication checks
 
-The repository-required `make check` is run in an isolated checkout before push.
-Its outcome is reported with the publication. No existing source, API, chart,
-metric family, running workload, or prior lab report is changed by this package.
+`make check` passed in the isolated checkout using the repository-pinned tools.
+Generation, manifests, licenses, library tests, CLI tests, CLI lint and stamped
+CLI version verification all completed. The tree stayed clean. The final change
+after that check only records this outcome.
+
+The PDF has 13 pages, including one A3 sequence page, and 13 clickable links.
+Local document links and the pinned public OSMO source URL resolved. The editable
+Excalidraw files include their image assets.
+
+No existing source, API, chart, metric family, running workload, or prior lab
+report is changed by this package.
