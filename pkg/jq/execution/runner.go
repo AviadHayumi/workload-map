@@ -172,17 +172,7 @@ func (r *runner) getObjectData() (any, error) {
 }
 
 func (r *runner) compile(expression string, variables []string) (*gojq.Code, error) {
-	parsed, err := gojq.Parse(expression)
-	if err != nil {
-		return nil, &JQParseError{Expression: expression, Err: err}
-	}
-
-	compiled, compileErr := gojq.Compile(parsed, gojq.WithVariables(variables))
-	if compileErr != nil {
-		return nil, &JQCompileError{Expression: expression, Err: compileErr}
-	}
-
-	return compiled, nil
+	return compiledPrograms.compile(expression, variables)
 }
 
 func convertToPrimitive(value any) (any, error) {

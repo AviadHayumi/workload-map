@@ -108,6 +108,12 @@ explicit GVKs are rejected. Construct another resolver to replace definitions;
 previous results keep their captured definition. An override for one served
 version does not authorize evaluation against another version's schema.
 
+The jq execution layer reuses compiled simple selectors through a small shared
+cache. It keys programs by the exact expression and ordered variable names, with
+entry and source-size limits. Complex expressions follow the original compilation
+path. Every invocation still evaluates the current input with its own execution
+context and limits; workload data and evaluation results are never cached there.
+
 Only an absent definition enables generic ownership. A broken definition or
 failed read is an error. If an unknown Bundle owns two Deployments, discovery
 returns the Bundle and both branches' Pods. It does not stop at either Deployment.
