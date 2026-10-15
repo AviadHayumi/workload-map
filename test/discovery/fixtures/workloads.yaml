@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sdk-discovery-test
+---
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: sdk-jobset
+  namespace: sdk-discovery-test
+spec:
+  replicatedJobs:
+    - name: chief
+      replicas: 1
+      template:
+        spec:
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+                - name: work
+                  image: busybox:1.37
+                  command: ["sh", "-c", "sleep 3600"]
+    - name: workers
+      replicas: 2
+      template:
+        spec:
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+                - name: work
+                  image: busybox:1.37
+                  command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: sdk-lws
+  namespace: sdk-discovery-test
+spec:
+  replicas: 2
+  leaderWorkerTemplate:
+    size: 2
+    leaderTemplate:
+      spec:
+        containers:
+          - name: work
+            image: busybox:1.37
+            command: ["sh", "-c", "sleep 3600"]
+    workerTemplate:
+      spec:
+        containers:
+          - name: work
+            image: busybox:1.37
+            command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdk-deployment
+  namespace: sdk-discovery-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sdk-deployment
+  template:
+    metadata:
+      labels:
+        app: sdk-deployment
+    spec:
+      containers:
+        - name: work
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sdk-standalone
+  namespace: sdk-discovery-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: work
+      image: busybox:1.37
+      command: ["sh", "-c", "sleep 3600"]
