@@ -132,22 +132,31 @@ func validateRef(ref ObjectRef) error {
 }
 
 func copyMapping(mapping *meta.RESTMapping) (*meta.RESTMapping, error) {
+	scope, err := validateMapping(mapping)
+	if err != nil {
+		return nil, err
+	}
+	result := *mapping
+	result.Scope = scope
+	return &result, nil
+}
+
+func validateMapping(mapping *meta.RESTMapping) (meta.RESTScope, error) {
 	if mapping == nil || isNil(mapping.Scope) || mapping.GroupVersionKind.Version == "" || mapping.GroupVersionKind.Kind == "" || mapping.Resource.Resource == "" || strings.Contains(mapping.Resource.Resource, "/") {
 		return nil, fmt.Errorf("%w: incomplete resource mapping", ErrInvalidInput)
 	}
 	if mapping.Resource.Group != mapping.GroupVersionKind.Group || mapping.Resource.Version != mapping.GroupVersionKind.Version {
 		return nil, fmt.Errorf("%w: resource and kind mapping versions differ", ErrInvalidInput)
 	}
-	result := *mapping
-	switch mapping.Scope.Name() {
+	scope := mapping.Scope.Name()
+	switch scope {
 	case meta.RESTScopeNameNamespace:
-		result.Scope = meta.RESTScopeNamespace
+		return meta.RESTScopeNamespace, nil
 	case meta.RESTScopeNameRoot:
-		result.Scope = meta.RESTScopeRoot
+		return meta.RESTScopeRoot, nil
 	default:
-		return nil, fmt.Errorf("%w: unsupported resource scope %q", ErrInvalidInput, mapping.Scope.Name())
+		return nil, fmt.Errorf("%w: unsupported resource scope %q", ErrInvalidInput, scope)
 	}
-	return &result, nil
 }
 
 func ownershipObject(object *unstructured.Unstructured, mapping *meta.RESTMapping) (ownership.Object, error) {
@@ -163,10 +172,11 @@ func ownershipObject(object *unstructured.Unstructured, mapping *meta.RESTMappin
 	if mapping.GroupVersionKind != object.GroupVersionKind() {
 		return ownership.Object{}, fmt.Errorf("%w: mapping differs from object GVK", ErrInvalidInput)
 	}
-	if _, err := copyMapping(mapping); err != nil {
+	scope, err := validateMapping(mapping)
+	if err != nil {
 		return ownership.Object{}, err
 	}
-	namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
+	namespaced := scope.Name() == meta.RESTScopeNameNamespace
 	if namespaced != (object.GetNamespace() != "") {
 		return ownership.Object{}, fmt.Errorf("%w: namespace disagrees with scope of %s", ownership.ErrScope, object.GetName())
 	}
