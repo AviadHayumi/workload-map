@@ -1,0 +1,398 @@
+[
+  {
+    "payload": {
+      "id": "754ddc67-5934-44b1-b349-540585220a6f",
+      "timestamp": "2026-10-15T18:29:34.305122317Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "6edd823d-e2f5-421f-bf0e-90b1239d45d8",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "6edd823d-e2f5-421f-bf0e-90b1239d45d8",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "a07965b6-7644-4b6e-afe1-7c966ac89384",
+      "timestamp": "2026-10-15T18:30:30.150302623Z",
+      "operation": "CANCEL_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "6edd823d-e2f5-421f-bf0e-90b1239d45d8",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CANCELED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "6edd823d-e2f5-421f-bf0e-90b1239d45d8",
+        "task_status": "CANCELED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "8f59875f-1618-4a33-882d-0e9f546a5199",
+      "timestamp": "2026-10-15T18:35:19.524103490Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "a1cfb195-c02c-43d0-b962-8f4683a74edb",
+      "timestamp": "2026-10-15T18:36:00.715803353Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "c698def8-d59a-405f-8dd5-bee60476dee1",
+      "timestamp": "2026-10-15T18:36:00.861017672Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "afece257-6fe2-4c42-beee-f329522ca665",
+      "timestamp": "2026-10-15T18:37:00.890038788Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "781c3d49-454e-404f-b1d7-6bf0f0646efc",
+      "timestamp": "2026-10-15T18:38:00.914853142Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "b0bc3c22-6564-4b34-acbd-2250901373dd",
+      "timestamp": "2026-10-15T18:38:32.125837466Z",
+      "operation": "CANCEL_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CANCELED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "d902a279-50e9-4488-8a11-d285d2b6d4a6",
+        "task_status": "CANCELED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "7ecd0f39-01dd-4020-88c0-0ea227d678d0",
+      "timestamp": "2026-10-15T18:38:35.002655881Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "5dbefab4-b767-44b8-b93a-6f53bf56a750",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5dbefab4-b767-44b8-b93a-6f53bf56a750",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "eb9b4abe-688f-4fa6-8e77-7feb9d5dc514",
+      "timestamp": "2026-10-15T18:43:17.446272434Z",
+      "operation": "CANCEL_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "5dbefab4-b767-44b8-b93a-6f53bf56a750",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CANCELED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5dbefab4-b767-44b8-b93a-6f53bf56a750",
+        "task_status": "CANCELED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "53426fdd-c10a-43f1-a522-fd98c1ac987e",
+      "timestamp": "2026-10-15T18:43:36.003994813Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "92571f0d-f0c4-4786-a37e-a3c23bf28fc9",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "92571f0d-f0c4-4786-a37e-a3c23bf28fc9",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "33a036a0-e63e-47e5-8d3c-a1a3ab01d05d",
+      "timestamp": "2026-10-15T18:44:42.423613739Z",
+      "operation": "CANCEL_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "92571f0d-f0c4-4786-a37e-a3c23bf28fc9",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CANCELED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "92571f0d-f0c4-4786-a37e-a3c23bf28fc9",
+        "task_status": "CANCELED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "93d3de7c-f73e-49c1-a058-a5306f265612",
+      "timestamp": "2026-10-15T18:44:57.303095001Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "c392d969-5866-4f30-9d94-9873a5d03563",
+      "timestamp": "2026-10-15T18:45:24.289117084Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "ac2e2a21-410c-42ea-90e1-deb80b1b3e7a",
+      "timestamp": "2026-10-15T18:45:24.478752021Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "b2b8a806-54a2-40f4-911d-75ec4369d08c",
+      "timestamp": "2026-10-15T18:45:29.378643919Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "47fd2d0a-7858-4fbe-963a-33d8cdde5b80",
+        "task_status": "ERRORED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "0585aed4-8969-44b6-9b47-765b7df34db8",
+      "timestamp": "2026-10-15T18:46:02.319092626Z",
+      "operation": "CREATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "svc@nvct-api.local",
+      "subjectId": "svc@nvct-api.local",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "CREATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "QUEUED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "e40c3fd8-f121-4c5a-8258-7a0e433cef60",
+      "timestamp": "2026-10-15T18:46:39.791084064Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "0ee1f151-0d23-47df-bd20-2d1d877c1453",
+      "timestamp": "2026-10-15T18:46:39.888060602Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "LAUNCHED"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "d23f8d9f-79f7-43cf-9e29-d38f83e4229c",
+      "timestamp": "2026-10-15T18:46:44.934964835Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "RUNNING"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "9798de70-a73d-4d95-8d96-f6d1e2352f2b",
+      "timestamp": "2026-10-15T18:47:39.908136482Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "RUNNING"
+      }
+    }
+  },
+  {
+    "payload": {
+      "id": "94d1344e-cf65-411b-9cff-8ddbb62e7f50",
+      "timestamp": "2026-10-15T18:48:11.464761904Z",
+      "operation": "UPDATE_TASK",
+      "type": "com.nvidia.nvct.persistence.task.entity.TaskEntity",
+      "actorId": "system:internal-thread",
+      "subjectId": "system:internal-thread",
+      "objectId": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "groupType": "TASK_MANAGEMENT",
+      "state": "UPDATED",
+      "data": {
+        "nca_id": "nvcf-default",
+        "task_id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+        "task_status": "COMPLETED"
+      }
+    }
+  }
+]

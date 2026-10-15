@@ -1,0 +1,126 @@
+[
+  {
+    "kind": "Pod",
+    "name": "0-sr-84919580-f350-4f88-b3b1-9371fcf267ef-task",
+    "namespace": "nvcf-backend",
+    "uid": "67ad1983-7977-44d1-9d5e-8e78279bf5a5",
+    "labels": {
+      "ENVIRONMENT": "default",
+      "GPU_COUNT": "1",
+      "NCA_ID": "nca-nvcf-default-nca",
+      "TASK_ID": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "environment": "default",
+      "gpu-name": "TESLA",
+      "icms-request-id": "747354d5-b5a9-4b8f-a332-198c16594178",
+      "nca-id": "nca-nvcf-default-nca",
+      "nvcf.nvidia.io/deployment-id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "nvcf.nvidia.io/gpu-specification-id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "nvcf.nvidia.io/message-batch-id": "82b031ac-6f41-4ff9-ab38-28243e695a5d",
+      "performance_class": "NCP.GPU.TESLA",
+      "task-id": "5bc18dde-08c1-445c-beee-9ab218d121c7"
+    },
+    "annotations": {
+      "TASK_NAME": "attribution-lab-task-progress-valid",
+      "icms-cluster-group": "",
+      "icms-request-id": "747354d5-b5a9-4b8f-a332-198c16594178",
+      "instance-count": "1",
+      "nca-id": "nvcf-default",
+      "nvcf.nvidia.io/backend": "karta-attribution-lab",
+      "nvcf.nvidia.io/environment": "default",
+      "nvcf.nvidia.io/instance-type-name": "NCP.GPU.TESLA_1x",
+      "nvcf.nvidia.io/instance-type-value": "NCP.GPU.TESLA",
+      "nvcf.nvidia.io/region": "us-west-1",
+      "task-name": "attribution-lab-task-progress-valid"
+    },
+    "owners": [
+      {
+        "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+        "kind": "ICMSRequest",
+        "name": "sr-84919580-f350-4f88-b3b1-9371fcf267ef",
+        "uid": "75bd29b9-f7d8-4c9f-bf35-068fe03c1a22"
+      }
+    ],
+    "phase": "Running",
+    "conditions": [
+      {
+        "type": "PodReadyToStartContainers",
+        "status": "True",
+        "reason": null
+      },
+      {
+        "type": "Initialized",
+        "status": "True",
+        "reason": null
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": null
+      },
+      {
+        "type": "ContainersReady",
+        "status": "True",
+        "reason": null
+      },
+      {
+        "type": "PodScheduled",
+        "status": "True",
+        "reason": null
+      }
+    ],
+    "containers": [
+      {
+        "name": "init",
+        "ready": true,
+        "restarts": 0,
+        "states": {
+          "terminated": {
+            "exitCode": 0,
+            "finishedAt": "2026-10-15T18:46:37Z",
+            "reason": "Completed",
+            "startedAt": "2026-10-15T18:46:26Z"
+          }
+        }
+      },
+      {
+        "name": "task",
+        "ready": true,
+        "restarts": 0,
+        "states": {
+          "running": {
+            "startedAt": "2026-10-15T18:46:38Z"
+          }
+        }
+      },
+      {
+        "name": "utils",
+        "ready": true,
+        "restarts": 0,
+        "states": {
+          "running": {
+            "startedAt": "2026-10-15T18:46:39Z"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "kind": "ICMSRequest",
+    "name": "sr-84919580-f350-4f88-b3b1-9371fcf267ef",
+    "namespace": "nvcf-backend",
+    "uid": "75bd29b9-f7d8-4c9f-bf35-068fe03c1a22",
+    "labels": {
+      "SQSMessageID": "93701f2503e88bc5451cf14be7c6fd61bdf8d06544c944c81931035de65509e",
+      "gpu-name": "TESLA",
+      "icms-request-id": "747354d5-b5a9-4b8f-a332-198c16594178",
+      "nca-id": "nca-nvcf-default-nca",
+      "nvca.nvcf.nvidia.io/task-id": "5bc18dde-08c1-445c-beee-9ab218d121c7",
+      "nvcf.nvidia.io/message-batch-id": "82b031ac-6f41-4ff9-ab38-28243e695a5d"
+    },
+    "annotations": {
+      "storage.nvcf.nvidia.io/model-cache-selection": "{\"version\":\"v1alpha1\",\"workflow\":\"helmModelCache\",\"mode\":\"none\"}"
+    },
+    "owners": [],
+    "phase": null
+  }
+]

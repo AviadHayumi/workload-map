@@ -1,0 +1,607 @@
+{
+  "at": "2026-10-15T18:48:51.532896+00:00",
+  "resources": [
+    {
+      "kind": "Deployment",
+      "namespace": "api-keys",
+      "name": "admin-token-issuer-proxy",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "api-keys",
+      "name": "api-keys",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "ess",
+      "name": "ess-api-deployment",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nats-system",
+      "name": "nats-auth-callout-service-helm-nvcf-nats-auth-callout-service",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nats-system",
+      "name": "nats-box",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvca-operator",
+      "name": "nvca-operator",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvca-system",
+      "name": "nvca",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "grpc-proxy-deployment",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "invocation-service",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "notary-service",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "nvcf-api",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "nvct-api",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "ratelimiter",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "nvcf",
+      "name": "reval",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "localstack-s3",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-agent",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-delayed-job-monitor",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-logger",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-router",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-service",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-listener",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-worker",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-ui",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-worker",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "postgres",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "quick-start-envoy",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "osmo-submitter-lab",
+      "name": "redis",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "sis",
+      "name": "spot-instance-service",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "vault-system",
+      "name": "openbao-server-agent-injector",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "StatefulSet",
+      "namespace": "cassandra-system",
+      "name": "cassandra",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "StatefulSet",
+      "namespace": "nats-system",
+      "name": "nats",
+      "desired": 3,
+      "ready": 3,
+      "updated": 3
+    },
+    {
+      "kind": "StatefulSet",
+      "namespace": "vault-system",
+      "name": "openbao-server",
+      "desired": 3,
+      "ready": 3,
+      "updated": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "api-keys",
+      "name": "admin-token-issuer-proxy-56486fd66b-c8wsr",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "api-keys",
+      "name": "api-keys-76df544c9f-g54jk",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "cassandra-system",
+      "name": "cassandra-0",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "cassandra-system",
+      "name": "cassandra-initialize-cluster-7sc4j",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "cassandra-system",
+      "name": "cassandra-migrations-jgpxk",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "ess",
+      "name": "ess-api-deployment-fdd798cb4-fv224",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nats-system",
+      "name": "nats-0",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nats-system",
+      "name": "nats-1",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nats-system",
+      "name": "nats-2",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nats-system",
+      "name": "nats-auth-callout-service-helm-nvcf-nats-auth-callout-servtpc9z",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nats-system",
+      "name": "nats-box-5d9746d47c-84ngc",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvca-operator",
+      "name": "nvca-operator-68dbf5f6fd-nx8t5",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvca-system",
+      "name": "nvca-5bbc9955f7-d6p4n",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "grpc-proxy-deployment-6fdcb465fc-mgtml",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "invocation-service-86644c7644-4xs4f",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "notary-service-5cd648695b-kbgcp",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "nvcf-api-86779f4b4c-sxnpp",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "nvct-api-c988c9655-ntkgq",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "ratelimiter-79bf6c77f8-7dssp",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "nvcf",
+      "name": "reval-69b945fb99-l556k",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "localstack-s3-588c474b9f-7n8fr",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-agent-78b7f5974d-jfxkk",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-delayed-job-monitor-79dcd97f68-n8f4z",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-logger-79b56848bf-zrp8p",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-router-9c485dc48-dx4vf",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-service-8666576844-sr56z",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-backend-operator-token-hl5cb",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-config-setup-4bzqz",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-listener-5d9b97c56c-rfkwn",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 1
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-worker-65978b89d8-7l4mf",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-ui-56f48b86f-htznm",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-worker-5d889b6999-hv9pr",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "postgres-656d4c96bc-6c9gh",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "quick-start-envoy-5d7b648946-n4chz",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "osmo-submitter-lab",
+      "name": "redis-5fc5867975-t8qm5",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "sis",
+      "name": "spot-instance-service-5d6c4f78bc-f4pcx",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 4
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-0",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-1",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-2",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0,
+      "requests": {
+        "openbao": {
+          "cpu": "50m",
+          "memory": "256Mi"
+        },
+        "auto-unseal-sidecar": {
+          "cpu": "50m",
+          "memory": "64Mi"
+        }
+      }
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-agent-injector-64b454857-gv4q8",
+      "phase": "Running",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-initialize-cluster-bj8fh",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    },
+    {
+      "kind": "Pod",
+      "namespace": "vault-system",
+      "name": "openbao-server-migrations-dq9rf",
+      "phase": "Succeeded",
+      "ready": false,
+      "restarts": 0
+    }
+  ]
+}

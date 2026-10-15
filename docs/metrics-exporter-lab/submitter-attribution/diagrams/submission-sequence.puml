@@ -1,0 +1,91 @@
+@startuml
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+
+skinparam shadowing false
+skinparam ParticipantPadding 12
+skinparam maxMessageSize 190
+skinparam sequenceArrowFontSize 14
+skinparam sequenceParticipantFontSize 15
+skinparam noteFontSize 13
+hide footbox
+title Proposed identity propagation and observation
+box "Submission platform" #E7F0FF
+participant "Platform API\nprincipal + workflow ID" as P
+end box
+box "Kubernetes cluster" #E6FCF5
+participant "Kubernetes API\nresource metadata" as K
+participant "Identity consumer\nexisting Karta mapping + proposed CEL" as C
+end box
+box "Monitoring" #F3F0FF
+participant "Prometheus / Grafana\nqueries and presentation" as M
+end box
+legend top left
+Blue: submission / Green: observation / Gray: local decisions
+Illustrative proposal; CEL and canonical stamping are not deployed.
+endlegend
+== A. Capture identity at submission ==
+[-> P: Submit as authenticated principal
+P -> P: Preserve full principal, type, source
+P -[#4263EB]> K: Create task resources with agreed metadata
+K --[#4263EB]> P: Created resource UIDs
+P -->[: Return platform workload ID
+note over P,K
+A platform workflow need not be a Kubernetes CRD.
+Service identity stays a service unless delegation is known.
+end note
+== B. Observe and interpret ==
+C -[#0CA678]> K: List / watch scoped resources
+K --[#0CA678]> C: Metadata + UIDs + owner references
+C -> C: Reuse existing owner index / Karta mapping
+C -> C: Evaluate configured CEL on workload and Pod
+alt Candidate is consistent and from an accepted source
+ C -> C: Cache principal + provenance by UID
+else Missing, partial, conflicting or failed evaluation
+ C -> C: Retain explicit outcome; do not invent a person
+end
+== C. React to change without repeated owner walks ==
+K --[#0CA678]> C: Updated labels / annotations; same owner UID
+C -> C: Reevaluate metadata; reuse owner relationship
+note over K,C
+Owner changes, recreation and watch recovery still invalidate state.
+Status-only updates need not rerun identity evaluation.
+end note
+== D. Expose the result and its limits ==
+M -[#0CA678]> C: Scrape proposed companion identity output
+C --[#0CA678]> M: Identity / coverage state; existing metrics unchanged
+M -> M: Join with matching workload and usage identity
+M -->]: Show workload, components and submitter\nUnknown or conflict remains visible
+@enduml

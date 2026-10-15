@@ -1,0 +1,23 @@
+[
+  {
+    "name": "71806edb94434103-d1e75d3618124880",
+    "labels": {
+      "kai.scheduler/queue": "osmo-pool-osmo-submitter-lab-default",
+      "kubernetes.io/os": "linux",
+      "osmo.group_name": "identity-check-group",
+      "osmo.group_uuid": "b8aaacc0b0f64098b04584e286cc8997",
+      "osmo.lead_container": "true",
+      "osmo.platform": "default",
+      "osmo.pool": "default",
+      "osmo.priority": "normal",
+      "osmo.retry_id": "0",
+      "osmo.submitted_by": "alice",
+      "osmo.task_name": "identity-check",
+      "osmo.task_uuid": "d1e75d3618124880aa737710756a0bda",
+      "osmo.workflow_id": "identity-3be173d449-1",
+      "osmo.workflow_uuid": "71806edb94434103b7295133a3d55ab4",
+      "runai/queue": "osmo-pool-osmo-submitter-lab-default"
+    },
+    "phase": "Pending"
+  }
+]

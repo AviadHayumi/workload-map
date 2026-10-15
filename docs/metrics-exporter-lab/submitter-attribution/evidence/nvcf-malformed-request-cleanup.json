@@ -1,0 +1,9 @@
+{
+  "name": "sr-a235c709-d7f3-4127-9b54-bfb8691233c0",
+  "taskStatus": "CANCELED",
+  "finalizers": [
+    "nvca.finalizers.nvidia.io"
+  ],
+  "ownedResources": [],
+  "deleting": "2026-10-15T18:46:14Z"
+}

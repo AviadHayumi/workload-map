@@ -1,0 +1,37 @@
+[
+  {
+    "file": "osmo-edge-case-resources.json",
+    "workflow": "identity-0d9dc9c34e-1",
+    "kind": "Pod",
+    "name": "7fbe7fe5a4974478-832b9b26f9074cfd",
+    "submitted_by_label": null
+  },
+  {
+    "file": "osmo-edge-case-resources.json",
+    "workflow": "identity-0d9dc9c34e-1",
+    "kind": "PodGroup",
+    "name": "4a0ccec069ff43108b7af59e0853cea4",
+    "submitted_by_label": null
+  },
+  {
+    "file": "osmo-alice-resources.json",
+    "workflow": "identity-ecf35e9588-1",
+    "kind": "Pod",
+    "name": "80bde8c6625e41bb-9545c222adb149eb",
+    "submitted_by_label": "alice"
+  },
+  {
+    "file": "osmo-alice-resources.json",
+    "workflow": "identity-ecf35e9588-1",
+    "kind": "PodGroup",
+    "name": "447a228e08af4f24be0501b7852e873e",
+    "submitted_by_label": "alice"
+  },
+  {
+    "file": "osmo-first-pod-identity.json",
+    "workflow": "identity-3be173d449-1",
+    "kind": null,
+    "name": "71806edb94434103-d1e75d3618124880",
+    "submitted_by_label": "alice"
+  }
+]

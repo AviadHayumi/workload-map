@@ -1,0 +1,57 @@
+[
+  {
+    "kind": "Pod",
+    "name": "7fbe7fe5a4974478-832b9b26f9074cfd",
+    "workflow": "identity-0d9dc9c34e-1",
+    "labels": {
+      "kai.scheduler/queue": "osmo-pool-osmo-submitter-lab-default",
+      "kubernetes.io/os": "linux",
+      "osmo.group_name": "identity-check-group",
+      "osmo.group_uuid": "4a0ccec069ff43108b7af59e0853cea4",
+      "osmo.lead_container": "true",
+      "osmo.platform": "default",
+      "osmo.pool": "default",
+      "osmo.priority": "normal",
+      "osmo.retry_id": "0",
+      "osmo.task_name": "identity-check",
+      "osmo.task_uuid": "832b9b26f9074cfdaccd37cd68568803",
+      "osmo.workflow_id": "identity-0d9dc9c34e-1",
+      "osmo.workflow_uuid": "7fbe7fe5a4974478bc5819b0a6972897",
+      "runai/queue": "osmo-pool-osmo-submitter-lab-default"
+    },
+    "phase": "Running",
+    "containers": [
+      {
+        "name": "identity-check",
+        "state": {
+          "running": {
+            "startedAt": "2026-10-15T17:34:42Z"
+          }
+        }
+      },
+      {
+        "name": "osmo-ctrl",
+        "state": {
+          "running": {
+            "startedAt": "2026-10-15T17:34:47Z"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "kind": "PodGroup",
+    "name": "4a0ccec069ff43108b7af59e0853cea4",
+    "workflow": "identity-0d9dc9c34e-1",
+    "labels": {
+      "kai.scheduler/queue": "osmo-pool-osmo-submitter-lab-default",
+      "osmo.group_name": "identity-check-group",
+      "osmo.group_uuid": "4a0ccec069ff43108b7af59e0853cea4",
+      "osmo.workflow_id": "identity-0d9dc9c34e-1",
+      "osmo.workflow_uuid": "7fbe7fe5a4974478bc5819b0a6972897",
+      "runai/queue": "osmo-pool-osmo-submitter-lab-default"
+    },
+    "phase": null,
+    "containers": []
+  }
+]

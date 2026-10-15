@@ -1,0 +1,26 @@
+[
+  {
+    "name": "identity-0d9dc9c34e-1",
+    "submitted_by": "a",
+    "status": "COMPLETED",
+    "resources": []
+  },
+  {
+    "name": "identity-ab8688a702-1",
+    "submitted_by": "alice@team-b.example",
+    "status": "COMPLETED",
+    "resources": []
+  },
+  {
+    "name": "identity-d8573356cd-1",
+    "submitted_by": "alice@team-a.example",
+    "status": "COMPLETED",
+    "resources": []
+  },
+  {
+    "name": "identity-ecf35e9588-1",
+    "submitted_by": "alice",
+    "status": "COMPLETED",
+    "resources": []
+  }
+]

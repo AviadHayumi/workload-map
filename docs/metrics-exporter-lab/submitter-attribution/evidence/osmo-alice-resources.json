@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "Pod",
+    "name": "80bde8c6625e41bb-9545c222adb149eb",
+    "labels": {
+      "kai.scheduler/queue": "osmo-pool-osmo-submitter-lab-default",
+      "kubernetes.io/os": "linux",
+      "osmo.group_name": "identity-check-group",
+      "osmo.group_uuid": "447a228e08af4f24be0501b7852e873e",
+      "osmo.lead_container": "true",
+      "osmo.platform": "default",
+      "osmo.pool": "default",
+      "osmo.priority": "normal",
+      "osmo.retry_id": "0",
+      "osmo.submitted_by": "alice",
+      "osmo.task_name": "identity-check",
+      "osmo.task_uuid": "9545c222adb149eba31521700aed1d1b",
+      "osmo.workflow_id": "identity-ecf35e9588-1",
+      "osmo.workflow_uuid": "80bde8c6625e41bb9e5ee64ff4b3ac82",
+      "runai/queue": "osmo-pool-osmo-submitter-lab-default"
+    },
+    "phase": "Running"
+  },
+  {
+    "kind": "PodGroup",
+    "name": "447a228e08af4f24be0501b7852e873e",
+    "labels": {
+      "kai.scheduler/queue": "osmo-pool-osmo-submitter-lab-default",
+      "osmo.group_name": "identity-check-group",
+      "osmo.group_uuid": "447a228e08af4f24be0501b7852e873e",
+      "osmo.submitted_by": "alice",
+      "osmo.workflow_id": "identity-ecf35e9588-1",
+      "osmo.workflow_uuid": "80bde8c6625e41bb9e5ee64ff4b3ac82",
+      "runai/queue": "osmo-pool-osmo-submitter-lab-default"
+    },
+    "phase": null
+  }
+]
