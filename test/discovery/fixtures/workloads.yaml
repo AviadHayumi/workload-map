@@ -42,6 +42,7 @@ metadata:
   namespace: sdk-discovery-test
 spec:
   replicas: 2
+  # Keep container restarts from triggering hourly group recreation.
   leaderWorkerTemplate:
     size: 2
     leaderTemplate:
@@ -49,13 +50,13 @@ spec:
         containers:
           - name: work
             image: busybox:1.37
-            command: ["sh", "-c", "sleep 3600"]
+            command: ["sh", "-c", "while true; do sleep 3600; done"]
     workerTemplate:
       spec:
         containers:
           - name: work
             image: busybox:1.37
-            command: ["sh", "-c", "sleep 3600"]
+            command: ["sh", "-c", "while true; do sleep 3600; done"]
 ---
 apiVersion: apps/v1
 kind: Deployment
