@@ -21,6 +21,10 @@ platforms, plus optional CEL extraction for older metadata. Karta continues to
 provide workload structure. CEL submitter extraction, the proposed chart values,
 and the proposed companion output are not implemented or deployed.
 
+The proposed principal key is `(identity-source, submitter-id)`. The source names
+an agreed identity authority and tenant scope, not merely the platform carrying
+the value. Cross-source equivalence requires an explicit verified mapping.
+
 | Read this | Purpose |
 | --- | --- |
 | [Shareable PDF](submitter-attribution.pdf) | Findings, examples, design decisions and next actions |

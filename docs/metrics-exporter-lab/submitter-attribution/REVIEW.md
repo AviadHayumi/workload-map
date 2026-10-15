@@ -20,11 +20,38 @@
 
 ## Independent comprehension review
 
-Not completed. A stateless review of the report through NVIDIA Inference was
-blocked by automatic approval review because it included unpublished lab findings.
-Explicit approval for that payload was requested and had not arrived when this
-record was prepared. No external-review pass is claimed. Author verification
-and visual inspection are separate from an independent reader teach-back.
+Completed using `openai/openai/gpt-6-astra` through NVIDIA Inference, with explicit
+user approval for the shareable Markdown. Both completed responses reported that
+exact model and `finish_reason=stop`. Each request was a fresh reading without
+conversation history, earlier feedback, raw cluster data or credentials.
+
+The reader received README.md, DESIGN.md, OPERATOR-CONTRACT.md,
+NVCF-FEATURE-REQUEST.md and EVIDENCE.md. It did not receive the images, raw evidence,
+RESULTS.md or FINDINGS.md. Its verdict assesses comprehension of the supplied
+proposal, not independent verification of experiments or platform behavior.
+
+| Reading | Result | Author assessment |
+| --- | --- | --- |
+| [Round 1](reviews/round-1.json) | Completed; revision required for C1 | Accurate teach-back; accepted the missing cross-platform principal namespace rule |
+| [Round 2](reviews/round-2.json) | Completed; understandable; no consequential findings | Accurate teach-back of responsibilities, evidence limits, identity scope and service-key example |
+
+C1 identified that a full principal string alone could merge unrelated users or
+split one user across platforms. The revised proposal defines the principal key
+as `(identity-source, submitter-id)`. The source is an agreed authority/tenant
+namespace, with platform/rule provenance kept separately. Cross-source merging
+requires a verified mapping; an unknown namespace leaves partial source-local
+attribution. These are proposed requirements for platform agreement. This lab
+did not verify a fleet identity directory or establish cross-platform mappings.
+
+The final five reviewed Markdown files match the hashes in round-2.json. No
+content changes followed that reading. Diagrams and the regenerated PDF were
+checked separately by the author; a Markdown review does not inspect images.
+
+The original approval rejection was resolved by explicit user approval. One
+initial API attempt returned HTTP 400 because the request omitted the model
+field; it produced no review. The corrected request completed as round 1.
+Only visible reviewer reports and hashes are published; private model reasoning
+and request authentication are excluded.
 
 ## Reviewed document hashes
 
@@ -32,21 +59,21 @@ SHA-256 values identify the Markdown used for author verification and PDF input.
 
 | File | SHA-256 |
 | --- | --- |
-| README.md | `14e0d0a9fc63aba52dee9cd4893aa3a26b4d12d6111b81188888439e665a61f1` |
-| DESIGN.md | `f59c48d24a672983007285eb8d25635438b355b18f16c0243ae175960f9e5356` |
-| OPERATOR-CONTRACT.md | `a18f662856e767d1c720a92b14621bc3f9308852b20b4a6905d6227ad4e42990` |
-| NVCF-FEATURE-REQUEST.md | `a55c33f86e5e0ceb35b62cb59f1b5f286a6ef0be5e03081ed882b3c9b0436617` |
+| README.md | `be55a73642da287cdbae6ff36049f55e77567598b73f340434d1b0d1836238d3` |
+| DESIGN.md | `f51adab88c534e2c3c017d3cd4b867f2532c614da6093f2189903c1c3587b288` |
+| OPERATOR-CONTRACT.md | `934c78d2e999469e41a11bfa1af28e0e968d74a9608e8f455f4df0b792401fb2` |
+| NVCF-FEATURE-REQUEST.md | `9470f92d164f74573425450cd72f540830c71738eb915cdb33f09f472fea65b7` |
 | RESULTS.md | `7d399ab5bb68111680235e0e2b714772061542f9a2e12178fe8c96775b0ccb72` |
 | FINDINGS.md | `a68d5d1371a389ce26ec587ae39ec760e112f0594b4aeec8e345d44f360eadbf` |
-| EVIDENCE.md | `e9587aea70d6b002d7c9c01b8fae13363d3cd4394660c91897678b8a493307d4` |
+| EVIDENCE.md | `4e23c9cf5168c0839ae89053c918afc48ee7c8cdbf050d38add250224a0021b2` |
 
 
 ## Publication checks
 
 `make check` passed in the isolated checkout using the repository-pinned tools.
 Generation, manifests, licenses, library tests, CLI tests, CLI lint and stamped
-CLI version verification all completed. The tree stayed clean. The final change
-after that check only records this outcome.
+CLI version verification all completed. The tree stayed clean. The earlier publication passed these checks. The documentation review follow-up
+reruns the required check before push; its outcome accompanies publication.
 
 The PDF has 13 pages, including one A3 sequence page, and 13 clickable links.
 Local document links and the pinned public OSMO source URL resolved. The editable

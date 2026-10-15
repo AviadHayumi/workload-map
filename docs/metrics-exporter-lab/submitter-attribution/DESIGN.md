@@ -78,9 +78,11 @@ An arbitrary Deployment created inside a task is outside the tested stamping pat
 
 Capture identity at submission, while the platform knows the authenticated
 principal. Preserve it through child creation. The recommended minimum is a
-full principal, its type, its source, and the platform workload ID. A short-user
-label is an optional display/join convenience when the platform knows the
-canonical username. Organization attribution is useful but independent.
+full principal ID, its type, an agreed identity authority/tenant namespace, and
+the platform workload ID. Join principals by `(identity-source, submitter-id)`;
+merging across sources requires a verified mapping. Keep the supplying platform
+as separate provenance. A canonical short-user label is optional display metadata.
+Organization attribution is independent.
 
 Candidate keys and an exact YAML example are in
 [OPERATOR-CONTRACT.md](OPERATOR-CONTRACT.md). All names are proposed.
@@ -207,9 +209,11 @@ be exposed as a display field rather than replacing the principal ID.
 | Expression fails or exceeds budget | No trusted result | Mark evaluation failure; do not publish a plausible empty success |
 
 A string result cannot explain which branch matched, detect every conflicting
-key, or prove the principal's type. The host must carry rule/source metadata
-and combine results from the workload and its Pods. A later named-rule contract
-can return those facts explicitly; it is not part of this one-field sketch.
+key, or prove the principal's type. The host must carry rule provenance and the
+agreed authority/tenant namespace, then combine workload and Pod results. Legacy
+rules need an explicitly configured or validated namespace; a value without one
+remains partial source-local attribution. A later named-rule contract can return
+those facts explicitly; it is not part of this one-field sketch.
 
 Compile/type-check rules when configuration changes, require a string result,
 reuse compiled programs, bound evaluation cost and returned length, and keep the
@@ -303,9 +307,10 @@ max by (namespace, pod, pod_uid, annotation_user) (
 The result is an identity table with value 1, not a utilization measurement.
 It adds `annotation_user` to Pod/workload mapping rows. Each Pod must have at
 most one identity on the right; detect conflicting candidates before joining.
-For multiple clusters, carry a common cluster label on both sides and include
-it in every match and aggregation. Do not join historical usage to today's
-mapping after a Pod name has been reused.
+For multiple clusters, include a common cluster label in every match and
+aggregation. For normalized cross-platform identity, group by the agreed source
+namespace and principal ID, not a username alone. Do not join historical usage
+to today's mapping after a Pod name has been reused.
 
 | Consumer | Useful result |
 | --- | --- |
@@ -407,6 +412,7 @@ were not retained. The final API results and inspected formatting code remain.
 ### Decisions to request from platform teams
 
 - Agree which principal means submitter for each operation, including service keys.
+- Agree each identity authority/tenant scope and verify any cross-source mapping.
 - Confirm where canonical identity can be stamped on parents and Pods.
 - Agree a stable organization/project ID separately from display hierarchy.
 - Choose conformance tests and document unsupported submission modes.

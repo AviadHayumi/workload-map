@@ -20,7 +20,7 @@ across submission platforms, including service-key paths.
    a delegated human only when that delegation is verifiable.
 3. Carry approved fields through the launch spec. If an environment variable
    transports them, NVCA must also project them into Kubernetes metadata.
-4. Stamp full principal, type, identity source and platform workload ID on
+4. Stamp full principal, type, authority/tenant namespace and platform workload ID on
    workload resources and Pods. Add a short-user label only when known.
 5. Preserve existing IDs and client behavior. Represent missing identity
    explicitly and never expose credentials as metadata.
@@ -31,6 +31,7 @@ An opt-in rollout can precede broader adoption; final key names are negotiable.
 ## Questions for maintainers
 
 - Which authenticated subject is available for personal and service keys?
+- Within which authority/tenant scope is that principal ID unique?
 - Can an upstream platform provide a verified on-behalf-of identity?
 - Which launch-spec field should carry these values, and which component will
   stamp metadata on both function and task resources?

@@ -58,7 +58,7 @@ Illustrative proposal; CEL and canonical stamping are not deployed.
 endlegend
 == A. Capture identity at submission ==
 [-> P: Submit as authenticated principal
-P -> P: Preserve full principal, type, source
+P -> P: Preserve principal ID, type, namespace
 P -[#4263EB]> K: Create task resources with agreed metadata
 K --[#4263EB]> P: Created resource UIDs
 P -->[: Return platform workload ID
@@ -72,7 +72,7 @@ K --[#0CA678]> C: Metadata + UIDs + owner references
 C -> C: Reuse existing owner index / Karta mapping
 C -> C: Evaluate configured CEL on workload and Pod
 alt Candidate is consistent and from an accepted source
- C -> C: Cache principal + provenance by UID
+ C -> C: Cache namespaced principal + provenance by UID
 else Missing, partial, conflicting or failed evaluation
  C -> C: Retain explicit outcome; do not invent a person
 end

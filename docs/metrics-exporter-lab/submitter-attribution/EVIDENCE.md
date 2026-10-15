@@ -99,7 +99,9 @@ test has been run. No production performance conclusion follows from this lab.
 ## Follow-up ownership
 
 Platform owners define and preserve authenticated principal semantics. The fleet
-operator agrees canonical username and organization identifiers. The extractor
+operator agrees the authority/tenant namespaces, verified cross-source mappings,
+canonical display usernames and organization identifiers. Those agreements were
+not established by this lab. The extractor
 maintainer implements bounded evaluation, provenance and cache invalidation.
 Monitoring owners choose cardinality, retention, queries and display behavior.
 The consumer owns any action taken from those observations.

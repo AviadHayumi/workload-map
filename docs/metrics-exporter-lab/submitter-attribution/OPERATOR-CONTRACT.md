@@ -19,7 +19,7 @@ record the service and its type.
 | `workload.dgxc.nvidia.com/user` | Label, when representable | Canonical short username agreed by the fleet; omit for unknown or unrepresentable values |
 | `workload.dgxc.nvidia.com/submitter-id` | Annotation | Full authenticated principal; required when known; never truncate to fit a label |
 | `workload.dgxc.nvidia.com/submitter-type` | Annotation | `human`, `service` or `unknown`; do not infer from an email-like string |
-| `workload.dgxc.nvidia.com/identity-source` | Annotation | Stable platform/identity-provider identifier; not a bearer token or an endpoint |
+| `workload.dgxc.nvidia.com/identity-source` | Annotation | Agreed identity authority/tenant namespace in which the principal ID is unique; not a token or an endpoint |
 | `workload.dgxc.nvidia.com/platform-workload-id` | Annotation | Platform's stable workflow/function/task ID; retain platform-specific IDs too |
 | `workload.dgxc.nvidia.com/org_hierarchy` | Label, when representable | Optional agreed organization path, for example `portfolio_program_project` |
 | `workload.dgxc.nvidia.com/org-id` | Annotation | Optional stable directory/project ID that remains useful if display names change |
@@ -32,6 +32,24 @@ The domain above is an example of a fleet-owned contract. The extractor should
 accept configured keys rather than hardcoding a company domain. Other operators
 can use the same semantics under their own agreed domain.
 
+## Principal identity across platforms
+
+The proposed principal join key is `(identity-source, submitter-id)`. The source
+identifies an agreed authority/tenant namespace, not merely the submission platform.
+The platform agreement must establish the principal ID's uniqueness in that scope,
+including human and service principals. A full email or username alone is not a
+fleet-wide identity guarantee.
+
+Two platforms may emit the same source and ID only when they use the same verified
+authority scope and identifier semantics. Otherwise keep their identities separate
+until an explicit verified mapping establishes equivalence. For example,
+`(example-idp:tenant-a, alice)` and `(example-idp:tenant-b, alice)` remain distinct.
+Keep the platform/rule that supplied the observation as separate provenance.
+
+A legacy extraction rule must supply an agreed source namespace through its
+configuration or validated metadata. If that scope is unknown, retain partial
+source-local attribution; do not merge it into a canonical fleet identity.
+
 ## Example
 
 ```yaml
@@ -42,7 +60,7 @@ metadata:
   annotations:
     workload.dgxc.nvidia.com/submitter-id: alice@example.com
     workload.dgxc.nvidia.com/submitter-type: human
-    workload.dgxc.nvidia.com/identity-source: example-platform
+    workload.dgxc.nvidia.com/identity-source: example-idp:tenant-a
     workload.dgxc.nvidia.com/platform-workload-id: workflow-123
     workload.dgxc.nvidia.com/org-id: project-456
 ```
