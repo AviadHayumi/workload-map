@@ -59,7 +59,8 @@ a clean checkout; run it after committing the intended changes.
 The [kind guide](../../test/discovery/README.md) includes fixture provisioning,
 operator versions, the independent UID oracle and the live command. The interface
 checks run as part of `TestLiveOperatorMembership` in default direct, opt-in owner
-metadata and indexed modes. They execute the same consumer functions linked from the README.
+metadata, opt-in Pod REST, combined Pod REST and owner metadata, and indexed modes.
+They execute the same consumer functions linked from the README.
 
 | Real fixture | Observed Pods | Desired template locations |
 | --- | --- | --- |
@@ -141,5 +142,22 @@ must have complete identity fields. Default full reads retain their existing che
 aliases and copy isolation. [Validation tests](../../pkg/discovery/owner_metadata_validation_test.go)
 cover malformed ownership and failures without fallback. [Transport tests](../../pkg/discovery/clientgo/owner_metadata_transport_test.go)
 cover JSON, protobuf, full-JSON responses, errors and cancellation through real HTTP.
-The live suite checks the same seven workloads in all three modes and requires
-actual metadata reads against the dedicated kind API.
+The live suite checks the same seven workloads in all five modes and requires
+actual metadata reads both directly and through the Pod REST wrapper against the
+dedicated kind API.
+
+## Optional Pod REST decoding
+
+`WithPodRESTClient` wraps an existing reader with an injected core REST client for
+Pod lists. The live test constructs that client from the existing test config,
+using only the core scheme and JSON serialization. It imports no generated typed
+core client. The wrapper preserves optional owner metadata support only when the
+base reader provides it; both wrapped modes retain Pod transfer support.
+
+The two additional live modes reuse the independent oracle without changing its
+fixtures or expected identities. They check the terminal root, exact sibling Pod
+UIDs, component/instance/replica membership, and the same interface consumers as
+the default reader. A separate counter proves that the combined wrapper actually
+uses owner metadata acquisition. These live checks supplement the adapter's
+transport, malformed-response, pagination, cancellation and copy-isolation tests;
+valid cluster fixtures alone cannot prove those failure contracts.

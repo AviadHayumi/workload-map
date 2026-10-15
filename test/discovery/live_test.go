@@ -18,7 +18,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	kdiscovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -145,6 +147,43 @@ func TestLiveOperatorMembership(t *testing.T) {
 		t.Fatal("owner metadata adapter must retain Pod transfer")
 	}
 	counted := &countingOwnerMetadataReader{OwnerMetadataReader: metadataReader}
+	countedPodREST := &countingOwnerMetadataReader{OwnerMetadataReader: metadataReader}
+	coreScheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(coreScheme); err != nil {
+		t.Fatal(err)
+	}
+	podConfig := rest.CopyConfig(config)
+	podConfig.GroupVersion = &corev1.SchemeGroupVersion
+	podConfig.APIPath = "/api"
+	podConfig.ContentType = runtime.ContentTypeJSON
+	podConfig.NegotiatedSerializer = serializer.NewCodecFactory(coreScheme).WithoutConversion()
+	httpClient, err := rest.HTTPClientFor(podConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	podREST, err := rest.RESTClientForConfigAndClient(podConfig, httpClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	podReader, err := sdkclient.WithPodRESTClient(reader, podREST)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := podReader.(sdk.OwnerMetadataReader); ok {
+		t.Fatal("plain Pod REST wrapper must not add owner metadata reads")
+	}
+	podMetadataReader, err := sdkclient.WithPodRESTClient(countedPodREST, podREST)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := podMetadataReader.(sdk.OwnerMetadataReader); !ok {
+		t.Fatal("Pod REST wrapper must retain owner metadata reads")
+	}
+	for _, wrapped := range []sdk.Reader{podReader, podMetadataReader} {
+		if _, ok := wrapped.(sdk.PodTransferReader); !ok {
+			t.Fatal("Pod REST wrapper must retain Pod transfer")
+		}
+	}
 	path := os.Getenv("KARTA_DISCOVERY_ORACLE")
 	if path == "" {
 		t.Fatal("set KARTA_DISCOVERY_ORACLE to the independent fixture UID oracle")
@@ -181,7 +220,13 @@ func TestLiveOperatorMembership(t *testing.T) {
 	for _, mode := range []struct {
 		name   string
 		reader sdk.Reader
-	}{{"direct", reader}, {"direct-owner-metadata", counted}, {"indexed", index}} {
+	}{
+		{"direct", reader},
+		{"direct-owner-metadata", counted},
+		{"direct-pod-rest", podReader},
+		{"direct-pod-rest-owner-metadata", podMetadataReader},
+		{"indexed", index},
+	} {
 		t.Run(mode.name, func(t *testing.T) {
 			resolver, err := karta.NewDiscoverer(mode.reader, sdk.Options{})
 			if err != nil {
@@ -192,6 +237,9 @@ func TestLiveOperatorMembership(t *testing.T) {
 					workload, err := resolver.Workload(ctx, item.Root.ref())
 					if err != nil {
 						t.Fatal(err)
+					}
+					if workload.Root() != item.Root.ref() {
+						t.Fatalf("wrong root %v", workload.Root())
 					}
 					assertPods(t, workload.Pods(), item.PodUIDs)
 					assertInterfaceConsumers(t, ctx, workload, len(item.PodUIDs))
@@ -282,8 +330,11 @@ func TestLiveOperatorMembership(t *testing.T) {
 	if counted.ownerReads == 0 {
 		t.Fatal("live fixtures did not exercise owner metadata reads")
 	}
-	t.Logf("owner metadata reads: %d", counted.ownerReads)
+	if countedPodREST.ownerReads == 0 {
+		t.Fatal("live fixtures did not exercise owner metadata reads through the Pod REST wrapper")
+	}
+	t.Logf("owner metadata reads: direct=%d, Pod REST=%d", counted.ownerReads, countedPodREST.ownerReads)
 	if !t.Failed() {
-		fmt.Printf("Independent oracle verified: %d workloads / %d Pods, direct, owner metadata and indexed\n", len(expected.Workloads), expected.PodCount)
+		fmt.Printf("Independent oracle verified: %d workloads / %d Pods, direct, owner metadata, Pod REST, Pod REST with owner metadata and indexed\n", len(expected.Workloads), expected.PodCount)
 	}
 }

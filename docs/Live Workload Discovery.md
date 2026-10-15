@@ -103,6 +103,44 @@ envelope and every typed owner identity, then copies retained references. The
 adapter returns detached identity, resourceVersion and owner references; other
 metadata fields are unspecified. It does not start or own a cache or watch.
 
+## Optional JSON Pod reads
+
+`clientgo.WithPodRESTClient(base, pods)` replaces Pod listing on an existing
+direct reader. Pass a caller-owned core v1 `rest.Interface`, for example
+`kubeClient.CoreV1().RESTClient()`, configured for the same Kubernetes authority
+as `base`. The base can come from `NewReader` or `NewReaderWithOwnerMetadata`:
+
+```go
+reader, err := sdkclient.WithPodRESTClient(base, kubeClient.CoreV1().RESTClient())
+if err != nil {
+    return nil, err
+}
+resolver, err := discovery.New(reader, discovery.Options{})
+```
+
+The decorator requests JSON and decodes complete Pods directly, avoiding the
+dynamic client's intermediate unstructured representation. It exhausts
+pagination, keeps all Pod phases and scheduling states, and transfers fresh
+owned Pod data through `PodTransferReader`. Object reads and mappings stay
+delegated to the base. `OwnerMetadataReader` is preserved only when the base
+provides it. List errors never fall back to the base reader.
+
+This option requires an observed `v1/PodList` envelope. Both empty item GVK
+fields, including omitted or JSON-null fields, are filled from that envelope.
+Partial or conflicting item GVK fields fail. Every owner reference needs a
+complete identity, including non-controllers.
+Duplicate decoded fields and map keys fail. Unknown fields remain allowed;
+duplicate checks do not inspect discarded unknown fields or opaque custom JSON
+fields such as managed-field contents. A positive remaining-item count without
+a continuation token also fails. These checks are stricter than the default
+dynamic decoder; malformed-input behavior is not identical.
+
+Construction performs no I/O or background work. The decorator does not own
+clients, start watches, or change full root reads. Indexed readers are rejected
+with `ErrInvalidInput` so wrapping cannot silently replace coherent capture with
+direct reads. Use the index directly for cached queries. Existing constructors
+and their defaults are unchanged.
+
 ## Ownership and observation boundaries
 
 Discovery follows controller references, validates every owner UID and identity,
