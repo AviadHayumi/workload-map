@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+const fs=require('node:fs'),path=require('node:path');
+const {chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true});const at=Number(fs.readFileSync(path.join(__dirname,'verified-time.txt'),'utf8'));const window='from='+Math.floor((at-900)*1000)+'&to='+Math.floor(at*1000);const result={errors:[],httpFailures:[],time:at};let page;try{
+const context=await browser.newContext({viewport:{width:1600,height:1150}});page=await context.newPage();const base='http://127.0.0.1:13000/karta/grafana';
+page.on('pageerror',e=>result.errors.push(e.message));page.on('response',r=>{if(r.status()>=400&&!r.url().includes('/api/user/stars'))result.httpFailures.push({url:r.url(),status:r.status()})});
+await page.goto(base+'/?'+window,{waitUntil:'domcontentloaded',timeout:30000});await page.getByRole('heading',{name:'GPU activity by workload',exact:true,level:2}).waitFor({timeout:30000});
+await page.waitForFunction(()=>document.body.innerText.includes('real-pytorch-mig-verified'),{},{timeout:30000});await page.waitForTimeout(1200);
+result.overviewText=await page.locator('body').innerText();await page.screenshot({path:path.join(__dirname,'mig-workload-overview.png')});
+const links=await page.locator('a[href*="var-workload_uid="]').evaluateAll(xs=>xs.map(x=>({text:x.textContent,href:x.getAttribute('href')})));result.drilldown=links.find(x=>x.text==='real-pytorch-mig-verified');if(!result.drilldown)throw new Error('Workload UID drilldown missing');
+await page.goto(new URL(result.drilldown.href,'http://127.0.0.1:13000').href+'&'+window,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.body.innerText.includes('master')&&document.body.innerText.includes('worker'),{},{timeout:30000});await page.waitForTimeout(1200);result.structureText=await page.locator('body').innerText();await page.screenshot({path:path.join(__dirname,'mig-workload-structure.png')});
+const uid=new URL(result.drilldown.href,'http://127.0.0.1:13000').searchParams.get('var-workload_uid');
+await page.goto(base+'/d/karta-metric-samples/karta-metric-samples?var-metric=DCGM_FI_PROF_GR_ENGINE_ACTIVE&var-namespace=karta-metrics-workloads&var-workload=real-pytorch-mig-verified&var-workload_uid='+uid+'&'+window,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.body.innerText.includes('real-pytorch-mig-verified-master-0')&&document.body.innerText.includes('real-pytorch-mig-verified-worker-0'),{},{timeout:30000});await page.waitForTimeout(1000);result.metricText=await page.locator('body').innerText();await page.screenshot({path:path.join(__dirname,'mig-dcgm-metric-samples.png')});
+result.passed=!result.errors.length&&!result.httpFailures.length;
+}catch(e){result.error=e.message;result.passed=false;if(page){await page.screenshot({path:path.join(__dirname,'browser-error.png')});result.visibleErrorText=await page.locator('body').innerText()}}finally{await browser.close();fs.writeFileSync(path.join(__dirname,'browser-acceptance.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({...result,overviewText:undefined,structureText:undefined,metricText:undefined,visibleErrorText:undefined},null,2));if(!result.passed)process.exitCode=1}})();

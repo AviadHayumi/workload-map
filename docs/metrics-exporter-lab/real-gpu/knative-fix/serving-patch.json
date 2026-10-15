@@ -1,0 +1,10 @@
+{
+  "spec": {
+    "config": {
+      "gateway": {
+        "external-gateways": "- class: karta-knative\n  gateway: knative-serving/karta-knative-external\n  service: knative-serving/karta-knative-external\n  supported-features:\n  - HTTPRouteRequestTimeout\n",
+        "local-gateways": "- class: karta-knative\n  gateway: knative-serving/karta-knative-local\n  service: knative-serving/karta-knative-local\n  supported-features:\n  - HTTPRouteRequestTimeout\n"
+      }
+    }
+  }
+}

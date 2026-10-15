@@ -42,6 +42,7 @@ type observer struct {
 	state, low, utilization, devices, observed, lowObserved, health, source, window, threshold *prometheus.Desc
 }
 type config struct {
+	nativeDCGM                                                  bool
 	sourceURL, kartaURL, namespace, node, listen, demoConfigMap string
 	poll, window, maxGap                                        time.Duration
 	threshold                                                   float64
@@ -63,13 +64,16 @@ type observation struct {
 	first, lowSince, receivedAt time.Time
 }
 type gpuSample struct {
-	uuid, node, namespace, pod, uid, container string
-	value                                      float64
-	at                                         time.Time
+	dra                                                  draSample
+	uuid, node, namespace, pod, uid, container, resource string
+	value                                                float64
+	at                                                   time.Time
 }
 type gpuRequest struct {
+	dra         map[string]map[string]draAllocation
 	pod         corev1.Pod
 	counts      map[string]int
+	resources   map[string]string
 	unsupported bool
 }
 
@@ -85,10 +89,11 @@ func main() {
 }
 func run() error {
 	cfg := config{}
-	flag.StringVar(&cfg.sourceURL, "source-url", "", "UID-bearing synthetic DCGM source /metrics URL")
+	flag.BoolVar(&cfg.nativeDCGM, "native-dcgm", false, "Read native DCGM samples; windows use successful HTTP observation times, not driver sample timestamps")
+	flag.StringVar(&cfg.sourceURL, "source-url", "", "UID-bearing DCGM source /metrics URL")
 	flag.StringVar(&cfg.kartaURL, "karta-url", "", "Direct Karta exporter /metrics URL")
 	flag.StringVar(&cfg.namespace, "namespace", "", "One explicitly selected demo workload namespace")
-	flag.StringVar(&cfg.node, "node", "", "Verified single full-GPU source node")
+	flag.StringVar(&cfg.node, "node", "", "Verified single GPU source node")
 	flag.StringVar(&cfg.demoConfigMap, "demo-configmap", "", "Optional named scenario metadata ConfigMap; never used for activity decisions")
 	flag.StringVar(&cfg.listen, "listen-address", ":9092", "HTTP listen address")
 	flag.DurationVar(&cfg.poll, "poll-interval", 10*time.Second, "Input polling interval")
@@ -166,15 +171,15 @@ func newObserver(cfg config) *observer {
 	}
 	return &observer{cfg: cfg, roots: make(map[string]observation),
 		state:       desc("state", "Current sampled GPU activity classification; not application productivity or reclaimable capacity.", "state", "reason"),
-		low:         desc("low_activity", "One when all assigned full GPUs remained at or below the threshold throughout a complete sampled window; omitted without complete evidence."),
-		utilization: desc("utilization_max_ratio", "Maximum fresh utilization ratio across every verified assigned full GPU."),
+		low:         desc("low_activity", "One when all assigned GPU allocations remained at or below the threshold throughout a complete sampled window; omitted without complete evidence."),
+		utilization: desc("utilization_max_ratio", "Maximum fresh utilization ratio across every verified assigned GPU allocation."),
 		devices:     desc("assigned_devices", "Number of source devices matching the complete current per-container GPU request inventory."),
 		observed:    desc("observation_seconds", "Seconds of uninterrupted valid inventory and source observations."),
-		lowObserved: desc("low_activity_observation_seconds", "Seconds of uninterrupted samples at or below the threshold for every assigned full GPU."),
+		lowObserved: desc("low_activity_observation_seconds", "Seconds of uninterrupted samples at or below the threshold for every assigned GPU allocation."),
 		health:      desc("observation_healthy", "One when current workload identity, GPU inventory and source samples are complete and verified.", "reason"),
 		source:      prometheus.NewDesc("workload_gpu_observer_source_healthy", "One for a successful fresh input poll.", []string{"source"}, nil),
 		window:      prometheus.NewDesc("workload_gpu_observer_window_seconds", "Required complete sampled low-activity window.", []string{"source"}, nil),
-		threshold:   prometheus.NewDesc("workload_gpu_observer_threshold_ratio", "Maximum utilization ratio allowed on every assigned full GPU.", []string{"source"}, nil)}
+		threshold:   prometheus.NewDesc("workload_gpu_observer_threshold_ratio", "Maximum utilization ratio allowed on every assigned GPU allocation.", []string{"source"}, nil)}
 }
 func poll(ctx context.Context, kube kubernetes.Interface, client *http.Client, cfg config) ([]reading, error) {
 	var pods []corev1.Pod
@@ -201,7 +206,11 @@ func poll(ctx context.Context, kube kubernetes.Interface, client *http.Client, c
 	if err != nil {
 		return nil, fmt.Errorf("read GPU source: %w", err)
 	}
-	return evaluate(cfg, pods, karta, source, time.Now())
+	inventory, err := readDRA(ctx, kube, cfg, pods)
+	if err != nil {
+		return nil, err
+	}
+	return evaluate(cfg, pods, karta, source, time.Now(), inventory)
 }
 func fetch(ctx context.Context, client *http.Client, endpoint string) (map[string]*dto.MetricFamily, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -246,6 +255,9 @@ func (i identity) values() []string {
 	return []string{i.namespace, i.workload, i.group, i.version, i.kind, i.uid, "synthetic"}
 }
 func samplesOf(source map[string]*dto.MetricFamily, cfg config, now time.Time) ([]gpuSample, error) {
+	if cfg.nativeDCGM {
+		return nativeSamples(source, cfg, now)
+	}
 	health := source["fake_gpu_source_healthy"]
 	if health == nil || len(health.Metric) != 1 || health.Metric[0].GetGauge().GetValue() != 1 || labelsOf(health.Metric[0])["node"] != cfg.node {
 		return nil, errors.New("synthetic source unhealthy or wrong node")
@@ -284,32 +296,36 @@ func samplesOf(source map[string]*dto.MetricFamily, cfg config, now time.Time) (
 		if now.Sub(at) > cfg.maxGap || at.After(now.Add(time.Second)) {
 			return nil, errors.New("stale source sample")
 		}
-		samples = append(samples, gpuSample{l["UUID"], l["node"], l["namespace"], l["pod"], l["pod_uid"], l["container"], value / 100, at})
+		samples = append(samples, gpuSample{uuid: l["UUID"], node: l["node"], namespace: l["namespace"], pod: l["pod"], uid: l["pod_uid"], container: l["container"], resource: "nvidia.com/gpu", value: value / 100, at: at})
 	}
 	if len(samples) == 0 || len(samples) > 1024 {
 		return nil, errors.New("empty or excessive source inventory")
 	}
 	return samples, nil
 }
-func requestsFor(pod corev1.Pod) gpuRequest {
-	r := gpuRequest{pod: pod, counts: make(map[string]int)}
+func requestsFor(pod corev1.Pod, nativeDCGM bool, inventories ...*draInventory) gpuRequest {
+	r := gpuRequest{pod: pod, counts: make(map[string]int), resources: make(map[string]string)}
 	for _, c := range append(slices.Clone(pod.Spec.Containers), pod.Spec.InitContainers...) {
 		for name, q := range c.Resources.Limits {
-			if strings.HasPrefix(string(name), "nvidia.com/") && name != "nvidia.com/gpu" && !q.IsZero() {
+			resourceName := string(name)
+			if !strings.HasPrefix(resourceName, "nvidia.com/") || q.IsZero() {
+				continue
+			}
+			supported := name == "nvidia.com/gpu" || (nativeDCGM && strings.HasPrefix(resourceName, "nvidia.com/mig-") && migProfile.MatchString(strings.TrimPrefix(resourceName, "nvidia.com/mig-")))
+			count, exact := q.AsInt64()
+			requested := c.Resources.Requests[name]
+			if !supported || !exact || count < 1 || count > 1024 || q.Cmp(requested) != 0 || r.counts[c.Name] != 0 {
+				r.unsupported = true
+				continue
+			}
+			r.counts[c.Name] = int(count)
+			r.resources[c.Name] = resourceName
+			if slices.ContainsFunc(pod.Spec.InitContainers, func(init corev1.Container) bool { return init.Name == c.Name }) {
 				r.unsupported = true
 			}
 		}
-		q := c.Resources.Limits["nvidia.com/gpu"]
-		count, exact := q.AsInt64()
-		if count > 0 {
-			r.counts[c.Name] = int(count)
-		}
-		requested := c.Resources.Requests["nvidia.com/gpu"]
-		if !exact || count < 0 || count > 1024 || q.Cmp(requested) != 0 || (count > 0 && slices.ContainsFunc(pod.Spec.InitContainers, func(init corev1.Container) bool { return init.Name == c.Name })) {
-			r.unsupported = true
-		}
 	}
-	if pod.Labels["runai-gpu-group"] != "" || len(pod.Spec.ResourceClaims) > 0 {
+	if pod.Labels["runai-gpu-group"] != "" {
 		r.unsupported = true
 	}
 	// Reservation and fractional allocations require an independent sharing model.
@@ -318,9 +334,15 @@ func requestsFor(pod corev1.Pod) gpuRequest {
 			r.unsupported = true
 		}
 	}
+	if len(pod.Spec.ResourceClaims) > 0 {
+		if nativeDCGM && !r.unsupported && len(inventories) == 1 {
+			return requestsForDRA(r, inventories[0])
+		}
+		r.unsupported = true
+	}
 	return r
 }
-func evaluate(cfg config, pods []corev1.Pod, karta, source map[string]*dto.MetricFamily, now time.Time) ([]reading, error) {
+func evaluate(cfg config, pods []corev1.Pod, karta, source map[string]*dto.MetricFamily, now time.Time, inventories ...*draInventory) ([]reading, error) {
 	roots := make(map[string]reading)
 	for _, m := range karta["karta_exporter_observation_healthy"].GetMetric() {
 		l := labelsOf(m)
@@ -369,7 +391,7 @@ func evaluate(cfg config, pods []corev1.Pod, karta, source map[string]*dto.Metri
 		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
-		r := requestsFor(pod)
+		r := requestsFor(pod, cfg.nativeDCGM, inventories...)
 		if len(r.counts) == 0 && !r.unsupported {
 			continue
 		}
@@ -390,9 +412,14 @@ func evaluate(cfg config, pods []corev1.Pod, karta, source map[string]*dto.Metri
 		if expected[root.root.key()] == nil {
 			expected[root.root.key()] = make(map[string]int)
 		}
+		for container, allocations := range r.dra {
+			for key, a := range allocations {
+				fingerprints[root.root.key()] = append(fingerprints[root.root.key()], uid+"/"+container+"/"+key+"/"+a.claimUID+"/"+a.uuid)
+			}
+		}
 		for container, count := range r.counts {
 			expected[root.root.key()][uid+"/"+container] = count
-			fingerprints[root.root.key()] = append(fingerprints[root.root.key()], uid+"/"+container+"/"+strconv.Itoa(count))
+			fingerprints[root.root.key()] = append(fingerprints[root.root.key()], uid+"/"+container+"/"+r.resources[container]+"/"+strconv.Itoa(count))
 		}
 	}
 	samples, sourceErr := samplesOf(source, cfg, now)
@@ -406,7 +433,7 @@ func evaluate(cfg config, pods []corev1.Pod, karta, source map[string]*dto.Metri
 		}
 		r, exists := requests[s.uid]
 		mapping := mappings[s.uid]
-		if !exists || s.uid == "" || s.pod != r.pod.Name || s.node != r.pod.Spec.NodeName || r.counts[s.container] == 0 {
+		if !exists || s.uid == "" || s.pod != r.pod.Name || s.node != r.pod.Spec.NodeName || r.counts[s.container] == 0 || r.resources[s.container] != s.resource || !matchesDRA(r, s) {
 			namespaceReason = "allocation_mismatch"
 			continue
 		}
@@ -502,11 +529,16 @@ func (o *observer) collectAt(ch chan<- prometheus.Metric, now time.Time) {
 	if fresh {
 		sourceHealthy = 1
 	}
-	ch <- prometheus.MustNewConstMetric(o.source, prometheus.GaugeValue, sourceHealthy, "synthetic")
-	ch <- prometheus.MustNewConstMetric(o.window, prometheus.GaugeValue, o.cfg.window.Seconds(), "synthetic")
-	ch <- prometheus.MustNewConstMetric(o.threshold, prometheus.GaugeValue, o.cfg.threshold, "synthetic")
+	sourceName := "synthetic"
+	if o.cfg.nativeDCGM {
+		sourceName = "dcgm"
+	}
+	ch <- prometheus.MustNewConstMetric(o.source, prometheus.GaugeValue, sourceHealthy, sourceName)
+	ch <- prometheus.MustNewConstMetric(o.window, prometheus.GaugeValue, o.cfg.window.Seconds(), sourceName)
+	ch <- prometheus.MustNewConstMetric(o.threshold, prometheus.GaugeValue, o.cfg.threshold, sourceName)
 	for _, current := range o.roots {
 		values := current.root.values()
+		values[len(values)-1] = sourceName
 		reason := current.reason
 		if now.Sub(o.lastPoll) > o.cfg.maxGap || now.Sub(current.at) > o.cfg.maxGap {
 			reason = "stale_observation"

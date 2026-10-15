@@ -1,0 +1,12 @@
+{
+  "spec": {
+    "dcgmExporter": {
+      "env": [
+        {
+          "name": "DCGM_EXPORTER_INTERVAL",
+          "value": "5000"
+        }
+      ]
+    }
+  }
+}

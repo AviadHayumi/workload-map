@@ -1,0 +1,82 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "CronJob",
+  "metadata": {
+    "name": "real-gpu-cycle",
+    "namespace": "karta-metrics-workloads"
+  },
+  "spec": {
+    "schedule": "*/15 * * * *",
+    "timeZone": "Etc/UTC",
+    "concurrencyPolicy": "Forbid",
+    "startingDeadlineSeconds": 60,
+    "successfulJobsHistoryLimit": 2,
+    "failedJobsHistoryLimit": 1,
+    "jobTemplate": {
+      "spec": {
+        "activeDeadlineSeconds": 900,
+        "backoffLimit": 0,
+        "ttlSecondsAfterFinished": 3600,
+        "template": {
+          "spec": {
+            "runtimeClassName": "nvidia",
+            "terminationGracePeriodSeconds": 10,
+            "containers": [
+              {
+                "name": "pytorch",
+                "image": "docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755",
+                "command": [
+                  "python",
+                  "/test/gpu_cycle.py"
+                ],
+                "env": [
+                  {
+                    "name": "TEST_ROLE",
+                    "value": "master"
+                  },
+                  {
+                    "name": "PYTHONUNBUFFERED",
+                    "value": "1"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "500m",
+                    "memory": "2Gi",
+                    "nvidia.com/gpu": 1
+                  },
+                  "limits": {
+                    "memory": "4Gi",
+                    "nvidia.com/gpu": 1
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "test",
+                    "mountPath": "/test",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "test",
+                "configMap": {
+                  "name": "real-gpu-cycle"
+                }
+              }
+            ],
+            "restartPolicy": "Never"
+          },
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/part-of": "karta-real-gpu-test",
+              "app.kubernetes.io/name": "real-gpu-cycle"
+            }
+          }
+        }
+      }
+    }
+  }
+}

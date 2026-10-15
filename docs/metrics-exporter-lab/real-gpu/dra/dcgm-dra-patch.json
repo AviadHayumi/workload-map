@@ -1,0 +1,16 @@
+{
+  "spec": {
+    "dcgmExporter": {
+      "env": [
+        {
+          "name": "DCGM_EXPORTER_INTERVAL",
+          "value": "5000"
+        },
+        {
+          "name": "KUBERNETES_ENABLE_DRA",
+          "value": "true"
+        }
+      ]
+    }
+  }
+}

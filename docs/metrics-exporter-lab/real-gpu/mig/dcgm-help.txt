@@ -1,0 +1,118 @@
+NAME:
+   DCGM Exporter - Generates GPU metrics in the prometheus format
+
+USAGE:
+   DCGM Exporter [global options] command [command options]
+
+VERSION:
+   4.8.4
+
+COMMANDS:
+   help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --collectors value, -f value        Path to the file, that contains the DCGM fields to collect (default: "/etc/dcgm-exporter/default-counters.csv") [$DCGM_EXPORTER_COLLECTORS]
+   --config-file value                 Path to a YAML configuration file. Legacy flags and environment variables explicitly set on startup override YAML values. [$DCGM_EXPORTER_CONFIG_FILE]
+   --address value, -a value           Listen address as <HOST>:<PORT>. For IPv6, use "[<IPv6_ADDR>]:<PORT>" (e.g., "[::]:9400") (default: ":9400") [$DCGM_EXPORTER_LISTEN]
+   --web-read-timeout value            Maximum duration for reading an HTTP request. (default: "10s") [$DCGM_EXPORTER_WEB_READ_TIMEOUT]
+   --web-write-timeout value           Maximum duration for generating and writing an HTTP response. (default: "30s") [$DCGM_EXPORTER_WEB_WRITE_TIMEOUT]
+   --max-concurrent-scrapes value      Maximum concurrent scrape requests. Excess requests receive HTTP 503 while admitted overlapping requests are coalesced. (default: 16) [$DCGM_EXPORTER_MAX_CONCURRENT_SCRAPES]
+   --enable-exporter-metrics           Expose Go runtime, process, and HTTP handler metrics about dcgm-exporter itself. (default: false) [$DCGM_EXPORTER_ENABLE_EXPORTER_METRICS]
+   --collect-interval value, -c value  Interval of time at which point metrics are collected. Unit is milliseconds (ms). (default: 30000) [$DCGM_EXPORTER_INTERVAL]
+   --watch-max-keep-age value          Maximum age of samples retained by DCGM field watches. Set to 0s to disable the age limit when a sample limit is configured. (default: 10m0s) [$DCGM_EXPORTER_WATCH_MAX_KEEP_AGE]
+   --watch-max-keep-samples value      Sample-count retention requested for DCGM field watches. Set to 0 for no sample-count limit when an age limit is configured. (default: 0) [$DCGM_EXPORTER_WATCH_MAX_KEEP_SAMPLES]
+   --kubernetes, -k                    Enable kubernetes mapping metrics to kubernetes pods (default: false) [$DCGM_EXPORTER_KUBERNETES]
+   --use-old-namespace, -o             Use old 1.x namespace (default: false) [$DCGM_EXPORTER_USE_OLD_NAMESPACE]
+   --cpu-devices value, -p value       Specify which devices dcgm-exporter monitors.
+                                       Possible values: f or
+                                                        g[:id1[,-id2...]] or
+                                                        i[:id1[,-id2...]] or
+                                                        g[:id1[,-id2...]]+i[:id1[,-id2...]].
+                                       If an id list is used, then devices with match IDs must exist on the system. For example:
+                                         (default) = monitor all GPU instances in MIG mode, all GPUs if MIG mode is disabled. (See f)
+                                         g = Monitor all GPUs
+                                         i = Monitor all GPU instances
+                                         f = Monitor all GPUs if MIG is disabled, or all GPU instances if MIG is enabled.
+                             Note: this rule will be applied to each GPU. If it has GPU instances, those
+                                   will be monitored. If it doesn't, then the GPU will be monitored.
+                                   This is our recommended option for single or mixed MIG Strategies.
+          g:0,1 = monitor GPUs 0 and 1
+          i:0,2-4 = monitor GPU instances 0, 2, 3, and 4.
+          g+i = monitor all GPUs and GPU instances.
+
+                                                                                                  NOTE 1: Any time indices are specified, those indices must exist on the system.
+                                                                                                  NOTE 2: The flex option f cannot be combined with g or i. (default: "f") [$DCGM_EXPORTER_CPU_DEVICES_STR]
+   --configmap-data value, -m value                                                               ConfigMap <NAMESPACE>:<NAME> for metric data (default: "none") [$DCGM_EXPORTER_CONFIGMAP_DATA]
+   --remote-hostengine-info value, -r value                                                       Connect to remote hostengine at <HOST>:<PORT> or a DCGM URI (tcp://<HOST>:<PORT>, unix:///<SOCKET_PATH>, vsock://<CID>:<PORT>). For IPv6, use "[<IPv6_ADDR>]:<PORT>" (e.g., "[::1]:5555") (default: "localhost:5555") [$DCGM_REMOTE_HOSTENGINE_INFO]
+   --kubernetes-enable-pod-labels                                                                 Enable kubernetes pod labels in metrics. This parameter is effective only when the '--kubernetes' option is set to 'true'. (default: false) [$DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS]
+   --kubernetes-enable-pod-uid                                                                    Enable kubernetes pod UID in metrics. This parameter is effective only when the '--kubernetes' option is set to 'true'. (default: false) [$DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID]
+   --kubernetes-gpu-id-type value                                                                 Choose Type of GPU ID to use to map kubernetes resources to pods. Possible values: 'uid', 'device-name' (default: "uid") [$DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE]
+   --kubernetes-pod-label-allowlist-regex value [ --kubernetes-pod-label-allowlist-regex value ]  Regex patterns for filtering pod labels to include in metrics (comma-separated). Empty means include all labels. This parameter is effective only when '--kubernetes-enable-pod-labels' is true. [$DCGM_EXPORTER_KUBERNETES_POD_LABEL_ALLOWLIST_REGEX]
+   --devices value, -d value                                                                      Specify which devices dcgm-exporter monitors.
+                                                                                                  Possible values: f or
+                                                                                                                   g[:id1[,-id2...]] or
+                                                                                                                   i[:id1[,-id2...]] or
+                                                                                                                   g[:id1[,-id2...]]+i[:id1[,-id2...]].
+                                                                                                  If an id list is used, then devices with match IDs must exist on the system. For example:
+                                                                                                    (default) = monitor all GPU instances in MIG mode, all GPUs if MIG mode is disabled. (See f)
+                                                                                                    g = Monitor all GPUs
+                                                                                                    i = Monitor all GPU instances
+                                                                                                    f = Monitor all GPUs if MIG is disabled, or all GPU instances if MIG is enabled.
+                             Note: this rule will be applied to each GPU. If it has GPU instances, those
+                                   will be monitored. If it doesn't, then the GPU will be monitored.
+                                   This is our recommended option for single or mixed MIG Strategies.
+          g:0,1 = monitor GPUs 0 and 1
+          i:0,2-4 = monitor GPU instances 0, 2, 3, and 4.
+          g+i = monitor all GPUs and GPU instances.
+
+        NOTE 1: Any time indices are specified, those indices must exist on the system.
+        NOTE 2: The flex option f cannot be combined with g or i.
+
+                                     NOTE 3: For GPU devices, i cannot be specified unless MIG mode is enabled. (default: "f") [$DCGM_EXPORTER_DEVICES_STR]
+   --no-hostname, -n                 Omit the hostname information from the output, matching older versions. (default: false) [$DCGM_EXPORTER_NO_HOSTNAME]
+   --switch-devices value, -s value  Specify which devices dcgm-exporter monitors.
+                                     Possible values: f or
+                                                      g[:id1[,-id2...]] or
+                                                      i[:id1[,-id2...]] or
+                                                      g[:id1[,-id2...]]+i[:id1[,-id2...]].
+                                     If an id list is used, then devices with match IDs must exist on the system. For example:
+                                       (default) = monitor all GPU instances in MIG mode, all GPUs if MIG mode is disabled. (See f)
+                                       g = Monitor all GPUs
+                                       i = Monitor all GPU instances
+                                       f = Monitor all GPUs if MIG is disabled, or all GPU instances if MIG is enabled.
+                             Note: this rule will be applied to each GPU. If it has GPU instances, those
+                                   will be monitored. If it doesn't, then the GPU will be monitored.
+                                   This is our recommended option for single or mixed MIG Strategies.
+          g:0,1 = monitor GPUs 0 and 1
+          i:0,2-4 = monitor GPU instances 0, 2, 3, and 4.
+          g+i = monitor all GPUs and GPU instances.
+
+                                                                    NOTE 1: Any time indices are specified, those indices must exist on the system.
+                                                                    NOTE 2: The flex option f cannot be combined with g or i. (default: "f") [$DCGM_EXPORTER_OTHER_DEVICES_STR]
+   --fake-gpus                                                      Accept GPUs that are fake, for testing purposes only (default: false) [$DCGM_EXPORTER_USE_FAKE_GPUS]
+   --web-config-file value                                          Web configuration file following webConfig spec: https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md. [$DCGM_EXPORTER_WEB_CONFIG_FILE]
+   --xid-count-window-size value, -x value                          Window size in milliseconds (ms) for counting XID errors in DCGM_EXP_XID_ERRORS_COUNT. (default: 300000) [$DCGM_EXPORTER_XID_COUNT_WINDOW_SIZE]
+   --replace-blanks-in-model-name, --rbmn                           Replace every blank space in the GPU model name with a dash, ensuring a continuous, space-free identifier. (default: false) [$DCGM_EXPORTER_REPLACE_BLANKS_IN_MODEL_NAME]
+   --debug                                                          Enable debug output (default: false) [$DCGM_EXPORTER_DEBUG]
+   --clock-events-count-window-size value                           Window size in milliseconds (ms) for counting clock events in DCGM_EXP_CLOCK_EVENTS_COUNT. (default: 300000) [$DCGM_EXPORTER_CLOCK_EVENTS_COUNT_WINDOW_SIZE]
+   --enable-dcgm-log                                                Enable writing DCGM logs to standard output (stdout). (default: false) [$DCGM_EXPORTER_ENABLE_DCGM_LOG]
+   --dcgm-log-level value                                           Specify the DCGM log verbosity level. This parameter is effective only when the '--enable-dcgm-log' option is set to 'true'. Possible values: NONE, FATAL, ERROR, WARN, INFO, DEBUG and VERB (default: "NONE") [$DCGM_EXPORTER_DCGM_LOG_LEVEL]
+   --log-format value                                               Specify the log output format. Possible values: text, json (default: "text") [$DCGM_EXPORTER_LOG_FORMAT]
+   --pod-resources-kubelet-socket value                             Path to the kubelet pod-resources socket file. (default: "/var/lib/kubelet/pod-resources/kubelet.sock") [$DCGM_POD_RESOURCES_KUBELET_SOCKET]
+   --hpc-job-mapping-dir value                                      Path to HPC job mapping file directory used for mapping GPUs to jobs. [$DCGM_HPC_JOB_MAPPING_DIR]
+   --container-labels                                               Enable runtime container labels in metrics. (default: false) [$DCGM_EXPORTER_CONTAINER_LABELS]
+   --container-runtime-socket value                                 Path to a container runtime socket used for container labels. [$DCGM_CONTAINER_RUNTIME_SOCKET]
+   --nvidia-resource-names value [ --nvidia-resource-names value ]  Nvidia resource names for specified GPU type like nvidia.com/a100, nvidia.com/a10. [$NVIDIA_RESOURCE_NAMES]
+   --kubernetes-virtual-gpus                                        Capture metrics associated with virtual GPUs exposed by Kubernetes device plugins when using GPU sharing strategies, e.g. time-sharing or MPS. (default: false) [$KUBERNETES_VIRTUAL_GPUS]
+   --dump-enabled                                                   Enable file-based debugging dumps for troubleshooting (default: false) [$DCGM_EXPORTER_DUMP_ENABLED]
+   --dump-directory value                                           Directory to store debug dump files (default: "/tmp/dcgm-exporter-debug") [$DCGM_EXPORTER_DUMP_DIRECTORY]
+   --dump-retention value                                           Retention period for debug dump files in hours (0 = no cleanup) (default: 24) [$DCGM_EXPORTER_DUMP_RETENTION]
+   --dump-compression                                               Use gzip compression for debug dump files (default: true) [$DCGM_EXPORTER_DUMP_COMPRESSION]
+   --kubernetes-enable-dra                                          Capture metrics associated with GPUs managed by Kubernetes Dynamic Resource Allocation (DRA) API. (default: false) [$KUBERNETES_ENABLE_DRA]
+   --disable-startup-validate                                       Disable validation checks during startup. Can be useful for running in minimal environments or testing (default: false) [$DISABLE_STARTUP_VALIDATE]
+   --enable-gpu-bind-unbind-watch                                   Enable watching for GPU bind/unbind events to trigger automatic reloads (requires DCGM 4.5+) (default: false) [$DCGM_EXPORTER_ENABLE_GPU_BIND_UNBIND_WATCH]
+   --gpu-bind-unbind-poll-interval value                            Interval for polling GPU bind/unbind events (DCGM recommends 1s) (default: "1s") [$DCGM_EXPORTER_GPU_BIND_UNBIND_POLL_INTERVAL]
+   --enable-pprof                                                   Enable /debug/pprof/ HTTP endpoints for profiling and debugging (default: false) [$DCGM_EXPORTER_ENABLE_PPROF]
+   --web-systemd-socket                                             Use systemd socket activation listeners instead of port listeners (Linux only). (default: false) [$DCGM_EXPORTER_SYSTEMD_SOCKET]
+   --help, -h                                                       show help
+   --version, -v                                                    print the version

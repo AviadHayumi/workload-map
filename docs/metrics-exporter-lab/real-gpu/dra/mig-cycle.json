@@ -1,0 +1,158 @@
+{
+  "apiVersion": "kubeflow.org/v1",
+  "kind": "PyTorchJob",
+  "metadata": {
+    "name": "real-dra-mig-cycle",
+    "namespace": "karta-metrics-workloads",
+    "labels": {
+      "app.kubernetes.io/part-of": "karta-real-gpu-test"
+    }
+  },
+  "spec": {
+    "runPolicy": {
+      "cleanPodPolicy": "None",
+      "activeDeadlineSeconds": 1800,
+      "ttlSecondsAfterFinished": 7200
+    },
+    "pytorchReplicaSpecs": {
+      "Master": {
+        "replicas": 1,
+        "restartPolicy": "Never",
+        "template": {
+          "spec": {
+            "runtimeClassName": "nvidia",
+            "terminationGracePeriodSeconds": 10,
+            "containers": [
+              {
+                "name": "pytorch",
+                "image": "docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755",
+                "command": [
+                  "python",
+                  "/test/gpu_cycle.py"
+                ],
+                "env": [
+                  {
+                    "name": "TEST_ROLE",
+                    "value": "master"
+                  },
+                  {
+                    "name": "PYTHONUNBUFFERED",
+                    "value": "1"
+                  },
+                  {
+                    "name": "NVIDIA_VISIBLE_DEVICES",
+                    "value": "void"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "500m",
+                    "memory": "2Gi"
+                  },
+                  "limits": {
+                    "memory": "4Gi"
+                  },
+                  "claims": [
+                    {
+                      "name": "gpu"
+                    }
+                  ]
+                },
+                "volumeMounts": [
+                  {
+                    "name": "test",
+                    "mountPath": "/test",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "test",
+                "configMap": {
+                  "name": "real-mig-cycle"
+                }
+              }
+            ],
+            "resourceClaims": [
+              {
+                "name": "gpu",
+                "resourceClaimTemplateName": "real-dra-mig"
+              }
+            ]
+          }
+        }
+      },
+      "Worker": {
+        "replicas": 1,
+        "restartPolicy": "Never",
+        "template": {
+          "spec": {
+            "runtimeClassName": "nvidia",
+            "terminationGracePeriodSeconds": 10,
+            "containers": [
+              {
+                "name": "pytorch",
+                "image": "docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755",
+                "command": [
+                  "python",
+                  "/test/gpu_cycle.py"
+                ],
+                "env": [
+                  {
+                    "name": "TEST_ROLE",
+                    "value": "worker"
+                  },
+                  {
+                    "name": "PYTHONUNBUFFERED",
+                    "value": "1"
+                  },
+                  {
+                    "name": "NVIDIA_VISIBLE_DEVICES",
+                    "value": "void"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "500m",
+                    "memory": "2Gi"
+                  },
+                  "limits": {
+                    "memory": "4Gi"
+                  },
+                  "claims": [
+                    {
+                      "name": "gpu"
+                    }
+                  ]
+                },
+                "volumeMounts": [
+                  {
+                    "name": "test",
+                    "mountPath": "/test",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "test",
+                "configMap": {
+                  "name": "real-mig-cycle"
+                }
+              }
+            ],
+            "resourceClaims": [
+              {
+                "name": "gpu",
+                "resourceClaimTemplateName": "real-dra-mig"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

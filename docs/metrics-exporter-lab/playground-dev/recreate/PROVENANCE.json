@@ -1,0 +1,9 @@
+{
+  "captured": "2026-10-14",
+  "karta_operator_tag": "v0.2.6",
+  "karta_operator_commit": "ea3628fb98fe45cbcf98483bda5bf24864cbac3a",
+  "exporter": "Exact helm get manifest output, converted to a clean resource List; includes pinned image digest",
+  "definitions": "17 relevant Karta CR specifications from the validated deployment; runtime metadata removed",
+  "kubernetes_tested": "v1.35.5 linux/amd64",
+  "fake_gpu_chart_oci_digest": "sha256:e73fc8c0d0a375dfc452eae63b1446cd82e5a302634905acdbd31cbc5a036c11"
+}

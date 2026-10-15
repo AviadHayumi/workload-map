@@ -1,0 +1,6 @@
+{
+  "source_sha256": "6938d70fb933684e65888bbed52bb3eff4ed0dd775763ac59da0e36a1136fd7f",
+  "image": "ghcr.io/aviadhayumi/workload-map/karta-exporter@sha256:532e2dfdd0117da8c8132adb2751710b91c91e3833b424cacffb955bc4acbee5",
+  "native_dcgm": true,
+  "window_clock": "successful HTTP observation time; DCGM exposes no sample timestamp"
+}

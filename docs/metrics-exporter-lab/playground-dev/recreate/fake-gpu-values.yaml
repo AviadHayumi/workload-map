@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+devicePlugin:
+  enabled: true
+gpuOperator:
+  enabled: false
+draPlugin:
+  enabled: false
+kwokGpuDevicePlugin:
+  enabled: false
+migFaker:
+  enabled: false
+runtimeClass:
+  enabled: false
+statusUpdater:
+  runaiIntegration:
+    enabled: false
+prometheus:
+  url: http://karta-prometheus.karta-metrics-poc.svc:9090/karta/prometheus
+topology:
+  nodePoolLabelKey: run.ai/simulated-gpu-node-pool
+  migStrategy: none
+  nodePools:
+    karta-demo:
+      gpuProduct: Tesla-V100
+      gpuCount: 32
+      gpuMemory: 12000

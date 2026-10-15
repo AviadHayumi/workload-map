@@ -356,7 +356,11 @@ Before acting, check:
 4. Each device is counted once. For shared or partitioned GPUs, confirm whose usage each measurement represents.
 5. The application has no queued requests or jobs waiting to run. GPU metrics alone cannot tell you that.
 
-Real GPU hardware and sharing modes have not been tested with this implementation.
+Real A100 full GPUs, static MIG, and exclusive DRA allocation were validated
+with the separate GPU observer. See the [hardware report](../../docs/metrics-exporter-lab/real-gpu/A100-REPORT.md)
+for workloads, native counter differences, Pod UID joins, results, and limits.
+The illustrative query above remains a full-GPU, Pod-name-based example; it is
+not the complete allocation-aware observer. GPU sharing remains untested.
 See [NVIDIA's GPU-sharing limitations](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 when using shared GPUs.
 

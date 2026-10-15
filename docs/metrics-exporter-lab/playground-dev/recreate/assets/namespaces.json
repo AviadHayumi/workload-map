@@ -1,0 +1,33 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "karta-finite-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "karta-metrics-poc"
+      }
+    }
+  ]
+}

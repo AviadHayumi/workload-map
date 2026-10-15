@@ -1,0 +1,46 @@
+{
+  "at": 1792008614.436034,
+  "checks": {
+    "all_scrapes_up": true,
+    "workload_observations_healthy": true,
+    "resource_type_observations_healthy": true,
+    "no_ambiguous_pod_mapping": true,
+    "native_gpu_devices": true,
+    "hardware_dcgm_provenance": true,
+    "all_cycles_pass": true
+  },
+  "workloads": {
+    "real-pytorch-cycle": {
+      "uid": "e53ee5b4-69bc-4240-88b6-021e3af630c8",
+      "completed": true,
+      "states": [
+        "active",
+        "low_activity",
+        "no_gpu",
+        "unknown",
+        "warming"
+      ],
+      "low_activity_samples": 5,
+      "minimum_low_evidence_seconds": 189.997387609,
+      "maximum_utilization_ratio": 0.98,
+      "low_only_after_180_seconds": true,
+      "active_when_busy": true
+    },
+    "real-pytorch-verified": {
+      "uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "completed": true,
+      "states": [
+        "active",
+        "low_activity",
+        "no_gpu",
+        "unknown",
+        "warming"
+      ],
+      "low_activity_samples": 6,
+      "minimum_low_evidence_seconds": 180.002247766,
+      "maximum_utilization_ratio": 0.98,
+      "low_only_after_180_seconds": true,
+      "active_when_busy": true
+    }
+  }
+}

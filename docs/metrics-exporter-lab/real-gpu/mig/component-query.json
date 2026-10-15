@@ -1,0 +1,37 @@
+{
+  "query": "label_replace(label_replace(max by(namespace,workload,workload_uid,component,component_instance)((max by(namespace,pod_uid,node,UUID,gpu,GPU_I_ID,GPU_CI_ID)(((DCGM_FI_DEV_GPU_UTIL{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\".*\",pod_uid!=\"\",GPU_I_ID=\"\"} and (time()-timestamp(DCGM_FI_DEV_GPU_UTIL{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\".*\",pod_uid!=\"\",GPU_I_ID=\"\"}) < 45)) or ((DCGM_FI_PROF_GR_ENGINE_ACTIVE{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\".*\",pod_uid!=\"\",GPU_I_ID!=\"\",GPU_CI_ID!=\"\"} and (time()-timestamp(DCGM_FI_PROF_GR_ENGINE_ACTIVE{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\".*\",pod_uid!=\"\",GPU_I_ID!=\"\",GPU_CI_ID!=\"\"}) < 45)) * 100))) * on(namespace,pod_uid) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\".*\",workload=~\".*\",component=~\".*\",component_instance=~\".*\"}) and on(namespace,workload_uid) (max by(namespace,workload_uid)((workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\".*\",workload=~\".*\"} == 1) and (time()-timestamp(workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\".*\",workload=~\".*\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+  "response": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {
+            "component": "master",
+            "display_component": "master",
+            "namespace": "karta-metrics-workloads",
+            "workload": "real-pytorch-mig-probe",
+            "workload_uid": "9cb413e6-04bd-4df9-ae93-c1fc9e4ac0b7"
+          },
+          "value": [
+            1792010694.446,
+            "0"
+          ]
+        },
+        {
+          "metric": {
+            "component": "worker",
+            "display_component": "worker",
+            "namespace": "karta-metrics-workloads",
+            "workload": "real-pytorch-mig-probe",
+            "workload_uid": "9cb413e6-04bd-4df9-ae93-c1fc9e4ac0b7"
+          },
+          "value": [
+            1792010694.446,
+            "0"
+          ]
+        }
+      ]
+    }
+  }
+}

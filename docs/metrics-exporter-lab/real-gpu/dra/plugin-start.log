@@ -1,0 +1,98 @@
+create symlink: /driver-root -> /driver-root-parent/
+2026-10-14T21:27:17Z  /driver-root (/ on host): nvidia-smi: '/driver-root/usr/bin/nvidia-smi', libnvidia-ml.so.1: '/driver-root/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1', current contents: [bin
+bin.usr-is-merged
+boot
+cdrom
+cm
+dev
+etc
+home
+initrd.img
+lib
+lib.usr-is-merged
+lib64
+local
+media
+mnt
+opt
+packages
+proc
+root
+rpms
+run
+sbin
+sbin.usr-is-merged
+share
+snap
+srv
+sys
+tmp
+usr
+var
+vmlinuz].
+invoke: env -i LD_PRELOAD=/driver-root/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 /driver-root/usr/bin/nvidia-smi --version
+NVIDIA-SMI version  : 580.173.02
+NVML version        : 580.173
+DRIVER version      : 580.173.02
+CUDA Version        : N/A
+nvidia-smi returned with code 0: success, leave
+  containerDriverRoot: (string) (len=12) "/driver-root",
+  hostDriverRoot: (string) (len=1) "/",
+  hostRoot: (string) (len=10) "/host-root",
+  nvidiaCDIHookPath: (string) "",
+  imageName: (string) (len=43) "nvcr.io/nvidia/dra-driver-nvidia-gpu:v0.5.0",
+  imagePullSecrets: (string) "",
+  imagePullPolicy: (string) (len=12) "IfNotPresent",
+  serviceAccountName: (string) (len=50) "karta-dra-validation-service-account-kubeletplugin",
+  kubeletRegistrarDirectoryPath: (string) (len=33) "/var/lib/kubelet/plugins_registry",
+  kubeletPluginsDirectoryPath: (string) (len=24) "/var/lib/kubelet/plugins",
+  healthcheckPort: (int) 51516,
+  klogVerbosity: (int) 4,
+  additionalXidsToIgnore: (string) "",
+  consumableShares: (string) (len=8) "disabled"
+})
+I1014 21:27:19.082431       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowTLSCacheGC" enabled=true
+I1014 21:27:19.082443       1 envvar.go:195] "Feature gate default state" feature="UnlockWhileProcessingFIFO" enabled=true
+I1014 21:27:19.082446       1 envvar.go:195] "Feature gate default state" feature="InOrderInformers" enabled=true
+I1014 21:27:19.082449       1 envvar.go:195] "Feature gate default state" feature="InOrderInformersBatchProcess" enabled=true
+I1014 21:27:19.082451       1 envvar.go:195] "Feature gate default state" feature="AtomicFIFO" enabled=true
+I1014 21:27:19.082453       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowCBOR" enabled=false
+I1014 21:27:19.082455       1 envvar.go:195] "Feature gate default state" feature="InformerResourceVersion" enabled=true
+I1014 21:27:19.082457       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowCARotation" enabled=true
+I1014 21:27:19.082459       1 envvar.go:195] "Feature gate default state" feature="WatchListClient" enabled=true
+I1014 21:27:19.082461       1 envvar.go:195] "Feature gate default state" feature="ClientsPreferCBOR" enabled=false
+I1014 21:27:19.082756       1 util.go:68] Started debug signal handler(s)
+I1014 21:27:19.088176       1 device_state.go:129] Using devRoot=/driver-root
+I1014 21:27:19.088247       1 root.go:106] Skipping candidate "/driver-root/libnvidia-ml.so.1": error resolving link "/driver-root/libnvidia-ml.so.1": lstat /driver-root/libnvidia-ml.so.1: no such file or directory
+I1014 21:27:19.088266       1 root.go:106] Skipping candidate "/driver-root/usr/lib64/libnvidia-ml.so.1": error resolving link "/driver-root/usr/lib64/libnvidia-ml.so.1": lstat /driver-root/usr/lib64/libnvidia-ml.so.1: no such file or directory
+I1014 21:27:19.088189       1 prometheus_httpserver.go:78] "Starting metrics HTTP server" endpoint=":8080" path="/metrics"
+I1014 21:27:19.088300       1 root.go:106] Skipping candidate "/driver-root/nvidia-smi": error resolving link "/driver-root/nvidia-smi": lstat /driver-root/nvidia-smi: no such file or directory
+I1014 21:27:19.088342       1 root.go:106] Skipping candidate "/driver-root/opt/bin/nvidia-smi": error resolving link "/driver-root/opt/bin/nvidia-smi": lstat /driver-root/opt/bin: no such file or directory
+I1014 21:27:19.088369       1 nvlib.go:212] Traverse GPU devices
+I1014 21:27:19.103748       1 numa.go:42] NUMA node unavailable for PCI bus ID 0000:00:06.0, continuing without attribute: PCI device 0000:00:06.0 has no NUMA affinity (numa_node=-1); do not publish the numaNode attribute for it
+I1014 21:27:19.225459       1 nvlib.go:332] Adding MIG device gpu-0-mig-3g20gb-9-0 to allocatable devices (parent: gpu-0)
+I1014 21:27:19.225486       1 nvlib.go:332] Adding MIG device gpu-0-mig-3g20gb-9-4 to allocatable devices (parent: gpu-0)
+I1014 21:27:19.225493       1 allocatable.go:269] Adding allocatables for PCI bus ID: 0000:00:06.0
+I1014 21:27:19.236102       1 numa.go:42] NUMA node unavailable for PCI bus ID 0000:00:07.0, continuing without attribute: PCI device 0000:00:07.0 has no NUMA affinity (numa_node=-1); do not publish the numaNode attribute for it
+I1014 21:27:19.242568       1 nvlib.go:318] Adding device gpu-1 to allocatable devices
+I1014 21:27:19.242581       1 allocatable.go:269] Adding allocatables for PCI bus ID: 0000:00:07.0
+I1014 21:27:19.244985       1 device_state.go:148] Muting CDI logger (verbosity is smaller 7: 4)
+I1014 21:27:19.259772       1 device_state.go:184] Warming up CDI device spec cache for GPUs [GPU-62843a4d-db8e-f3a8-119a-d1cbbe4091cc]
+I1014 21:27:19.321213       1 cdi.go:161] GetDeviceSpecsByID() called for GPU-62843a4d-db8e-f3a8-119a-d1cbbe4091cc, t_cdi_get_device_specs_by_id 0.061 s
+I1014 21:27:19.321323       1 device_state.go:282] Create empty checkpoint
+I1014 21:27:19.348949       1 draplugin.go:988] "Starting"
+I1014 21:27:19.349114       1 nonblockinggrpcserver.go:90] "GRPC server started" logger="dra" endpoint="/var/lib/kubelet/plugins/gpu.nvidia.com/dra.sock"
+I1014 21:27:19.349238       1 nonblockinggrpcserver.go:90] "GRPC server started" logger="registrar" endpoint="/var/lib/kubelet/plugins_registry/gpu.nvidia.com-reg.sock"
+I1014 21:27:19.349443       1 driver.go:492] About to announce device gpu-0-mig-3g20gb-9-0
+I1014 21:27:19.349467       1 health.go:103] starting healthcheck service at [::]:51516
+I1014 21:27:19.349506       1 driver.go:492] About to announce device gpu-0-mig-3g20gb-9-4
+I1014 21:27:19.349533       1 driver.go:492] About to announce device gpu-1
+I1014 21:27:19.349590       1 cleanup.go:125] Checkpointed RC cleanup: claims in PrepareStarted state: 0 (of 0)
+I1014 21:27:19.349628       1 resourceslicecontroller.go:675] "Starting ResourceSlice informer and waiting for it to sync" logger="ResourceSlice controller"
+I1014 21:27:19.349754       1 reflector.go:425] "Starting reflector" logger="ResourceSlice controller" type="*v1.ResourceSlice" resyncPeriod="0s" reflector="k8s.io/dynamic-resource-allocation/resourceslice/resourceslicecontroller.go:681"
+I1014 21:27:19.349780       1 reflector.go:472] "Listing and watching" logger="ResourceSlice controller" type="*v1.ResourceSlice" reflector="k8s.io/dynamic-resource-allocation/resourceslice/resourceslicecontroller.go:681"
+I1014 21:27:19.522176       1 reflector.go:1080] "Exiting watch because received the bookmark that marks the end of initial events stream" logger="ResourceSlice controller" reflector="k8s.io/dynamic-resource-allocation/resourceslice/resourceslicecontroller.go:681" totalItems=1 duration="172.357343ms"
+I1014 21:27:19.522276       1 reflector.go:507] "Caches populated" logger="ResourceSlice controller" type="*v1.ResourceSlice" reflector="k8s.io/dynamic-resource-allocation/resourceslice/resourceslicecontroller.go:681"
+I1014 21:27:20.350216       1 resourceslicecontroller.go:690] "ResourceSlice informer has synced" logger="ResourceSlice controller"
+I1014 21:27:20.350322       1 resourceslicecontroller.go:233] "Starting" logger="ResourceSlice controller"
+I1014 21:27:20.350346       1 driver.go:187] Current kubelet plugin registration status: plugin_registered:true

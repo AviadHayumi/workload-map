@@ -1,0 +1,11 @@
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "karta-mig-config",
+    "namespace": "gpu-operator"
+  },
+  "data": {
+    "config.yaml": "version: v1\nmig-configs:\n  all-disabled:\n    - devices: all\n      mig-enabled: false\n  karta-one-mig-one-full:\n    - devices: [0]\n      mig-enabled: true\n      mig-devices:\n        \"3g.20gb\": 2\n    - devices: [1]\n      mig-enabled: false\n"
+  }
+}

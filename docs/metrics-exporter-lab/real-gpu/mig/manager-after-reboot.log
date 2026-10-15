@@ -1,0 +1,101 @@
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Asserting MIG mode: Disabled"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Current MIG mode: Disabled"
+Selected MIG mode settings from configuration currently applied
+time="2026-10-14T20:38:00Z" level=info msg="Applying the selected MIG config to the node"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Parsing config file..."
+time="2026-10-14T13:38:00-07:00" level=debug msg="Selecting specific MIG config..."
+time="2026-10-14T13:38:00-07:00" level=debug msg="Running apply-start hook"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Checking current MIG mode..."
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:38:00-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:38:00-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Asserting MIG mode: Enabled"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Current MIG mode: Enabled"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Walking MigConfig for (devices=[1])"
+time="2026-10-14T13:38:00-07:00" level=debug msg="  GPU 1: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Asserting MIG mode: Disabled"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Checking current MIG device configuration..."
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:38:00-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:38:00-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Asserting MIG config: map[3g.20gb:2]"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Walking MigConfig for (devices=[1])"
+time="2026-10-14T13:38:00-07:00" level=debug msg="  GPU 1: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Running pre-apply-config hook"
+time="2026-10-14T13:38:00-07:00" level=debug msg="Applying MIG device configuration..."
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:38:00 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:38:00-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:38:00-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:38:00-07:00" level=debug msg="    Updating MIG config: map[3g.20gb:2]"
+time="2026-10-14T13:38:01-07:00" level=debug msg="Walking MigConfig for (devices=[1])"
+time="2026-10-14T13:38:01-07:00" level=debug msg="  GPU 1: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:38:01-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:38:01-07:00" level=debug msg="    Skipping MIG config -- MIG disabled"
+MIG configuration applied successfully
+time="2026-10-14T13:38:01-07:00" level=debug msg="Running apply-exit hook"
+time="2026-10-14T20:38:01Z" level=info msg="Running nvidia-smi"
+Wed Oct 14 13:38:01 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-PCIE-40GB          Off |   00000000:00:06.0 Off |                   On |
+| N/A   51C    P0             46W /  250W |     213MiB /  40960MiB |     N/A      Default |
+|                                         |                        |              Enabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA A100-PCIE-40GB          Off |   00000000:00:07.0 Off |                    0 |
+| N/A   51C    P0             41W /  250W |       0MiB /  40960MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| MIG devices:                                                                            |
++------------------+----------------------------------+-----------+-----------------------+
+| GPU  GI  CI  MIG |              Shared Memory-Usage |        Vol|        Shared         |
+|      ID  ID  Dev |                Shared BAR1-Usage | SM     Unc| CE ENC  DEC  OFA  JPG |
+|                  |                                  |        ECC|                       |
+|==================+==================================+===========+=======================|
+|  0    1   0   0  |             107MiB / 20096MiB    | 42      0 |  3   0    2    0    0 |
+|                  |               0MiB / 12211MiB    |           |                       |
++------------------+----------------------------------+-----------+-----------------------+
+|  0    2   0   1  |             107MiB / 20096MiB    | 42      0 |  3   0    2    0    0 |
+|                  |               0MiB / 12211MiB    |           |                       |
++------------------+----------------------------------+-----------+-----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+time="2026-10-14T20:38:01Z" level=info msg="Creating NVIDIA control device nodes"
+time="2026-10-14T20:38:02Z" level=info msg="Creating control device nodes at /host"
+time="2026-10-14T20:38:02Z" level=info msg="Skipping: /host/dev/nvidiactl already exists"
+time="2026-10-14T20:38:02Z" level=info msg="Skipping: /host/dev/nvidia-modeset already exists"
+time="2026-10-14T20:38:02Z" level=info msg="Skipping: /host/dev/nvidia-uvm already exists"
+time="2026-10-14T20:38:02Z" level=info msg="Skipping: /host/dev/nvidia-uvm-tools already exists"
+time="2026-10-14T20:38:02Z" level=info msg="Creating management CDI spec"
+time="2026-10-14T20:38:02Z" level=info msg="Creating management CDI spec (simplified implementation)"
+Starting dcgm.service
+time="2026-10-14T20:38:02Z" level=info msg="Restarting all GPU clients previously shutdown on the host by restarting their systemd services"
+Starting nvidia-dcgm.service
+time="2026-10-14T20:38:02Z" level=info msg="Restarting validator pod to re-run all validations"
+time="2026-10-14T20:38:02Z" level=info msg="Restarting all GPU clients previously shutdown in Kubernetes by reenabling their component-specific nodeSelector labels"
+time="2026-10-14T20:38:02Z" level=info msg="Changing the 'nvidia.com/mig.config.state' node label to 'success'\n"
+time="2026-10-14T20:38:02Z" level=info msg="Successfully updated to MIG config: karta-one-mig-one-full"
+time="2026-10-14T20:38:02Z" level=info msg="Waiting for change to 'nvidia.com/mig.config' label"
+Defaulted container "nvidia-mig-manager" out of: nvidia-mig-manager, toolkit-validation (init)

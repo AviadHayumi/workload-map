@@ -1,0 +1,49 @@
+{
+  "apiVersion": "monitoring.coreos.com/v1",
+  "kind": "ServiceMonitor",
+  "metadata": {
+    "name": "karta-native-dcgm",
+    "namespace": "karta-metrics-poc",
+    "labels": {
+      "monitoring": "karta-metrics-poc"
+    }
+  },
+  "spec": {
+    "namespaceSelector": {
+      "matchNames": [
+        "gpu-operator"
+      ]
+    },
+    "selector": {
+      "matchLabels": {
+        "app": "nvidia-dcgm-exporter"
+      }
+    },
+    "endpoints": [
+      {
+        "port": "gpu-metrics",
+        "interval": "10s",
+        "scrapeTimeout": "5s",
+        "honorLabels": true,
+        "relabelings": [
+          {
+            "targetLabel": "job",
+            "replacement": "karta-real-dcgm-native"
+          }
+        ],
+        "metricRelabelings": [
+          {
+            "sourceLabels": [
+              "hostname"
+            ],
+            "targetLabel": "node"
+          },
+          {
+            "targetLabel": "source",
+            "replacement": "dcgm"
+          }
+        ]
+      }
+    ]
+  }
+}

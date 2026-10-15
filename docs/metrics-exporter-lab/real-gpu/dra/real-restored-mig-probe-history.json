@@ -1,0 +1,154 @@
+[
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_assigned_devices",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "workload": "real-restored-mig-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "f69a934b-f2b1-4eb5-aa60-3c5b03a353a1",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014346.135,
+        "1"
+      ],
+      [
+        1792014351.135,
+        "1"
+      ],
+      [
+        1792014356.135,
+        "1"
+      ],
+      [
+        1792014361.135,
+        "1"
+      ],
+      [
+        1792014366.135,
+        "1"
+      ],
+      [
+        1792014371.135,
+        "1"
+      ],
+      [
+        1792014376.135,
+        "1"
+      ],
+      [
+        1792014381.135,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "reason": "no_gpu",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "no_gpu",
+      "workload": "real-restored-mig-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "f69a934b-f2b1-4eb5-aa60-3c5b03a353a1",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014386.135,
+        "1"
+      ],
+      [
+        1792014391.135,
+        "1"
+      ],
+      [
+        1792014396.135,
+        "1"
+      ],
+      [
+        1792014401.135,
+        "1"
+      ],
+      [
+        1792014406.135,
+        "1"
+      ],
+      [
+        1792014411.135,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "reason": "none",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "warming",
+      "workload": "real-restored-mig-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "f69a934b-f2b1-4eb5-aa60-3c5b03a353a1",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014346.135,
+        "1"
+      ],
+      [
+        1792014351.135,
+        "1"
+      ],
+      [
+        1792014356.135,
+        "1"
+      ],
+      [
+        1792014361.135,
+        "1"
+      ],
+      [
+        1792014366.135,
+        "1"
+      ],
+      [
+        1792014371.135,
+        "1"
+      ],
+      [
+        1792014376.135,
+        "1"
+      ],
+      [
+        1792014381.135,
+        "1"
+      ]
+    ]
+  }
+]

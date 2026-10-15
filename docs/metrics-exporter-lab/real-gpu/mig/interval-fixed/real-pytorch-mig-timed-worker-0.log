@@ -1,0 +1,2 @@
+{"event": "ready", "role": "worker", "gpu": "NVIDIA A100-PCIE-40GB MIG 3g.20gb", "torch": "2.5.1+cu124", "cuda": "12.4", "allocated_bytes": 2248146944, "device_bytes": 21072183296, "multiprocessors": 42}
+{"event": "phase", "role": "worker", "phase": "idle", "seconds": 120, "time": 1792011729.1066341}

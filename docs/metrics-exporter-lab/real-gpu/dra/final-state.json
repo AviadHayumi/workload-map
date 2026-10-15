@@ -1,0 +1,24 @@
+{
+  "at": 1792014410.852225,
+  "checks": {
+    "six_nodes_ready": true,
+    "worker_schedulable": true,
+    "original_capacity": true,
+    "mig_geometry_healthy": true,
+    "device_plugin_enabled": true,
+    "device_plugin_ready": true,
+    "dcgm_ready": true,
+    "dra_plugin_gone": true,
+    "no_test_slices": true,
+    "no_claims": true,
+    "dcgm_env_restored": true,
+    "all_scrapes_healthy": true,
+    "knative_healthy": true
+  },
+  "knative_http_status": 200,
+  "knative_body": "Hello smoke!\n",
+  "failed_scrapes": [],
+  "cron_suspended": false,
+  "cron_schedule": "*/15 * * * *",
+  "passed": true
+}

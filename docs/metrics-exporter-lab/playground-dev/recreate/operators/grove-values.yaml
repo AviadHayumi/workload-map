@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+#
+# Only the built-in default scheduler is used by this portable setup.
+# Avoid initializing absent scheduler CRDs and gate Helm on webhook readiness.
+config:
+  server:
+    # Enable the operator health probes (off by default in the chart). Its /readyz
+    # gates on the webhook server being started and its certs being ready, so
+    # `helm --wait` blocks until the validating/defaulting webhook actually serves;
+    # without this the smoke PodCliqueSet races a not-yet-ready webhook.
+    healthProbes:
+      enable: true
+  scheduler:
+    profiles:
+      - name: default-scheduler
+    defaultProfileName: default-scheduler

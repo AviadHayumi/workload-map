@@ -1,0 +1,8 @@
+{
+  "nodes_ready": 6,
+  "cron_suspended": false,
+  "cron_schedule": "*/15 * * * *",
+  "knative_http_status": 200,
+  "knative_body": "Hello smoke!\n",
+  "knative_ready": true
+}

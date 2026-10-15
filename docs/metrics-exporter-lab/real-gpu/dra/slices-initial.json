@@ -1,0 +1,242 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "resource.k8s.io/v1",
+            "kind": "ResourceSlice",
+            "metadata": {
+                "creationTimestamp": "2026-10-14T21:27:20Z",
+                "generateName": "00000-gpu.nvidia.com-gpu-worker-",
+                "generation": 1,
+                "name": "00000-gpu.nvidia.com-gpu-worker-n2shr",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "v1",
+                        "controller": true,
+                        "kind": "Node",
+                        "name": "gpu-worker",
+                        "uid": "12f70f94-4cc7-4b32-b2a2-a1fd301ba3cc"
+                    }
+                ],
+                "resourceVersion": "85107",
+                "uid": "306347c5-0be2-4a58-a5fd-45f128071816"
+            },
+            "spec": {
+                "devices": [
+                    {
+                        "attributes": {
+                            "addressingMode": {
+                                "string": "HMM"
+                            },
+                            "architecture": {
+                                "string": "Ampere"
+                            },
+                            "brand": {
+                                "string": "Nvidia"
+                            },
+                            "cudaComputeCapability": {
+                                "version": "8.0.0"
+                            },
+                            "cudaDriverVersion": {
+                                "version": "13.0.0"
+                            },
+                            "driverVersion": {
+                                "version": "580.173.2"
+                            },
+                            "parentUUID": {
+                                "string": "GPU-366924c7-8f17-716b-cc2e-cc89fd89efaa"
+                            },
+                            "productName": {
+                                "string": "NVIDIA A100-PCIE-40GB"
+                            },
+                            "profile": {
+                                "string": "3g.20gb"
+                            },
+                            "resource.kubernetes.io/pciBusID": {
+                                "string": "0000:00:06.0"
+                            },
+                            "resource.kubernetes.io/pcieRoot": {
+                                "string": "pci0000:00"
+                            },
+                            "type": {
+                                "string": "mig"
+                            },
+                            "uuid": {
+                                "string": "MIG-a018b07f-9e69-57dd-ade5-26655e3be44c"
+                            }
+                        },
+                        "capacity": {
+                            "copyEngines": {
+                                "value": "3"
+                            },
+                            "decoders": {
+                                "value": "2"
+                            },
+                            "encoders": {
+                                "value": "0"
+                            },
+                            "jpegEngines": {
+                                "value": "0"
+                            },
+                            "memory": {
+                                "value": "20096Mi"
+                            },
+                            "memorySlice0": {
+                                "value": "1"
+                            },
+                            "memorySlice1": {
+                                "value": "1"
+                            },
+                            "memorySlice2": {
+                                "value": "1"
+                            },
+                            "memorySlice3": {
+                                "value": "1"
+                            },
+                            "multiprocessors": {
+                                "value": "42"
+                            },
+                            "ofaEngines": {
+                                "value": "0"
+                            }
+                        },
+                        "name": "gpu-0-mig-3g20gb-9-0"
+                    },
+                    {
+                        "attributes": {
+                            "addressingMode": {
+                                "string": "HMM"
+                            },
+                            "architecture": {
+                                "string": "Ampere"
+                            },
+                            "brand": {
+                                "string": "Nvidia"
+                            },
+                            "cudaComputeCapability": {
+                                "version": "8.0.0"
+                            },
+                            "cudaDriverVersion": {
+                                "version": "13.0.0"
+                            },
+                            "driverVersion": {
+                                "version": "580.173.2"
+                            },
+                            "parentUUID": {
+                                "string": "GPU-366924c7-8f17-716b-cc2e-cc89fd89efaa"
+                            },
+                            "productName": {
+                                "string": "NVIDIA A100-PCIE-40GB"
+                            },
+                            "profile": {
+                                "string": "3g.20gb"
+                            },
+                            "resource.kubernetes.io/pciBusID": {
+                                "string": "0000:00:06.0"
+                            },
+                            "resource.kubernetes.io/pcieRoot": {
+                                "string": "pci0000:00"
+                            },
+                            "type": {
+                                "string": "mig"
+                            },
+                            "uuid": {
+                                "string": "MIG-bf626427-6bec-53df-8d80-da53c8b9eeda"
+                            }
+                        },
+                        "capacity": {
+                            "copyEngines": {
+                                "value": "3"
+                            },
+                            "decoders": {
+                                "value": "2"
+                            },
+                            "encoders": {
+                                "value": "0"
+                            },
+                            "jpegEngines": {
+                                "value": "0"
+                            },
+                            "memory": {
+                                "value": "20096Mi"
+                            },
+                            "memorySlice4": {
+                                "value": "1"
+                            },
+                            "memorySlice5": {
+                                "value": "1"
+                            },
+                            "memorySlice6": {
+                                "value": "1"
+                            },
+                            "memorySlice7": {
+                                "value": "1"
+                            },
+                            "multiprocessors": {
+                                "value": "42"
+                            },
+                            "ofaEngines": {
+                                "value": "0"
+                            }
+                        },
+                        "name": "gpu-0-mig-3g20gb-9-4"
+                    },
+                    {
+                        "attributes": {
+                            "addressingMode": {
+                                "string": "HMM"
+                            },
+                            "architecture": {
+                                "string": "Ampere"
+                            },
+                            "brand": {
+                                "string": "Nvidia"
+                            },
+                            "cudaComputeCapability": {
+                                "version": "8.0.0"
+                            },
+                            "cudaDriverVersion": {
+                                "version": "13.0.0"
+                            },
+                            "driverVersion": {
+                                "version": "580.173.2"
+                            },
+                            "productName": {
+                                "string": "NVIDIA A100-PCIE-40GB"
+                            },
+                            "resource.kubernetes.io/pciBusID": {
+                                "string": "0000:00:07.0"
+                            },
+                            "resource.kubernetes.io/pcieRoot": {
+                                "string": "pci0000:00"
+                            },
+                            "type": {
+                                "string": "gpu"
+                            },
+                            "uuid": {
+                                "string": "GPU-62843a4d-db8e-f3a8-119a-d1cbbe4091cc"
+                            }
+                        },
+                        "capacity": {
+                            "memory": {
+                                "value": "40Gi"
+                            }
+                        },
+                        "name": "gpu-1"
+                    }
+                ],
+                "driver": "gpu.nvidia.com",
+                "nodeName": "gpu-worker",
+                "pool": {
+                    "generation": 1,
+                    "name": "gpu-worker",
+                    "resourceSliceCount": 1
+                }
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

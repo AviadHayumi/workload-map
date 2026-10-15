@@ -3,11 +3,12 @@
 
 # Sampled workload GPU activity demo
 
-This standalone example combines UID-bearing synthetic DCGM samples, Karta Pod
-mappings, and a fresh Pod inventory. It exposes direct workload metrics. It does
+This standalone example combines UID-bearing DCGM samples, Karta Pod mappings,
+and a fresh Pod inventory. It supports a synthetic source and native NVIDIA
+DCGM (`--native-dcgm`). It exposes direct workload metrics. It does
 not change Karta's metric contract, Helm API, or recording rules.
 
-Every assigned full GPU must measure at most 5% utilization throughout a complete
+Every assigned supported GPU or MIG allocation must measure at most 5% utilization throughout a complete
 180-second sampled window before a workload enters `low_activity`. One busy GPU
 makes the workload active. Quiet samples after activity start a new low-activity
 window. No-GPU workloads are `no_gpu`, never idle. Missing evidence is `unknown`.
@@ -18,7 +19,7 @@ between samples.
 ## Direct metrics
 
 Every workload family uses `namespace`, `workload`, `workload_group`,
-`workload_version`, `workload_kind`, `workload_uid`, and `source="synthetic"`.
+`workload_version`, `workload_kind`, `workload_uid`, and `source="synthetic"` or `source="dcgm"`, selected by the input mode.
 
 | Family | Meaning |
 | --- | --- |
@@ -30,7 +31,7 @@ Every workload family uses `namespace`, `workload`, `workload_group`,
 | `workload_gpu_observer_low_activity_observation_seconds` | Uninterrupted low-activity observation duration. |
 | `workload_gpu_observer_observation_healthy{reason}` | Current complete identity, inventory, and sample evidence. |
 
-Global families use `source="synthetic"`: `workload_gpu_observer_source_healthy`,
+Global families use the same source label: `workload_gpu_observer_source_healthy`,
 `workload_gpu_observer_window_seconds`, and `workload_gpu_observer_threshold_ratio`.
 
 ```promql
@@ -47,7 +48,7 @@ unknown state after it stops.
 
 ## Identity and completeness
 
-The observer supports one explicitly selected namespace and one verified full-GPU
+The observer supports one explicitly selected namespace and one verified GPU
 node. It lists all current Pods in that namespace. Every live GPU Pod must have a
 resolved Karta mapping with its exact Pod UID and a healthy matching workload UID.
 Every requested GPU in each regular container must match exactly one source device.
@@ -67,11 +68,38 @@ repeated timestamps, and gaps reset the observation window. The poll interval is
 by 10,000 Pods/roots and 1,024 source devices. Missing inputs retain known roots as
 unknown for up to ten minutes. This example is not a fleet-scale discovery service.
 
-MIG, DRA, GPU init containers, fractional/reservation allocations, and shared
-assignments are unsupported and produce unknown evidence. Multiple ordinary
+Native mode supports exclusive full GPUs, static MIG with one compute instance
+per GPU instance, and NVIDIA DRA claims with validated allocation identity.
+GPU init containers, fractional allocations, and shared assignments are
+unsupported and produce unknown evidence. Multiple ordinary
 containers are supported only when all their requested devices have complete
 source assignments. Completed Pods do not contribute current GPU requests; a
 source still reporting their allocation is an allocation mismatch.
+
+## Native DCGM, MIG, and DRA
+
+Native mode requires Pod UID enrichment. Full GPUs use
+`DCGM_FI_DEV_GPU_UTIL` divided by 100. Tested MIG instances use
+`DCGM_FI_PROF_GR_ENGINE_ACTIVE`, already a 0..1 ratio. These measure different
+aspects of GPU activity. MIG identity includes the physical UUID, GPU instance,
+compute instance, and requested profile. Repeated physical power/temperature
+values must not be summed once per partition.
+
+DRA inventory checks ResourceClaim UID, the exact Pod UID reservation,
+ResourceSlice driver/pool/device identity, device UUID/profile, and native DCGM
+claim labels. Changed allocations restart the evidence window. Pending, missing,
+ambiguous, shared, administrative, or unsupported claims remain Unknown.
+Additional read-only RBAC is provided in the DRA lab manifests.
+
+Native DCGM has no original per-sample timestamp in the tested output. The
+window uses successful HTTP observations and cannot prove that a responsive
+collector is not serving frozen data.
+
+[The real A100 report](../../../docs/metrics-exporter-lab/real-gpu/A100-REPORT.md)
+contains successful full-GPU, static-MIG, DRA, contention, and restoration tests.
+[The setup guide](../../../docs/metrics-exporter-lab/real-gpu/README.md) includes
+renderable manifests and Grafana dashboards. This remains a bounded single-node
+example; GPU sharing, dynamic MIG, and production fleet scale are not validated.
 
 ## UID-bearing fake source
 

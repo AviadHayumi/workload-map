@@ -1,0 +1,515 @@
+[
+  {
+    "dashboard": "karta.json",
+    "panel": 302,
+    "title": "GPU workloads",
+    "query": "(count((max by(namespace,workload_uid)((workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) > 0) or on() (0 * count(max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) unless on() (count((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) > 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 303,
+    "title": "Assigned GPUs",
+    "query": "(sum(max by(namespace,workload_uid)((workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on() (0 * count(max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) unless on() (count((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) > 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 304,
+    "title": "Active",
+    "query": "(count(max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"active\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on() (0 * count(max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) unless on() (count((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) > 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 305,
+    "title": "Low activity",
+    "query": "(count(max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"low_activity\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on() (0 * count(max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) unless on() (count((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) > 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 306,
+    "title": "GPU activity by workload",
+    "query": "label_join(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(((label_replace(((group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or label_replace(label_replace(((group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))) unless on(namespace,workload_uid) (max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\"),\"state\",\"no_telemetry\",\"namespace\",\"karta-finite-workloads\")) * on(namespace,workload_uid) group_left() ((max by(namespace,workload_uid)((workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on(namespace,workload_uid) (-1 * max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) or (((label_replace(((group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or label_replace(label_replace(((group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))) unless on(namespace,workload_uid) (max by(namespace,workload,workload_uid,workload_kind,state,reason)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\"),\"state\",\"no_telemetry\",\"namespace\",\"karta-finite-workloads\")) unless on(namespace,workload_uid) ((max by(namespace,workload_uid)((workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on(namespace,workload_uid) (-1 * max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))) * (0/0)),\"activity_order\",\"0\",\"state\",\"active\"),\"activity_order\",\"1\",\"state\",\"low_activity\"),\"activity_order\",\"2\",\"state\",\"warming\"),\"activity_order\",\"3\",\"state\",\"unknown\"),\"activity_order\",\"4\",\"state\",\"no_telemetry\"),\"activity_order\",\"5\",\"state\",\"no_gpu\"),\"workload_key\",\"|\",\"namespace\",\"workload_uid\")",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 306,
+    "title": "GPU activity by workload",
+    "query": "max by(workload_key)(label_join((max by(namespace,workload_uid)((workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on(namespace,workload_uid) (0 * max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"workload_key\",\"|\",\"namespace\",\"workload_uid\"))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 306,
+    "title": "GPU activity by workload",
+    "query": "max by(workload_key)(label_join((max by(namespace,workload_uid)((workload_gpu_observer_low_activity_observation_seconds{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_low_activity_observation_seconds{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on(namespace,workload_uid) (-1 * max by(namespace,workload_uid)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"workload_key\",\"|\",\"namespace\",\"workload_uid\"))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 307,
+    "title": "Maximum GPU utilization by workload",
+    "query": "max by(namespace,workload,workload_uid,workload_kind)((workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 308,
+    "title": "GPU workload activity over time",
+    "query": "((1 * max by(namespace,workload,workload_uid,workload_kind)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"active\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * max by(namespace,workload,workload_uid,workload_kind)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"low_activity\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * max by(namespace,workload,workload_uid,workload_kind)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"warming\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * max by(namespace,workload,workload_uid,workload_kind)((workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"} and (time()-timestamp(workload_gpu_observer_state{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) and on(namespace,workload_uid) (max by(namespace,workload_uid)(max_over_time(workload_gpu_observer_assigned_devices{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}[15m] @ end())) > 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 2,
+    "title": "Workloads",
+    "query": "count((group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 3,
+    "title": "Pods",
+    "query": "count(karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 4,
+    "title": "Workload health",
+    "query": "(sum(min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})) / count(min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}))) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 5,
+    "title": "CPU",
+    "query": "1000 * sum(sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"}[2m]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 6,
+    "title": "Memory",
+    "query": "sum(sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 7,
+    "title": "Scrape health",
+    "query": "avg(up{job=~\"karta-(exporter|finite-exporter)\"})",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 202,
+    "title": "Top 8 workloads by CPU",
+    "query": "1000 * topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"}[2m]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 203,
+    "title": "Top 8 workloads by memory",
+    "query": "topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 204,
+    "title": "Workload CPU over time",
+    "query": "1000 * topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"}[2m]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 205,
+    "title": "Workload memory over time",
+    "query": "topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 27,
+    "title": "Reported workload phases",
+    "query": "sum by(phase)(max by(namespace,workload_uid,phase)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"})) > 0",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 29,
+    "title": "Unhealthy described workloads",
+    "query": "sum(min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == bool 0) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 206,
+    "title": "Observed workloads / click a workload for components and Pods",
+    "query": "(((count by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) * on(namespace,workload_uid) group_left(observation) ((label_replace((min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == 1),\"observation\",\"Healthy\",\"\",\".*\") or label_replace((min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == bool 0),\"observation\",\"Unhealthy\",\"\",\".*\") == 1) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1))) or label_replace((((count by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) unless on(namespace,workload_uid) ((label_replace((min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == 1),\"observation\",\"Healthy\",\"\",\".*\") or label_replace((min by(namespace,workload_uid)(karta_exporter_observation_healthy{scope=\"workload\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == bool 0),\"observation\",\"Unhealthy\",\"\",\".*\") == 1) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1))),\"observation\",\"Unknown\",\"\",\".*\")",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 35,
+    "title": "Workload lifecycle / each matching phase shown",
+    "query": "max by(namespace,workload,workload_kind,workload_uid,phase)(karta_workload_status{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) == 1",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 9,
+    "title": "Top 8 CPU components",
+    "query": "label_replace(label_replace(1000 * (topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"}[2m]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"}))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 10,
+    "title": "Top 8 memory components",
+    "query": "label_replace(label_replace(topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 11,
+    "title": "CPU over time",
+    "query": "label_replace(label_replace(1000 * (topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"}[2m]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"}))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 12,
+    "title": "Memory over time",
+    "query": "label_replace(label_replace(topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"karta-metrics-workloads\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 28,
+    "title": "Pod distribution by component",
+    "query": "label_replace(label_replace(topk(10,count by(namespace,workload,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 24,
+    "title": "Maximum GPU utilization by component",
+    "query": "label_replace(label_replace(max by(namespace,workload,workload_uid,component,component_instance)((max by(namespace,pod_uid,node,UUID,gpu,GPU_I_ID,GPU_CI_ID)((DCGM_FI_DEV_GPU_UTIL{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\"karta-metrics-workloads\",pod_uid!=\"\"} and (time()-timestamp(DCGM_FI_DEV_GPU_UTIL{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\"karta-metrics-workloads\",pod_uid!=\"\"}) < 45))) * on(namespace,pod_uid) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"}) and on(namespace,workload_uid) (max by(namespace,workload_uid)((workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} == 1) and (time()-timestamp(workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 25,
+    "title": "GPU memory by component",
+    "query": "label_replace(label_replace(sum by(namespace,workload,workload_uid,component,component_instance)((max by(namespace,pod_uid,node,UUID,gpu,GPU_I_ID,GPU_CI_ID)((DCGM_FI_DEV_FB_USED{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\"karta-metrics-workloads\",pod_uid!=\"\"} and (time()-timestamp(DCGM_FI_DEV_FB_USED{job=\"karta-real-dcgm-native\",source=\"dcgm\",namespace=~\"karta-metrics-workloads\",pod_uid!=\"\"}) < 45))) * on(namespace,pod_uid) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"}) and on(namespace,workload_uid) (max by(namespace,workload_uid)((workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"} == 1) and (time()-timestamp(workload_gpu_observer_observation_healthy{reason=\"none\",namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 14,
+    "title": "Source health",
+    "query": "min(gpu_observer_source_healthy)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 15,
+    "title": "Observer scrape age",
+    "query": "time() - max(timestamp(gpu_observer_source_healthy))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 16,
+    "title": "Observation window",
+    "query": "max(gpu_observer_window_seconds)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 17,
+    "title": "Activity threshold",
+    "query": "max(gpu_observer_threshold_ratio)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 18,
+    "title": "Observed GPUs",
+    "query": "count(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_kernel_inactive_ratio{source=\"dcgm\",UUID=~\".*\"}))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 19,
+    "title": "Kernel inactivity",
+    "query": "avg(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_kernel_inactive_ratio{source=\"dcgm\",UUID=~\".*\"}))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 20,
+    "title": "Low, Pod label set",
+    "query": "sum(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_low_activity{source=\"dcgm\",UUID=~\".*\",allocation=\"reported\"})) and on() (count(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_low_activity{source=\"dcgm\",UUID=~\".*\",allocation=\"reported\"})) == count(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_kernel_inactive_ratio{source=\"dcgm\",UUID=~\".*\",allocation=\"reported\"})))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 21,
+    "title": "No Pod label set",
+    "query": "count(max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_kernel_inactive_ratio{source=\"dcgm\",UUID=~\".*\",allocation=\"none_reported\"}))",
+    "success": true,
+    "series": 0,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 22,
+    "title": "Kernel inactivity by device",
+    "query": "max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_kernel_inactive_ratio{source=\"dcgm\",UUID=~\".*\"})",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 23,
+    "title": "Sustained low activity by device",
+    "query": "max by(node,UUID,gpu,GPU_I_ID,GPU_CI_ID,source,allocation,reported_namespace,reported_pod,reported_container)(gpu_observer_low_activity{source=\"dcgm\",UUID=~\".*\"})",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 31,
+    "title": "Scrape duration by replica",
+    "query": "scrape_duration_seconds{job=~\"karta-(exporter|finite-exporter)\"}",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 32,
+    "title": "Attribution sample age",
+    "query": "time() - max by(exporter_pod)(timestamp(karta_pod_workload_info))",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 33,
+    "title": "Scrape payload samples",
+    "query": "scrape_samples_scraped{job=~\"karta-(exporter|finite-exporter)\"}",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 36,
+    "title": "Pod attribution details",
+    "query": "karta:pod_attribution:unique{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",component=~\".*\",component_instance=~\".*\"}",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "karta.json",
+    "panel": 37,
+    "title": "Unavailable or unhealthy resource-type definitions",
+    "query": "count by(reason)(min by(namespace,group,version,kind,reason)(karta_exporter_observation_healthy{scope=\"resource_type\"}) == 0)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "metric-samples.json",
+    "panel": 2,
+    "title": "${metric} / labels and values",
+    "query": "DCGM_FI_DEV_GPU_UTIL{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",workload_uid=~\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}\nor (\n  DCGM_FI_DEV_GPU_UTIL{namespace=~\"karta-metrics-workloads\",pod_uid!=\"\"}\n  and on(namespace,pod_uid)\n  max by(namespace,pod_uid)(\n    karta_pod_workload_info{namespace=~\"karta-metrics-workloads\",workload=~\"real-pytorch-verified\",workload_uid=~\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}\n  )\n)",
+    "success": true,
+    "series": 2,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 2,
+    "title": "Karta attribution structure",
+    "query": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\"),\"color\",\"#73bf69\",\"state\",\"active\"),\"color\",\"#5794f2\",\"state\",\"low_activity\"),\"color\",\"#f2cc0c\",\"state\",\"warming\"),\"color\",\"#8e8e8e\",\"state\",\"unknown\"),\"color\",\"#8e8e8e\",\"state\",\"no_gpu\"),\"detail__activity_reason\",\"$1\",\"reason\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_workload_status{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_exporter_observation_healthy{scope=\"workload\",namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"id\",\"component|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Component\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"id\",\"instance|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component_instance\",\"(.*)\"),\"subtitle\",\"Component Instance\",\"\",\".*\"),\"mainstat\",\"Instance\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#b877d9\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"id\",\"replica-group|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"replica_group_id\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Replica Group\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#a3a3a3\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"},\"id\",\"|\",\"namespace\",\"pod_uid\"),\"id\",\"pod|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"pod\",\"(.*)\"),\"subtitle\",\"Pod\",\"\",\".*\"),\"mainstat\",\"Pod\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#56b9c8\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\")",
+    "success": true,
+    "series": 5,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 2,
+    "title": "Karta attribution structure",
+    "query": "label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"target\",\"component|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"target\",\"instance|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component-instance containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component-instance containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"source\",\"instance|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component!=\"\",component!=\"<unknown>\",component_instance=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",component=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"detail__relationship\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"target\",\"replica-group|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica group\",\"\",\".*\"),\"detail__relationship\",\"Logical replica group\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"source\",\"replica-group|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica-group membership\",\"\",\".*\"),\"detail__relationship\",\"Logical replica-group membership\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\")",
+    "success": true,
+    "series": 4,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 3,
+    "title": "Measured GPU activity",
+    "query": "sum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 4,
+    "title": "GPU utilization (max)",
+    "query": "(max(workload_gpu_observer_utilization_max_ratio{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"} and (time() - timestamp(workload_gpu_observer_utilization_max_ratio{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() (-1 * (max(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 5,
+    "title": "Low evidence",
+    "query": "(min(workload_gpu_observer_low_activity_observation_seconds{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"} and (time() - timestamp(workload_gpu_observer_low_activity_observation_seconds{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() (-1 * (max(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 6,
+    "title": "Devices",
+    "query": "(max(workload_gpu_observer_assigned_devices{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"} and (time() - timestamp(workload_gpu_observer_assigned_devices{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() (0 * (max(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 7,
+    "title": "Window",
+    "query": "max(workload_gpu_observer_window_seconds)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 8,
+    "title": "Threshold",
+    "query": "max(workload_gpu_observer_threshold_ratio)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 9,
+    "title": "Measured activity over time",
+    "query": "sum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 10,
+    "title": "Measured maximum GPU utilization",
+    "query": "max(workload_gpu_observer_utilization_max_ratio{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\"})",
+    "success": true,
+    "series": 1,
+    "error": null
+  },
+  {
+    "dashboard": "structure.json",
+    "panel": 11,
+    "title": "Evidence reason",
+    "query": "max by(state,reason)(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"karta-metrics-workloads\",workload_uid=\"f6e61db3-232e-4aab-9ab7-567480bd15cf\",source=\"dcgm\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() label_replace(label_replace(vector(1),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")",
+    "success": true,
+    "series": 1,
+    "error": null
+  }
+]

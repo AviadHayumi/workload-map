@@ -1,0 +1,64 @@
+{
+  "real-dra-mig-cycle": {
+    "pod": "real-dra-mig-cycle-master-0",
+    "phases": [
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792013636.7675703,
+        "first_native_state_time": 1792013650.768,
+        "observed_delay_seconds": 14.0
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792013756.7681968,
+        "first_native_state_time": 1792013770.768,
+        "observed_delay_seconds": 14.0
+      },
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792013996.7907887,
+        "first_native_state_time": 1792014010.768,
+        "observed_delay_seconds": 13.977
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792014086.7915328,
+        "first_native_state_time": 1792014100.768,
+        "observed_delay_seconds": 13.976
+      }
+    ],
+    "completed": true,
+    "maximum_transition_delay_seconds": 14.0
+  },
+  "real-dra-full-cycle": {
+    "pod": "real-dra-full-cycle-hk24j",
+    "phases": [
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792013631.4707513,
+        "first_native_state_time": 1792013640.471,
+        "observed_delay_seconds": 9.0
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792013751.4709716,
+        "first_native_state_time": 1792013760.471,
+        "observed_delay_seconds": 9.0
+      },
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792013991.4938295,
+        "first_native_state_time": 1792014000.471,
+        "observed_delay_seconds": 8.977
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792014081.4945467,
+        "first_native_state_time": 1792014090.471,
+        "observed_delay_seconds": 8.976
+      }
+    ],
+    "completed": true,
+    "maximum_transition_delay_seconds": 9.0
+  }
+}

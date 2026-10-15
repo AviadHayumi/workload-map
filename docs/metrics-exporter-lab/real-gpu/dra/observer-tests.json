@@ -1,0 +1,7 @@
+{
+  "at": 1792013549.4324522,
+  "command": "go test -race ./examples/workload-gpu-observer",
+  "exit_code": 0,
+  "result": "ok 2.284s",
+  "source_sha256": "6938d70fb933684e65888bbed52bb3eff4ed0dd775763ac59da0e36a1136fd7f"
+}

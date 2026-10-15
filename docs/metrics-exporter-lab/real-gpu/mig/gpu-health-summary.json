@@ -1,0 +1,90 @@
+[
+  {
+    "uuid": "GPU-366924c7-8f17-716b-cc2e-cc89fd89efaa",
+    "mig": "Enabled",
+    "gpu_temperature": "71 C",
+    "memory_temperature": "72 C",
+    "power": "250.41 W",
+    "power_limit": "250.00 W",
+    "remapped_rows": "<remapped_rows>N/A</remapped_rows>\n\t\t",
+    "throttling": {
+      "clocks_event_reason_gpu_idle": "Not Active",
+      "clocks_event_reason_applications_clocks_setting": "Not Active",
+      "clocks_event_reason_sw_power_cap": "Active",
+      "clocks_event_reason_hw_slowdown": "Not Active",
+      "clocks_event_reason_hw_thermal_slowdown": "Not Active",
+      "clocks_event_reason_hw_power_brake_slowdown": "Not Active",
+      "clocks_event_reason_sync_boost": "Not Active",
+      "clocks_event_reason_sw_thermal_slowdown": "Not Active",
+      "clocks_event_reason_display_clocks_setting": "Not Active"
+    },
+    "ecc": {
+      "volatile": {
+        "sram_correctable": "0",
+        "sram_uncorrectable_parity": "0",
+        "sram_uncorrectable_secded": "0",
+        "dram_correctable": "0",
+        "dram_uncorrectable": "0"
+      },
+      "aggregate": {
+        "sram_correctable": "0",
+        "sram_uncorrectable_parity": "0",
+        "sram_uncorrectable_secded": "0",
+        "dram_correctable": "0",
+        "dram_uncorrectable": "0",
+        "sram_threshold_exceeded": "No"
+      },
+      "aggregate_uncorrectable_sram_sources": {
+        "sram_l2": "0",
+        "sram_sm": "0",
+        "sram_microcontroller": "0",
+        "sram_pcie": "0",
+        "sram_other": "0"
+      }
+    }
+  },
+  {
+    "uuid": "GPU-62843a4d-db8e-f3a8-119a-d1cbbe4091cc",
+    "mig": "Disabled",
+    "gpu_temperature": "55 C",
+    "memory_temperature": "56 C",
+    "power": "46.07 W",
+    "power_limit": "250.00 W",
+    "remapped_rows": "<remapped_rows>\n\t\t\t<remapped_row_corr>0</remapped_row_corr>\n\t\t\t<remapped_row_corr_inactive>0</remapped_row_corr_inactive>\n\t\t\t<remapped_row_unc>0</remapped_row_unc>\n\t\t\t<remapped_row_unc_inactive>0</remapped_row_unc_inactive>\n\t\t\t<remapped_row_pending>No</remapped_row_pending>\n\t\t\t<remapped_row_failure>No</remapped_row_failure>\n\t\t\t<row_remapper_histogram>\n\t\t\t\t<row_remapper_histogram_max>640 bank(s)</row_remapper_histogram_max>\n\t\t\t\t<row_remapper_histogram_high>0 bank(s)</row_remapper_histogram_high>\n\t\t\t\t<row_remapper_histogram_partial>0 bank(s)</row_remapper_histogram_partial>\n\t\t\t\t<row_remapper_histogram_low>0 bank(s)</row_remapper_histogram_low>\n\t\t\t\t<row_remapper_histogram_none>0 bank(s)</row_remapper_histogram_none>\n\t\t\t</row_remapper_histogram>\n\t\t</remapped_rows>\n\t\t",
+    "throttling": {
+      "clocks_event_reason_gpu_idle": "Active",
+      "clocks_event_reason_applications_clocks_setting": "Not Active",
+      "clocks_event_reason_sw_power_cap": "Not Active",
+      "clocks_event_reason_hw_slowdown": "Not Active",
+      "clocks_event_reason_hw_thermal_slowdown": "Not Active",
+      "clocks_event_reason_hw_power_brake_slowdown": "Not Active",
+      "clocks_event_reason_sync_boost": "Not Active",
+      "clocks_event_reason_sw_thermal_slowdown": "Not Active",
+      "clocks_event_reason_display_clocks_setting": "Not Active"
+    },
+    "ecc": {
+      "volatile": {
+        "sram_correctable": "0",
+        "sram_uncorrectable_parity": "0",
+        "sram_uncorrectable_secded": "0",
+        "dram_correctable": "0",
+        "dram_uncorrectable": "0"
+      },
+      "aggregate": {
+        "sram_correctable": "0",
+        "sram_uncorrectable_parity": "0",
+        "sram_uncorrectable_secded": "0",
+        "dram_correctable": "0",
+        "dram_uncorrectable": "0",
+        "sram_threshold_exceeded": "No"
+      },
+      "aggregate_uncorrectable_sram_sources": {
+        "sram_l2": "0",
+        "sram_sm": "0",
+        "sram_microcontroller": "0",
+        "sram_pcie": "0",
+        "sram_other": "0"
+      }
+    }
+  }
+]

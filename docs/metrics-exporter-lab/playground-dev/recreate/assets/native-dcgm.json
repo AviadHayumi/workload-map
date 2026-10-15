@@ -1,0 +1,785 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "karta-dcgm-nvml",
+        "namespace": "karta-metrics-poc",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      },
+      "data": {
+        "counters.csv": "DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization percent.\nDCGM_FI_DEV_FB_USED, gauge, Framebuffer used MiB.\nDCGM_FI_DEV_FB_FREE, gauge, Framebuffer free MiB.\nDCGM_FI_DEV_GPU_TEMP, gauge, GPU temperature C.\nDCGM_FI_DEV_POWER_USAGE, gauge, GPU power W.\n",
+        "config-0.yaml": "{\"device_defaults\": {\"accounting\": {\"buffer_size\": 4000, \"mode\": \"disabled\"}, \"addressing_mode\": \"hmm\", \"architecture\": \"volta\", \"bar1_memory\": {\"free_bytes\": 274877906944, \"total_bytes\": 274877906944, \"used_bytes\": 0}, \"board_part_number\": \"699-21010-0200-000\", \"brand\": \"nvidia\", \"clocks\": {\"graphics_app\": 1980, \"graphics_app_default\": 1980, \"graphics_current\": 345, \"graphics_max\": 1980, \"memory_app\": 2619, \"memory_app_default\": 2619, \"memory_current\": 2619, \"memory_max\": 2619, \"sm_current\": 345, \"sm_max\": 1980, \"video_current\": 345, \"video_max\": 1980}, \"clocks_throttle_reasons\": {\"applications_clocks_setting\": false, \"display_clocks_setting\": false, \"gpu_idle\": true, \"hw_power_brake_slowdown\": false, \"hw_slowdown\": false, \"hw_thermal_slowdown\": false, \"sw_power_cap\": false, \"sw_thermal_slowdown\": false, \"sync_boost\": false}, \"compute_capability\": {\"major\": 7, \"minor\": 0}, \"compute_mode\": \"default\", \"display\": {\"active\": \"disabled\", \"mode\": \"disabled\"}, \"driver_model\": {\"current\": \"N/A\", \"pending\": \"N/A\"}, \"dynamic_metrics\": {\"enabled\": false}, \"ecc\": {\"default_mode\": \"enabled\", \"errors\": {\"aggregate\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}, \"volatile\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}}, \"mode_current\": \"enabled\", \"mode_pending\": \"enabled\"}, \"encoder_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"fan\": {\"count\": 0, \"speed_percent\": \"N/A\", \"target_speed_percent\": \"N/A\"}, \"fbc_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"features\": {\"fp8_support\": true, \"transformer_engine\": true}, \"gpu_operation_mode\": {\"current\": \"all_on\", \"pending\": \"all_on\"}, \"gsp_firmware\": {\"mode\": \"enabled\", \"version\": \"580.65.06\"}, \"inforom\": {\"ecc_object\": \"7.16\", \"image_version\": \"H100.0200.00.04\", \"oem_object\": \"2.1\", \"pwr_object\": \"N/A\"}, \"memory\": {\"free_bytes\": 12582912000, \"memory_bus_width\": 4096, \"reserved_bytes\": 0, \"total_bytes\": 12582912000, \"used_bytes\": 0}, \"name\": \"Tesla-V100\", \"num_gpu_cores\": 5120, \"pci\": {\"device_id\": 590352606, \"subsystem_id\": 381751518}, \"pcie\": {\"current_link_gen\": 5, \"current_link_width\": 16, \"max_link_gen\": 5, \"max_link_width\": 16, \"replay_counter\": 0, \"rx_throughput_kbps\": 0, \"tx_throughput_kbps\": 0}, \"performance_state\": \"P0\", \"persistence_mode\": \"enabled\", \"power\": {\"current_draw_mw\": 95000, \"default_limit_mw\": 700000, \"enforced_limit_mw\": 700000, \"management_mode\": \"enabled\", \"management_supported\": true, \"max_limit_mw\": 700000, \"min_limit_mw\": 200000, \"power_state\": \"P0\", \"total_energy_consumption_mj\": 600000}, \"processes\": [], \"remapped_rows\": {\"availability_histogram\": {\"high\": 0, \"low\": 0, \"max\": 1280, \"none\": 0, \"partial\": 0}, \"correctable\": 0, \"failure_occurred\": false, \"pending\": false, \"uncorrectable\": 0}, \"retired_pages\": {\"double_bit_retirement\": {\"addresses\": [], \"count\": 0}, \"pending_blacklist\": false, \"pending_retirement\": false, \"single_bit_retirement\": {\"addresses\": [], \"count\": 0}}, \"serial\": \"1562821083900\", \"supported_clocks\": {\"memory_clocks\": [{\"freq_mhz\": 2619, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}, {\"freq_mhz\": 1593, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}]}, \"thermal\": {\"max_operating_c\": 83, \"shutdown_threshold_c\": 92, \"slowdown_threshold_c\": 87, \"target_temperature_c\": 83, \"temperature_gpu_c\": 34, \"temperature_memory_c\": 32}, \"utilization\": {\"gpu\": 0, \"memory\": 0}, \"vbios_version\": \"96.00.74.00.09\", \"virtualization\": {\"host_vgpu_mode\": \"N/A\", \"mode\": \"none\"}}, \"devices\": [{\"index\": 0, \"pci\": {\"bus_id\": \"0000:01:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000000\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000000\"}, {\"index\": 1, \"pci\": {\"bus_id\": \"0000:02:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000001\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000001\"}, {\"index\": 2, \"pci\": {\"bus_id\": \"0000:03:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000002\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000002\"}, {\"index\": 3, \"pci\": {\"bus_id\": \"0000:04:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000003\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000003\"}, {\"index\": 4, \"pci\": {\"bus_id\": \"0000:05:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000004\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000004\"}, {\"index\": 5, \"pci\": {\"bus_id\": \"0000:06:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000005\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000005\"}, {\"index\": 6, \"pci\": {\"bus_id\": \"0000:07:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000006\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000006\"}, {\"index\": 7, \"pci\": {\"bus_id\": \"0000:08:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000007\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000007\"}], \"system\": {\"cuda_version\": \"13.0\", \"cuda_version_major\": 13, \"cuda_version_minor\": 0, \"driver_version\": \"580.65.06\", \"num_devices\": 8, \"nvml_version\": \"13.580.65\"}, \"version\": \"1.0\"}",
+        "config-1.yaml": "{\"device_defaults\": {\"accounting\": {\"buffer_size\": 4000, \"mode\": \"disabled\"}, \"addressing_mode\": \"hmm\", \"architecture\": \"volta\", \"bar1_memory\": {\"free_bytes\": 274877906944, \"total_bytes\": 274877906944, \"used_bytes\": 0}, \"board_part_number\": \"699-21010-0200-000\", \"brand\": \"nvidia\", \"clocks\": {\"graphics_app\": 1980, \"graphics_app_default\": 1980, \"graphics_current\": 345, \"graphics_max\": 1980, \"memory_app\": 2619, \"memory_app_default\": 2619, \"memory_current\": 2619, \"memory_max\": 2619, \"sm_current\": 345, \"sm_max\": 1980, \"video_current\": 345, \"video_max\": 1980}, \"clocks_throttle_reasons\": {\"applications_clocks_setting\": false, \"display_clocks_setting\": false, \"gpu_idle\": true, \"hw_power_brake_slowdown\": false, \"hw_slowdown\": false, \"hw_thermal_slowdown\": false, \"sw_power_cap\": false, \"sw_thermal_slowdown\": false, \"sync_boost\": false}, \"compute_capability\": {\"major\": 7, \"minor\": 0}, \"compute_mode\": \"default\", \"display\": {\"active\": \"disabled\", \"mode\": \"disabled\"}, \"driver_model\": {\"current\": \"N/A\", \"pending\": \"N/A\"}, \"dynamic_metrics\": {\"enabled\": false}, \"ecc\": {\"default_mode\": \"enabled\", \"errors\": {\"aggregate\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}, \"volatile\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}}, \"mode_current\": \"enabled\", \"mode_pending\": \"enabled\"}, \"encoder_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"fan\": {\"count\": 0, \"speed_percent\": \"N/A\", \"target_speed_percent\": \"N/A\"}, \"fbc_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"features\": {\"fp8_support\": true, \"transformer_engine\": true}, \"gpu_operation_mode\": {\"current\": \"all_on\", \"pending\": \"all_on\"}, \"gsp_firmware\": {\"mode\": \"enabled\", \"version\": \"580.65.06\"}, \"inforom\": {\"ecc_object\": \"7.16\", \"image_version\": \"H100.0200.00.04\", \"oem_object\": \"2.1\", \"pwr_object\": \"N/A\"}, \"memory\": {\"free_bytes\": 12582912000, \"memory_bus_width\": 4096, \"reserved_bytes\": 0, \"total_bytes\": 12582912000, \"used_bytes\": 0}, \"name\": \"Tesla-V100\", \"num_gpu_cores\": 5120, \"pci\": {\"device_id\": 590352606, \"subsystem_id\": 381751518}, \"pcie\": {\"current_link_gen\": 5, \"current_link_width\": 16, \"max_link_gen\": 5, \"max_link_width\": 16, \"replay_counter\": 0, \"rx_throughput_kbps\": 0, \"tx_throughput_kbps\": 0}, \"performance_state\": \"P0\", \"persistence_mode\": \"enabled\", \"power\": {\"current_draw_mw\": 95000, \"default_limit_mw\": 700000, \"enforced_limit_mw\": 700000, \"management_mode\": \"enabled\", \"management_supported\": true, \"max_limit_mw\": 700000, \"min_limit_mw\": 200000, \"power_state\": \"P0\", \"total_energy_consumption_mj\": 600000}, \"processes\": [], \"remapped_rows\": {\"availability_histogram\": {\"high\": 0, \"low\": 0, \"max\": 1280, \"none\": 0, \"partial\": 0}, \"correctable\": 0, \"failure_occurred\": false, \"pending\": false, \"uncorrectable\": 0}, \"retired_pages\": {\"double_bit_retirement\": {\"addresses\": [], \"count\": 0}, \"pending_blacklist\": false, \"pending_retirement\": false, \"single_bit_retirement\": {\"addresses\": [], \"count\": 0}}, \"serial\": \"1562821083900\", \"supported_clocks\": {\"memory_clocks\": [{\"freq_mhz\": 2619, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}, {\"freq_mhz\": 1593, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}]}, \"thermal\": {\"max_operating_c\": 83, \"shutdown_threshold_c\": 92, \"slowdown_threshold_c\": 87, \"target_temperature_c\": 83, \"temperature_gpu_c\": 34, \"temperature_memory_c\": 32}, \"utilization\": {\"gpu\": 0, \"memory\": 0}, \"vbios_version\": \"96.00.74.00.09\", \"virtualization\": {\"host_vgpu_mode\": \"N/A\", \"mode\": \"none\"}}, \"devices\": [{\"index\": 0, \"pci\": {\"bus_id\": \"0000:09:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000008\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000000\"}, {\"index\": 1, \"pci\": {\"bus_id\": \"0000:0A:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000009\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000001\"}, {\"index\": 2, \"pci\": {\"bus_id\": \"0000:0B:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000010\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000002\"}, {\"index\": 3, \"pci\": {\"bus_id\": \"0000:0C:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000011\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000003\"}, {\"index\": 4, \"pci\": {\"bus_id\": \"0000:0D:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000012\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000004\"}, {\"index\": 5, \"pci\": {\"bus_id\": \"0000:0E:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000013\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000005\"}, {\"index\": 6, \"pci\": {\"bus_id\": \"0000:0F:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000014\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000006\"}, {\"index\": 7, \"pci\": {\"bus_id\": \"0000:10:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000015\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000007\"}], \"system\": {\"cuda_version\": \"13.0\", \"cuda_version_major\": 13, \"cuda_version_minor\": 0, \"driver_version\": \"580.65.06\", \"num_devices\": 8, \"nvml_version\": \"13.580.65\"}, \"version\": \"1.0\"}",
+        "config-2.yaml": "{\"device_defaults\": {\"accounting\": {\"buffer_size\": 4000, \"mode\": \"disabled\"}, \"addressing_mode\": \"hmm\", \"architecture\": \"volta\", \"bar1_memory\": {\"free_bytes\": 274877906944, \"total_bytes\": 274877906944, \"used_bytes\": 0}, \"board_part_number\": \"699-21010-0200-000\", \"brand\": \"nvidia\", \"clocks\": {\"graphics_app\": 1980, \"graphics_app_default\": 1980, \"graphics_current\": 345, \"graphics_max\": 1980, \"memory_app\": 2619, \"memory_app_default\": 2619, \"memory_current\": 2619, \"memory_max\": 2619, \"sm_current\": 345, \"sm_max\": 1980, \"video_current\": 345, \"video_max\": 1980}, \"clocks_throttle_reasons\": {\"applications_clocks_setting\": false, \"display_clocks_setting\": false, \"gpu_idle\": true, \"hw_power_brake_slowdown\": false, \"hw_slowdown\": false, \"hw_thermal_slowdown\": false, \"sw_power_cap\": false, \"sw_thermal_slowdown\": false, \"sync_boost\": false}, \"compute_capability\": {\"major\": 7, \"minor\": 0}, \"compute_mode\": \"default\", \"display\": {\"active\": \"disabled\", \"mode\": \"disabled\"}, \"driver_model\": {\"current\": \"N/A\", \"pending\": \"N/A\"}, \"dynamic_metrics\": {\"enabled\": false}, \"ecc\": {\"default_mode\": \"enabled\", \"errors\": {\"aggregate\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}, \"volatile\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}}, \"mode_current\": \"enabled\", \"mode_pending\": \"enabled\"}, \"encoder_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"fan\": {\"count\": 0, \"speed_percent\": \"N/A\", \"target_speed_percent\": \"N/A\"}, \"fbc_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"features\": {\"fp8_support\": true, \"transformer_engine\": true}, \"gpu_operation_mode\": {\"current\": \"all_on\", \"pending\": \"all_on\"}, \"gsp_firmware\": {\"mode\": \"enabled\", \"version\": \"580.65.06\"}, \"inforom\": {\"ecc_object\": \"7.16\", \"image_version\": \"H100.0200.00.04\", \"oem_object\": \"2.1\", \"pwr_object\": \"N/A\"}, \"memory\": {\"free_bytes\": 12582912000, \"memory_bus_width\": 4096, \"reserved_bytes\": 0, \"total_bytes\": 12582912000, \"used_bytes\": 0}, \"name\": \"Tesla-V100\", \"num_gpu_cores\": 5120, \"pci\": {\"device_id\": 590352606, \"subsystem_id\": 381751518}, \"pcie\": {\"current_link_gen\": 5, \"current_link_width\": 16, \"max_link_gen\": 5, \"max_link_width\": 16, \"replay_counter\": 0, \"rx_throughput_kbps\": 0, \"tx_throughput_kbps\": 0}, \"performance_state\": \"P0\", \"persistence_mode\": \"enabled\", \"power\": {\"current_draw_mw\": 95000, \"default_limit_mw\": 700000, \"enforced_limit_mw\": 700000, \"management_mode\": \"enabled\", \"management_supported\": true, \"max_limit_mw\": 700000, \"min_limit_mw\": 200000, \"power_state\": \"P0\", \"total_energy_consumption_mj\": 600000}, \"processes\": [], \"remapped_rows\": {\"availability_histogram\": {\"high\": 0, \"low\": 0, \"max\": 1280, \"none\": 0, \"partial\": 0}, \"correctable\": 0, \"failure_occurred\": false, \"pending\": false, \"uncorrectable\": 0}, \"retired_pages\": {\"double_bit_retirement\": {\"addresses\": [], \"count\": 0}, \"pending_blacklist\": false, \"pending_retirement\": false, \"single_bit_retirement\": {\"addresses\": [], \"count\": 0}}, \"serial\": \"1562821083900\", \"supported_clocks\": {\"memory_clocks\": [{\"freq_mhz\": 2619, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}, {\"freq_mhz\": 1593, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}]}, \"thermal\": {\"max_operating_c\": 83, \"shutdown_threshold_c\": 92, \"slowdown_threshold_c\": 87, \"target_temperature_c\": 83, \"temperature_gpu_c\": 34, \"temperature_memory_c\": 32}, \"utilization\": {\"gpu\": 0, \"memory\": 0}, \"vbios_version\": \"96.00.74.00.09\", \"virtualization\": {\"host_vgpu_mode\": \"N/A\", \"mode\": \"none\"}}, \"devices\": [{\"index\": 0, \"pci\": {\"bus_id\": \"0000:11:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000016\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000000\"}, {\"index\": 1, \"pci\": {\"bus_id\": \"0000:12:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000017\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000001\"}, {\"index\": 2, \"pci\": {\"bus_id\": \"0000:13:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000018\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000002\"}, {\"index\": 3, \"pci\": {\"bus_id\": \"0000:14:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000019\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000003\"}, {\"index\": 4, \"pci\": {\"bus_id\": \"0000:15:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000020\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000004\"}, {\"index\": 5, \"pci\": {\"bus_id\": \"0000:16:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000021\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000005\"}, {\"index\": 6, \"pci\": {\"bus_id\": \"0000:17:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000022\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000006\"}, {\"index\": 7, \"pci\": {\"bus_id\": \"0000:18:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000023\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000007\"}], \"system\": {\"cuda_version\": \"13.0\", \"cuda_version_major\": 13, \"cuda_version_minor\": 0, \"driver_version\": \"580.65.06\", \"num_devices\": 8, \"nvml_version\": \"13.580.65\"}, \"version\": \"1.0\"}",
+        "config-3.yaml": "{\"device_defaults\": {\"accounting\": {\"buffer_size\": 4000, \"mode\": \"disabled\"}, \"addressing_mode\": \"hmm\", \"architecture\": \"volta\", \"bar1_memory\": {\"free_bytes\": 274877906944, \"total_bytes\": 274877906944, \"used_bytes\": 0}, \"board_part_number\": \"699-21010-0200-000\", \"brand\": \"nvidia\", \"clocks\": {\"graphics_app\": 1980, \"graphics_app_default\": 1980, \"graphics_current\": 345, \"graphics_max\": 1980, \"memory_app\": 2619, \"memory_app_default\": 2619, \"memory_current\": 2619, \"memory_max\": 2619, \"sm_current\": 345, \"sm_max\": 1980, \"video_current\": 345, \"video_max\": 1980}, \"clocks_throttle_reasons\": {\"applications_clocks_setting\": false, \"display_clocks_setting\": false, \"gpu_idle\": true, \"hw_power_brake_slowdown\": false, \"hw_slowdown\": false, \"hw_thermal_slowdown\": false, \"sw_power_cap\": false, \"sw_thermal_slowdown\": false, \"sync_boost\": false}, \"compute_capability\": {\"major\": 7, \"minor\": 0}, \"compute_mode\": \"default\", \"display\": {\"active\": \"disabled\", \"mode\": \"disabled\"}, \"driver_model\": {\"current\": \"N/A\", \"pending\": \"N/A\"}, \"dynamic_metrics\": {\"enabled\": false}, \"ecc\": {\"default_mode\": \"enabled\", \"errors\": {\"aggregate\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}, \"volatile\": {\"double_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}, \"single_bit\": {\"device_memory\": 0, \"l1_cache\": 0, \"l2_cache\": 0, \"register_file\": 0, \"texture_memory\": 0, \"total\": 0}}}, \"mode_current\": \"enabled\", \"mode_pending\": \"enabled\"}, \"encoder_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"fan\": {\"count\": 0, \"speed_percent\": \"N/A\", \"target_speed_percent\": \"N/A\"}, \"fbc_stats\": {\"average_fps\": 0, \"average_latency_us\": 0, \"session_count\": 0}, \"features\": {\"fp8_support\": true, \"transformer_engine\": true}, \"gpu_operation_mode\": {\"current\": \"all_on\", \"pending\": \"all_on\"}, \"gsp_firmware\": {\"mode\": \"enabled\", \"version\": \"580.65.06\"}, \"inforom\": {\"ecc_object\": \"7.16\", \"image_version\": \"H100.0200.00.04\", \"oem_object\": \"2.1\", \"pwr_object\": \"N/A\"}, \"memory\": {\"free_bytes\": 12582912000, \"memory_bus_width\": 4096, \"reserved_bytes\": 0, \"total_bytes\": 12582912000, \"used_bytes\": 0}, \"name\": \"Tesla-V100\", \"num_gpu_cores\": 5120, \"pci\": {\"device_id\": 590352606, \"subsystem_id\": 381751518}, \"pcie\": {\"current_link_gen\": 5, \"current_link_width\": 16, \"max_link_gen\": 5, \"max_link_width\": 16, \"replay_counter\": 0, \"rx_throughput_kbps\": 0, \"tx_throughput_kbps\": 0}, \"performance_state\": \"P0\", \"persistence_mode\": \"enabled\", \"power\": {\"current_draw_mw\": 95000, \"default_limit_mw\": 700000, \"enforced_limit_mw\": 700000, \"management_mode\": \"enabled\", \"management_supported\": true, \"max_limit_mw\": 700000, \"min_limit_mw\": 200000, \"power_state\": \"P0\", \"total_energy_consumption_mj\": 600000}, \"processes\": [], \"remapped_rows\": {\"availability_histogram\": {\"high\": 0, \"low\": 0, \"max\": 1280, \"none\": 0, \"partial\": 0}, \"correctable\": 0, \"failure_occurred\": false, \"pending\": false, \"uncorrectable\": 0}, \"retired_pages\": {\"double_bit_retirement\": {\"addresses\": [], \"count\": 0}, \"pending_blacklist\": false, \"pending_retirement\": false, \"single_bit_retirement\": {\"addresses\": [], \"count\": 0}}, \"serial\": \"1562821083900\", \"supported_clocks\": {\"memory_clocks\": [{\"freq_mhz\": 2619, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}, {\"freq_mhz\": 1593, \"graphics_clocks\": [1980, 1965, 1950, 1935, 1920, 1905, 1890, 1875, 1860, 1845, 1830, 1815, 1800, 1785, 1770, 1755, 1740, 1725, 1710, 1695, 1680, 1665, 1650, 1635, 1620, 1605, 1590, 1575, 1560, 1545, 1530, 1515, 1500, 1485, 1470, 1455, 1440, 1425, 1410, 1395, 1380, 1365, 1350, 1335, 1320, 1305, 1290, 1275, 1260, 1245, 1230, 1215, 1200, 1185, 1170, 1155, 1140, 1125, 1110, 1095, 1080, 1065, 1050, 1035, 1020, 1005, 990, 975, 960, 945, 930, 915, 900, 885, 870, 855, 840, 825, 810, 795, 780, 765, 750, 735, 720, 705, 690, 675, 660, 645, 630, 615, 600, 585, 570, 555, 540, 525, 510, 495, 480, 465, 450, 435, 420, 405, 390, 375, 360, 345]}]}, \"thermal\": {\"max_operating_c\": 83, \"shutdown_threshold_c\": 92, \"slowdown_threshold_c\": 87, \"target_temperature_c\": 83, \"temperature_gpu_c\": 34, \"temperature_memory_c\": 32}, \"utilization\": {\"gpu\": 0, \"memory\": 0}, \"vbios_version\": \"96.00.74.00.09\", \"virtualization\": {\"host_vgpu_mode\": \"N/A\", \"mode\": \"none\"}}, \"devices\": [{\"index\": 0, \"pci\": {\"bus_id\": \"0000:19:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000024\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000000\"}, {\"index\": 1, \"pci\": {\"bus_id\": \"0000:1A:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000025\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000001\"}, {\"index\": 2, \"pci\": {\"bus_id\": \"0000:1B:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000026\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000002\"}, {\"index\": 3, \"pci\": {\"bus_id\": \"0000:1C:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000027\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000003\"}, {\"index\": 4, \"pci\": {\"bus_id\": \"0000:1D:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000028\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000004\"}, {\"index\": 5, \"pci\": {\"bus_id\": \"0000:1E:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000029\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000005\"}, {\"index\": 6, \"pci\": {\"bus_id\": \"0000:1F:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000030\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000006\"}, {\"index\": 7, \"pci\": {\"bus_id\": \"0000:20:00.0\", \"device_id\": 498340062, \"subsystem_id\": 303173854}, \"serial\": \"KARTA000031\", \"uuid\": \"GPU-00000000-0000-0000-0000-000000000007\"}], \"system\": {\"cuda_version\": \"13.0\", \"cuda_version_major\": 13, \"cuda_version_minor\": 0, \"driver_version\": \"580.65.06\", \"num_devices\": 8, \"nvml_version\": \"13.580.65\"}, \"version\": \"1.0\"}"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "namespace": "karta-metrics-poc",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "karta-real-dcgm"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "karta-real-dcgm",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "namespace": "karta-metrics-poc",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "karta-real-dcgm"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "karta-real-dcgm"
+            },
+            "annotations": {
+              "karta.dev/control-checksum": "614f7fecde0fca47dc7ad82ead05fc7c33d26ee72dba916742f54cce101dd9d8"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "karta-real-dcgm",
+            "nodeSelector": {
+              "kubernetes.io/hostname": "__GPU_NODE__"
+            },
+            "initContainers": [
+              {
+                "name": "mock-nvml-library",
+                "image": "ghcr.io/nvidia/nvml-mock@sha256:defcaa6cd49744b1e63807b896101f1172263099988109898061c8209f7878e5",
+                "command": [
+                  "/bin/sh",
+                  "-ec",
+                  "cp -a /usr/local/lib/libnvidia-ml.so* /usr/local/lib/libcuda.so* /mock-lib/; cp /usr/local/bin/nvidia-smi /mock-lib/; for i in 0 1 2 3; do printf \"version: 1\\n\" > /mock-state/overrides-$i.yaml; done"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  }
+                ]
+              },
+              {
+                "name": "resolve-device-ids",
+                "image": "python@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d",
+                "command": [
+                  "python3",
+                  "/bridge/init.py"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "bridge",
+                    "mountPath": "/bridge",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  },
+                  {
+                    "name": "kubelet-devices",
+                    "mountPath": "/kubelet-devices",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "containers": [
+              {
+                "name": "dcgm-exporter-0",
+                "image": "nvcr.io/nvidia/k8s/dcgm-exporter@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003",
+                "env": [
+                  {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/mock-lib:/lib/distroless"
+                  },
+                  {
+                    "name": "MOCK_NVML_CONFIG",
+                    "value": "/runtime/config-0.yaml"
+                  },
+                  {
+                    "name": "MOCK_NVML_OVERRIDES",
+                    "value": "/mock-state/overrides-0.yaml"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECT_INTERVAL",
+                    "value": "5000"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_LISTEN",
+                    "value": ":9400"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECTORS",
+                    "value": "/mock-config/counters.csv"
+                  },
+                  {
+                    "name": "NODE_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "ports": [
+                  {
+                    "name": "dcgm-0",
+                    "containerPort": 9400
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "pod-resources",
+                    "mountPath": "/var/lib/kubelet/pod-resources",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "memory": "1Gi"
+                  }
+                },
+                "securityContext": {
+                  "capabilities": {
+                    "add": [
+                      "SYS_ADMIN"
+                    ]
+                  }
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/metrics",
+                    "port": "dcgm-0"
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5
+                }
+              },
+              {
+                "name": "dcgm-exporter-1",
+                "image": "nvcr.io/nvidia/k8s/dcgm-exporter@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003",
+                "env": [
+                  {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/mock-lib:/lib/distroless"
+                  },
+                  {
+                    "name": "MOCK_NVML_CONFIG",
+                    "value": "/runtime/config-1.yaml"
+                  },
+                  {
+                    "name": "MOCK_NVML_OVERRIDES",
+                    "value": "/mock-state/overrides-1.yaml"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECT_INTERVAL",
+                    "value": "5000"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_LISTEN",
+                    "value": ":9401"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECTORS",
+                    "value": "/mock-config/counters.csv"
+                  },
+                  {
+                    "name": "NODE_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "ports": [
+                  {
+                    "name": "dcgm-1",
+                    "containerPort": 9401
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "pod-resources",
+                    "mountPath": "/var/lib/kubelet/pod-resources",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "memory": "1Gi"
+                  }
+                },
+                "securityContext": {
+                  "capabilities": {
+                    "add": [
+                      "SYS_ADMIN"
+                    ]
+                  }
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/metrics",
+                    "port": "dcgm-1"
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5
+                }
+              },
+              {
+                "name": "dcgm-exporter-2",
+                "image": "nvcr.io/nvidia/k8s/dcgm-exporter@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003",
+                "env": [
+                  {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/mock-lib:/lib/distroless"
+                  },
+                  {
+                    "name": "MOCK_NVML_CONFIG",
+                    "value": "/runtime/config-2.yaml"
+                  },
+                  {
+                    "name": "MOCK_NVML_OVERRIDES",
+                    "value": "/mock-state/overrides-2.yaml"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECT_INTERVAL",
+                    "value": "5000"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_LISTEN",
+                    "value": ":9402"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECTORS",
+                    "value": "/mock-config/counters.csv"
+                  },
+                  {
+                    "name": "NODE_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "ports": [
+                  {
+                    "name": "dcgm-2",
+                    "containerPort": 9402
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "pod-resources",
+                    "mountPath": "/var/lib/kubelet/pod-resources",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "memory": "1Gi"
+                  }
+                },
+                "securityContext": {
+                  "capabilities": {
+                    "add": [
+                      "SYS_ADMIN"
+                    ]
+                  }
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/metrics",
+                    "port": "dcgm-2"
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5
+                }
+              },
+              {
+                "name": "dcgm-exporter-3",
+                "image": "nvcr.io/nvidia/k8s/dcgm-exporter@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003",
+                "env": [
+                  {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/mock-lib:/lib/distroless"
+                  },
+                  {
+                    "name": "MOCK_NVML_CONFIG",
+                    "value": "/runtime/config-3.yaml"
+                  },
+                  {
+                    "name": "MOCK_NVML_OVERRIDES",
+                    "value": "/mock-state/overrides-3.yaml"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECT_INTERVAL",
+                    "value": "5000"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_LISTEN",
+                    "value": ":9403"
+                  },
+                  {
+                    "name": "DCGM_EXPORTER_COLLECTORS",
+                    "value": "/mock-config/counters.csv"
+                  },
+                  {
+                    "name": "NODE_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "ports": [
+                  {
+                    "name": "dcgm-3",
+                    "containerPort": 9403
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "pod-resources",
+                    "mountPath": "/var/lib/kubelet/pod-resources",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "memory": "1Gi"
+                  }
+                },
+                "securityContext": {
+                  "capabilities": {
+                    "add": [
+                      "SYS_ADMIN"
+                    ]
+                  }
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/metrics",
+                    "port": "dcgm-3"
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5
+                }
+              },
+              {
+                "name": "nvml-control",
+                "image": "ghcr.io/nvidia/nvml-mock@sha256:defcaa6cd49744b1e63807b896101f1172263099988109898061c8209f7878e5",
+                "command": [
+                  "/bin/sh",
+                  "-ec",
+                  "exec sleep infinity"
+                ],
+                "env": [
+                  {
+                    "name": "MOCK_NVML_CONFIG",
+                    "value": "/runtime/config-0.yaml"
+                  },
+                  {
+                    "name": "MOCK_NVML_OVERRIDES",
+                    "value": "/mock-state/overrides-0.yaml"
+                  },
+                  {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/mock-lib"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "mock-lib",
+                    "mountPath": "/mock-lib"
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/mock-config"
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "32Mi"
+                  },
+                  "limits": {
+                    "memory": "128Mi"
+                  }
+                }
+              },
+              {
+                "name": "dcgm-bridge",
+                "image": "python@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d",
+                "command": [
+                  "python3",
+                  "/bridge/bridge.py"
+                ],
+                "env": [
+                  {
+                    "name": "NODE_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "ports": [
+                  {
+                    "name": "bridge",
+                    "containerPort": 9600
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "bridge",
+                    "mountPath": "/bridge",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "overrides",
+                    "mountPath": "/mock-state"
+                  },
+                  {
+                    "name": "runtime",
+                    "mountPath": "/runtime"
+                  },
+                  {
+                    "name": "kubelet-devices",
+                    "mountPath": "/kubelet-devices",
+                    "readOnly": true
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "20m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "memory": "128Mi"
+                  }
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "bridge"
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 10
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "mock-lib",
+                "emptyDir": {}
+              },
+              {
+                "name": "config",
+                "configMap": {
+                  "name": "karta-dcgm-nvml"
+                }
+              },
+              {
+                "name": "overrides",
+                "emptyDir": {}
+              },
+              {
+                "name": "pod-resources",
+                "hostPath": {
+                  "path": "/var/lib/kubelet/pod-resources",
+                  "type": "Directory"
+                }
+              },
+              {
+                "name": "bridge",
+                "configMap": {
+                  "name": "karta-dcgm-bridge"
+                }
+              },
+              {
+                "name": "runtime",
+                "emptyDir": {}
+              },
+              {
+                "name": "kubelet-devices",
+                "hostPath": {
+                  "path": "/var/lib/kubelet/device-plugins",
+                  "type": "Directory"
+                }
+              }
+            ],
+            "terminationGracePeriodSeconds": 15
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "namespace": "karta-metrics-poc",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-playground",
+          "app": "karta-real-dcgm"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "karta-real-dcgm"
+        },
+        "ports": [
+          {
+            "name": "dcgm-0",
+            "port": 9400,
+            "targetPort": "dcgm-0"
+          },
+          {
+            "name": "dcgm-1",
+            "port": 9401,
+            "targetPort": "dcgm-1"
+          },
+          {
+            "name": "dcgm-2",
+            "port": 9402,
+            "targetPort": "dcgm-2"
+          },
+          {
+            "name": "dcgm-3",
+            "port": 9403,
+            "targetPort": "dcgm-3"
+          },
+          {
+            "name": "bridge",
+            "port": 9600,
+            "targetPort": "bridge"
+          }
+        ],
+        "publishNotReadyAddresses": true
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "karta-dcgm-bridge",
+        "namespace": "karta-metrics-poc"
+      },
+      "data": {
+        "bridge.py": "# SPDX-License-Identifier: Apache-2.0\n# Copyright (c) 2026 NVIDIA Corporation\n\"\"\"Forward NVIDIA DCGM values to the existing observer; drive mock NVML only.\"\"\"\nimport concurrent.futures, http.server, json, math, os, random, re, ssl, threading, time, urllib.request\nfrom pathlib import Path\nNODE=os.environ['NODE_NAME']; NS='karta-metrics-workloads'\nIDS=json.loads(Path('/runtime/devices.json').read_text()); INDEX={v:i for i,v in enumerate(IDS)}\nPAT=re.compile(r'^(DCGM_FI_DEV_[A-Z_]+)\\{(.*)\\} ([^ ]+)(?: .*)?$')\nLABEL=re.compile(r'(\\w+)=(\"(?:[^\"\\\\]|\\\\.)*\")')\nCA='/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'\nTOKEN='/var/run/secrets/kubernetes.io/serviceaccount/token'\nCTX=ssl.create_default_context(cafile=CA)\nstate={'body':b'', 'at':0,'error':'starting'}; lock=threading.Lock()\ndef get(url):\n with urllib.request.urlopen(url,timeout=3) as r:return r.read().decode()\ndef kube_pods():\n req=urllib.request.Request('https://kubernetes.default.svc/api/v1/namespaces/'+NS+'/pods',headers={'Authorization':'Bearer '+Path(TOKEN).read_text().strip()})\n with urllib.request.urlopen(req,context=CTX,timeout=5) as r:return json.load(r)['items']\ndef decode(text):\n result=[]\n for line in text.splitlines():\n  m=PAT.match(line)\n  if not m:continue\n  labels={k:json.loads(v) for k,v in LABEL.findall(m[2])};value=float(m[3])\n  if not math.isfinite(value):raise ValueError('non-finite DCGM value')\n  result.append((m[1],labels,value))\n return result\ndef fmt(name,labels,value):return name+'{'+','.join(k+'='+json.dumps(str(v)) for k,v in sorted(labels.items()))+'} '+str(value)+'\\n'\ndef poll():\n while True:\n  try:\n   live=sorted(json.loads(Path('/kubelet-devices/kubelet_internal_checkpoint').read_text())['Data']['RegisteredDevices']['nvidia.com/gpu'])\n   if live!=IDS:raise ValueError('Device plugin inventory changed; restart karta-real-dcgm to rediscover IDs')\n   with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:\n    texts=list(pool.map(get,['http://127.0.0.1:'+str(9400+i)+'/metrics' for i in range(4)]))\n   now=time.time(); samples=[s for t in texts for s in decode(t)]\n   names={s[0] for s in samples}|{'fake_gpu_source_sample_timestamp_seconds','fake_gpu_source_healthy','karta_dcgm_bridge_scrape_timestamp_seconds'}\n   util={};out=['# TYPE '+n+' gauge\\n' for n in sorted(names)]\n   for name,l,v in samples:\n    uid=l.get('UUID'); node=l.get('hostname',l.get('Hostname'))\n    if uid not in INDEX or node!=NODE:raise ValueError('unexpected DCGM identity')\n    if name=='DCGM_FI_DEV_GPU_UTIL':\n     if uid in util or not 0<=v<=100:raise ValueError('invalid or duplicate device utilization')\n     util[uid]=(l,v)\n    normalized={**l,'node':NODE,'gpu':str(INDEX[uid]),'source':'synthetic'}\n    out.append(fmt(name,normalized,v))\n    if name=='DCGM_FI_DEV_GPU_UTIL':out.append(fmt('fake_gpu_source_sample_timestamp_seconds',normalized,now))\n   if set(util)!=set(IDS):raise ValueError('incomplete DCGM inventory')\n   # Receipt timestamps measure successful DCGM scrapes, not driver sample age.\n   out.append(fmt('fake_gpu_source_healthy',{'node':NODE,'source':'synthetic'},1))\n   out.append(fmt('karta_dcgm_bridge_scrape_timestamp_seconds',{'node':NODE},now))\n   pods={p['metadata']['uid']:p for p in kube_pods()}; overrides=[{'version':1,'devices':{}} for _ in range(4)]\n   # Dynamic 0..0 means 0..100 in mock NVML; use the static utilization field.\n   for uid,(labels,_) in util.items():\n    i=INDEX[uid]; pod=pods.get(labels.get('pod_uid','')); value=0;used=0\n    if labels.get('namespace')==NS:\n     if pod is None or pod['metadata']['name']!=labels.get('pod'):raise ValueError('DCGM Pod UID does not match Kubernetes')\n     raw=pod['metadata'].get('annotations',{}).get('run.ai/simulated-gpu-utilization','0-3')\n     lo,hi=map(int,raw.split('-'));assert 0<=lo<=hi<=100\n     value=random.randint(lo,hi);used=12000*1048576\n    overrides[i//8]['devices'][str(i%8)]={'utilization':{'gpu':value,'memory':value},'memory':{'used_bytes':used,'free_bytes':12000*1048576-used,'reserved_bytes':0}}\n   for i,data in enumerate(overrides):\n    path=Path('/mock-state/overrides-'+str(i)+'.yaml');tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(data));os.replace(tmp,path)\n   with lock:state.update(body=''.join(out).encode(),at=now,error='')\n  except Exception as e:\n   with lock:state['error']=str(e)\n   print('DCGM bridge:',str(e),flush=True)\n  time.sleep(5)\nclass Handler(http.server.BaseHTTPRequestHandler):\n def do_GET(self):\n  with lock:ok=not state['error'] and time.time()-state['at']<20;body=state['body'];error=state['error']\n  if self.path not in ['/metrics','/healthz']:self.send_error(404);return\n  self.send_response(200 if ok else 503);self.send_header('Content-Type','text/plain; version=0.0.4');self.end_headers()\n  self.wfile.write(body if ok and self.path=='/metrics' else ('ok' if ok else error or 'stale').encode())\n def log_message(self,*args):pass\nthreading.Thread(target=poll,daemon=True).start()\nhttp.server.ThreadingHTTPServer(('0.0.0.0',9600),Handler).serve_forever()\n",
+        "init.py": "# SPDX-License-Identifier: Apache-2.0\n# Copyright (c) 2026 NVIDIA Corporation\nimport json\nfrom pathlib import Path\nids=sorted(json.loads(Path('/kubelet-devices/kubelet_internal_checkpoint').read_text())['Data']['RegisteredDevices']['nvidia.com/gpu'])\nif len(ids)!=32 or len(set(ids))!=32:raise ValueError('Expected 32 unique registered full-GPU devices')\nfor i in range(4):\n p=json.loads(Path('/mock-config/config-'+str(i)+'.yaml').read_text())\n for j,d in enumerate(p['devices']):d['uuid']=ids[8*i+j]\n Path('/runtime/config-'+str(i)+'.yaml').write_text(json.dumps(p))\nPath('/runtime/devices.json').write_text(json.dumps(ids))\n"
+      }
+    }
+  ]
+}

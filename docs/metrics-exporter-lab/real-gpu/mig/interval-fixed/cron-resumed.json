@@ -1,0 +1,102 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "CronJob",
+  "metadata": {
+    "annotations": {
+      "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"CronJob\",\"metadata\":{\"annotations\":{},\"name\":\"real-gpu-cycle\",\"namespace\":\"karta-metrics-workloads\"},\"spec\":{\"concurrencyPolicy\":\"Forbid\",\"failedJobsHistoryLimit\":1,\"jobTemplate\":{\"spec\":{\"activeDeadlineSeconds\":900,\"backoffLimit\":0,\"template\":{\"metadata\":{\"labels\":{\"app.kubernetes.io/name\":\"real-gpu-cycle\",\"app.kubernetes.io/part-of\":\"karta-real-gpu-test\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"/test/gpu_cycle.py\"],\"env\":[{\"name\":\"TEST_ROLE\",\"value\":\"master\"},{\"name\":\"PYTHONUNBUFFERED\",\"value\":\"1\"}],\"image\":\"docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755\",\"name\":\"pytorch\",\"resources\":{\"limits\":{\"memory\":\"4Gi\",\"nvidia.com/gpu\":1},\"requests\":{\"cpu\":\"500m\",\"memory\":\"2Gi\",\"nvidia.com/gpu\":1}},\"volumeMounts\":[{\"mountPath\":\"/test\",\"name\":\"test\",\"readOnly\":true}]}],\"restartPolicy\":\"Never\",\"runtimeClassName\":\"nvidia\",\"terminationGracePeriodSeconds\":10,\"volumes\":[{\"configMap\":{\"name\":\"real-gpu-cycle\"},\"name\":\"test\"}]}},\"ttlSecondsAfterFinished\":3600}},\"schedule\":\"*/15 * * * *\",\"startingDeadlineSeconds\":60,\"successfulJobsHistoryLimit\":2,\"timeZone\":\"Etc/UTC\"}}\n"
+    },
+    "creationTimestamp": "2026-10-14T20:03:59Z",
+    "generation": 3,
+    "name": "real-gpu-cycle",
+    "namespace": "karta-metrics-workloads",
+    "resourceVersion": "74926",
+    "uid": "89a43207-0798-42ea-9a36-61bf0b9895e7"
+  },
+  "spec": {
+    "concurrencyPolicy": "Forbid",
+    "failedJobsHistoryLimit": 1,
+    "jobTemplate": {
+      "metadata": {},
+      "spec": {
+        "activeDeadlineSeconds": 900,
+        "backoffLimit": 0,
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/name": "real-gpu-cycle",
+              "app.kubernetes.io/part-of": "karta-real-gpu-test"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "command": [
+                  "python",
+                  "/test/gpu_cycle.py"
+                ],
+                "env": [
+                  {
+                    "name": "TEST_ROLE",
+                    "value": "master"
+                  },
+                  {
+                    "name": "PYTHONUNBUFFERED",
+                    "value": "1"
+                  }
+                ],
+                "image": "docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "pytorch",
+                "resources": {
+                  "limits": {
+                    "memory": "4Gi",
+                    "nvidia.com/gpu": "1"
+                  },
+                  "requests": {
+                    "cpu": "500m",
+                    "memory": "2Gi",
+                    "nvidia.com/gpu": "1"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                  {
+                    "mountPath": "/test",
+                    "name": "test",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Never",
+            "runtimeClassName": "nvidia",
+            "schedulerName": "default-scheduler",
+            "securityContext": {},
+            "terminationGracePeriodSeconds": 10,
+            "volumes": [
+              {
+                "configMap": {
+                  "defaultMode": 420,
+                  "name": "real-gpu-cycle"
+                },
+                "name": "test"
+              }
+            ]
+          }
+        },
+        "ttlSecondsAfterFinished": 3600
+      }
+    },
+    "schedule": "*/15 * * * *",
+    "startingDeadlineSeconds": 60,
+    "successfulJobsHistoryLimit": 2,
+    "suspend": false,
+    "timeZone": "Etc/UTC"
+  },
+  "status": {
+    "lastScheduleTime": "2026-10-14T20:15:00Z",
+    "lastSuccessfulTime": "2026-10-14T20:23:05Z"
+  }
+}

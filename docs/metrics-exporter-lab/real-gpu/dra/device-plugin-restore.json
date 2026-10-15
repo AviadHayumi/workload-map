@@ -1,0 +1,7 @@
+{
+  "spec": {
+    "devicePlugin": {
+      "enabled": true
+    }
+  }
+}

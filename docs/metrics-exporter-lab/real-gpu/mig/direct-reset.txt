@@ -1,0 +1,5 @@
+The following GPUs could not be reset:
+  GPU 00000000:00:06.0: In use by another client
+
+1 device is currently being used by one or more other processes (e.g., Fabric Manager, CUDA application, graphics application such as an X server, or a monitoring application such as another instance of nvidia-smi). Please first kill all processes using this device and all compute applications running in the system.
+command terminated with exit code 255

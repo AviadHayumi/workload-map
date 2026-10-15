@@ -1,0 +1,924 @@
+[
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_assigned_devices",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008148.313,
+        "2"
+      ],
+      [
+        1792008158.313,
+        "2"
+      ],
+      [
+        1792008168.313,
+        "2"
+      ],
+      [
+        1792008178.313,
+        "2"
+      ],
+      [
+        1792008188.313,
+        "2"
+      ],
+      [
+        1792008198.313,
+        "2"
+      ],
+      [
+        1792008208.313,
+        "2"
+      ],
+      [
+        1792008218.313,
+        "2"
+      ],
+      [
+        1792008228.313,
+        "2"
+      ],
+      [
+        1792008238.313,
+        "2"
+      ],
+      [
+        1792008248.313,
+        "2"
+      ],
+      [
+        1792008258.313,
+        "2"
+      ],
+      [
+        1792008268.313,
+        "2"
+      ],
+      [
+        1792008278.313,
+        "2"
+      ],
+      [
+        1792008288.313,
+        "2"
+      ],
+      [
+        1792008298.313,
+        "2"
+      ],
+      [
+        1792008308.313,
+        "2"
+      ],
+      [
+        1792008318.313,
+        "2"
+      ],
+      [
+        1792008328.313,
+        "2"
+      ],
+      [
+        1792008338.313,
+        "2"
+      ],
+      [
+        1792008348.313,
+        "2"
+      ],
+      [
+        1792008358.313,
+        "2"
+      ],
+      [
+        1792008368.313,
+        "2"
+      ],
+      [
+        1792008378.313,
+        "2"
+      ],
+      [
+        1792008388.313,
+        "2"
+      ],
+      [
+        1792008398.313,
+        "2"
+      ],
+      [
+        1792008408.313,
+        "2"
+      ],
+      [
+        1792008418.313,
+        "2"
+      ],
+      [
+        1792008428.313,
+        "2"
+      ],
+      [
+        1792008438.313,
+        "2"
+      ],
+      [
+        1792008448.313,
+        "2"
+      ],
+      [
+        1792008458.313,
+        "2"
+      ],
+      [
+        1792008468.313,
+        "2"
+      ],
+      [
+        1792008478.313,
+        "2"
+      ],
+      [
+        1792008488.313,
+        "2"
+      ],
+      [
+        1792008498.313,
+        "2"
+      ],
+      [
+        1792008508.313,
+        "2"
+      ],
+      [
+        1792008518.313,
+        "2"
+      ],
+      [
+        1792008528.313,
+        "2"
+      ],
+      [
+        1792008538.313,
+        "2"
+      ],
+      [
+        1792008548.313,
+        "2"
+      ],
+      [
+        1792008558.313,
+        "2"
+      ],
+      [
+        1792008568.313,
+        "2"
+      ],
+      [
+        1792008578.313,
+        "2"
+      ],
+      [
+        1792008588.313,
+        "2"
+      ],
+      [
+        1792008598.313,
+        "2"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_low_activity_observation_seconds",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008148.313,
+        "0"
+      ],
+      [
+        1792008158.313,
+        "0"
+      ],
+      [
+        1792008168.313,
+        "0"
+      ],
+      [
+        1792008178.313,
+        "0"
+      ],
+      [
+        1792008188.313,
+        "0"
+      ],
+      [
+        1792008198.313,
+        "0"
+      ],
+      [
+        1792008208.313,
+        "0"
+      ],
+      [
+        1792008218.313,
+        "0"
+      ],
+      [
+        1792008228.313,
+        "0"
+      ],
+      [
+        1792008238.313,
+        "0"
+      ],
+      [
+        1792008248.313,
+        "0"
+      ],
+      [
+        1792008258.313,
+        "9.998877769"
+      ],
+      [
+        1792008268.313,
+        "20.004040464"
+      ],
+      [
+        1792008278.313,
+        "30.001902335"
+      ],
+      [
+        1792008288.313,
+        "40.00146457"
+      ],
+      [
+        1792008298.313,
+        "50.002757163"
+      ],
+      [
+        1792008308.313,
+        "59.999679429"
+      ],
+      [
+        1792008318.313,
+        "70.005502751"
+      ],
+      [
+        1792008328.313,
+        "80.003337172"
+      ],
+      [
+        1792008338.313,
+        "90.00399997"
+      ],
+      [
+        1792008348.313,
+        "100.006528355"
+      ],
+      [
+        1792008358.313,
+        "110.003033744"
+      ],
+      [
+        1792008368.313,
+        "119.997538867"
+      ],
+      [
+        1792008378.313,
+        "130.000431884"
+      ],
+      [
+        1792008388.313,
+        "140.002161517"
+      ],
+      [
+        1792008398.313,
+        "150.008313562"
+      ],
+      [
+        1792008408.313,
+        "159.998668244"
+      ],
+      [
+        1792008418.313,
+        "170.001076538"
+      ],
+      [
+        1792008428.313,
+        "180.002247766"
+      ],
+      [
+        1792008438.313,
+        "190.001744323"
+      ],
+      [
+        1792008448.313,
+        "200.002369407"
+      ],
+      [
+        1792008458.313,
+        "209.999011761"
+      ],
+      [
+        1792008468.313,
+        "219.999940095"
+      ],
+      [
+        1792008478.313,
+        "230.005308205"
+      ],
+      [
+        1792008488.313,
+        "0"
+      ],
+      [
+        1792008498.313,
+        "0"
+      ],
+      [
+        1792008508.313,
+        "0"
+      ],
+      [
+        1792008518.313,
+        "0"
+      ],
+      [
+        1792008528.313,
+        "0"
+      ],
+      [
+        1792008538.313,
+        "0"
+      ],
+      [
+        1792008548.313,
+        "0"
+      ],
+      [
+        1792008558.313,
+        "0"
+      ],
+      [
+        1792008568.313,
+        "0"
+      ],
+      [
+        1792008578.313,
+        "0"
+      ],
+      [
+        1792008588.313,
+        "10.006154139"
+      ],
+      [
+        1792008598.313,
+        "20.000995424"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "reason": "karta_unhealthy",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "unknown",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008128.313,
+        "1"
+      ],
+      [
+        1792008138.313,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "reason": "no_gpu",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "no_gpu",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008608.313,
+        "1"
+      ],
+      [
+        1792008618.313,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "reason": "none",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "active",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008148.313,
+        "1"
+      ],
+      [
+        1792008158.313,
+        "1"
+      ],
+      [
+        1792008168.313,
+        "1"
+      ],
+      [
+        1792008178.313,
+        "1"
+      ],
+      [
+        1792008188.313,
+        "1"
+      ],
+      [
+        1792008198.313,
+        "1"
+      ],
+      [
+        1792008208.313,
+        "1"
+      ],
+      [
+        1792008218.313,
+        "1"
+      ],
+      [
+        1792008228.313,
+        "1"
+      ],
+      [
+        1792008238.313,
+        "1"
+      ],
+      [
+        1792008488.313,
+        "1"
+      ],
+      [
+        1792008498.313,
+        "1"
+      ],
+      [
+        1792008508.313,
+        "1"
+      ],
+      [
+        1792008518.313,
+        "1"
+      ],
+      [
+        1792008528.313,
+        "1"
+      ],
+      [
+        1792008538.313,
+        "1"
+      ],
+      [
+        1792008548.313,
+        "1"
+      ],
+      [
+        1792008558.313,
+        "1"
+      ],
+      [
+        1792008568.313,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "reason": "none",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "low_activity",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008428.313,
+        "1"
+      ],
+      [
+        1792008438.313,
+        "1"
+      ],
+      [
+        1792008448.313,
+        "1"
+      ],
+      [
+        1792008458.313,
+        "1"
+      ],
+      [
+        1792008468.313,
+        "1"
+      ],
+      [
+        1792008478.313,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "reason": "none",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "warming",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008248.313,
+        "1"
+      ],
+      [
+        1792008258.313,
+        "1"
+      ],
+      [
+        1792008268.313,
+        "1"
+      ],
+      [
+        1792008278.313,
+        "1"
+      ],
+      [
+        1792008288.313,
+        "1"
+      ],
+      [
+        1792008298.313,
+        "1"
+      ],
+      [
+        1792008308.313,
+        "1"
+      ],
+      [
+        1792008318.313,
+        "1"
+      ],
+      [
+        1792008328.313,
+        "1"
+      ],
+      [
+        1792008338.313,
+        "1"
+      ],
+      [
+        1792008348.313,
+        "1"
+      ],
+      [
+        1792008358.313,
+        "1"
+      ],
+      [
+        1792008368.313,
+        "1"
+      ],
+      [
+        1792008378.313,
+        "1"
+      ],
+      [
+        1792008388.313,
+        "1"
+      ],
+      [
+        1792008398.313,
+        "1"
+      ],
+      [
+        1792008408.313,
+        "1"
+      ],
+      [
+        1792008418.313,
+        "1"
+      ],
+      [
+        1792008578.313,
+        "1"
+      ],
+      [
+        1792008588.313,
+        "1"
+      ],
+      [
+        1792008598.313,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_utilization_max_ratio",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.6:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-6cb4cf5ffb-l22qj",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "workload": "real-pytorch-verified",
+      "workload_group": "kubeflow.org",
+      "workload_kind": "PyTorchJob",
+      "workload_uid": "f6e61db3-232e-4aab-9ab7-567480bd15cf",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792008148.313,
+        "0.98"
+      ],
+      [
+        1792008158.313,
+        "0.98"
+      ],
+      [
+        1792008168.313,
+        "0.98"
+      ],
+      [
+        1792008178.313,
+        "0.98"
+      ],
+      [
+        1792008188.313,
+        "0.97"
+      ],
+      [
+        1792008198.313,
+        "0.97"
+      ],
+      [
+        1792008208.313,
+        "0.97"
+      ],
+      [
+        1792008218.313,
+        "0.97"
+      ],
+      [
+        1792008228.313,
+        "0.97"
+      ],
+      [
+        1792008238.313,
+        "0.97"
+      ],
+      [
+        1792008248.313,
+        "0"
+      ],
+      [
+        1792008258.313,
+        "0"
+      ],
+      [
+        1792008268.313,
+        "0"
+      ],
+      [
+        1792008278.313,
+        "0"
+      ],
+      [
+        1792008288.313,
+        "0"
+      ],
+      [
+        1792008298.313,
+        "0"
+      ],
+      [
+        1792008308.313,
+        "0"
+      ],
+      [
+        1792008318.313,
+        "0"
+      ],
+      [
+        1792008328.313,
+        "0"
+      ],
+      [
+        1792008338.313,
+        "0"
+      ],
+      [
+        1792008348.313,
+        "0"
+      ],
+      [
+        1792008358.313,
+        "0"
+      ],
+      [
+        1792008368.313,
+        "0"
+      ],
+      [
+        1792008378.313,
+        "0"
+      ],
+      [
+        1792008388.313,
+        "0"
+      ],
+      [
+        1792008398.313,
+        "0"
+      ],
+      [
+        1792008408.313,
+        "0"
+      ],
+      [
+        1792008418.313,
+        "0"
+      ],
+      [
+        1792008428.313,
+        "0"
+      ],
+      [
+        1792008438.313,
+        "0"
+      ],
+      [
+        1792008448.313,
+        "0"
+      ],
+      [
+        1792008458.313,
+        "0"
+      ],
+      [
+        1792008468.313,
+        "0"
+      ],
+      [
+        1792008478.313,
+        "0"
+      ],
+      [
+        1792008488.313,
+        "0.98"
+      ],
+      [
+        1792008498.313,
+        "0.98"
+      ],
+      [
+        1792008508.313,
+        "0.98"
+      ],
+      [
+        1792008518.313,
+        "0.98"
+      ],
+      [
+        1792008528.313,
+        "0.98"
+      ],
+      [
+        1792008538.313,
+        "0.98"
+      ],
+      [
+        1792008548.313,
+        "0.98"
+      ],
+      [
+        1792008558.313,
+        "0.98"
+      ],
+      [
+        1792008568.313,
+        "0.98"
+      ],
+      [
+        1792008578.313,
+        "0"
+      ],
+      [
+        1792008588.313,
+        "0"
+      ],
+      [
+        1792008598.313,
+        "0"
+      ]
+    ]
+  }
+]

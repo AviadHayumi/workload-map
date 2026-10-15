@@ -1,0 +1,176 @@
+[
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_assigned_devices",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "workload": "real-restored-full-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "cdb80452-a066-48b2-a420-3e9c32cd9ba8",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014348.796,
+        "1"
+      ],
+      [
+        1792014353.796,
+        "1"
+      ],
+      [
+        1792014358.796,
+        "1"
+      ],
+      [
+        1792014363.796,
+        "1"
+      ],
+      [
+        1792014368.796,
+        "1"
+      ],
+      [
+        1792014373.796,
+        "1"
+      ],
+      [
+        1792014378.796,
+        "1"
+      ],
+      [
+        1792014383.796,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "reason": "karta_unhealthy",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "unknown",
+      "workload": "real-restored-full-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "cdb80452-a066-48b2-a420-3e9c32cd9ba8",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014338.796,
+        "1"
+      ],
+      [
+        1792014343.796,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "reason": "no_gpu",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "no_gpu",
+      "workload": "real-restored-full-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "cdb80452-a066-48b2-a420-3e9c32cd9ba8",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014388.796,
+        "1"
+      ],
+      [
+        1792014393.796,
+        "1"
+      ],
+      [
+        1792014398.796,
+        "1"
+      ],
+      [
+        1792014403.796,
+        "1"
+      ]
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "workload_gpu_observer_state",
+      "container": "karta-workload-gpu-observer",
+      "endpoint": "metrics",
+      "instance": "192.0.2.2:9092",
+      "job": "karta-workload-gpu-observer",
+      "namespace": "karta-metrics-workloads",
+      "pod": "karta-workload-gpu-observer-7755bcff99-ssqz7",
+      "reason": "none",
+      "service": "karta-workload-gpu-observer",
+      "source": "dcgm",
+      "state": "warming",
+      "workload": "real-restored-full-probe",
+      "workload_group": "batch",
+      "workload_kind": "Job",
+      "workload_uid": "cdb80452-a066-48b2-a420-3e9c32cd9ba8",
+      "workload_version": "v1"
+    },
+    "values": [
+      [
+        1792014348.796,
+        "1"
+      ],
+      [
+        1792014353.796,
+        "1"
+      ],
+      [
+        1792014358.796,
+        "1"
+      ],
+      [
+        1792014363.796,
+        "1"
+      ],
+      [
+        1792014368.796,
+        "1"
+      ],
+      [
+        1792014373.796,
+        "1"
+      ],
+      [
+        1792014378.796,
+        "1"
+      ],
+      [
+        1792014383.796,
+        "1"
+      ]
+    ]
+  }
+]

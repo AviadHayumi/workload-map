@@ -1,0 +1,25 @@
+{
+  "checks": {
+    "initially_pending_without_allocation": true,
+    "completed": true,
+    "cuda_exactly_one_device": true,
+    "starts_after_prior_consumer_finishes": true,
+    "native_same_gpu_new_pod_uid": true,
+    "all_generated_claims_removed": true,
+    "short_probe_never_classified_low": true
+  },
+  "passed": true,
+  "full_cycle_finished": 1792014111.0,
+  "contention_started": 1792014114.0,
+  "states": [
+    "no_gpu",
+    "unknown",
+    "warming"
+  ],
+  "cuda": {
+    "cuda": true,
+    "device": "NVIDIA A100-PCIE-40GB",
+    "device_count": 1,
+    "bytes": 42404806656
+  }
+}

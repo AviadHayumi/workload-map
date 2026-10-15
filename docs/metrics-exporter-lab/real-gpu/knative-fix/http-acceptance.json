@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "body": "Hello smoke!\n",
+  "host": "matrix-knative.karta-metrics-workloads.example.test",
+  "conditions": [
+    {
+      "lastTransitionTime": "2026-10-14T19:48:35Z",
+      "status": "True",
+      "type": "ConfigurationsReady"
+    },
+    {
+      "lastTransitionTime": "2026-10-14T20:18:55Z",
+      "status": "True",
+      "type": "Ready"
+    },
+    {
+      "lastTransitionTime": "2026-10-14T20:18:55Z",
+      "status": "True",
+      "type": "RoutesReady"
+    }
+  ]
+}

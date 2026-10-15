@@ -1,0 +1,8 @@
+{
+  "device_plugin_ready": true,
+  "dcgm_ready": true,
+  "capacity": {
+    "nvidia.com/gpu": "1",
+    "nvidia.com/mig-3g.20gb": "2"
+  }
+}

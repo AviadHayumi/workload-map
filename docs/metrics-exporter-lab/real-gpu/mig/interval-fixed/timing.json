@@ -1,0 +1,64 @@
+{
+  "real-pytorch-mig-timed": {
+    "pod": "real-pytorch-mig-timed-master-0",
+    "phases": [
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792011724.55804,
+        "first_native_state_time": 1792011734.558,
+        "observed_delay_seconds": 10.0
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792011844.5590186,
+        "first_native_state_time": 1792011854.558,
+        "observed_delay_seconds": 9.999
+      },
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792012084.581384,
+        "first_native_state_time": 1792012094.558,
+        "observed_delay_seconds": 9.977
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792012174.582679,
+        "first_native_state_time": 1792012184.558,
+        "observed_delay_seconds": 9.975
+      }
+    ],
+    "completed": true,
+    "maximum_transition_delay_seconds": 10.0
+  },
+  "real-full-mig-timed": {
+    "pod": "real-full-mig-timed-gqlnz",
+    "phases": [
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792011725.7070048,
+        "first_native_state_time": 1792011734.707,
+        "observed_delay_seconds": 9.0
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792011845.7072954,
+        "first_native_state_time": 1792011854.707,
+        "observed_delay_seconds": 9.0
+      },
+      {
+        "phase": "active",
+        "cuda_phase_time": 1792012085.729359,
+        "first_native_state_time": 1792012094.707,
+        "observed_delay_seconds": 8.978
+      },
+      {
+        "phase": "idle",
+        "cuda_phase_time": 1792012175.7295418,
+        "first_native_state_time": 1792012184.707,
+        "observed_delay_seconds": 8.977
+      }
+    ],
+    "completed": true,
+    "maximum_transition_delay_seconds": 9.0
+  }
+}

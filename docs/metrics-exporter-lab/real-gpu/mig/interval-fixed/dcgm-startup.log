@@ -1,0 +1,27 @@
+time=2026-10-14T21:00:36.609Z level=INFO msg="Starting dcgm-exporter" Version=4.8.4
+time=2026-10-14T21:00:36.609Z level=INFO msg="Attempting to initialize DCGM."
+time=2026-10-14T21:00:36.861Z level=INFO msg="Initialized DCGM Fields module."
+time=2026-10-14T21:00:36.861Z level=INFO msg="DCGM successfully initialized!"
+time=2026-10-14T21:00:36.861Z level=INFO msg="Attempting to initialize NVML library."
+time=2026-10-14T21:00:36.861Z level=INFO msg="NVML provider successfully initialized"
+time=2026-10-14T21:00:37.157Z level=INFO msg="Successfully queried DCGM profiling metric groups" reload_id=0 count=7 gpu_model="NVIDIA A100-PCIE-40GB"
+time=2026-10-14T21:00:37.157Z level=INFO msg="Building registry for current GPU topology"
+time=2026-10-14T21:00:37.157Z level=INFO msg="Using metric file '/etc/dcgm-exporter/dcp-metrics-included.csv'"
+time=2026-10-14T21:00:37.157Z level=INFO msg="Initializing system entities of type 'GPU'"
+time=2026-10-14T21:00:37.180Z level=INFO msg="Initializing system entities of type 'NvSwitch'"
+time=2026-10-14T21:00:37.180Z level=INFO msg="Not collecting NvSwitch metrics; no switches to monitor"
+time=2026-10-14T21:00:37.180Z level=INFO msg="Initializing system entities of type 'NvLink'"
+time=2026-10-14T21:00:37.180Z level=WARN msg="Failed to initialize NvSwitch/NvLink info" error="no switches to monitor"
+time=2026-10-14T21:00:37.194Z level=INFO msg="Initializing system entities of type 'CPU'"
+time=2026-10-14T21:00:37.291Z level=INFO msg="Not collecting CPU metrics; error retrieving DCGM CPU hierarchy v2: This request is serviced by a module of DCGM that is not currently loaded"
+time=2026-10-14T21:00:37.291Z level=INFO msg="Initializing system entities of type 'CPU Core'"
+time=2026-10-14T21:00:37.291Z level=INFO msg="Not collecting CPU Core metrics; error retrieving DCGM CPU hierarchy v2: This request is serviced by a module of DCGM that is not currently loaded"
+time=2026-10-14T21:00:37.785Z level=INFO msg="Registry built successfully" collector_count=1
+time=2026-10-14T21:00:37.785Z level=INFO msg="Kubernetes metrics collection enabled!"
+time=2026-10-14T21:00:37.785Z level=INFO msg="Initializing Pod Informer" nodeName=gpu-worker
+time=2026-10-14T21:00:37.785Z level=INFO msg="HTTP server started - ready to serve metrics"
+time=2026-10-14T21:00:37.786Z level=INFO msg="Watching for changes in file" file=/etc/dcgm-exporter/dcp-metrics-included.csv debounce=200ms
+time=2026-10-14T21:00:37.786Z level=INFO msg="Starting webserver"
+time=2026-10-14T21:00:37.786Z level=INFO msg="Listening on" address=[::]:9400
+time=2026-10-14T21:00:37.786Z level=INFO msg="TLS is disabled." http2=false address=[::]:9400
+time=2026-10-14T21:00:37.886Z level=INFO msg="Pod informer cache synced"

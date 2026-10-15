@@ -1,0 +1,12 @@
+{
+  "spec": {
+    "mig": {
+      "strategy": "mixed"
+    },
+    "migManager": {
+      "config": {
+        "name": "karta-mig-config"
+      }
+    }
+  }
+}

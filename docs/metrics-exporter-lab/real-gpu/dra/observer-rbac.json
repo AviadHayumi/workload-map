@@ -1,0 +1,86 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "karta-workload-gpu-observer-dra",
+        "namespace": "karta-metrics-workloads"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            "resource.k8s.io"
+          ],
+          "resources": [
+            "resourceclaims"
+          ],
+          "verbs": [
+            "list"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "karta-workload-gpu-observer-dra",
+        "namespace": "karta-metrics-workloads"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "karta-workload-gpu-observer-dra"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "karta-workload-gpu-observer",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "karta-workload-gpu-observer-dra"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            "resource.k8s.io"
+          ],
+          "resources": [
+            "resourceslices"
+          ],
+          "verbs": [
+            "list"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "karta-workload-gpu-observer-dra"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "karta-workload-gpu-observer-dra"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "karta-workload-gpu-observer",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    }
+  ]
+}

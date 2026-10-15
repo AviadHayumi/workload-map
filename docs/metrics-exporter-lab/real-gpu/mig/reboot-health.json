@@ -1,0 +1,42 @@
+{
+  "grafana": {
+    "status": 200,
+    "body": "{\n  \"database\": \"ok\",\n  \"version\": \"13.2.4\",\n  \"commit\": \"0e79aef9d91abf3bdadae9af15763029072fb45b\"\n}"
+  },
+  "prometheus": {
+    "status": 200,
+    "body": "Prometheus Server is Ready.\n"
+  },
+  "nodes": [
+    {
+      "name": "control-plane",
+      "new_boot": false,
+      "ready": "True"
+    },
+    {
+      "name": "worker-1",
+      "new_boot": false,
+      "ready": "True"
+    },
+    {
+      "name": "worker-2",
+      "new_boot": false,
+      "ready": "True"
+    },
+    {
+      "name": "worker-3",
+      "new_boot": false,
+      "ready": "True"
+    },
+    {
+      "name": "worker-4",
+      "new_boot": false,
+      "ready": "True"
+    },
+    {
+      "name": "gpu-worker",
+      "new_boot": false,
+      "ready": "Unknown"
+    }
+  ]
+}

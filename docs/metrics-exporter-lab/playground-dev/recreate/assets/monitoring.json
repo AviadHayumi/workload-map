@@ -1,0 +1,1850 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-finite-exporter",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-finite-exporter",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+          "matchLabels": {
+            "app": "karta-finite-exporter",
+            "app.kubernetes.io/part-of": "karta-metrics-poc"
+          }
+        },
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "karta-finite-exporter",
+              "app.kubernetes.io/part-of": "karta-metrics-poc"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "args": [
+                  "--metrics-bind-address=:8080",
+                  "--metrics-exporter=prometheus",
+                  "--namespace=karta-finite-workloads",
+                  "--use-catalog",
+                  "--workload-phases=all"
+                ],
+                "image": "ghcr.io/aviadhayumi/workload-map/karta-exporter:6563a43177bd8ce47c41436808fc83ab8c332031@sha256:1e65876aa908e8c486304309d258e82ad2e739df07cd661b627b2b2382ea5231",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 5,
+                  "periodSeconds": 10,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "name": "exporter",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "metrics",
+                    "protocol": "TCP"
+                  }
+                ],
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 5,
+                  "periodSeconds": 10,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "resources": {
+                  "limits": {
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "128Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "readOnlyRootFilesystem": true
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {
+              "runAsGroup": 0,
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "serviceAccount": "karta-exporter",
+            "serviceAccountName": "karta-exporter",
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-gpu-observer",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+          "matchLabels": {
+            "app": "karta-gpu-observer"
+          }
+        },
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "karta-gpu-observer",
+              "app.kubernetes.io/part-of": "karta-metrics-poc"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "args": [
+                  "--dcgm-url=http://karta-real-dcgm.karta-metrics-poc.svc:9600/metrics",
+                  "--node=__GPU_NODE__",
+                  "--source=synthetic",
+                  "--window=60s",
+                  "--poll-interval=10s",
+                  "--max-gap=25s",
+                  "--threshold-ratio=0.05"
+                ],
+                "env": [
+                  {
+                    "name": "GOMEMLIMIT",
+                    "value": "96MiB"
+                  }
+                ],
+                "image": "ghcr.io/aviadhayumi/workload-map/karta-exporter:gpu-observer-97d317dff11d8c8c87d51c5cde0fab365e8cae37@sha256:027b5b0f6b76a43ecbcab9e2bd0a12081ebe79c20fa857179ad3b4a1630480e6",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "periodSeconds": 15,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "name": "observer",
+                "ports": [
+                  {
+                    "containerPort": 9091,
+                    "name": "metrics",
+                    "protocol": "TCP"
+                  }
+                ],
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "resources": {
+                  "limits": {
+                    "memory": "128Mi"
+                  },
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "32Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "readOnlyRootFilesystem": true
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-grafana",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+          "matchLabels": {
+            "app": "karta-grafana"
+          }
+        },
+        "strategy": {
+          "type": "Recreate"
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "karta-grafana"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "env": [
+                  {
+                    "name": "GF_SERVER_ROOT_URL",
+                    "value": "https://__DEMO_HOST__/karta/grafana/"
+                  },
+                  {
+                    "name": "GF_SERVER_SERVE_FROM_SUB_PATH",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GF_SECURITY_COOKIE_SECURE",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GF_AUTH_ANONYMOUS_ENABLED",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GF_AUTH_ANONYMOUS_ORG_ROLE",
+                    "value": "Viewer"
+                  },
+                  {
+                    "name": "GF_AUTH_ANONYMOUS_ORG_NAME",
+                    "value": "Main Org."
+                  },
+                  {
+                    "name": "GF_USERS_VIEWERS_CAN_EDIT",
+                    "value": "false"
+                  },
+                  {
+                    "name": "GF_USERS_ALLOW_SIGN_UP",
+                    "value": "false"
+                  },
+                  {
+                    "name": "GF_ANALYTICS_REPORTING_ENABLED",
+                    "value": "false"
+                  },
+                  {
+                    "name": "GF_ANALYTICS_CHECK_FOR_UPDATES",
+                    "value": "false"
+                  },
+                  {
+                    "name": "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH",
+                    "value": "/var/lib/grafana/dashboards/karta.json"
+                  },
+                  {
+                    "name": "GF_SECURITY_ADMIN_USER",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "key": "username",
+                        "name": "karta-monitoring-admin"
+                      }
+                    }
+                  },
+                  {
+                    "name": "GF_SECURITY_ADMIN_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "key": "password",
+                        "name": "karta-monitoring-admin"
+                      }
+                    }
+                  }
+                ],
+                "image": "docker.io/grafana/grafana:13.2.4",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/karta/grafana/api/health",
+                    "port": "http",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 60,
+                  "periodSeconds": 10,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "name": "grafana",
+                "ports": [
+                  {
+                    "containerPort": 3000,
+                    "name": "http",
+                    "protocol": "TCP"
+                  }
+                ],
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/karta/grafana/api/health",
+                    "port": "http",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "resources": {
+                  "limits": {
+                    "memory": "2Gi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "512Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                  {
+                    "mountPath": "/var/lib/grafana",
+                    "name": "storage"
+                  },
+                  {
+                    "mountPath": "/var/lib/grafana/dashboards",
+                    "name": "dashboards"
+                  },
+                  {
+                    "mountPath": "/etc/grafana/provisioning/datasources/datasources.yaml",
+                    "name": "provisioning",
+                    "subPath": "datasources.yaml"
+                  },
+                  {
+                    "mountPath": "/etc/grafana/provisioning/dashboards/dashboards.yaml",
+                    "name": "provisioning",
+                    "subPath": "dashboards.yaml"
+                  }
+                ]
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {
+              "fsGroup": 472,
+              "runAsGroup": 472,
+              "runAsNonRoot": true,
+              "runAsUser": 472
+            },
+            "terminationGracePeriodSeconds": 30,
+            "volumes": [
+              {
+                "name": "storage",
+                "persistentVolumeClaim": {
+                  "claimName": "karta-grafana"
+                }
+              },
+              {
+                "configMap": {
+                  "defaultMode": 420,
+                  "name": "karta-grafana-dashboard"
+                },
+                "name": "dashboards"
+              },
+              {
+                "configMap": {
+                  "defaultMode": 420,
+                  "name": "karta-grafana-provisioning"
+                },
+                "name": "provisioning"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-workload-gpu-observer",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-workload-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+          "matchLabels": {
+            "app": "karta-workload-gpu-observer"
+          }
+        },
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "karta-workload-gpu-observer",
+              "app.kubernetes.io/part-of": "karta-metrics-poc"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "args": [
+                  "--source-url=http://karta-real-dcgm.karta-metrics-poc.svc:9600/metrics",
+                  "--karta-url=http://karta-exporter.karta-metrics-poc.svc:8080/metrics",
+                  "--namespace=karta-metrics-workloads",
+                  "--node=__GPU_NODE__",
+                  "--window=180s",
+                  "--threshold-ratio=0.05",
+                  "--poll-interval=10s",
+                  "--max-gap=25s",
+                  "--demo-configmap=karta-gpu-demo-round"
+                ],
+                "image": "ghcr.io/aviadhayumi/workload-map/karta-exporter@sha256:2631d0cd010e06cf972c9835f8f23eefc42ebea32829490c021eeaa72d4d7bea",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "name": "karta-workload-gpu-observer",
+                "ports": [
+                  {
+                    "containerPort": 9092,
+                    "name": "metrics",
+                    "protocol": "TCP"
+                  }
+                ],
+                "readinessProbe": {
+                  "failureThreshold": 3,
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "metrics",
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 2,
+                  "periodSeconds": 5,
+                  "successThreshold": 1,
+                  "timeoutSeconds": 1
+                },
+                "resources": {
+                  "limits": {
+                    "cpu": "250m",
+                    "memory": "128Mi"
+                  },
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "32Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "readOnlyRootFilesystem": true
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {
+              "runAsGroup": 65532,
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "serviceAccount": "karta-workload-gpu-observer",
+            "serviceAccountName": "karta-workload-gpu-observer",
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-finite-exporter",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-finite-exporter",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "metrics",
+            "port": 8080,
+            "protocol": "TCP",
+            "targetPort": "metrics"
+          }
+        ],
+        "publishNotReadyAddresses": true,
+        "selector": {
+          "app": "karta-finite-exporter",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-gpu-observer",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "metrics",
+            "port": 9091,
+            "protocol": "TCP",
+            "targetPort": "metrics"
+          }
+        ],
+        "selector": {
+          "app": "karta-gpu-observer"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-grafana",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "http",
+            "port": 3000,
+            "protocol": "TCP",
+            "targetPort": "http"
+          }
+        ],
+        "selector": {
+          "app": "karta-grafana"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-prometheus",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "web",
+            "port": 9090,
+            "protocol": "TCP",
+            "targetPort": "web"
+          }
+        ],
+        "selector": {
+          "prometheus": "karta-poc"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app": "karta-workload-gpu-observer",
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        },
+        "name": "karta-workload-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "metrics",
+            "port": 9092,
+            "protocol": "TCP",
+            "targetPort": "metrics"
+          }
+        ],
+        "selector": {
+          "app": "karta-workload-gpu-observer"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "data": {
+        "dashboards.yaml": "apiVersion: 1\nproviders:\n- disableDeletion: false\n  editable: true\n  folder: Karta\n  name: Karta\n  options:\n    path: /var/lib/grafana/dashboards\n  orgId: 1\n  type: file\n",
+        "datasources.yaml": "apiVersion: 1\ndatasources:\n- access: proxy\n  editable: false\n  isDefault: true\n  jsonData:\n    httpMethod: POST\n    timeInterval: 30s\n  name: Karta Prometheus\n  type: prometheus\n  uid: karta-prometheus\n  url: http://karta-prometheus:9090/karta/prometheus\n"
+      },
+      "kind": "ConfigMap",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-grafana-provisioning",
+        "namespace": "karta-metrics-poc"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "annotations": {},
+        "name": "finite-workload-submitter",
+        "namespace": "karta-metrics-poc"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "annotations": {},
+        "name": "gpu-demo-randomizer",
+        "namespace": "karta-metrics-poc"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-prometheus",
+        "namespace": "karta-metrics-poc"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "annotations": {},
+        "name": "karta-workload-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "Prometheus",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "evaluationInterval": "30s",
+        "externalUrl": "https://__DEMO_HOST__/karta/prometheus/",
+        "image": "quay.io/prometheus/prometheus:v3.15.0",
+        "podMonitorSelector": {
+          "matchLabels": {
+            "monitoring": "karta-metrics-poc"
+          }
+        },
+        "portName": "web",
+        "replicas": 1,
+        "resources": {
+          "limits": {
+            "memory": "2Gi"
+          },
+          "requests": {
+            "cpu": "200m",
+            "memory": "512Mi"
+          }
+        },
+        "retention": "24h",
+        "retentionSize": "8GB",
+        "routePrefix": "/karta/prometheus",
+        "ruleNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "karta-metrics-poc"
+          }
+        },
+        "ruleSelector": {
+          "matchLabels": {
+            "monitoring": "karta-metrics-poc"
+          }
+        },
+        "scrapeInterval": "30s",
+        "serviceAccountName": "karta-poc-prometheus",
+        "serviceMonitorNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "karta-metrics-poc"
+          }
+        },
+        "serviceMonitorSelector": {
+          "matchLabels": {
+            "monitoring": "karta-metrics-poc"
+          }
+        },
+        "storage": {
+          "volumeClaimTemplate": {
+            "spec": {
+              "accessModes": [
+                "ReadWriteOnce"
+              ],
+              "resources": {
+                "requests": {
+                  "storage": "10Gi"
+                }
+              },
+              "storageClassName": "standard"
+            }
+          }
+        },
+        "version": "v3.15.0"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-finite-exporter",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "honorLabels": true,
+            "interval": "15s",
+            "port": "metrics",
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": [
+                  "__meta_kubernetes_pod_name"
+                ],
+                "targetLabel": "exporter_pod"
+              }
+            ],
+            "scrapeTimeout": "10s"
+          }
+        ],
+        "jobLabel": "app",
+        "namespaceSelector": {
+          "matchNames": [
+            "karta-metrics-poc"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "karta-finite-exporter",
+            "app.kubernetes.io/part-of": "karta-metrics-poc"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "interval": "10s",
+            "port": "metrics",
+            "scrapeTimeout": "5s"
+          }
+        ],
+        "jobLabel": "app",
+        "namespaceSelector": {
+          "matchNames": [
+            "karta-metrics-poc"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "karta-gpu-observer"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-cadvisor",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "attachMetadata": {
+          "node": false
+        },
+        "endpoints": [
+          {
+            "bearerTokenFile": "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            "honorLabels": true,
+            "honorTimestamps": true,
+            "interval": "30s",
+            "metricRelabelings": [
+              {
+                "action": "drop",
+                "regex": "container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)",
+                "sourceLabels": [
+                  "__name__"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)",
+                "sourceLabels": [
+                  "__name__"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_memory_(mapped_file|swap)",
+                "sourceLabels": [
+                  "__name__"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_(file_descriptors|tasks_state|threads_max)",
+                "sourceLabels": [
+                  "__name__"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_memory_failures_total;hierarchy",
+                "sourceLabels": [
+                  "__name__",
+                  "scope"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_network_.*;(cali|cilium|cni|lxc|nodelocaldns|tunl).*",
+                "sourceLabels": [
+                  "__name__",
+                  "interface"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": "container_spec.*",
+                "sourceLabels": [
+                  "__name__"
+                ]
+              },
+              {
+                "action": "drop",
+                "regex": ".+;",
+                "sourceLabels": [
+                  "id",
+                  "pod"
+                ]
+              }
+            ],
+            "path": "/metrics/cadvisor",
+            "port": "https-metrics",
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": [
+                  "__metrics_path__"
+                ],
+                "targetLabel": "metrics_path"
+              }
+            ],
+            "scheme": "https",
+            "tlsConfig": {
+              "caFile": "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+              "insecureSkipVerify": true
+            },
+            "trackTimestampsStaleness": true
+          }
+        ],
+        "jobLabel": "k8s-app",
+        "namespaceSelector": {
+          "matchNames": [
+            "kube-system"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "kubelet",
+            "k8s-app": "kubelet"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-ksm",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "honorLabels": true,
+            "interval": "30s",
+            "port": "http"
+          }
+        ],
+        "jobLabel": "app.kubernetes.io/name",
+        "namespaceSelector": {
+          "matchNames": [
+            "monitoring"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/name": "kube-state-metrics"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-workload-gpu-observer",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "honorLabels": true,
+            "interval": "10s",
+            "port": "metrics",
+            "scrapeTimeout": "5s"
+          }
+        ],
+        "jobLabel": "app",
+        "namespaceSelector": {
+          "matchNames": [
+            "karta-metrics-poc"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "karta-workload-gpu-observer"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "annotations": {
+          "prometheus-operator-validated": "true"
+        },
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-attribution",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "groups": [
+          {
+            "interval": "30s",
+            "name": "karta-attribution",
+            "rules": [
+              {
+                "expr": "max by (namespace, pod, pod_uid, workload, workload_group, workload_version, workload_kind,\n        workload_uid, owner_resolution, component, component_instance, replica_group_id) (\n  karta_pod_workload_info\n)\nand on (namespace, pod)\n(count by (namespace, pod) (\n  group by (namespace, pod, pod_uid, workload, workload_group, workload_version, workload_kind,\n            workload_uid, owner_resolution, component, component_instance, replica_group_id) (\n    karta_pod_workload_info\n  )\n) == 1)",
+                "record": "karta:pod_attribution:unique"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "PersistentVolumeClaim",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-grafana",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "2Gi"
+          }
+        },
+        "storageClassName": "standard",
+        "volumeMode": "Filesystem"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-exporter",
+        "namespace": "karta-metrics-poc"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "honorLabels": true,
+            "interval": "30s",
+            "path": "/metrics",
+            "port": "metrics",
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": [
+                  "__meta_kubernetes_pod_name"
+                ],
+                "targetLabel": "exporter_pod"
+              }
+            ],
+            "scrapeTimeout": "25s"
+          }
+        ],
+        "namespaceSelector": {
+          "matchNames": [
+            "karta-metrics-poc"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/component": "exporter"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "annotations": {},
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "monitoring": "karta-metrics-poc"
+        },
+        "name": "karta-poc-prometheus"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "karta-poc-prometheus"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "karta-poc-prometheus",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "karta-poc-prometheus"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes",
+            "nodes/metrics",
+            "services",
+            "endpoints",
+            "pods"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "discovery.k8s.io"
+          ],
+          "resources": [
+            "endpointslices"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "nonResourceURLs": [
+            "/metrics"
+          ],
+          "verbs": [
+            "get"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "annotations": {},
+        "name": "gpu-demo-randomizer",
+        "namespace": "karta-metrics-workloads"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods"
+          ],
+          "verbs": [
+            "list",
+            "patch"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resourceNames": [
+            "karta-gpu-demo-round"
+          ],
+          "resources": [
+            "configmaps"
+          ],
+          "verbs": [
+            "get",
+            "update"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "annotations": {},
+        "name": "karta-workload-gpu-observer-read",
+        "namespace": "karta-metrics-workloads"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods"
+          ],
+          "verbs": [
+            "list"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resourceNames": [
+            "karta-gpu-demo-round"
+          ],
+          "resources": [
+            "configmaps"
+          ],
+          "verbs": [
+            "get"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "annotations": {},
+        "name": "gpu-demo-randomizer",
+        "namespace": "karta-metrics-workloads"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "gpu-demo-randomizer"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "gpu-demo-randomizer",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "annotations": {},
+        "name": "karta-workload-gpu-observer-read",
+        "namespace": "karta-metrics-workloads"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "karta-workload-gpu-observer-read"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "karta-workload-gpu-observer",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "annotations": {},
+        "name": "finite-workload-submitter",
+        "namespace": "karta-finite-workloads"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resourceNames": [
+            "finite-workload-submitter"
+          ],
+          "resources": [
+            "configmaps"
+          ],
+          "verbs": [
+            "get",
+            "update"
+          ]
+        },
+        {
+          "apiGroups": [
+            "jobset.x-k8s.io"
+          ],
+          "resources": [
+            "jobsets"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "create",
+            "delete"
+          ]
+        },
+        {
+          "apiGroups": [
+            "kubeflow.org"
+          ],
+          "resources": [
+            "pytorchjobs"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "create",
+            "delete"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "annotations": {},
+        "name": "finite-workload-submitter",
+        "namespace": "karta-finite-workloads"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "finite-workload-submitter"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "finite-workload-submitter",
+          "namespace": "karta-metrics-poc"
+        }
+      ]
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "karta-real-dcgm",
+        "namespace": "karta-metrics-poc",
+        "labels": {
+          "monitoring": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "jobLabel": "app",
+        "namespaceSelector": {
+          "matchNames": [
+            "karta-metrics-poc"
+          ]
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "karta-real-dcgm"
+          }
+        },
+        "endpoints": [
+          {
+            "port": "dcgm-0",
+            "interval": "10s",
+            "scrapeTimeout": "5s",
+            "honorLabels": true,
+            "metricRelabelings": [
+              {
+                "sourceLabels": [
+                  "hostname"
+                ],
+                "targetLabel": "node"
+              },
+              {
+                "targetLabel": "source",
+                "replacement": "synthetic"
+              },
+              {
+                "sourceLabels": [
+                  "gpu"
+                ],
+                "targetLabel": "dcgm_gpu"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "0",
+                "targetLabel": "gpu",
+                "replacement": "0"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "1",
+                "targetLabel": "gpu",
+                "replacement": "1"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "2",
+                "targetLabel": "gpu",
+                "replacement": "2"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "3",
+                "targetLabel": "gpu",
+                "replacement": "3"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "4",
+                "targetLabel": "gpu",
+                "replacement": "4"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "5",
+                "targetLabel": "gpu",
+                "replacement": "5"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "6",
+                "targetLabel": "gpu",
+                "replacement": "6"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "7",
+                "targetLabel": "gpu",
+                "replacement": "7"
+              }
+            ]
+          },
+          {
+            "port": "dcgm-1",
+            "interval": "10s",
+            "scrapeTimeout": "5s",
+            "honorLabels": true,
+            "metricRelabelings": [
+              {
+                "sourceLabels": [
+                  "hostname"
+                ],
+                "targetLabel": "node"
+              },
+              {
+                "targetLabel": "source",
+                "replacement": "synthetic"
+              },
+              {
+                "sourceLabels": [
+                  "gpu"
+                ],
+                "targetLabel": "dcgm_gpu"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "0",
+                "targetLabel": "gpu",
+                "replacement": "8"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "1",
+                "targetLabel": "gpu",
+                "replacement": "9"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "2",
+                "targetLabel": "gpu",
+                "replacement": "10"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "3",
+                "targetLabel": "gpu",
+                "replacement": "11"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "4",
+                "targetLabel": "gpu",
+                "replacement": "12"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "5",
+                "targetLabel": "gpu",
+                "replacement": "13"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "6",
+                "targetLabel": "gpu",
+                "replacement": "14"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "7",
+                "targetLabel": "gpu",
+                "replacement": "15"
+              }
+            ]
+          },
+          {
+            "port": "dcgm-2",
+            "interval": "10s",
+            "scrapeTimeout": "5s",
+            "honorLabels": true,
+            "metricRelabelings": [
+              {
+                "sourceLabels": [
+                  "hostname"
+                ],
+                "targetLabel": "node"
+              },
+              {
+                "targetLabel": "source",
+                "replacement": "synthetic"
+              },
+              {
+                "sourceLabels": [
+                  "gpu"
+                ],
+                "targetLabel": "dcgm_gpu"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "0",
+                "targetLabel": "gpu",
+                "replacement": "16"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "1",
+                "targetLabel": "gpu",
+                "replacement": "17"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "2",
+                "targetLabel": "gpu",
+                "replacement": "18"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "3",
+                "targetLabel": "gpu",
+                "replacement": "19"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "4",
+                "targetLabel": "gpu",
+                "replacement": "20"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "5",
+                "targetLabel": "gpu",
+                "replacement": "21"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "6",
+                "targetLabel": "gpu",
+                "replacement": "22"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "7",
+                "targetLabel": "gpu",
+                "replacement": "23"
+              }
+            ]
+          },
+          {
+            "port": "dcgm-3",
+            "interval": "10s",
+            "scrapeTimeout": "5s",
+            "honorLabels": true,
+            "metricRelabelings": [
+              {
+                "sourceLabels": [
+                  "hostname"
+                ],
+                "targetLabel": "node"
+              },
+              {
+                "targetLabel": "source",
+                "replacement": "synthetic"
+              },
+              {
+                "sourceLabels": [
+                  "gpu"
+                ],
+                "targetLabel": "dcgm_gpu"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "0",
+                "targetLabel": "gpu",
+                "replacement": "24"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "1",
+                "targetLabel": "gpu",
+                "replacement": "25"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "2",
+                "targetLabel": "gpu",
+                "replacement": "26"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "3",
+                "targetLabel": "gpu",
+                "replacement": "27"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "4",
+                "targetLabel": "gpu",
+                "replacement": "28"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "5",
+                "targetLabel": "gpu",
+                "replacement": "29"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "6",
+                "targetLabel": "gpu",
+                "replacement": "30"
+              },
+              {
+                "sourceLabels": [
+                  "dcgm_gpu"
+                ],
+                "regex": "7",
+                "targetLabel": "gpu",
+                "replacement": "31"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "workloads": {
+    "real-restored-full-probe": {
+      "completed": true,
+      "cuda": {
+        "cuda": true,
+        "device": "NVIDIA A100-PCIE-40GB",
+        "device_count": 1,
+        "bytes": 42404806656
+      },
+      "observer_verified_one_device": true,
+      "states": [
+        "no_gpu",
+        "unknown",
+        "warming"
+      ],
+      "never_false_low": true
+    },
+    "real-restored-mig-probe": {
+      "completed": true,
+      "cuda": {
+        "cuda": true,
+        "device": "NVIDIA A100-PCIE-40GB MIG 3g.20gb",
+        "device_count": 1,
+        "bytes": 21072183296
+      },
+      "observer_verified_one_device": true,
+      "states": [
+        "no_gpu",
+        "warming"
+      ],
+      "never_false_low": true
+    }
+  }
+}

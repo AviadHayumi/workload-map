@@ -1,0 +1,131 @@
+IS_HOST_DRIVER=true
+NVIDIA_DRIVER_ROOT=/
+DRIVER_ROOT_CTR_PATH=/host
+NVIDIA_DEV_ROOT=/
+DEV_ROOT_CTR_PATH=/host
+WITH_SHUTDOWN_HOST_GPU_CLIENTS=true
+Starting nvidia-mig-manager
+W1014 20:24:20.498839   68359 client_config.go:683] Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+time="2026-10-14T20:24:20Z" level=info msg="Using custom config: /mig-parted-config/config.yaml"
+time="2026-10-14T20:24:20Z" level=info msg="Waiting for change to 'nvidia.com/mig.config' label"
+time="2026-10-14T20:24:20Z" level=info msg="Updating to MIG config: karta-one-mig-one-full"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.device-plugin=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.gpu-feature-discovery=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.dcgm-exporter=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.dcgm=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.nvsm=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/gpu.deploy.client=true'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Current value of 'nvidia.com/mig.config.state=success'\n"
+time="2026-10-14T20:24:20Z" level=info msg="Asserting that the requested configuration is present in the configuration file"
+Selected MIG configuration is valid
+time="2026-10-14T20:24:20Z" level=info msg="Checking if the selected MIG config is currently applied or not"
+2026/10/14 13:24:20 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:20 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:20-07:00" level=fatal msg="Assertion failure: selected configuration not currently applied"
+time="2026-10-14T20:24:20Z" level=info msg="Checking if the MIG mode setting in the selected config is currently applied or not"
+time="2026-10-14T20:24:20Z" level=info msg="If the state is 'rebooting', we expect this to always return true"
+2026/10/14 13:24:20 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:20 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:20-07:00" level=fatal msg="Assertion failure: selected configuration not currently applied"
+time="2026-10-14T20:24:20Z" level=info msg="Shutting down all GPU clients in Kubernetes by disabling their component-specific nodeSelector labels"
+time="2026-10-14T20:24:20Z" level=info msg="Waiting for the device-plugin to shutdown"
+time="2026-10-14T20:24:22Z" level=info msg="Waiting for gpu-feature-discovery to shutdown"
+time="2026-10-14T20:24:23Z" level=info msg="Waiting for dcgm-exporter to shutdown"
+time="2026-10-14T20:24:24Z" level=info msg="Waiting for dcgm to shutdown"
+time="2026-10-14T20:24:25Z" level=info msg="Waiting for any daemon set pods with nodeSelector key nvidia.com/gpu.deploy.client to shutdown"
+time="2026-10-14T20:24:25Z" level=info msg="Removing the cuda-validator pod"
+time="2026-10-14T20:24:25Z" level=info msg="Removing the plugin-validator pod"
+time="2026-10-14T20:24:25Z" level=info msg="Shutting down all GPU clients on the host by stopping their systemd services"
+Skipping nvsm.service (no-exist)
+Skipping nvsm-mqtt.service (no-exist)
+Skipping nvsm-core.service (no-exist)
+Skipping nvsm-api-gateway.service (no-exist)
+Skipping nvsm-notifier.service (no-exist)
+Skipping nv_peer_mem.service (no-exist)
+Stopping nvidia-dcgm.service (active, will-restart)
+Skipping dcgm.service (inactive, will-restart)
+Skipping dcgm-exporter.service (no-exist)
+Stopping kubelet.service (active, will-restart)
+time="2026-10-14T20:24:56Z" level=info msg="Applying the MIG mode change from the selected config to the node (and double checking it took effect)"
+time="2026-10-14T20:24:56Z" level=info msg="If the -r option was passed, the node will be automatically rebooted if this is not successful"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Parsing config file..."
+time="2026-10-14T13:24:56-07:00" level=debug msg="Selecting specific MIG config..."
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running apply-start hook"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Checking current MIG mode..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Asserting MIG mode: Enabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running pre-apply-mode hook"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Applying MIG mode change..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Updating MIG mode: Enabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Mode change pending: true"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[1])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 1: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Updating MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Mode change pending: false"
+time="2026-10-14T13:24:56-07:00" level=debug msg="At least one mode change pending"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Resetting all GPUs..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=error msg="\nThe following GPUs could not be reset:\n  GPU 00000000:00:06.0: In use by another client\n  GPU 00000000:00:07.0: In use by another client\n\n2 devices are currently being used by one or more other processes (e.g., Fabric Manager, CUDA application, graphics application such as an X server, or a monitoring application such as another instance of nvidia-smi). Please first kill all processes using these devices and all compute applications running in the system.\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running apply-exit hook"
+time="2026-10-14T13:24:56-07:00" level=fatal msg="Error applying MIG configuration with hooks: error resetting all GPUs: exit status 255"
+time="2026-10-14T20:24:56Z" level=info msg="Applying the selected MIG config to the node"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Parsing config file..."
+time="2026-10-14T13:24:56-07:00" level=debug msg="Selecting specific MIG config..."
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running apply-start hook"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Checking current MIG mode..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Asserting MIG mode: Enabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running pre-apply-mode hook"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Applying MIG mode change..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[0])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 0: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Updating MIG mode: Enabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Mode change pending: true"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Walking MigConfig for (devices=[1])"
+time="2026-10-14T13:24:56-07:00" level=debug msg="  GPU 1: 0x20F110DE:0x145F10DE"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    MIG capable: true\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Current MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Updating MIG mode: Disabled"
+time="2026-10-14T13:24:56-07:00" level=debug msg="    Mode change pending: false"
+time="2026-10-14T13:24:56-07:00" level=debug msg="At least one mode change pending"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Resetting all GPUs..."
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:06.0 open /sys/bus/pci/devices/0000:00:06.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/10/14 13:24:56 WARNING: unable to detect IOMMU FD for [0000:00:07.0 open /sys/bus/pci/devices/0000:00:07.0/vfio-dev: no such file or directory]: %!v(MISSING)
+time="2026-10-14T13:24:56-07:00" level=error msg="\nThe following GPUs could not be reset:\n  GPU 00000000:00:06.0: In use by another client\n  GPU 00000000:00:07.0: In use by another client\n\n2 devices are currently being used by one or more other processes (e.g., Fabric Manager, CUDA application, graphics application such as an X server, or a monitoring application such as another instance of nvidia-smi). Please first kill all processes using these devices and all compute applications running in the system.\n"
+time="2026-10-14T13:24:56-07:00" level=debug msg="Running apply-exit hook"
+time="2026-10-14T13:24:56-07:00" level=fatal msg="Error applying MIG configuration with hooks: error resetting all GPUs: exit status 255"
+time="2026-10-14T20:24:56Z" level=info msg="Restarting any GPU clients previously shutdown on the host by restarting their systemd services"
+Starting kubelet.service
+Starting dcgm.service
+Starting nvidia-dcgm.service
+time="2026-10-14T20:24:56Z" level=info msg="Restarting any GPU clients previously shutdown in Kubernetes by reenabling their component-specific nodeSelector labels"
+time="2026-10-14T20:24:56Z" level=info msg="Changing the 'nvidia.com/mig.config.state' node label to 'failed'\n"
+time="2026-10-14T20:24:56Z" level=error msg="Error: failed to apply MIG configuration: exit status 1"
+time="2026-10-14T20:24:56Z" level=info msg="Waiting for change to 'nvidia.com/mig.config' label"

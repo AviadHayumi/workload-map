@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Supplies the shared operator, kubelet discovery and kube-state-metrics.
+# The isolated Prometheus and Grafana are in assets/monitoring.json.
+grafana:
+  enabled: false
+prometheus:
+  enabled: false
+alertmanager:
+  enabled: false
+defaultRules:
+  create: false
+nodeExporter:
+  enabled: false
+kubeStateMetrics:
+  enabled: true
+prometheusOperator:
+  enabled: true

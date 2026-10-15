@@ -1,0 +1,261 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "resource.k8s.io/v1",
+            "kind": "ResourceClaim",
+            "metadata": {
+                "annotations": {
+                    "resource.kubernetes.io/pod-claim-name": "gpu"
+                },
+                "creationTimestamp": "2026-10-14T21:33:48Z",
+                "finalizers": [
+                    "resource.kubernetes.io/delete-protection"
+                ],
+                "generateName": "real-dra-full-cycle-hk24j-gpu-",
+                "name": "real-dra-full-cycle-hk24j-gpu-mkmj2",
+                "namespace": "karta-metrics-workloads",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "v1",
+                        "controller": true,
+                        "kind": "Pod",
+                        "name": "real-dra-full-cycle-hk24j",
+                        "uid": "8a6e300e-4bbc-442d-b9f8-e3874648235a"
+                    }
+                ],
+                "resourceVersion": "89540",
+                "uid": "44d997b3-db4f-4ae9-ab8b-705f4c01e476"
+            },
+            "spec": {
+                "devices": {
+                    "requests": [
+                        {
+                            "exactly": {
+                                "allocationMode": "ExactCount",
+                                "count": 1,
+                                "deviceClassName": "gpu.nvidia.com",
+                                "selectors": [
+                                    {
+                                        "cel": {
+                                            "expression": "device.attributes['gpu.nvidia.com'].productName == 'NVIDIA A100-PCIE-40GB'"
+                                        }
+                                    }
+                                ]
+                            },
+                            "name": "gpu"
+                        }
+                    ]
+                }
+            },
+            "status": {
+                "allocation": {
+                    "devices": {
+                        "results": [
+                            {
+                                "device": "gpu-1",
+                                "driver": "gpu.nvidia.com",
+                                "pool": "gpu-worker",
+                                "request": "gpu"
+                            }
+                        ]
+                    },
+                    "nodeSelector": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchFields": [
+                                    {
+                                        "key": "metadata.name",
+                                        "operator": "In",
+                                        "values": [
+                                            "gpu-worker"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "reservedFor": [
+                    {
+                        "name": "real-dra-full-cycle-hk24j",
+                        "resource": "pods",
+                        "uid": "8a6e300e-4bbc-442d-b9f8-e3874648235a"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "resource.k8s.io/v1",
+            "kind": "ResourceClaim",
+            "metadata": {
+                "annotations": {
+                    "resource.kubernetes.io/pod-claim-name": "gpu"
+                },
+                "creationTimestamp": "2026-10-14T21:33:51Z",
+                "finalizers": [
+                    "resource.kubernetes.io/delete-protection"
+                ],
+                "generateName": "real-dra-mig-cycle-master-0-gpu-",
+                "name": "real-dra-mig-cycle-master-0-gpu-nl7fz",
+                "namespace": "karta-metrics-workloads",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "v1",
+                        "controller": true,
+                        "kind": "Pod",
+                        "name": "real-dra-mig-cycle-master-0",
+                        "uid": "6a47d212-338e-442a-83d6-7ce2a8428f51"
+                    }
+                ],
+                "resourceVersion": "89609",
+                "uid": "7af484ec-0a67-4afb-988f-dc7416a730da"
+            },
+            "spec": {
+                "devices": {
+                    "requests": [
+                        {
+                            "exactly": {
+                                "allocationMode": "ExactCount",
+                                "count": 1,
+                                "deviceClassName": "mig.nvidia.com",
+                                "selectors": [
+                                    {
+                                        "cel": {
+                                            "expression": "device.attributes['gpu.nvidia.com'].profile == '3g.20gb'"
+                                        }
+                                    }
+                                ]
+                            },
+                            "name": "gpu"
+                        }
+                    ]
+                }
+            },
+            "status": {
+                "allocation": {
+                    "devices": {
+                        "results": [
+                            {
+                                "device": "gpu-0-mig-3g20gb-9-4",
+                                "driver": "gpu.nvidia.com",
+                                "pool": "gpu-worker",
+                                "request": "gpu"
+                            }
+                        ]
+                    },
+                    "nodeSelector": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchFields": [
+                                    {
+                                        "key": "metadata.name",
+                                        "operator": "In",
+                                        "values": [
+                                            "gpu-worker"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "reservedFor": [
+                    {
+                        "name": "real-dra-mig-cycle-master-0",
+                        "resource": "pods",
+                        "uid": "6a47d212-338e-442a-83d6-7ce2a8428f51"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "resource.k8s.io/v1",
+            "kind": "ResourceClaim",
+            "metadata": {
+                "annotations": {
+                    "resource.kubernetes.io/pod-claim-name": "gpu"
+                },
+                "creationTimestamp": "2026-10-14T21:33:51Z",
+                "finalizers": [
+                    "resource.kubernetes.io/delete-protection"
+                ],
+                "generateName": "real-dra-mig-cycle-worker-0-gpu-",
+                "name": "real-dra-mig-cycle-worker-0-gpu-vz7vs",
+                "namespace": "karta-metrics-workloads",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "v1",
+                        "controller": true,
+                        "kind": "Pod",
+                        "name": "real-dra-mig-cycle-worker-0",
+                        "uid": "3c6f5795-2ef0-4441-971d-4dbd23d10b62"
+                    }
+                ],
+                "resourceVersion": "89603",
+                "uid": "4cec3654-7330-40b5-9902-2c04652423e1"
+            },
+            "spec": {
+                "devices": {
+                    "requests": [
+                        {
+                            "exactly": {
+                                "allocationMode": "ExactCount",
+                                "count": 1,
+                                "deviceClassName": "mig.nvidia.com",
+                                "selectors": [
+                                    {
+                                        "cel": {
+                                            "expression": "device.attributes['gpu.nvidia.com'].profile == '3g.20gb'"
+                                        }
+                                    }
+                                ]
+                            },
+                            "name": "gpu"
+                        }
+                    ]
+                }
+            },
+            "status": {
+                "allocation": {
+                    "devices": {
+                        "results": [
+                            {
+                                "device": "gpu-0-mig-3g20gb-9-0",
+                                "driver": "gpu.nvidia.com",
+                                "pool": "gpu-worker",
+                                "request": "gpu"
+                            }
+                        ]
+                    },
+                    "nodeSelector": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchFields": [
+                                    {
+                                        "key": "metadata.name",
+                                        "operator": "In",
+                                        "values": [
+                                            "gpu-worker"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "reservedFor": [
+                    {
+                        "name": "real-dra-mig-cycle-worker-0",
+                        "resource": "pods",
+                        "uid": "3c6f5795-2ef0-4441-971d-4dbd23d10b62"
+                    }
+                ]
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

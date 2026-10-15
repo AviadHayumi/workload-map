@@ -1,0 +1,11 @@
+{
+  "cert-manager.yaml": "https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml",
+  "jobset.yaml": "https://github.com/kubernetes-sigs/jobset/releases/download/v0.10.1/manifests.yaml",
+  "lws.yaml": "https://github.com/kubernetes-sigs/lws/releases/download/v0.7.0/manifests.yaml",
+  "mpi.yaml": "https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.8.2/deploy/v2beta1/mpi-operator.yaml",
+  "knative-crds.yaml": "https://github.com/knative/serving/releases/download/knative-v1.15.2/serving-crds.yaml",
+  "knative-core.yaml": "https://github.com/knative/serving/releases/download/knative-v1.15.2/serving-core.yaml",
+  "kourier.yaml": "https://github.com/knative/net-kourier/releases/download/knative-v1.15.0/kourier.yaml",
+  "kserve.yaml": "https://github.com/kserve/kserve/releases/download/v0.13.1/kserve.yaml",
+  "kserve-cluster-resources.yaml": "https://github.com/kserve/kserve/releases/download/v0.13.1/kserve-cluster-resources.yaml"
+}

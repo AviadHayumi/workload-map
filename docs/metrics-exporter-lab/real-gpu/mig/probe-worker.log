@@ -1,0 +1,10 @@
+{"event": "ready", "role": "worker", "gpu": "NVIDIA A100-PCIE-40GB MIG 3g.20gb", "torch": "2.5.1+cu124", "cuda": "12.4", "allocated_bytes": 2248146944, "device_bytes": 21072183296, "multiprocessors": 42}
+{"event": "phase", "role": "worker", "phase": "idle", "seconds": 120, "time": 1792010418.3283167}
+{"event": "phase_complete", "phase": "idle", "iterations": 0}
+{"event": "phase", "role": "worker", "phase": "idle", "seconds": 240, "time": 1792010538.3409593}
+{"event": "phase_complete", "phase": "idle", "iterations": 0}
+{"event": "phase", "role": "worker", "phase": "idle", "seconds": 90, "time": 1792010778.365262}
+{"event": "phase_complete", "phase": "idle", "iterations": 0}
+{"event": "phase", "role": "worker", "phase": "idle", "seconds": 30, "time": 1792010868.4399521}
+{"event": "phase_complete", "phase": "idle", "iterations": 0}
+{"event": "completed", "role": "worker"}

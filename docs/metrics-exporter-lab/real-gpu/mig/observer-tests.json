@@ -1,0 +1,7 @@
+{
+  "command": "go test -race ./examples/workload-gpu-observer",
+  "result": "passed",
+  "output": "ok github.com/dsx-ai-factory/workload-map/exporter/examples/workload-gpu-observer 1.819s",
+  "image": "ghcr.io/aviadhayumi/workload-map/karta-exporter@sha256:a0ca828552f30ca4af61c87435e4c4404ab8a040dff50522dd43986647bc4a52",
+  "initial_regression": "init_gpu reason changed to allocation_mismatch; corrected unsupported-allocation handling before publishing"
+}

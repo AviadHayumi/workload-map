@@ -1,0 +1,2115 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "apps.nvidia.com/v1alpha1",
+      "kind": "NIMService",
+      "metadata": {
+        "name": "matrix-nim",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "image": {
+          "repository": "ghcr.io/aviadhayumi/workload-map/karta-exporter",
+          "tag": "poc-nim-cpu-d538367c@sha256:571ea747ab2d6fd0bbf2b789a1e5fd5807bb2865977d5d17ce7146ead2339445",
+          "pullPolicy": "IfNotPresent"
+        },
+        "authSecret": "matrix-ngc-placeholder",
+        "storage": {
+          "pvc": {
+            "create": true,
+            "size": "1Gi",
+            "volumeAccessMode": "ReadWriteOnce"
+          }
+        },
+        "replicas": 1,
+        "expose": {
+          "service": {
+            "type": "ClusterIP",
+            "port": 8000
+          }
+        },
+        "env": [
+          {
+            "name": "NIM_REQUEST_LATENCY",
+            "value": "2"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "PyTorchJob",
+      "metadata": {
+        "name": "matrix-pytorch",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "pytorchReplicaSpecs": {
+          "Master": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "600"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "restartPolicy": "Never",
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "600"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "jobset.x-k8s.io/v1alpha2",
+      "kind": "JobSet",
+      "metadata": {
+        "name": "matrix-jobset",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicatedJobs": [
+          {
+            "name": "workers",
+            "replicas": 2,
+            "template": {
+              "spec": {
+                "parallelism": 1,
+                "completions": 1,
+                "backoffLimit": 0,
+                "template": {
+                  "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                      {
+                        "name": "worker",
+                        "image": "busybox:1.36",
+                        "command": [
+                          "true"
+                        ],
+                        "resources": {
+                          "requests": {
+                            "cpu": "50m",
+                            "memory": "32Mi"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "chief",
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "parallelism": 1,
+                "completions": 1,
+                "backoffLimit": 0,
+                "template": {
+                  "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                      {
+                        "name": "worker",
+                        "image": "busybox:1.36",
+                        "command": [
+                          "true"
+                        ],
+                        "resources": {
+                          "requests": {
+                            "cpu": "50m",
+                            "memory": "32Mi"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "leaderworkerset.x-k8s.io/v1",
+      "kind": "LeaderWorkerSet",
+      "metadata": {
+        "name": "matrix-lws",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicas": 2,
+        "leaderWorkerTemplate": {
+          "size": 3,
+          "leaderTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "leader",
+                  "image": "busybox:1.36",
+                  "command": [
+                    "sleep",
+                    "infinity"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "workerTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "worker",
+                  "image": "busybox:1.36",
+                  "command": [
+                    "sleep",
+                    "infinity"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v2beta1",
+      "kind": "MPIJob",
+      "metadata": {
+        "name": "matrix-mpi",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "slotsPerWorker": 1,
+        "runPolicy": {
+          "cleanPodPolicy": "All"
+        },
+        "mpiReplicaSpecs": {
+          "Launcher": {
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-launcher",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "600"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-worker",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "matrix-deployment",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "matrix-deployment"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "matrix-deployment"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "worker",
+                "image": "busybox:1.36",
+                "command": [
+                  "sleep",
+                  "600"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "16Mi"
+                  }
+                }
+              }
+            ],
+            "terminationGracePeriodSeconds": 0
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "CronJob",
+      "metadata": {
+        "name": "matrix-cronjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "schedule": "0 */6 * * *",
+        "concurrencyPolicy": "Forbid",
+        "successfulJobsHistoryLimit": 1,
+        "jobTemplate": {
+          "spec": {
+            "backoffLimit": 0,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "matrix-cronjob"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "name": "worker",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "true"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "10m",
+                        "memory": "16Mi"
+                      }
+                    }
+                  }
+                ],
+                "terminationGracePeriodSeconds": 0,
+                "restartPolicy": "Never"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps.nvidia.com/v1alpha1",
+      "kind": "NIMCache",
+      "metadata": {
+        "name": "matrix-nimcache",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "source": {
+          "hf": {
+            "endpoint": "https://huggingface.co",
+            "namespace": "example",
+            "authSecret": "matrix-hf-placeholder",
+            "modelPuller": "ghcr.io/aviadhayumi/workload-map/karta-exporter:poc-nimcache-cpu-d538367c@sha256:864054462016ee803490f5c18f6f2a697c7f1b0b9c819119f2402e221ecc7649",
+            "pullSecret": "matrix-pull-placeholder",
+            "modelName": "cpu-fixture"
+          }
+        },
+        "storage": {
+          "pvc": {
+            "create": true,
+            "size": "1Gi",
+            "volumeAccessMode": "ReadWriteOnce"
+          }
+        },
+        "resources": {
+          "cpu": "50m",
+          "memory": "32Mi"
+        },
+        "userID": 1000,
+        "groupID": 1000,
+        "nodeSelector": {
+          "kubernetes.io/os": "linux"
+        }
+      }
+    },
+    {
+      "apiVersion": "ray.io/v1",
+      "kind": "RayCluster",
+      "metadata": {
+        "name": "matrix-raycluster",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "rayVersion": "2.40.0",
+        "headGroupSpec": {
+          "rayStartParams": {},
+          "template": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "ray-head",
+                  "image": "rayproject/ray:2.40.0",
+                  "imagePullPolicy": "IfNotPresent",
+                  "resources": {
+                    "requests": {
+                      "cpu": "250m",
+                      "memory": "1Gi"
+                    },
+                    "limits": {
+                      "cpu": "1",
+                      "memory": "2Gi"
+                    }
+                  },
+                  "readinessProbe": {
+                    "tcpSocket": {
+                      "port": 6379
+                    },
+                    "initialDelaySeconds": 10,
+                    "periodSeconds": 5,
+                    "failureThreshold": 30
+                  },
+                  "livenessProbe": {
+                    "tcpSocket": {
+                      "port": 6379
+                    },
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 10,
+                    "failureThreshold": 30
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "workerGroupSpecs": [
+          {
+            "rayStartParams": {},
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "ray-worker",
+                    "image": "rayproject/ray:2.40.0",
+                    "imagePullPolicy": "IfNotPresent",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "1Gi"
+                      },
+                      "limits": {
+                        "cpu": "1",
+                        "memory": "2Gi"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "groupName": "workers",
+            "replicas": 1,
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "serving.knative.dev/v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "matrix-knative",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [
+              {
+                "image": "ghcr.io/knative/helloworld-go@sha256:c2b7412fbea6f1ef24a0cac60698e88df7ae3c4278e42d0cb34fe7d4b2641bba",
+                "ports": [
+                  {
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "TARGET",
+                    "value": "smoke"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  }
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "annotations": {
+              "autoscaling.knative.dev/min-scale": "1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "grove.io/v1alpha1",
+      "kind": "PodCliqueSet",
+      "metadata": {
+        "name": "matrix-grove",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicas": 2,
+        "template": {
+          "cliques": [
+            {
+              "name": "worker",
+              "spec": {
+                "roleName": "worker",
+                "replicas": 2,
+                "podSpec": {
+                  "containers": [
+                    {
+                      "name": "worker",
+                      "image": "busybox:1.36",
+                      "command": [
+                        "/bin/sh",
+                        "-c",
+                        "echo grove-ok && sleep infinity"
+                      ],
+                      "resources": {
+                        "requests": {
+                          "cpu": "20m",
+                          "memory": "32Mi"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v2beta1",
+      "kind": "MPIJob",
+      "metadata": {
+        "name": "poc-mpi-running",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "slotsPerWorker": 1,
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "mpiReplicaSpecs": {
+          "Launcher": {
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-launcher",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-worker",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "matrix-deployment-zero",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicas": 0,
+        "selector": {
+          "matchLabels": {
+            "app": "matrix-deployment-zero"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "matrix-deployment-zero"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "worker",
+                "image": "busybox:1.36",
+                "command": [
+                  "sleep",
+                  "600"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "16Mi"
+                  }
+                }
+              }
+            ],
+            "terminationGracePeriodSeconds": 0
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "serving.kserve.io/v1beta1",
+      "kind": "InferenceService",
+      "metadata": {
+        "name": "matrix-kserve-raw",
+        "annotations": {
+          "serving.kserve.io/deploymentMode": "RawDeployment"
+        },
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "predictor": {
+          "model": {
+            "modelFormat": {
+              "name": "sklearn"
+            },
+            "storageUri": "gs://kfserving-examples/models/sklearn/1.0/model",
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "matrix-job",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "backoffLimit": 0,
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "matrix-job"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "worker",
+                "image": "busybox:1.36",
+                "command": [
+                  "true"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "16Mi"
+                  }
+                }
+              }
+            ],
+            "terminationGracePeriodSeconds": 0,
+            "restartPolicy": "Never"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "ray.io/v1",
+      "kind": "RayService",
+      "metadata": {
+        "name": "matrix-rayservice",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "rayClusterConfig": {
+          "rayVersion": "2.40.0",
+          "headGroupSpec": {
+            "rayStartParams": {
+              "num-cpus": "0"
+            },
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "ray-head",
+                    "image": "rayproject/ray:2.40.0",
+                    "imagePullPolicy": "IfNotPresent",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "1Gi"
+                      },
+                      "limits": {
+                        "cpu": "1",
+                        "memory": "2Gi"
+                      }
+                    },
+                    "readinessProbe": {
+                      "tcpSocket": {
+                        "port": 6379
+                      },
+                      "initialDelaySeconds": 10,
+                      "periodSeconds": 5,
+                      "failureThreshold": 30
+                    },
+                    "livenessProbe": {
+                      "tcpSocket": {
+                        "port": 6379
+                      },
+                      "initialDelaySeconds": 30,
+                      "periodSeconds": 10,
+                      "failureThreshold": 30
+                    },
+                    "volumeMounts": [
+                      {
+                        "name": "app",
+                        "mountPath": "/opt/matrix"
+                      }
+                    ],
+                    "env": [
+                      {
+                        "name": "PYTHONPATH",
+                        "value": "/opt/matrix"
+                      }
+                    ]
+                  }
+                ],
+                "volumes": [
+                  {
+                    "name": "app",
+                    "configMap": {
+                      "name": "matrix-ray-app"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "workerGroupSpecs": [
+            {
+              "rayStartParams": {},
+              "template": {
+                "spec": {
+                  "containers": [
+                    {
+                      "name": "ray-worker",
+                      "image": "rayproject/ray:2.40.0",
+                      "imagePullPolicy": "IfNotPresent",
+                      "resources": {
+                        "requests": {
+                          "cpu": "250m",
+                          "memory": "1Gi"
+                        },
+                        "limits": {
+                          "cpu": "1",
+                          "memory": "2Gi"
+                        }
+                      },
+                      "volumeMounts": [
+                        {
+                          "name": "app",
+                          "mountPath": "/opt/matrix"
+                        }
+                      ],
+                      "env": [
+                        {
+                          "name": "PYTHONPATH",
+                          "value": "/opt/matrix"
+                        }
+                      ]
+                    }
+                  ],
+                  "volumes": [
+                    {
+                      "name": "app",
+                      "configMap": {
+                        "name": "matrix-ray-app"
+                      }
+                    }
+                  ]
+                }
+              },
+              "groupName": "workers",
+              "replicas": 1,
+              "minReplicas": 1,
+              "maxReplicas": 1
+            }
+          ]
+        },
+        "serveConfigV2": "applications:\n- deployments:\n  - name: Echo\n    num_replicas: 1\n    ray_actor_options:\n      num_cpus: 0.1\n  import_path: matrix_app:app\n  name: echo\n  route_prefix: /\n"
+      }
+    },
+    {
+      "apiVersion": "milvus.io/v1beta1",
+      "kind": "Milvus",
+      "metadata": {
+        "name": "matrix-milvus",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "mode": "standalone",
+        "dependencies": {
+          "etcd": {
+            "inCluster": {
+              "values": {
+                "replicaCount": 1
+              }
+            }
+          },
+          "storage": {
+            "inCluster": {
+              "values": {
+                "mode": "standalone",
+                "resources": {
+                  "requests": {
+                    "memory": "256Mi"
+                  }
+                },
+                "image": {
+                  "repository": "milvusdb/minio",
+                  "tag": "latest@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3",
+                  "pullPolicy": "IfNotPresent"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "standalone": {
+            "replicas": 1,
+            "resources": {
+              "requests": {
+                "cpu": "250m",
+                "memory": "1Gi"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "serving.kserve.io/v1beta1",
+      "kind": "InferenceService",
+      "metadata": {
+        "name": "matrix-kserve",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "predictor": {
+          "model": {
+            "modelFormat": {
+              "name": "sklearn"
+            },
+            "storageUri": "gs://kfserving-examples/models/sklearn/1.0/model",
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "matrix-pod",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "worker",
+            "image": "busybox:1.36",
+            "command": [
+              "sleep",
+              "600"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "16Mi"
+              }
+            }
+          }
+        ],
+        "terminationGracePeriodSeconds": 0
+      }
+    },
+    {
+      "apiVersion": "ray.io/v1",
+      "kind": "RayJob",
+      "metadata": {
+        "name": "matrix-rayjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "entrypoint": "echo matrix-job-complete",
+        "shutdownAfterJobFinishes": false,
+        "rayClusterSpec": {
+          "rayVersion": "2.40.0",
+          "headGroupSpec": {
+            "rayStartParams": {},
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "ray-head",
+                    "image": "rayproject/ray:2.40.0",
+                    "imagePullPolicy": "IfNotPresent",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "1Gi"
+                      },
+                      "limits": {
+                        "cpu": "1",
+                        "memory": "2Gi"
+                      }
+                    },
+                    "readinessProbe": {
+                      "tcpSocket": {
+                        "port": 6379
+                      },
+                      "initialDelaySeconds": 10,
+                      "periodSeconds": 5,
+                      "failureThreshold": 30
+                    },
+                    "livenessProbe": {
+                      "tcpSocket": {
+                        "port": 6379
+                      },
+                      "initialDelaySeconds": 30,
+                      "periodSeconds": 10,
+                      "failureThreshold": 30
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "workerGroupSpecs": [
+            {
+              "rayStartParams": {},
+              "template": {
+                "spec": {
+                  "containers": [
+                    {
+                      "name": "ray-worker",
+                      "image": "rayproject/ray:2.40.0",
+                      "imagePullPolicy": "IfNotPresent",
+                      "resources": {
+                        "requests": {
+                          "cpu": "250m",
+                          "memory": "1Gi"
+                        },
+                        "limits": {
+                          "cpu": "1",
+                          "memory": "2Gi"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "groupName": "workers",
+              "replicas": 1,
+              "minReplicas": 1,
+              "maxReplicas": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "apiVersion": "nvidia.com/v1alpha1",
+      "kind": "DynamoGraphDeployment",
+      "metadata": {
+        "name": "matrix-dynamo",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "services": {
+          "Frontend": {
+            "componentType": "frontend",
+            "extraPodSpec": {
+              "mainContainer": {
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi"
+                  }
+                }
+              }
+            },
+            "replicas": 1
+          },
+          "decode": {
+            "componentType": "worker",
+            "extraPodSpec": {
+              "mainContainer": {
+                "args": [
+                  "--model-path",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--model-name",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--speedup-ratio",
+                  "1.0",
+                  "--planner-profile-data",
+                  "/workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D",
+                  "--disaggregation-mode",
+                  "decode"
+                ],
+                "command": [
+                  "python3",
+                  "-m",
+                  "dynamo.mocker"
+                ],
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi"
+                  }
+                },
+                "workingDir": "/workspace"
+              }
+            },
+            "replicas": 1,
+            "subComponentType": "decode"
+          },
+          "prefill": {
+            "componentType": "worker",
+            "extraPodSpec": {
+              "mainContainer": {
+                "args": [
+                  "--model-path",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--model-name",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--speedup-ratio",
+                  "1.0",
+                  "--planner-profile-data",
+                  "/workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D",
+                  "--disaggregation-mode",
+                  "prefill"
+                ],
+                "command": [
+                  "python3",
+                  "-m",
+                  "dynamo.mocker"
+                ],
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi"
+                  }
+                },
+                "workingDir": "/workspace"
+              }
+            },
+            "replicas": 1,
+            "subComponentType": "prefill"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "matrix-ray-app",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "data": {
+        "matrix_app.py": "from ray import serve\n@serve.deployment\nclass Echo:\n    def __call__(self, request):\n        return \"ok\"\napp = Echo.bind()\n"
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "PyTorchJob",
+      "metadata": {
+        "name": "poc-pytorch-synthetic-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta-poc.gpu-source": "fake-gpu-operator"
+        }
+      },
+      "spec": {
+        "pytorchReplicaSpecs": {
+          "Master": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi",
+                        "nvidia.com/gpu": "1"
+                      },
+                      "limits": {
+                        "nvidia.com/gpu": "1"
+                      }
+                    }
+                  }
+                ]
+              },
+              "metadata": {
+                "labels": {
+                  "karta-poc.gpu-source": "fake-gpu-operator"
+                },
+                "annotations": {
+                  "run.ai/simulated-gpu-utilization": "70-90"
+                }
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi",
+                        "nvidia.com/gpu": "1"
+                      },
+                      "limits": {
+                        "nvidia.com/gpu": "1"
+                      }
+                    }
+                  }
+                ]
+              },
+              "metadata": {
+                "labels": {
+                  "karta-poc.gpu-source": "fake-gpu-operator"
+                },
+                "annotations": {
+                  "run.ai/simulated-gpu-utilization": "0-0"
+                }
+              }
+            }
+          }
+        },
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "StatefulSet",
+      "metadata": {
+        "name": "matrix-statefulset",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "matrix-statefulset"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "matrix-statefulset"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "worker",
+                "image": "busybox:1.36",
+                "command": [
+                  "sleep",
+                  "600"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "16Mi"
+                  }
+                }
+              }
+            ],
+            "terminationGracePeriodSeconds": 0
+          }
+        },
+        "serviceName": "matrix-headless"
+      }
+    },
+    {
+      "apiVersion": "nvidia.com/v1alpha1",
+      "kind": "DynamoGraphDeployment",
+      "metadata": {
+        "name": "demo-dynamo-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "services": {
+          "Frontend": {
+            "componentType": "frontend",
+            "extraPodSpec": {
+              "mainContainer": {
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi"
+                  }
+                }
+              }
+            },
+            "replicas": 1,
+            "extraPodMetadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              }
+            }
+          },
+          "decode": {
+            "componentType": "worker",
+            "extraPodSpec": {
+              "mainContainer": {
+                "args": [
+                  "--model-path",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--model-name",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--speedup-ratio",
+                  "1.0",
+                  "--planner-profile-data",
+                  "/workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D",
+                  "--disaggregation-mode",
+                  "decode"
+                ],
+                "command": [
+                  "python3",
+                  "-m",
+                  "dynamo.mocker"
+                ],
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi",
+                    "nvidia.com/gpu": "1"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi",
+                    "nvidia.com/gpu": "1"
+                  }
+                },
+                "workingDir": "/workspace"
+              }
+            },
+            "replicas": 1,
+            "subComponentType": "decode",
+            "extraPodMetadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              },
+              "annotations": {
+                "run.ai/simulated-gpu-utilization": "60-95"
+              }
+            },
+            "resources": {
+              "requests": {
+                "gpu": "1"
+              },
+              "limits": {
+                "gpu": "1"
+              }
+            }
+          },
+          "prefill": {
+            "componentType": "worker",
+            "extraPodSpec": {
+              "mainContainer": {
+                "args": [
+                  "--model-path",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--model-name",
+                  "nvidia/Llama-3.1-8B-Instruct-FP8",
+                  "--speedup-ratio",
+                  "1.0",
+                  "--planner-profile-data",
+                  "/workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D",
+                  "--disaggregation-mode",
+                  "prefill"
+                ],
+                "command": [
+                  "python3",
+                  "-m",
+                  "dynamo.mocker"
+                ],
+                "env": [
+                  {
+                    "name": "TOKIO_WORKER_THREADS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "OMP_NUM_THREADS",
+                    "value": "1"
+                  }
+                ],
+                "image": "nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "",
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "768Mi",
+                    "nvidia.com/gpu": "1"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "256Mi",
+                    "nvidia.com/gpu": "1"
+                  }
+                },
+                "workingDir": "/workspace"
+              }
+            },
+            "replicas": 1,
+            "subComponentType": "prefill",
+            "extraPodMetadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              },
+              "annotations": {
+                "run.ai/simulated-gpu-utilization": "60-95"
+              }
+            },
+            "resources": {
+              "requests": {
+                "gpu": "1"
+              },
+              "limits": {
+                "gpu": "1"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v2beta1",
+      "kind": "MPIJob",
+      "metadata": {
+        "name": "demo-mpi-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "slotsPerWorker": 1,
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "mpiReplicaSpecs": {
+          "Launcher": {
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-launcher",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    }
+                  }
+                ],
+                "automountServiceAccountToken": false
+              },
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-metrics-poc",
+                  "karta.demo/gpu-randomize": "true"
+                }
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "mpi-worker",
+                    "image": "busybox:1.36",
+                    "command": [
+                      "sleep",
+                      "infinity"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "64Mi",
+                        "nvidia.com/gpu": "1"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi",
+                        "nvidia.com/gpu": "1"
+                      }
+                    }
+                  }
+                ],
+                "automountServiceAccountToken": false
+              },
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-metrics-poc",
+                  "karta.demo/gpu-randomize": "true"
+                },
+                "annotations": {
+                  "run.ai/simulated-gpu-utilization": "60-95"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "ray.io/v1",
+      "kind": "RayCluster",
+      "metadata": {
+        "name": "demo-ray-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "rayVersion": "2.40.0",
+        "headGroupSpec": {
+          "rayStartParams": {
+            "num-gpus": "0"
+          },
+          "template": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "ray-head",
+                  "image": "rayproject/ray:2.40.0",
+                  "imagePullPolicy": "IfNotPresent",
+                  "resources": {
+                    "requests": {
+                      "cpu": "250m",
+                      "memory": "1Gi"
+                    },
+                    "limits": {
+                      "cpu": "1",
+                      "memory": "2Gi"
+                    }
+                  },
+                  "readinessProbe": {
+                    "tcpSocket": {
+                      "port": 6379
+                    },
+                    "initialDelaySeconds": 10,
+                    "periodSeconds": 5,
+                    "failureThreshold": 30
+                  },
+                  "livenessProbe": {
+                    "tcpSocket": {
+                      "port": 6379
+                    },
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 10,
+                    "failureThreshold": 30
+                  }
+                }
+              ],
+              "automountServiceAccountToken": false
+            },
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              }
+            }
+          }
+        },
+        "workerGroupSpecs": [
+          {
+            "rayStartParams": {
+              "num-gpus": "1"
+            },
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "ray-worker",
+                    "image": "rayproject/ray:2.40.0",
+                    "imagePullPolicy": "IfNotPresent",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "1Gi",
+                        "nvidia.com/gpu": "1"
+                      },
+                      "limits": {
+                        "cpu": "1",
+                        "memory": "2Gi",
+                        "nvidia.com/gpu": "1"
+                      }
+                    }
+                  }
+                ],
+                "automountServiceAccountToken": false
+              },
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-metrics-poc",
+                  "karta.demo/gpu-randomize": "true"
+                },
+                "annotations": {
+                  "run.ai/simulated-gpu-utilization": "60-95"
+                }
+              }
+            },
+            "groupName": "workers",
+            "replicas": 1,
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "grove.io/v1alpha1",
+      "kind": "PodCliqueSet",
+      "metadata": {
+        "name": "demo-grove-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "template": {
+          "cliques": [
+            {
+              "name": "worker",
+              "spec": {
+                "roleName": "worker",
+                "replicas": 2,
+                "podSpec": {
+                  "containers": [
+                    {
+                      "name": "worker",
+                      "image": "busybox:1.36",
+                      "command": [
+                        "/bin/sh",
+                        "-c",
+                        "echo grove-ok && sleep infinity"
+                      ],
+                      "resources": {
+                        "requests": {
+                          "cpu": "20m",
+                          "memory": "32Mi",
+                          "nvidia.com/gpu": "1"
+                        },
+                        "limits": {
+                          "nvidia.com/gpu": "1"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              },
+              "annotations": {
+                "run.ai/simulated-gpu-utilization": "60-95"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "apiVersion": "leaderworkerset.x-k8s.io/v1",
+      "kind": "LeaderWorkerSet",
+      "metadata": {
+        "name": "demo-lws-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "leaderWorkerTemplate": {
+          "size": 2,
+          "leaderTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "leader",
+                  "image": "busybox:1.36",
+                  "command": [
+                    "sleep",
+                    "infinity"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi"
+                    }
+                  }
+                }
+              ],
+              "automountServiceAccountToken": false
+            },
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              }
+            }
+          },
+          "workerTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "worker",
+                  "image": "busybox:1.36",
+                  "command": [
+                    "sleep",
+                    "infinity"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi",
+                      "nvidia.com/gpu": "1"
+                    },
+                    "limits": {
+                      "nvidia.com/gpu": "1"
+                    }
+                  }
+                }
+              ],
+              "automountServiceAccountToken": false
+            },
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-metrics-poc",
+                "karta.demo/gpu-randomize": "true"
+              },
+              "annotations": {
+                "run.ai/simulated-gpu-utilization": "60-95"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "jobset.x-k8s.io/v1alpha2",
+      "kind": "JobSet",
+      "metadata": {
+        "name": "demo-jobset-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "replicatedJobs": [
+          {
+            "name": "workers",
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "parallelism": 1,
+                "completions": 1,
+                "backoffLimit": 0,
+                "template": {
+                  "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                      {
+                        "name": "worker",
+                        "image": "busybox:1.36",
+                        "command": [
+                          "sleep",
+                          "infinity"
+                        ],
+                        "resources": {
+                          "requests": {
+                            "cpu": "50m",
+                            "memory": "32Mi",
+                            "nvidia.com/gpu": "1"
+                          },
+                          "limits": {
+                            "nvidia.com/gpu": "1"
+                          }
+                        }
+                      }
+                    ],
+                    "automountServiceAccountToken": false
+                  },
+                  "metadata": {
+                    "labels": {
+                      "app.kubernetes.io/part-of": "karta-metrics-poc",
+                      "karta.demo/gpu-randomize": "true"
+                    },
+                    "annotations": {
+                      "run.ai/simulated-gpu-utilization": "60-95"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "chief",
+            "replicas": 1,
+            "template": {
+              "spec": {
+                "parallelism": 1,
+                "completions": 1,
+                "backoffLimit": 0,
+                "template": {
+                  "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                      {
+                        "name": "worker",
+                        "image": "busybox:1.36",
+                        "command": [
+                          "sleep",
+                          "infinity"
+                        ],
+                        "resources": {
+                          "requests": {
+                            "cpu": "50m",
+                            "memory": "32Mi"
+                          }
+                        }
+                      }
+                    ],
+                    "automountServiceAccountToken": false
+                  },
+                  "metadata": {
+                    "labels": {
+                      "app.kubernetes.io/part-of": "karta-metrics-poc",
+                      "karta.demo/gpu-randomize": "true"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps.nvidia.com/v1alpha1",
+      "kind": "NIMService",
+      "metadata": {
+        "name": "demo-nim-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/dynamic": "true"
+        }
+      },
+      "spec": {
+        "image": {
+          "repository": "ghcr.io/aviadhayumi/workload-map/karta-exporter",
+          "tag": "poc-nim-cpu-d538367c@sha256:571ea747ab2d6fd0bbf2b789a1e5fd5807bb2865977d5d17ce7146ead2339445",
+          "pullPolicy": "IfNotPresent"
+        },
+        "authSecret": "matrix-ngc-placeholder",
+        "storage": {
+          "pvc": {
+            "create": true,
+            "size": "1Gi",
+            "volumeAccessMode": "ReadWriteOnce"
+          }
+        },
+        "replicas": 1,
+        "expose": {
+          "service": {
+            "type": "ClusterIP",
+            "port": 8000
+          }
+        },
+        "env": [
+          {
+            "name": "NIM_REQUEST_LATENCY",
+            "value": "2"
+          }
+        ],
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-metrics-poc",
+          "karta.demo/gpu-randomize": "true"
+        },
+        "annotations": {
+          "run.ai/simulated-gpu-utilization": "60-95"
+        },
+        "resources": {
+          "requests": {
+            "cpu": "50m",
+            "memory": "64Mi",
+            "nvidia.com/gpu": "1"
+          },
+          "limits": {
+            "cpu": "200m",
+            "memory": "128Mi",
+            "nvidia.com/gpu": "1"
+          }
+        }
+      }
+    }
+  ]
+}
