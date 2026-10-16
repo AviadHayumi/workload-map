@@ -1,0 +1,5 @@
+{
+  "httpStatus": 200,
+  "body": "attribution-inference\n",
+  "path": "Knative revision proxy via localhost"
+}

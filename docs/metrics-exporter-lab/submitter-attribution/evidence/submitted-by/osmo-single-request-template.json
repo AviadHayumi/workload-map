@@ -1,0 +1,3 @@
+{
+  "file": "workflow:\n  name: cel-label-single\n  resources:\n    default:\n      cpu: 1\n      memory: 512Mi\n      storage: 1Gi\n      platform: <audit-platform>\n  tasks:\n  - name: worker\n    image: ubuntu:24.04\n    command:\n    - /bin/sh\n    - -c\n    args:\n    - echo attribution-start; sleep 300; echo attribution-complete\n"
+}

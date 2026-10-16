@@ -1,0 +1,51 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "cel-label-deployment",
+    "namespace": "karta-label-direct",
+    "annotations": {
+      "review.example.com/note": "keep-me"
+    }
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "cel-label-deployment",
+          "team": "demo"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "name": "work",
+            "image": "busybox:1.37.0",
+            "command": [
+              "sh",
+              "-c",
+              "echo submitter-demo; sleep 3600"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "5m",
+                "memory": "8Mi"
+              },
+              "limits": {
+                "cpu": "100m",
+                "memory": "32Mi"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app": "cel-label-deployment"
+      }
+    }
+  }
+}

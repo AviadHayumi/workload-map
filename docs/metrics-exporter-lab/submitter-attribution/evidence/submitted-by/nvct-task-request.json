@@ -1,0 +1,23 @@
+{
+  "name": "cel-label-task",
+  "description": "Finite identity metadata test, no result upload",
+  "gpuSpecification": {
+    "gpu": "TESLA",
+    "instanceType": "NCP.GPU.TESLA_1x"
+  },
+  "containerImage": "nvcr.io/nvidia/cuda:12.6.3-base-ubuntu22.04",
+  "containerArgs": "bash -c 'printf %s \"$ATTRIBUTION_SCRIPT\" | base64 -d | bash'",
+  "tags": [
+    "attribution-lab"
+  ],
+  "maxRuntimeDuration": "PT5M",
+  "maxQueuedDuration": "PT10M",
+  "terminationGracePeriodDuration": "PT15S",
+  "resultHandlingStrategy": "NONE",
+  "containerEnvironment": [
+    {
+      "key": "ATTRIBUTION_SCRIPT",
+      "value": "IyBTUERYLUxpY2Vuc2UtSWRlbnRpZmllcjogQXBhY2hlLTIuMAojIENvcHlyaWdodCAoYykgMjAyNiBOVklESUEgQ29ycG9yYXRpb24Kc2V0IC1ldQpmb3IgYXR0ZW1wdCBpbiAkKHNlcSAxIDYwKTsgZG8KICBbIC1kICIkTlZDVF9SRVNVTFRTX0RJUiIgXSAmJiBicmVhawogIHNsZWVwIDEKZG9uZQpbIC1kICIkTlZDVF9SRVNVTFRTX0RJUiIgXQpzbGVlcCAxCnByaW50ZiAneyJ0YXNrSWQiOiIlcyIsInBlcmNlbnRDb21wbGV0ZSI6MSwibmFtZSI6InJ1bm5pbmciLCJsYXN0VXBkYXRlZEF0IjoiJXMifVxuJyAiJE5WQ1RfVEFTS19JRCIgIiQoZGF0ZSAtdSArJVktJW0tJWRUJUg6JU06JVNaKSIgPiAiJE5WQ1RfUFJPR1JFU1NfRklMRV9QQVRILnRtcCIKbXYgIiROVkNUX1BST0dSRVNTX0ZJTEVfUEFUSC50bXAiICIkTlZDVF9QUk9HUkVTU19GSUxFX1BBVEgiCnNsZWVwIDE4MApwcmludGYgJ3sidGFza0lkIjoiJXMiLCJwZXJjZW50Q29tcGxldGUiOjEwMCwibmFtZSI6ImNvbXBsZXRlZCIsImxhc3RVcGRhdGVkQXQiOiIlcyJ9XG4nICIkTlZDVF9UQVNLX0lEIiAiJChkYXRlIC11ICslWS0lbS0lZFQlSDolTTolU1opIiA+ICIkTlZDVF9QUk9HUkVTU19GSUxFX1BBVEgudG1wIgptdiAiJE5WQ1RfUFJPR1JFU1NfRklMRV9QQVRILnRtcCIgIiROVkNUX1BST0dSRVNTX0ZJTEVfUEFUSCIKc2xlZXAgMTAK"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "cel-label-training",
+  "projectId": "<project-id>",
+  "clusterId": "<cluster-id>",
+  "spec": {
+    "image": "busybox:1.37.0",
+    "command": "sh",
+    "args": "-c \"echo attribution-start; sleep 300; echo attribution-complete\"",
+    "backoffLimit": 0,
+    "restartPolicy": "Never",
+    "compute": {
+      "cpuCoreRequest": 0.05,
+      "cpuCoreLimit": 0.2,
+      "cpuMemoryRequest": "64Mi",
+      "cpuMemoryLimit": "128Mi",
+      "gpuDevicesRequest": 0
+    }
+  }
+}

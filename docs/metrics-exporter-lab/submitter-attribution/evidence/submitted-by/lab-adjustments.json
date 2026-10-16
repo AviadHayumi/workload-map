@@ -1,0 +1,21 @@
+{
+  "nvcfAndNvct": {
+    "initialFailure": "Insufficient CPU for 1 CPU fixture plus sidecar",
+    "firstResize": "Request-only resize rejected because it changed Guaranteed QoS",
+    "appliedFix": "Resize only new HTTP/task container CPU request and limit to 100m; sidecar unchanged",
+    "scope": "Only these two test Pods; no shared platform setting changed"
+  },
+  "osmo": {
+    "initialCapture": "empty submitted_by while observation health was evaluation_failed",
+    "repeatCapture": "all three task Pods health=1 and submitted_by=alice",
+    "codeFixNeeded": false
+  },
+  "authentication": {
+    "nvcfInitialFailure": "Bootstrap-account JWT could not create/list the function (403)",
+    "resolution": "Use existing account-authorized signer; no authentication policy changed"
+  },
+  "transport": {
+    "osmoDirectService": "POST disconnected; workflow absent on verification",
+    "resolution": "Submit through installed OSMO gateway"
+  }
+}

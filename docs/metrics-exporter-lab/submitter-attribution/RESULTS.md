@@ -3,6 +3,11 @@
 
 # Submitter attribution verified results
 
+Historical record: this document predates the label-only rerun. Its companion
+metrics, overwriting admission behavior and build coverage are superseded by
+[the current implementation](IMPLEMENTATION.md) and [fresh report](audit-summary.md).
+Original observations below are preserved as evidence of the earlier build.
+
 Target: isolated KIND test cluster. NGC was used for reads and pulls only.
 Original source repositories and the shared kubectl context were not changed.
 

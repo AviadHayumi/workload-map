@@ -1,0 +1,10 @@
+{
+  "implementationCommit": "49ff26cccd65a64fd69f74ebc2547d7b2de51459",
+  "exporterBinarySHA256": "267644cee3d9489f323de2cb235a641262d0e0ae9745e2511a34e100d776eb07",
+  "operatorBinarySHA256": "f8e88cdb78fcaf9080eb136aa505f988dae45b288ed442b12146cd814388caaa",
+  "exporterMakeCheck": "passed including race and chart tests",
+  "operatorMakeCheck": "passed including envtest 1.31.0",
+  "helmLintAndValidate": "passed including existing Prometheus rule tests",
+  "chartCases": 15,
+  "rootMakeCheck": "passed in clean checkout of implementationCommit"
+}

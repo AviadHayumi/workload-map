@@ -1,0 +1,48 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "cel-label-job",
+    "namespace": "karta-label-direct",
+    "annotations": {
+      "review.example.com/note": "keep-me"
+    }
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "cel-label-job",
+          "team": "demo"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "name": "work",
+            "image": "busybox:1.37.0",
+            "command": [
+              "sh",
+              "-c",
+              "echo submitter-demo; sleep 300"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "5m",
+                "memory": "8Mi"
+              },
+              "limits": {
+                "cpu": "100m",
+                "memory": "32Mi"
+              }
+            }
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    },
+    "backoffLimit": 0,
+    "ttlSecondsAfterFinished": 3600
+  }
+}

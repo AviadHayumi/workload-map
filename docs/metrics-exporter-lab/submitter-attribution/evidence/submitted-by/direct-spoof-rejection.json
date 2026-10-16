@@ -1,0 +1,6 @@
+{
+  "rejected": true,
+  "reason": "existing submitter annotations conflict with the authenticated principal",
+  "username": "alice@example.test",
+  "suppliedSubmitter": "bob@example.test"
+}

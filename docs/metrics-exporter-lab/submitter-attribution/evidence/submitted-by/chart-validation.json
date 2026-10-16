@@ -1,0 +1,62 @@
+[
+  {
+    "case": "defaults",
+    "passed": true
+  },
+  {
+    "case": "exporter only",
+    "passed": true
+  },
+  {
+    "case": "values.yaml",
+    "passed": true
+  },
+  {
+    "case": "values-complex.yaml",
+    "passed": true
+  },
+  {
+    "case": "expression without admission",
+    "passed": true
+  },
+  {
+    "case": "expression checksum change",
+    "passed": true
+  },
+  {
+    "case": "legacy rule configuration",
+    "passed": true
+  },
+  {
+    "case": "legacy admission only",
+    "passed": true
+  },
+  {
+    "case": "nested admission only",
+    "passed": true
+  },
+  {
+    "case": "reject expression and rules",
+    "passed": true
+  },
+  {
+    "case": "reject both admission settings",
+    "passed": true
+  },
+  {
+    "case": "reject empty namespace selector",
+    "passed": true
+  },
+  {
+    "case": "reject disabled webhook TLS path",
+    "passed": true
+  },
+  {
+    "case": "reject enabled without expression or rules",
+    "passed": true
+  },
+  {
+    "case": "reject webhook-only without admission",
+    "passed": true
+  }
+]

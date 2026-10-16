@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-16T08:51:18.808127+00:00",
+  "actions": [
+    {
+      "resource": "cel-label-training",
+      "httpStatus": 202
+    },
+    {
+      "resource": "cel-label-inference",
+      "httpStatus": 202
+    },
+    {
+      "resource": "cel-label-function definition (already undeployed)",
+      "httpStatus": 204
+    },
+    {
+      "resource": "cel-label-task (completed)",
+      "httpStatus": 204
+    },
+    {
+      "resource": "nvcf-api temporary API key",
+      "httpStatus": 204
+    },
+    {
+      "resource": "nvct-api temporary API key",
+      "httpStatus": 204
+    },
+    {
+      "resource": "-n karta-label-direct delete deployment/cel-label-deployment job/cel-label-job --ignore-not-found=true --wait=false",
+      "returnCode": 0
+    },
+    {
+      "resource": "-n karta-label-direct delete role/submitter-demo rolebinding/submitter-demo --ignore-not-found=true",
+      "returnCode": 0
+    },
+    {
+      "resource": "delete csr/karta-label-review-user --ignore-not-found=true",
+      "returnCode": 0
+    },
+    {
+      "resource": "-n karta-submitter-test delete pod/submitted-by-binary-upload --ignore-not-found=true --wait=false",
+      "returnCode": 0
+    }
+  ]
+}

@@ -1,0 +1,919 @@
+{
+  "capturedAt": "2026-10-16T08:36:45.407370+00:00",
+  "resources": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-label-deployment-7d5f9b5f4c-46sv6",
+      "namespace": "karta-label-direct",
+      "uid": "8673f6ee-6052-48fc-9033-406a35cda1e6",
+      "owners": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "cel-label-deployment-7d5f9b5f4c",
+          "uid": "7352fece-b143-461b-81f9-f578f6d650d5"
+        }
+      ],
+      "labels": {
+        "app": "cel-label-deployment",
+        "team": "demo"
+      },
+      "annotations": {},
+      "annotationKeys": [],
+      "labelKeys": [
+        "app",
+        "pod-template-hash",
+        "team"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:21:36Z",
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:35Z",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:36Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:36Z",
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:35Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-label-job-t6bmq",
+      "namespace": "karta-label-direct",
+      "uid": "90b58fb2-a2c1-4800-8e16-39e4f0d7adb4",
+      "owners": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Job",
+          "name": "cel-label-job",
+          "uid": "a3c1b224-778b-482c-8bd7-cf848de2b8ac"
+        }
+      ],
+      "labels": {
+        "app": "cel-label-job",
+        "team": "demo"
+      },
+      "annotations": {},
+      "annotationKeys": [],
+      "labelKeys": [
+        "app",
+        "batch.kubernetes.io/controller-uid",
+        "batch.kubernetes.io/job-name",
+        "controller-uid",
+        "job-name",
+        "team"
+      ],
+      "status": {
+        "phase": "Succeeded"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:26:39Z",
+          "status": "False",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:37Z",
+          "reason": "PodCompleted",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:26:38Z",
+          "reason": "PodCompleted",
+          "status": "False",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:26:38Z",
+          "reason": "PodCompleted",
+          "status": "False",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:37Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "name": "cel-label-deployment",
+      "namespace": "karta-label-direct",
+      "uid": "da02dd71-b84e-4aca-a6a2-70fa7cce6921",
+      "owners": [],
+      "labels": {},
+      "annotations": {
+        "review.example.com/note": "keep-me",
+        "workload.dgxc.nvidia.com/identity-source": "kubernetes:attribution-lab",
+        "workload.dgxc.nvidia.com/submitter-id": "alice@example.test",
+        "workload.dgxc.nvidia.com/submitter-type": "unknown"
+      },
+      "annotationKeys": [
+        "deployment.kubernetes.io/revision",
+        "review.example.com/note",
+        "workload.dgxc.nvidia.com/identity-source",
+        "workload.dgxc.nvidia.com/submitter-id",
+        "workload.dgxc.nvidia.com/submitter-type"
+      ],
+      "labelKeys": [],
+      "status": {
+        "availableReplicas": 1,
+        "readyReplicas": 1
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:21:37Z",
+          "reason": "MinimumReplicasAvailable",
+          "status": "True",
+          "type": "Available"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:21:35Z",
+          "reason": "NewReplicaSetAvailable",
+          "status": "True",
+          "type": "Progressing"
+        }
+      ]
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "name": "cel-label-job",
+      "namespace": "karta-label-direct",
+      "uid": "a3c1b224-778b-482c-8bd7-cf848de2b8ac",
+      "owners": [],
+      "labels": {
+        "app": "cel-label-job",
+        "team": "demo"
+      },
+      "annotations": {
+        "review.example.com/note": "keep-me",
+        "workload.dgxc.nvidia.com/identity-source": "kubernetes:attribution-lab",
+        "workload.dgxc.nvidia.com/submitter-id": "alice@example.test",
+        "workload.dgxc.nvidia.com/submitter-type": "unknown"
+      },
+      "annotationKeys": [
+        "review.example.com/note",
+        "workload.dgxc.nvidia.com/identity-source",
+        "workload.dgxc.nvidia.com/submitter-id",
+        "workload.dgxc.nvidia.com/submitter-type"
+      ],
+      "labelKeys": [
+        "app",
+        "team"
+      ],
+      "status": {
+        "completionTime": "2026-10-16T08:26:40Z",
+        "succeeded": 1
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:26:40Z",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "SuccessCriteriaMet"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:26:40Z",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "Complete"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-label-inference-00001-deployment-864b4b85b4-cmqcm",
+      "namespace": "runai-attribution-lab",
+      "uid": "401cee9b-4e5d-4911-a7e0-d613964b0e77",
+      "owners": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "cel-label-inference-00001-deployment-864b4b85b4",
+          "uid": "59bd34b4-69fd-44f6-9067-4e318bcb2967"
+        }
+      ],
+      "labels": {
+        "app": "service"
+      },
+      "annotations": {},
+      "annotationKeys": [
+        "autoscaling.knative.dev/class",
+        "autoscaling.knative.dev/max-scale",
+        "autoscaling.knative.dev/min-scale",
+        "pod-group-name",
+        "received-resource-type",
+        "runai-allocated-gpu-memory",
+        "runai-allocated-gpus",
+        "runai-allocated-mig-gpus",
+        "runai-calculated-status",
+        "serving.knative.dev/creator"
+      ],
+      "labelKeys": [
+        "app",
+        "createdBy",
+        "pod-template-hash",
+        "project",
+        "release",
+        "run.ai/cluster-top-owner-uid",
+        "run.ai/element-1-id",
+        "run.ai/top-owner-uid",
+        "run.ai/workload-id",
+        "serving.knative.dev/configuration",
+        "serving.knative.dev/configurationGeneration",
+        "serving.knative.dev/configurationUID",
+        "serving.knative.dev/revision",
+        "serving.knative.dev/revisionUID",
+        "serving.knative.dev/service",
+        "serving.knative.dev/serviceUID",
+        "workloadKind",
+        "workloadName"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:20:40Z",
+          "reason": "Bound",
+          "status": "True",
+          "type": "PodBound"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:40Z",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:39Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-label-training-p86qv",
+      "namespace": "runai-attribution-lab",
+      "uid": "fc5041d5-2538-4950-9cd9-c6da0fbbee05",
+      "owners": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Job",
+          "name": "cel-label-training",
+          "uid": "f7567dd2-9091-4968-b2df-de5c2376bd07"
+        }
+      ],
+      "labels": {
+        "app": "job"
+      },
+      "annotations": {
+        "user": "test@run.ai"
+      },
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type",
+        "runai-allocated-gpu-memory",
+        "runai-allocated-gpus",
+        "runai-allocated-mig-gpus",
+        "runai-calculated-status",
+        "user"
+      ],
+      "labelKeys": [
+        "app",
+        "batch.kubernetes.io/controller-uid",
+        "batch.kubernetes.io/job-name",
+        "controller-uid",
+        "createdBy",
+        "job-name",
+        "project",
+        "release",
+        "run.ai/cluster-top-owner-uid",
+        "run.ai/top-owner-uid",
+        "run.ai/workload-id",
+        "workloadKind",
+        "workloadName"
+      ],
+      "status": {
+        "phase": "Succeeded"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:20:40Z",
+          "reason": "Bound",
+          "status": "True",
+          "type": "PodBound"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:25:43Z",
+          "status": "False",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:40Z",
+          "reason": "PodCompleted",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:25:42Z",
+          "reason": "PodCompleted",
+          "status": "False",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:25:42Z",
+          "reason": "PodCompleted",
+          "status": "False",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:40Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "name": "cel-label-training",
+      "namespace": "runai-attribution-lab",
+      "uid": "f7567dd2-9091-4968-b2df-de5c2376bd07",
+      "owners": [
+        {
+          "apiVersion": "run.ai/v1alpha1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "WorkloadRunner",
+          "name": "cel-label-training",
+          "uid": "3af21953-e122-4c9b-ab34-56c793400cff"
+        }
+      ],
+      "labels": {
+        "app": "job"
+      },
+      "annotations": {
+        "run.ai/submitted-by": "test@run.ai"
+      },
+      "annotationKeys": [
+        "run.ai/submitted-by",
+        "workloadId"
+      ],
+      "labelKeys": [
+        "app",
+        "createdBy",
+        "kai.scheduler/preemptibility",
+        "priorityClassName",
+        "project",
+        "release",
+        "run.ai/category",
+        "run.ai/control-plane-managed",
+        "run.ai/converted-from-native",
+        "run.ai/project",
+        "run.ai/workload",
+        "workloadKind",
+        "workloadName"
+      ],
+      "status": {
+        "completionTime": "2026-10-16T08:25:44Z",
+        "succeeded": 1
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:25:44Z",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "SuccessCriteriaMet"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:25:44Z",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "Complete"
+        }
+      ]
+    },
+    {
+      "apiVersion": "serving.knative.dev/v1",
+      "kind": "Service",
+      "name": "cel-label-inference",
+      "namespace": "runai-attribution-lab",
+      "uid": "a0e2d070-c135-45aa-93f2-edcba5c1e8bb",
+      "owners": [
+        {
+          "apiVersion": "run.ai/v1alpha1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "WorkloadRunner",
+          "name": "cel-label-inference",
+          "uid": "bfcac16d-6648-4ef6-8876-62b826046e93"
+        }
+      ],
+      "labels": {
+        "app": "service"
+      },
+      "annotations": {
+        "run.ai/submitted-by": "test@run.ai"
+      },
+      "annotationKeys": [
+        "run.ai/submitted-by",
+        "serving.knative.dev/creator",
+        "serving.knative.dev/lastModifier",
+        "workloadId"
+      ],
+      "labelKeys": [
+        "app",
+        "createdBy",
+        "kai.scheduler/preemptibility",
+        "networking.knative.dev/visibility",
+        "priorityClassName",
+        "project",
+        "release",
+        "run.ai/category",
+        "run.ai/control-plane-managed",
+        "run.ai/converted-from-native",
+        "run.ai/project",
+        "run.ai/workload",
+        "workloadKind",
+        "workloadName"
+      ],
+      "status": {},
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "ConfigurationsReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:42Z",
+          "status": "True",
+          "type": "RoutesReady"
+        }
+      ]
+    },
+    {
+      "apiVersion": "run.ai/v1alpha1",
+      "kind": "WorkloadRunner",
+      "name": "cel-label-inference",
+      "namespace": "runai-attribution-lab",
+      "uid": "bfcac16d-6648-4ef6-8876-62b826046e93",
+      "owners": [],
+      "labels": {},
+      "annotations": {},
+      "annotationKeys": [
+        "clusterId",
+        "run.ai/workload-owner-uid",
+        "run.ai/workload-update-counter",
+        "workloadId"
+      ],
+      "labelKeys": [
+        "run.ai/control-plane-managed",
+        "run.ai/workload",
+        "run.ai/workload-group",
+        "run.ai/workload-kind",
+        "run.ai/workload-version"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:20:38Z",
+          "reason": "KartaReady",
+          "status": "True",
+          "type": "PrerequisitesPassed"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:38Z",
+          "reason": "Succeeded",
+          "status": "True",
+          "type": "LastReconcileSucceeded"
+        }
+      ]
+    },
+    {
+      "apiVersion": "run.ai/v1alpha1",
+      "kind": "WorkloadRunner",
+      "name": "cel-label-training",
+      "namespace": "runai-attribution-lab",
+      "uid": "3af21953-e122-4c9b-ab34-56c793400cff",
+      "owners": [],
+      "labels": {},
+      "annotations": {},
+      "annotationKeys": [
+        "clusterId",
+        "run.ai/completion-time",
+        "run.ai/workload-owner-uid",
+        "run.ai/workload-update-counter",
+        "workloadId"
+      ],
+      "labelKeys": [
+        "run.ai/control-plane-managed",
+        "run.ai/workload",
+        "run.ai/workload-group",
+        "run.ai/workload-kind",
+        "run.ai/workload-version"
+      ],
+      "status": {
+        "phase": "Completed"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:20:38Z",
+          "reason": "KartaReady",
+          "status": "True",
+          "type": "PrerequisitesPassed"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:20:38Z",
+          "reason": "Succeeded",
+          "status": "True",
+          "type": "LastReconcileSucceeded"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "c47243997abb4ec9-96a05d548f4f4ff9",
+      "namespace": "osmo-submitter-lab",
+      "uid": "0b76c7fa-30c5-480b-8ea7-640bed645a71",
+      "owners": [],
+      "labels": {
+        "osmo.group_name": "pair",
+        "osmo.group_uuid": "9c806015dd0a4aa2b5deab552c0f8a08",
+        "osmo.platform": "cel-audit-control-plane",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "96a05d548f4f4ff9bd2c1cec88ae013d",
+        "osmo.workflow_id": "cel-label-group-2",
+        "osmo.workflow_uuid": "c47243997abb4ec9af456144acc49417"
+      },
+      "annotations": {},
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.submitted_by",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:35:56Z",
+          "reason": "Bound",
+          "status": "True",
+          "type": "PodBound"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:57Z",
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:08Z",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:10Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:10Z",
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:56Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "c47243997abb4ec9-fb47d19472b34eb6",
+      "namespace": "osmo-submitter-lab",
+      "uid": "dc62d7ab-4252-4ff6-b424-12e3fd444fa1",
+      "owners": [],
+      "labels": {
+        "osmo.group_name": "pair",
+        "osmo.group_uuid": "9c806015dd0a4aa2b5deab552c0f8a08",
+        "osmo.lead_container": "true",
+        "osmo.platform": "cel-audit-control-plane",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "leader",
+        "osmo.task_uuid": "fb47d19472b34eb69324658ce14d08df",
+        "osmo.workflow_id": "cel-label-group-2",
+        "osmo.workflow_uuid": "c47243997abb4ec9af456144acc49417"
+      },
+      "annotations": {},
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.lead_container",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.submitted_by",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:35:56Z",
+          "reason": "Bound",
+          "status": "True",
+          "type": "PodBound"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:57Z",
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:08Z",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:10Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:10Z",
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:56Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "e5d1abe4ce374717-e923b371aa294f01",
+      "namespace": "osmo-submitter-lab",
+      "uid": "5f3e6b22-7bd5-4587-95f3-7dba1d2edcde",
+      "owners": [],
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "39e0a59882814b238be0887400c4bf75",
+        "osmo.lead_container": "true",
+        "osmo.platform": "cel-audit-control-plane",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "e923b371aa294f0180f7e43328dfee4c",
+        "osmo.workflow_id": "cel-label-single-2",
+        "osmo.workflow_uuid": "e5d1abe4ce374717921460b24b76acea"
+      },
+      "annotations": {},
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.lead_container",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.submitted_by",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue"
+      ],
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:35:54Z",
+          "reason": "Bound",
+          "status": "True",
+          "type": "PodBound"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:55Z",
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:07Z",
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:09Z",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:36:09Z",
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-16T08:35:54Z",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "0-sr-df24444a-8807-4fc9-89c6-534c7a701643",
+      "namespace": "nvcf-backend",
+      "uid": "d6bfe092-30a1-4028-ac36-afcdf5ffb7be",
+      "owners": [
+        {
+          "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+          "kind": "ICMSRequest",
+          "name": "sr-df24444a-8807-4fc9-89c6-534c7a701643",
+          "uid": "7f8618b7-cd31-4317-9c12-a017385260cc"
+        }
+      ],
+      "labels": {
+        "function-id": "2ab27eeb-6f2d-4eca-8368-bc1aab04fc20",
+        "function-version-id": "14fe20c5-be38-4e02-8084-560f84ce95a7"
+      },
+      "annotations": {},
+      "annotationKeys": [
+        "FUNCTION_NAME",
+        "function-name",
+        "icms-cluster-group",
+        "icms-request-id",
+        "instance-count",
+        "nca-id",
+        "nvcf.nvidia.io/backend",
+        "nvcf.nvidia.io/environment",
+        "nvcf.nvidia.io/instance-type-name",
+        "nvcf.nvidia.io/instance-type-value",
+        "nvcf.nvidia.io/region"
+      ],
+      "labelKeys": [
+        "ENVIRONMENT",
+        "FUNCTION_ID",
+        "FUNCTION_VERSION_ID",
+        "GPU_COUNT",
+        "NCA_ID",
+        "environment",
+        "function-id",
+        "function-version-id",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvcf.nvidia.io/deployment-id",
+        "nvcf.nvidia.io/gpu-specification-id",
+        "nvcf.nvidia.io/message-batch-id",
+        "performance_class"
+      ],
+      "status": {
+        "phase": "Pending"
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-16T08:35:09Z",
+          "reason": "Unschedulable",
+          "status": "False",
+          "type": "PodScheduled"
+        }
+      ]
+    },
+    {
+      "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+      "kind": "ICMSRequest",
+      "name": "sr-df24444a-8807-4fc9-89c6-534c7a701643",
+      "namespace": "nvcf-backend",
+      "uid": "7f8618b7-cd31-4317-9c12-a017385260cc",
+      "owners": [],
+      "labels": {},
+      "annotations": {},
+      "annotationKeys": [
+        "storage.nvcf.nvidia.io/model-cache-selection"
+      ],
+      "labelKeys": [
+        "SQSMessageID",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvca.nvcf.nvidia.io/function-id",
+        "nvca.nvcf.nvidia.io/function-version-id",
+        "nvcf.nvidia.io/message-batch-id"
+      ],
+      "status": {},
+      "conditions": []
+    }
+  ]
+}

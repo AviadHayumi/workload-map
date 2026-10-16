@@ -1,0 +1,6 @@
+{
+  "method": "Kubernetes client certificate, no impersonation",
+  "username": "alice@example.test",
+  "requestedLifetimeSeconds": 3600,
+  "namespace": "karta-label-direct"
+}

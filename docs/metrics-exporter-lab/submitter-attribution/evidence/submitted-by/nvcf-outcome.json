@@ -1,0 +1,8 @@
+{
+  "id": "2ab27eeb-6f2d-4eca-8368-bc1aab04fc20",
+  "versionId": "14fe20c5-be38-4e02-8084-560f84ce95a7",
+  "name": "cel-label-function",
+  "status": "ACTIVE",
+  "containerImage": "nvcr.io/nvidia/omniverse/simple-nginx:1.0.2",
+  "createdAt": "2026-10-16T08:34:48.682Z"
+}

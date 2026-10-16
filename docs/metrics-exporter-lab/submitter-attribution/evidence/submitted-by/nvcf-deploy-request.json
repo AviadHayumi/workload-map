@@ -1,0 +1,11 @@
+{
+  "deploymentSpecifications": [
+    {
+      "gpu": "TESLA",
+      "instanceType": "NCP.GPU.TESLA_1x",
+      "minInstances": 1,
+      "maxInstances": 1,
+      "maxRequestConcurrency": 1
+    }
+  ]
+}

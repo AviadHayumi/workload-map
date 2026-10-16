@@ -1,0 +1,124 @@
+[
+  {
+    "name": "cel-label-single-1",
+    "uuid": "df37a33ff6f0464bb9e8726fb0dbb2ca",
+    "status": "COMPLETED",
+    "submitted_by": "alice@example.test",
+    "submit_time": "2026-10-16T08:23:53.323673",
+    "start_time": "2026-10-16T08:24:15.446708",
+    "end_time": "2026-10-16T08:29:24.161747",
+    "groups": [
+      {
+        "name": "worker-group",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "df37a33ff6f0464b-066cefefa5b04fbb",
+            "lead": true,
+            "start_time": "2026-10-16T08:24:15.446708",
+            "end_time": "2026-10-16T08:29:24.161747"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "cel-label-group-1",
+    "uuid": "2034b52684744f19b648fc9c2e33d527",
+    "status": "COMPLETED",
+    "submitted_by": "alice@example.test",
+    "submit_time": "2026-10-16T08:23:54.076081",
+    "start_time": "2026-10-16T08:24:14.425231",
+    "end_time": "2026-10-16T08:29:23.931720",
+    "groups": [
+      {
+        "name": "pair",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "leader",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "2034b52684744f19-6c0f3df26dc74041",
+            "lead": true,
+            "start_time": "2026-10-16T08:24:15.548296",
+            "end_time": "2026-10-16T08:29:23.931720"
+          },
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": null,
+            "pod_name": "2034b52684744f19-7b45be6a66e94ff4",
+            "lead": false,
+            "start_time": "2026-10-16T08:24:14.425231",
+            "end_time": "2026-10-16T08:29:23.931720"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "cel-label-single-2",
+    "uuid": "e5d1abe4ce374717921460b24b76acea",
+    "status": "COMPLETED",
+    "submitted_by": "alice@example.test",
+    "submit_time": "2026-10-16T08:35:52.600420",
+    "start_time": "2026-10-16T08:36:10.175690",
+    "end_time": "2026-10-16T08:41:17.337494",
+    "groups": [
+      {
+        "name": "worker-group",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "e5d1abe4ce374717-e923b371aa294f01",
+            "lead": true,
+            "start_time": "2026-10-16T08:36:10.175690",
+            "end_time": "2026-10-16T08:41:17.337494"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "cel-label-group-2",
+    "uuid": "c47243997abb4ec9af456144acc49417",
+    "status": "COMPLETED",
+    "submitted_by": "alice@example.test",
+    "submit_time": "2026-10-16T08:35:53.353271",
+    "start_time": "2026-10-16T08:36:11.181619",
+    "end_time": "2026-10-16T08:41:20.576794",
+    "groups": [
+      {
+        "name": "pair",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "leader",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "c47243997abb4ec9-fb47d19472b34eb6",
+            "lead": true,
+            "start_time": "2026-10-16T08:36:11.181619",
+            "end_time": "2026-10-16T08:41:20.576794"
+          },
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "c47243997abb4ec9-96a05d548f4f4ff9",
+            "lead": false,
+            "start_time": "2026-10-16T08:36:11.313635",
+            "end_time": "2026-10-16T08:41:20.423988"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-10-16T08:59:08.925849+00:00",
+  "auditDeployments": [
+    {
+      "name": "karta-submitter-runai-audit",
+      "readyReplicas": 1,
+      "desired": 1
+    },
+    {
+      "name": "karta-submitter-test",
+      "readyReplicas": 1,
+      "desired": 1
+    },
+    {
+      "name": "karta-submitter-test-exporter",
+      "readyReplicas": 1,
+      "desired": 1
+    }
+  ],
+  "remainingRunaiFixtureObjects": 0,
+  "remainingNvcfFixtureObjects": 0,
+  "remainingDirectFixtureObjects": 0,
+  "mutatingAdmissionPolicyAvailable": false
+}

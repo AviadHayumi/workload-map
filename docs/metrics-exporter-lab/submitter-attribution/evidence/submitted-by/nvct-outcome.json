@@ -1,0 +1,10 @@
+{
+  "id": "510ff9f2-83d4-4fee-963a-d516b8e2bfbe",
+  "name": "cel-label-task",
+  "status": "COMPLETED",
+  "percentComplete": 100,
+  "createdAt": "2026-10-16T08:44:36.721Z",
+  "lastUpdatedAt": "2026-10-16T08:49:06.152Z",
+  "resultHandlingStrategy": "NONE",
+  "containerImage": "nvcr.io/nvidia/cuda:12.6.3-base-ubuntu22.04"
+}
