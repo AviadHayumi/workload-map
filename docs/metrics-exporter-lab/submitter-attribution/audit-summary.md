@@ -41,7 +41,70 @@ exporter:
       )[0]
 ```
 
-Admission uses the Karta operator's TLS webhook. Keep the operator and webhook enabled. Label only the direct-submission test namespace; the default capture scope is Deployments, Jobs and Pods. Set `admission.enabled: false` for extraction only.
+Admission records the authenticated Kubernetes caller before a selected workload is saved. Karta's operator serves this webhook over HTTPS (TLS). Within the selected scope, it also rejects changes to the recorded identity. Keep `operator.enabled` and `webhook.enabled` true. Setting `exporter.attribution.admission.enabled: false` stops capture; CEL can still read existing platform metadata.
+
+<!-- pagebreak -->
+
+## Choose namespaces and workload types
+
+Already supported: namespace include/exclude selectors and a resource allowlist. Add this under the existing exporter values; keep `submittedByExpression` unchanged.
+
+```yaml
+exporter:
+  attribution:
+    admission:
+      enabled: true
+      namespaceSelector:
+        matchExpressions:
+          - key: karta.run.ai/capture-submitter
+            operator: In
+            values: ["true"]
+          - key: kubernetes.io/metadata.name
+            operator: NotIn
+            values: [kube-system, karta-system]
+      resourceRules:
+        - apiGroups: ["apps"]
+          apiVersions: ["v1"]
+          resources: ["deployments", "statefulsets"]
+        - apiGroups: ["batch"]
+          apiVersions: ["v1"]
+          resources: ["jobs", "cronjobs"]
+        - apiGroups: [""]
+          apiVersions: ["v1"]
+          resources: ["pods"]
+```
+
+Include namespaces labeled `karta.run.ai/capture-submitter=true`; exclude the two named namespaces even if labeled. Both expressions must match. To include namespace names, use `kubernetes.io/metadata.name` with `In`.
+
+Resource rules use API group/version and plural resource names: `apps/v1/deployments` selects Deployment. Today, exclude a type by removing it from this allowlist. Replace `karta-system` with the operator's namespace.
+
+## Proposed: match group, version and kind (GVK)
+
+The chart does not expose `matchConditions` yet. Proposed addition under the same admission block, applied to both capture and update protection:
+
+```yaml
+exporter:
+  attribution:
+    admission:
+      matchConditions: # Proposed; not implemented in the chart
+        - name: include-gvks
+          expression: |
+            request.kind.version == "v1" && (
+              (request.kind.group == "apps" &&
+               request.kind.kind in ["Deployment", "StatefulSet"]) ||
+              (request.kind.group == "batch" &&
+               request.kind.kind in ["Job", "CronJob"]) ||
+              (request.kind.group == "" && request.kind.kind == "Pod"))
+        - name: exclude-gvks
+          expression: |
+            !(request.kind.group == "batch" &&
+              request.kind.version == "v1" &&
+              request.kind.kind == "CronJob")
+```
+
+All conditions must pass, so the CronJob exclusion wins. Excluded requests skip submitter capture and update protection. `submittedByExpression` separately selects the identity to export. Namespace labels and scope settings must remain administrator-controlled.
+
+This follows [Kubernetes webhook matching](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#matching-requests-matchconditions). Only `matchConditions` is proposed; namespace selectors and resource allowlists already work.
 
 <!-- pagebreak -->
 
