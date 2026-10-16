@@ -12,6 +12,7 @@ Captured 16 October 2026 from the isolated implementation tests.
 | `direct-job-completion.json` | Job status proving completion |
 | `final-direct-metrics.prom` | Both workload identities and observation health after final rollout |
 | `prometheus-query-result.json` | Actual query and both complete workload identities, with target addresses omitted by aggregation |
+| `deployment-readiness.json` | Both isolated Deployments ready after the final binary rollout |
 | `chart-validation.json` | Positive and negative chart rendering checks |
 | `direct-conflict.prom`, `direct-recovery.prom` | Conflicting Pod metadata clears identity; removal restores it |
 | `adversarial-results.json` | Root identity mutation denial and conflict test observations |

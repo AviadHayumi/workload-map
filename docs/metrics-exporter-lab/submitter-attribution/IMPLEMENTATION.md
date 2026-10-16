@@ -229,7 +229,7 @@ namespace instead of replacing it with the exporter's namespace.
 | An explicit empty namespace selector could select everything | Reject empty selectors when admission is enabled |
 | User-supplied owner metadata could bypass direct stamping | Stamp non-system callers even when they supplied owner references; protect captured fields on updates |
 | Cluster-scoped metadata used an incorrect namespace/name cache key | Use the Kubernetes cache key helper; test both namespace scopes |
-| Missing read permissions prevented readiness | Add exact owner resource reads to the isolated lab role; no wildcard or Secret access |
+| Missing read permissions prevented readiness | Add exact owner resource reads, including the newly discovered KAI NodePool, to the isolated lab role; no wildcard or Secret access |
 | Test ServiceMonitor was outside Prometheus discovery scope | Place it in the monitored namespace and target only the new service |
 | Prometheus can overwrite exported namespace labels | Enable `honorLabels`, as the chart's existing ServiceMonitor already does |
 | NVCF fixture initially lacked CPU capacity | Temporarily reduce the lab OpenBao request and new test Pod requests; restore OpenBao after task completion |
@@ -306,6 +306,13 @@ namespace instead of replacing it with the exporter's namespace.
     another and verification can remain stale. Select the version used by the
     chosen Karta definition. Multi-version identity observation has not been
     validated as a supported mode.
+17. Existing owner verification still assumes a namespace match when following
+    some controller references to cluster-scoped parents. The lab reports
+    unresolved ownership for several infrastructure Pods with Node/KAI parents.
+    The metadata cache-key fix makes those parent observations visible; it does
+    not repair the separate owner-resolution assumption. The direct test
+    Deployment/Job paths verified healthy. Cluster-scoped parent hierarchies
+    need a separate resolver change and regression tests before claiming coverage.
 
 ## Validation and reproducibility
 
@@ -320,7 +327,9 @@ disabled. Exporter `make check` passed, including all race tests and lint.
 Operator `make check` passed, including envtest integration tests on Kubernetes
 1.31.0. Seven chart configuration cases passed: defaults, enabled extraction,
 admission-only mode, and rejection of empty scope, disabled TLS, empty rules and
-admission-only mode without capture. The normal Helm/rule checks also run.
+admission-only mode without capture. Root `make check`, Helm lint, Helm rendering validation, and all existing
+Prometheus rule tests passed as well. The root check includes generated-file and
+license verification, library/CLI tests, CLI lint and version stamping.
 
 A local single-rule benchmark evaluated 100,000 inputs at approximately
 1.35 microseconds per evaluation, 1,979 bytes and 43 allocations per operation
