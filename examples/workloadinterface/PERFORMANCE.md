@@ -5,17 +5,26 @@
 
 ## Before and after in real consumer adapters
 
-The [consumer comparison](benchmarks/consumer-comparison/README.md) measures
-latency, CPU, allocated bytes, retained heap, peak RSS and GC across WLD, EWI and
-the exporter. Five alternating pairs per profile completed on 2026-10-16.
+The [optimization report](benchmarks/consumer-optimization/README.md) compares the
+original consumers, first SDK integration and optimized adapters.
+All 300 processes completed on 2026-10-16, with five samples per version and profile.
+It includes latency, CPU, allocated bytes, retained heap, peak RSS and GC.
 
-- WLD: most paths are 8-17% slower; deep warm-chain allocation traffic rises 34%.
-- EWI: small parses are 15-20% slower while allocating 13-15% fewer bytes.
-- Exporter: Pod events, workload updates and scrapes stay within 2.3% in these samples.
-- Retained memory is close in these fixtures. The 100k ownership-index test is not
-  a full-service capacity test.
+- WLD: operation time remains 2.9-8.7% higher than the original.
+  Mixed CPU overhead falls from 12.9% in the first SDK integration to 3.0%.
+- WLD deep warm chains now allocate 3.5% fewer bytes than the original,
+  removing the first integration's 34% increase.
+- EWI: small parses are 9.0-10.2% faster and use 10.0-11.0% less CPU.
+  The 128-instance case remains close to the original.
+- Exporter: owner lookup is 29.1% faster with zero allocations.
+  Pod events, workload updates and scrapes remain within 0.5% in these samples.
+- The 100k ownership index retains about 144.7 MiB in all three versions.
+  Warm lookup/update allocation traffic falls 59.8% from the original.
 
-These results do not establish universal performance parity.
+These are bounded consumer fixtures, not production throughput or full-service
+capacity measurements. Remaining WLD overhead is not resolved.
+The [first comparison](benchmarks/consumer-comparison/README.md) remains available
+as a historical record.
 
 ## Choose the operation
 
@@ -74,7 +83,9 @@ Implementation and correctness checks:
 ## Keep an existing efficient path
 
 An ownership inventory can adapt its current metadata cache to `ownership.Lookup`
-and call `ownership.Trace`. It does not need a second cache merely to share traversal.
+and call `ownership.Trace`. If the consumer already retains fetched metadata,
+`TraceRoot` avoids returning a second successful path. Both keep strict validation.
+Neither requires a second cache merely to share traversal.
 
 A consumer that already has a confirmed root and selected full Pods can reuse
 `attribution.Compile`, `Prepare` and `Evaluate`. It does not need to rediscover
@@ -88,6 +99,9 @@ See [integration choices](INTEGRATION.md) and the
 [reader, index and cache contract](../../docs/Live%20Workload%20Discovery.md).
 
 ## Recorded microbenchmark results
+
+These earlier mechanism-level results are separate from the final consumer
+comparison above. They are not substituted for its fresh three-version runs.
 
 On 2026-10-16, the command below completed on Darwin/arm64, Apple M4 Pro,
 with Go 1.26.3. Each case has three reported samples with a 100 ms target.

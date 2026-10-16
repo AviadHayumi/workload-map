@@ -537,3 +537,46 @@ It also preserves the compiled-selector cache, replica-selector opt-out behavior
 exporter metric contract and Helm values.
 
 </details>
+
+## Consumer integration optimization
+
+The optimization at `355d8c96` preserves the SDK interfaces and exporter metric
+and Helm contracts. The [three-version comparison](benchmarks/consumer-optimization/README.md)
+keeps the original consumer and first SDK results alongside the optimized code.
+
+Correctness checks cover the optimized paths:
+
+- Strict ownership keeps UID, name, API kind, namespace, depth, cycle and
+  cancellation validation. Short and long paths preserve verified error prefixes.
+- Terminal objects use the same validator with smaller temporary storage.
+  Passive owner references still take the complete traversal path.
+- Indexed resolution preserves first-controller selection, ignored-owner ordering,
+  candidate roots, served-version aliases and missing-owner outcomes.
+- A peer review found that a mutable stored controller flag could change behavior
+  in the direct index loop. A per-hop check and regression test preserve the
+  existing true/false/true behavior.
+- The WLD adapter retains complete metadata and publishes only validated objects.
+  The full controller suite passed with race detection.
+- EWI's typed definition conversion preserves the complete serialized schema,
+  independent copies, edits between parses and concurrent immutable reads.
+  Its 26 focused race specs and complete-output fixtures passed.
+
+The final SDK package suite and public recording corpus passed with race detection:
+60 supported recordings, 582 recorded-state checks and 582 current-catalog tree
+comparisons. The 44 matching historical tree errors and eight excluded recordings
+remain explicit limitations.
+
+Eight live SDK tests passed with race detection and no skips. Membership matched
+all seven fixture workloads in six reader modes. Lifecycle, mutations, grouping,
+provider replacement, cluster scope and ownership changes were also exercised.
+
+The first live attempt found retired LWS Pod UIDs in the oracle. Controller logs
+proved that the operator had recreated two groups before this test run. Independent
+API checks verified the six replacement identities, all 25 owner edges and the
+unchanged roots and specs before the oracle was refreshed. Both the initial
+failure and verification remain in the local audit; no workload was changed.
+
+Focused regression tests:
+[terminal validation](../../pkg/ownership/trace_terminal_test.go),
+[long-path failures](../../pkg/ownership/trace_validation_test.go), and
+[index compatibility](../../pkg/ownership/resolve_test.go).

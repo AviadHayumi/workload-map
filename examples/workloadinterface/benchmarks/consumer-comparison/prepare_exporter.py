@@ -56,7 +56,8 @@ def main():
     harness = "exporter/pkg/controller/sdk_performance_test.go"
     report = {"baseline_revision": BASE, "extraction_revision": EXTRACTION,
         "extraction_parent": parent, "current_revision": head,
-        "shared_code_revision": git("rev-parse", "c6cad432").decode().strip(),
+        "shared_code_revision": head,
+        "shared_code_dirty": bool(git("status", "--porcelain", "pkg")),
         "overlay_sources": records, "byte_identical_controls": controls,
         "harness_path": harness, "harness_sha256": digest((ROOT / harness).read_bytes()),
         "go_version": subprocess.check_output(["go", "version"], text=True).strip(),

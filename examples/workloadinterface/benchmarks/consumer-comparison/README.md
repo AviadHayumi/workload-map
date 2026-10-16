@@ -3,6 +3,10 @@
 
 # Before and after adopting the SDK
 
+This is the preserved first measurement. See the
+[optimization follow-up](../consumer-optimization/README.md) for the revised adapters
+and a fresh comparison of all three implementations.
+
 The integration is not performance-neutral across all consumers.
 Output checks passed for the measured fixtures, but ownership discovery and small
 EWI parses became slower. Exporter event processing and scraping stayed close.

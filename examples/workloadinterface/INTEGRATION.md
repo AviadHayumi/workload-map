@@ -69,7 +69,7 @@ the different outputs and policies around them.
 
 | Consumer | Logic today | First replacement | Consumer keeps |
 | --- | --- | --- | --- |
-| k8s-workload-discovery | Its controller-owner walking loop | `ownership.Trace` | Metadata cache, filters, merged physical tree and Workload writes |
+| k8s-workload-discovery | Its controller-owner walking loop | `ownership.TraceRoot` with retained metadata | Metadata cache, filters, merged physical tree and Workload writes |
 | EWI | Older Karta component reader | SDK `resource.ComponentFactory` | Handler selection, accounting, phases, grouping, IDs and writes |
 | Karta metrics exporter | Local owner index, instance extraction and Pod attribution | `ownership.Index`, `attribution.InstanceIDs`, `attribution.AttributeLegacy` | Watch controller, root policy, definition selection, metric store and scraping |
 
@@ -96,28 +96,31 @@ A Karta definition is not required to follow an unknown custom resource's owners
 Replace the walking loop inside `OwnerWalker.WalkPod` with:
 
 ```go
-path, err := ownership.Trace(ctx, start, readOwner, maxHops)
+_, err := ownership.TraceRoot(ctx, start, readOwner, maxHops)
 ```
 
 - `start` is an `ownership.Object`: Pod identity, complete owner references and scope.
 - `readOwner` implements `ownership.Lookup` using the existing metadata cache.
+  It also retains each fetched object for the physical tree.
 - `maxHops` is the consumer's configured owner-depth limit.
-- `path` contains the Pod followed by its verified controller owners.
+- `TraceRoot` validates every owner hop without returning a second path slice.
+- The retained metadata supplies the complete physical path, including labels and annotations.
 
 The adapter handles `err` before publishing a result.
-For success, it converts the path into the same consumer nodes and merges it.
+For success, it converts the retained metadata into the same consumer nodes and merges it.
 For a missing owner or depth limit, the local prototype preserves the verified
-partial path under the consumer's existing policy. Other structural errors fail.
+partial path under the consumer's existing policy. The typed error identifies the
+verified prefix; fetched but rejected objects are excluded. Other structural errors fail.
 
 The proposed flow becomes:
 
 ```text
 Pod event -> queue -> read current Pod
-  -> ownership.Trace -> existing path conversion and merge
+  -> ownership.TraceRoot + retain metadata -> path conversion and merge
   -> write the same physical Workload tree and reconcile its status
 ```
 
-For `training-0-pod`, the SDK path is `Pod -> Job -> JobSet`.
+For `training-0-pod`, the retained path is `Pod -> Job -> JobSet`.
 The consumer reverses that path for its displayed tree.
 It still merges the other Pods' paths; one trace does not list sibling Pods.
 References alone do not contain the consumer's labels and annotations.
@@ -167,8 +170,11 @@ if err != nil { return err }
 ```
 
 `object` is the workload already read by EWI.
-The prototype converts the older definition type through JSON on each parse.
-That conversion is included in the performance measurements.
+The optimized prototype deep-copies the older definition and converts its fields
+to SDK types on each parse. This replaces the first prototype's JSON round-trip.
+No converted definition survives the parse, so definition edits need no cache invalidation.
+Tests compare the complete serialized result with the old conversion and check
+mutation isolation. Conversion remains part of the performance measurement.
 The existing converter still produces the ExternalWorkload output.
 [Component-factory implementation](../../pkg/resource/component_factory.go).
 
@@ -451,19 +457,23 @@ For the proposed parent boundary, acceptance must cover:
 
 ### Performance is part of acceptance
 
-The [before/after report](benchmarks/consumer-comparison/README.md) includes all
-200 comparison processes, raw samples, CPU, retained heap, peak RSS and GC.
+The [optimization report](benchmarks/consumer-optimization/README.md) compares the
+original consumers, first SDK integration and optimized adapters across 300
+successful processes. Raw samples include CPU, retained heap, peak RSS and GC.
+The [first report](benchmarks/consumer-comparison/README.md) remains available.
 
-| Measured integration | Result |
+| Measured integration | Optimized result against the original consumer |
 | --- | --- |
-| WLD | Most paths 8-17% slower; deep warm-chain allocation traffic rises 34% |
-| EWI | Small parses 15-20% slower while allocating 13-15% fewer bytes; 128 instances close |
-| Exporter | Pod event +2.3%, workload update +0.6%, scrape -0.2%; isolated ownership lookup slower |
-| Retention | Similar bounded-fixture retention; 100k ownership index about 145 MiB in both versions |
+| WLD | Operation time +2.9-8.7%; mixed CPU +3.0%, down from +12.9% in the first SDK integration |
+| WLD allocations | Deep warm chain -3.5% bytes/op; the first integration's +34% regression is removed |
+| EWI | Small parses 9.0-10.2% faster with 10.0-11.0% less CPU; 128 instances close |
+| Exporter | Owner lookup 29.1% faster with zero allocations; Pod events, workload updates and scrapes within 0.5% |
+| Retention | Bounded-fixture retention stays close; 100k ownership index about 144.7 MiB in all versions |
 
-These results do not establish performance parity.
+These results do not establish performance parity or production throughput.
+WLD's remaining overhead is not resolved. Strict validation stays enabled, but
+the measurements do not assign that cost to individual checks.
 The 100k test covers the ownership index, not a complete exporter deployment.
-Resolve the relevant regressions or explicitly accept their measured cost before rollout.
 
 ## Risks and alternatives
 
