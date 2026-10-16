@@ -9,7 +9,32 @@ its desired templates, and errors when that information is incomplete.
 For example, starting from one JobSet Pod must return the JobSet and all three
 of its Pods. Returning only the Pod's immediate Job would fail the test.
 
-## Recorded validation
+## Recording replay and live validation
+
+The 2026-10-16 run added regression tests and consumer examples.
+Production library, exporter, catalog, metric and Helm files were unchanged in this update.
+
+| Check | Result |
+| --- | --- |
+| Public recording replay | 60 supported recordings, 17 workload types, 291 frames in both cache modes: 582 state checks passed. |
+| Historical and current tree compatibility | Complete trees or matching errors agree with the existing APIs. |
+| Mutation isolation | Exact named-template changes, atomic failures and suspend/resume passed with the race detector. |
+| Grouping updates | Exact full Pods by component, instance and replica; relabeling removes old membership without duplication. |
+| Live kind suite | All 42 membership cases and the ownership/update checks passed; zero skips. |
+| Consumer examples | Fourteen runnable examples passed. Scheduling-gang tests include one PyTorch gang spanning master and worker components. |
+| Full root module | `go test -race ./...` passed with Go 1.26.3. |
+| Exporter compatibility | `go test ./...` passed in `exporter/` with Go 1.26.3. |
+| Root linter | Passed with Go 1.26.3. |
+
+The [replay guide](../../test/discovery/RECORDINGS.md) includes reproduction commands,
+fixture provenance, the eight excluded recordings and 22 historical Grove frames
+whose full desired trees fail in both APIs.
+Those existing failures are not successful extractions.
+
+The grouping fixtures add explicit Pods because the historical recordings contain
+root objects only. Live operator fixtures independently check ownership and Pod UIDs.
+
+## Earlier full validation
 
 The completed run tested Go source at
 `630fbf78672161cfc3ac624aaef4e046518cd52a`.
@@ -37,7 +62,7 @@ Run from the repository root. No cluster is required:
 go test ./examples/workloadinterface -run '^Example' -v
 ```
 
-Nine runnable examples cover these uses:
+Fourteen runnable examples cover these uses:
 
 | Use case | What the example checks |
 | --- | --- |
@@ -50,6 +75,11 @@ Nine runnable examples cover these uses:
 | Inspect an unfamiliar workload type | Return generic Pod membership without inventing a Karta definition. |
 | Suspend and resume | Change the local workload object when its definition supports it. |
 | Reuse attribution | Publish a Pod update and retain an unchanged earlier observation. |
+| Traverse a workload | Start from one Pod, inspect root phases and raw conditions, then list every instance's full Pods. |
+| Select an inference group | Return exact leader and worker Pods for known group IDs. |
+| Edit one named instance | Change only its scheduler and preserve the captured observation. |
+| Build scheduling groups | Combine full Pods by PodGroup name and explicit grouping keys. |
+| Enrich an existing inventory | Interpret one known root while retaining the caller's existing Pod members. |
 
 To run just the Pod-to-workload example:
 
@@ -66,6 +96,9 @@ known=true pods=3
 
 The [additional recipes](recipes_test.go) check terminal JobSet ownership,
 desired versus observed counts and generic capability errors.
+The [traversal examples](traversal_test.go) show status, scopes and named edits.
+The [scheduling-group tests](groups_test.go) check complete Pod bodies, cross-component
+gangs, key boundaries, returned-copy isolation and unsupported instruction formats.
 
 The [consumer tests](consumer_test.go) also check local mutation isolation.
 

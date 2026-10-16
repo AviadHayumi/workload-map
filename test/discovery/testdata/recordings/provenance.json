@@ -1,0 +1,37 @@
+{
+  "license": "SPDX-License-Identifier: Apache-2.0; Copyright (c) 2026 NVIDIA Corporation",
+  "revision": "57b3815619871b8759e28546cf03f2e28d000499",
+  "repository": "https://github.com/run-ai/karta",
+  "files": [
+    {
+      "file": "completed.yaml",
+      "source": "test/e2e/recorded_data/jobset/v1.34.0/jobset-x-k8s-io-jobset-v1alpha2/completed.yaml",
+      "sourceSHA256": "c70df85995de43c7d43036bf92f54d5066b704708ee18e132f94311f86a8b6fd"
+    },
+    {
+      "file": "failed.yaml",
+      "source": "test/e2e/recorded_data/jobset/v1.34.0/jobset-x-k8s-io-jobset-v1alpha2/failed.yaml",
+      "sourceSHA256": "31ee75d73a2bcad46f771fa3f5596e3eb0d8c1c8450df18f71431ad2b5dff727"
+    },
+    {
+      "file": "resumed.yaml",
+      "source": "test/e2e/recorded_data/jobset/v1.34.0/jobset-x-k8s-io-jobset-v1alpha2/resumed.yaml",
+      "sourceSHA256": "41c88eda7d7f744d740e8f42dc8c64d574b7bf38caa58d64668ae6ac2b2b6bac"
+    },
+    {
+      "file": "running.yaml",
+      "source": "test/e2e/recorded_data/jobset/v1.34.0/jobset-x-k8s-io-jobset-v1alpha2/running.yaml",
+      "sourceSHA256": "b045ae09fa21588682ec6c02db7dee3ba8d6596d593f33b6bb6096ab3b550ee2"
+    },
+    {
+      "file": "suspended.yaml",
+      "source": "test/e2e/recorded_data/jobset/v1.34.0/jobset-x-k8s-io-jobset-v1alpha2/suspended.yaml",
+      "sourceSHA256": "f5f8165d48e3ae94635396295389da141665a34f828b5ab0fee43accbcb9019c"
+    },
+    {
+      "file": "definition.yaml",
+      "source": "docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml",
+      "sourceSHA256": "3f1d264509b0f44cfcac04675b83baa65ef0753533cfff881f7c0b59e5a7ee2c"
+    }
+  ]
+}

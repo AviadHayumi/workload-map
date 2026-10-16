@@ -86,7 +86,59 @@ denied reads and incomplete coverage return errors, not an apparently healthy
 empty inventory. Results are detached observations; acquire again to refresh.
 The constructor starts no controller or watches and needs no controller-runtime.
 
+### Read status, then traverse the workload
+
+[ExamplePodSource_traverse](traversal_test.go) starts from `training-0-pod`.
+It returns the whole JobSet and evaluates the captured root:
+
+```go
+desired, err := observed.DesiredTree(ctx)
+if err != nil { return err }
+fmt.Printf("phases=%v\n", desired.Status.Phases)
+for component, instance := range desired.Instances() {
+    if !component.HasPodDefinition { continue }
+    id := ""
+    if instance.InstanceKey != nil { id = *instance.InstanceKey }
+    scope, err := observed.Component(component.Name)
+    if err != nil { return err }
+    named, err := scope.Instance(id)
+    if err != nil { return err }
+    pods, err := named.Pods()
+    if err != nil { return err }
+    fmt.Printf("%s/%s: desired=%d observed=%d\n",
+        component.Name, id, *instance.Scale.Replicas, len(pods))
+}
+```
+
+For this fixture, the result is:
+
+```text
+phases=[Running]
+replicatedjob/evaluation: desired=1 observed=1
+replicatedjob/training: desired=2 observed=2
+```
+
+The runnable example also prints every Pod name and phase.
+Its raw workload condition is `Completed=False`.
+
+These are three different observations:
+
+- `desired.Status.Phases`: all matching Karta lifecycle phases, possibly none or several.
+- `desired.RootStatus`: the root's extracted raw phase and conditions.
+- `observed.Pods()[i].Status`: the individual Pod's Kubernetes status.
+
+The snippet uses a JobSet with declared scale and status.
+Other definitions may have nil status or scale; check before dereferencing.
+`DesiredTree` evaluates spec and scale too, so handle its errors separately from membership.
+
+`desired.Root` includes the workload itself.
+`Instances()` walks the compatibility child view; for every root instance, recursively
+walk `Root.Instances[].Children`, as [SummarizeDesired](desired.go) does.
+Desired replicas are counts, not observed replica keys.
+
 ### Narrow to a component, instance or replica
+
+![Workload, component, instance and replica scopes with their actual fixture Pods](sdk-workload-scopes.png)
 
 For that JobSet, the definition calls its repeated Job component `replicatedjob`.
 `training` and `evaluation` are named instances. Replica `"0"` identifies one Job
@@ -104,19 +156,89 @@ if err != nil { return err }
 fmt.Printf("workload=%d training/0=%d\n", len(observed.Pods()), len(pods))
 ```
 
-[ExamplePodSource_scopes](example_test.go) asserts `workload=3 training/0=1`.
-`jobs.Pods()` selects all three; `training.Pods()` selects the two training Pods.
-Every result contains full Pod copies. Narrower queries retain their ancestor
-boundaries and make no Kubernetes reads.
+The examples return these full Pod objects, shown here by name:
+
+| Scope | Pods |
+| --- | --- |
+| Workload or `Component("replicatedjob")` | `evaluation-0-pod`, `training-0-pod`, `training-1-pod` |
+| `Instance("training")` | `training-0-pod`, `training-1-pod` |
+| Training `Replica("0")` | `training-0-pod` |
+| Training `Replica("1")` | `training-1-pod` |
+| Evaluation `Replica("0")` | `evaluation-0-pod` |
+
+A replica key is scoped by workload, component and instance.
+Grouping everything by `"0"` would mix training and evaluation.
+Narrower queries preserve their ancestor boundaries and make no Kubernetes reads.
 
 If a Pod's grouping is uncertain, a relevant scope returns
 `discovery.ErrIncompleteAttribution`. Inspect `MembershipIssues()` before showing
 a complete breakdown. Workload-level `Pods()` still contains every
 ownership-confirmed member.
 
+### Get the leader and workers of one inference group
+
+[ExamplePodSource_groupIDs](traversal_test.go) uses a LeaderWorkerSet with two groups.
+The catalog calls the grouping component `group`; its instance is anonymous (`""`).
+Its `replicaSelector` reads the operator's group index.
+
+```go
+groups, err := observed.Component("group")
+if err != nil { return err }
+first, err := groups.Replica("0")
+if err != nil { return err }
+workers, err := first.Component("worker")
+if err != nil { return err }
+pods, err := workers.Pods()
+if err != nil { return err }
+```
+
+The example queries both group IDs and both child components:
+
+| Group ID | Leader Pods | Worker Pods |
+| --- | --- | --- |
+| `0` | `inference-0` | `inference-0-1` |
+| `1` | `inference-1` | `inference-1-1` |
+
+The example supplies the known keys `0` and `1`; the SDK does not enumerate replica IDs.
+Its local fixture attaches Pods directly to the LeaderWorkerSet to isolate scope selection.
+The [live suite](../../test/discovery/README.md) checks the group boundaries and real ownership chains
+against actual operator-created Pod UIDs.
+
+### Group the actual Pods into scheduling gangs
+
+A replica group is separate from a scheduling gang.
+[SchedulingGroups](groups.go) returns each gang's name, key tuple and full Pods:
+
+```go
+gangs, err := workloadinterface.SchedulingGroups(ctx, observed)
+if err != nil { return err }
+for _, gang := range gangs {
+    fmt.Printf("%s %v: %d Pods\n", gang.Name, gang.Keys, len(gang.Pods))
+}
+```
+
+For JobSet, `job [training]` contains both training replicas.
+`job [evaluation]` contains the evaluation Pod.
+For PyTorchJob, the master and workers share one gang across their different components.
+The [tests](groups_test.go) assert the full Pod bodies for both cases.
+
+This example helper re-evaluates the public attribution and grouping APIs locally.
+It supports legacy `gangScheduling.podGroups` with explicit grouping keys.
+Generic workloads, the singular `podGroup` format and owner-fallback grouping return
+`ErrUnsupported`; uncertain attribution returns an error instead of partial groups.
+Creating a scheduler's PodGroup remains the consumer's job.
+
 ## Collect workload metrics
 
-Use the observation as input to your collector. [CountPods](pods.go) needs only
+The existing exporter handles watch events, writes compact metric records, then
+serves them from a store during a scrape.
+The SDK branch shares its attribution and ownership code through compatibility adapters.
+It does not replace the exporter controller with `NewDiscoverer`.
+
+See [PoC collection before and after the SDK change](COLLECTOR.md) for the exact
+metric path, unchanged contract and remaining integration work.
+
+For a new consumer, use the observation as input to your collector. [CountPods](pods.go) needs only
 an interface with `Pods() []*corev1.Pod`; it counts states without fetching again.
 For the three-Pod Job in [ExampleCountPods](example_test.go):
 
@@ -161,6 +283,40 @@ with `discovery.Options{Definitions: []*v1alpha1.Karta{customDefinition}}`.
 Definitions are copied then; updating a cluster Karta object does not update an
 existing discoverer. Supply new definitions through a new constructor call.
 
+## Add semantics to an existing discovery controller
+
+If a controller already knows the root and its Pods, keep that discovery result.
+Fetch the complete root object, then pass it to the local Karta interface:
+
+```go
+object, err := reader.Get(ctx, rootRef)
+if err != nil { return err }
+definition, err := catalog.Get(rootRef.GVK)
+if err != nil { return err }
+workload, err := karta.New(definition, object)
+if err != nil { return err }
+summary, err := workloadinterface.SummarizeDesired(ctx, workload)
+if err != nil { return err }
+```
+
+[ExampleDesiredInspector_existingDiscovery](traversal_test.go) adds JobSet phases
+and three declared instances, including the root, with one full-object read.
+It retains the controller's existing three Pod members.
+
+Handle `catalog.ErrNotFound` by retaining ordinary inventory without semantic enrichment.
+Do not treat other errors as an unknown workload type.
+Metadata alone is insufficient for template, scale and status extraction.
+
+The controller still owns:
+
+- Its physical owner tree, device filters and lifecycle policy.
+- Writes, retries, observation freshness and inventory health.
+- The decision to persist semantic information or keep it in memory.
+
+Karta's desired tree describes logical components; it is not a physical owner tree.
+A device-filtered Pod cache also cannot satisfy discovery's complete-coverage contract.
+Use the local enrichment path above, or provide complete coverage before discovery and filter afterward.
+
 ## Apply template policy or suspend a workload
 
 A submission policy can set a scheduler on the Job's Pod template before the
@@ -183,6 +339,19 @@ scheduler stays empty and the edited template uses `example-scheduler`.
 Pod fields and suspend capability. `karta.WithInstances("training")` targets a
 named instance when the definition supports it; omitting it updates every instance
 of the selected component.
+
+[ExampleDesiredInspector_namedMutation](traversal_test.go) targets only `training`:
+
+```go
+err = editor.UpdatePodTemplate(ctx, "replicatedjob", karta.Patch{
+    "spec": map[string]any{"schedulerName": "example-scheduler"},
+}, karta.WithInstances("training"))
+if err != nil { return err }
+```
+
+The output keeps `evaluation` unchanged.
+The captured observation keeps both original templates.
+Here `editor` is constructed from `observed.Definition()` and `observed.Object()`.
 
 For a discovered known workload, first create the local editor with
 `karta.New(observed.Definition(), observed.Object())`. A generic workload needs a
@@ -299,8 +468,9 @@ Source: [resolver](../../pkg/discovery/resolver.go),
 [collection](../../pkg/discovery/collect.go),
 [ownership](../../pkg/ownership/trace.go),
 [workload and scopes](../../pkg/discovery/workload.go).
-Editable diagrams: [Excalidraw](sdk-overview.excalidraw),
-[PlantUML](diagrams/sdk-discovery-flow.puml).
+Editable diagrams: [overview](sdk-overview.excalidraw),
+[workload scopes](sdk-workload-scopes.excalidraw),
+[sequence](diagrams/sdk-discovery-flow.puml).
 
 </details>
 
@@ -328,8 +498,9 @@ go mod edit -replace=github.com/dsx-ai-factory/workload-map=/absolute/path/to/ka
 go mod tidy
 ```
 
-The [validation record](VALIDATION.md) distinguishes regression coverage from the
-previously run [kind suite](../../test/discovery/README.md). The runnable examples
-above use local fixtures and make their expected outputs explicit.
+The [validation record](VALIDATION.md) covers the examples and live kind suite.
+The [recording replay](../../test/discovery/RECORDINGS.md) checks historical phases,
+mutations and grouping, with its exclusions and existing tree errors listed.
+The runnable examples above use local fixtures with asserted outputs.
 
 </details>
