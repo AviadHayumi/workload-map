@@ -43,28 +43,11 @@ exporter:
 
 Admission uses the Karta operator's TLS webhook. Keep the operator and webhook enabled. Label only the direct-submission test namespace; the default capture scope is Deployments, Jobs and Pods. Set `admission.enabled: false` for extraction only.
 
-## Use the saved requests
-
-[PoC branch and chart](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl) contain the implementation. Use operator/exporter images built from this branch. The lab loaded compiled binaries through a volume; no release image was published.
-
-From that checkout, keep the current installation values and image settings:
-
-```sh
-helm upgrade --install "$RELEASE" ./charts/karta \
-  -n "$KARTA_NS" --create-namespace -f current-values.yaml \
-  -f exporter/examples/submitter-attribution/values-complex.yaml
-
-export CASES="$PWD/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by"
-export OUT="$(mktemp -d)"
-```
-
-[Request files and observed results](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) are used below. Set the API URLs and credentials for your installation. The commands use `kubectl`, `curl` and `jq`. Platform installation and login are prerequisites.
-
-The tests ran finite shell commands and HTTP servers. Fake GPUs supplied allocation only. Metrics below show selected labels; the linked captures keep every label. Existing lab workloads were removed after capture, so submit new ones to repeat the checks.
-
 <!-- pagebreak -->
 
 ## Direct Kubernetes submission
+
+Download the [Job](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/direct-job-request.json) and [Deployment](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/direct-deployment-request.json) request files into your working directory.
 
 Create and label the test namespace as an administrator:
 
@@ -79,9 +62,9 @@ Use a user's kubeconfig with permission to create/patch Jobs and Deployments in 
 ```sh
 kubectl --kubeconfig "$USER_KUBECONFIG" auth whoami
 kubectl --kubeconfig "$USER_KUBECONFIG" apply \
-  -f "$CASES/direct-job-request.json"
+  -f "direct-job-request.json"
 kubectl --kubeconfig "$USER_KUBECONFIG" apply \
-  -f "$CASES/direct-deployment-request.json"
+  -f "direct-deployment-request.json"
 ```
 
 The Deployment ran. The Job completed after 300 seconds. Its annotation was `workload.dgxc.nvidia.com/submitter-id: alice@example.test`. The Pod inherited the value in the metric without copying the annotation.
@@ -103,7 +86,7 @@ KEY=workload.dgxc.nvidia.com/submitter-id
 jq --arg key "$KEY" '
   .metadata.name="cel-label-forged" |
   .metadata.annotations[$key]="bob@example.test"
-' "$CASES/direct-job-request.json" |
+' "direct-job-request.json" |
   kubectl --kubeconfig "$USER_KUBECONFIG" create -f -
 
 kubectl --kubeconfig "$USER_KUBECONFIG" -n karta-label-direct \
@@ -120,21 +103,23 @@ This protection covers the selected resources and namespaces. It does not authen
 
 ## Run:AI
 
+Download the [training](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/runai-training-request-template.json) and [inference](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/runai-inference-request-template.json) request files into your working directory.
+
 Set `RUNAI_API`, `RUNAI_TOKEN`, `PROJECT_ID` and `CLUSTER_ID`. The test logged in through `/api/v1/token` using a password grant. Use a token with permission to submit into your project.
 
 ```sh
 for kind in training inference; do
   jq --arg p "$PROJECT_ID" --arg c "$CLUSTER_ID" \
     '.projectId=$p | .clusterId=$c' \
-    "$CASES/runai-$kind-request-template.json" > "$OUT/$kind.json"
+    "runai-$kind-request-template.json" > "$kind.json"
 done
 
 curl -fsS "$RUNAI_API/api/v1/workloads/trainings" \
   -H "Authorization: Bearer $RUNAI_TOKEN" \
-  -H 'Content-Type: application/json' --data-binary @"$OUT/training.json"
+  -H 'Content-Type: application/json' --data-binary @"training.json"
 curl -fsS "$RUNAI_API/api/v1/workloads/inferences" \
   -H "Authorization: Bearer $RUNAI_TOKEN" \
-  -H 'Content-Type: application/json' --data-binary @"$OUT/inference.json"
+  -H 'Content-Type: application/json' --data-binary @"inference.json"
 ```
 
 Both requests use BusyBox, 50m CPU and 64Mi memory, with no GPU request. Training sleeps for 300 seconds. Inference serves HTTP on port 8080 with one replica.
@@ -166,13 +151,15 @@ Current gap: the value has not been checked against the agreed NVIDIA username. 
 
 ## OSMO
 
+Download the [single-task](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-single-request-template.json) and [group](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-group-request-template.json) request files into your working directory.
+
 Set `OSMO_API` to the gateway and `OSMO_PLATFORM` to a configured platform with CPU capacity. This reproduces the development-auth test. Production authentication must use the installation's normal login; these headers are not a production identity check.
 
 ```sh
 for kind in single group; do
   jq --arg platform "$OSMO_PLATFORM" \
     '.file |= gsub("<audit-platform>"; $platform)' \
-    "$CASES/osmo-$kind-request-template.json" |
+    "osmo-$kind-request-template.json" |
   curl -fsS "$OSMO_API/api/pool/default/workflow" \
     -H 'Content-Type: application/json' \
     -H 'x-osmo-user: alice@example.test' \
@@ -212,19 +199,21 @@ Current Karta/OSMO gap: there is no Kubernetes workflow root in this setup. Toda
 
 ## NVCF / NVCT
 
-This used the self-managed NVCF stack and local service credentials issued through OpenBao. Set API URLs, a management token, and function/task API keys from your installation. Register a compute pool and edit `gpu`/`instanceType` in both request files to match it.
+Download the [function](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-function-request.json), [deployment](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-deploy-request.json) and [task](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvct-task-request.json) request files into your working directory.
+
+This used the self-managed NVCF stack and local service credentials issued through OpenBao. Set API URLs, a management token, and function/task API keys from your installation. Register a compute pool and edit `gpu`/`instanceType` in the deployment and task requests to match it.
 
 ```sh
 curl -fsS "$NVCF_API/v2/nvcf/functions" \
   -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
   -H 'Content-Type: application/json' \
-  --data-binary @"$CASES/nvcf-function-request.json" > "$OUT/function.json"
-FID=$(jq -r '.function.id' "$OUT/function.json")
-VID=$(jq -r '.function.versionId' "$OUT/function.json")
+  --data-binary @"nvcf-function-request.json" > "function.json"
+FID=$(jq -r '.function.id' "function.json")
+VID=$(jq -r '.function.versionId' "function.json")
 DEPLOY="$NVCF_API/v2/nvcf/deployments/functions/$FID/versions/$VID"
 curl -fsS "$DEPLOY" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
   -H 'Content-Type: application/json' \
-  --data-binary @"$CASES/nvcf-deploy-request.json"
+  --data-binary @"nvcf-deploy-request.json"
 ```
 
 Wait for ACTIVE. For the local invocation gateway, set `NVCF_INVOKE_URL` to its base URL and `NVCF_INVOKE_DOMAIN` to its configured domain without the function ID:
@@ -239,7 +228,7 @@ curl -fsS -X DELETE "$DEPLOY" \
 curl -fsS "$NVCT_API/v1/nvct/tasks" \
   -H "Authorization: Bearer $NVCT_API_KEY" \
   -H 'Content-Type: application/json' \
-  --data-binary @"$CASES/nvct-task-request.json"
+  --data-binary @"nvct-task-request.json"
 ```
 
 The Nginx function returned HTTP 200. After undeploying it, the finite task reached COMPLETED at 100%. The supplied task writes NVCT progress and disables result uploads. NGC was used only for image pulls.
