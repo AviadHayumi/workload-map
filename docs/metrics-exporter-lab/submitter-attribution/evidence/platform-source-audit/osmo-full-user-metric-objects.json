@@ -1,0 +1,43 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "4c92f554382c4875-783a6b73937e4597",
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "de0ad2622eb9412282556c508d5ab7ac",
+        "osmo.lead_container": "true",
+        "osmo.platform": "cel-audit-control-plane",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "783a6b73937e4597b40ca0bd253debe2",
+        "osmo.workflow_id": "audit-full-user-metric-2",
+        "osmo.workflow_uuid": "4c92f554382c4875b9e4add587563721"
+      },
+      "annotations": {
+        "pod-group-name": "de0ad2622eb9412282556c508d5ab7ac"
+      },
+      "ownerReferences": []
+    }
+  },
+  {
+    "apiVersion": "scheduling.run.ai/v2alpha2",
+    "kind": "PodGroup",
+    "metadata": {
+      "name": "de0ad2622eb9412282556c508d5ab7ac",
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "de0ad2622eb9412282556c508d5ab7ac",
+        "osmo.submitted_by": "alice",
+        "osmo.workflow_id": "audit-full-user-metric-2",
+        "osmo.workflow_uuid": "4c92f554382c4875b9e4add587563721"
+      },
+      "annotations": {},
+      "ownerReferences": []
+    }
+  }
+]

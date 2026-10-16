@@ -1,0 +1,3 @@
+{
+  "file": "workflow:\n  name: audit-full-user-metric\n  resources:\n    default:\n      cpu: 1\n      memory: 512Mi\n      storage: 1Gi\n      platform: cel-audit-control-plane\n  tasks:\n  - name: worker\n    image: ubuntu:24.04\n    command:\n    - /bin/sh\n    - -c\n    args:\n    - echo full-principal-metric; sleep 90; echo done\n"
+}

@@ -1,0 +1,61 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "1a491178f4ed4a6b-9db3b3b0444a4170",
+      "namespace": "osmo-submitter-lab",
+      "labels": {
+        "osmo.group_name": "pair",
+        "osmo.group_uuid": "8ca5683f2bb845489332a5e739b2fc52",
+        "osmo.platform": "karta-source-audit",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "9db3b3b0444a4170849db6c9b025eea6",
+        "osmo.workflow_id": "audit-mapped-short-1",
+        "osmo.workflow_uuid": "1a491178f4ed4a6b851befa08fbef33b",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "annotations": {
+        "pod-group-name": "8ca5683f2bb845489332a5e739b2fc52",
+        "workload.dgxc.nvidia.com/org_hierarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/submitter-id": "alice@example.test"
+      },
+      "ownerReferences": []
+    },
+    "phase": "Succeeded"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "1a491178f4ed4a6b-d34b1a9faa0843cc",
+      "namespace": "osmo-submitter-lab",
+      "labels": {
+        "osmo.group_name": "pair",
+        "osmo.group_uuid": "8ca5683f2bb845489332a5e739b2fc52",
+        "osmo.lead_container": "true",
+        "osmo.platform": "karta-source-audit",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "leader",
+        "osmo.task_uuid": "d34b1a9faa0843ccb541c96966d15074",
+        "osmo.workflow_id": "audit-mapped-short-1",
+        "osmo.workflow_uuid": "1a491178f4ed4a6b851befa08fbef33b",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "annotations": {
+        "pod-group-name": "8ca5683f2bb845489332a5e739b2fc52",
+        "workload.dgxc.nvidia.com/org_hierarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/submitter-id": "alice@example.test"
+      },
+      "ownerReferences": []
+    },
+    "phase": "Succeeded"
+  }
+]

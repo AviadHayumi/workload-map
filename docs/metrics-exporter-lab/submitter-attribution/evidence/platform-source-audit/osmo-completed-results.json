@@ -1,0 +1,74 @@
+[
+  {
+    "name": "audit-mapped-email-4",
+    "uuid": "56938bd28ffc41958ffbc72798487c65",
+    "submitted_by": "alice@example.test",
+    "status": "COMPLETED",
+    "start_time": "2026-10-16T11:31:06.295852",
+    "end_time": "2026-10-16T11:34:17.958297",
+    "tasks": [
+      {
+        "name": "leader",
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "pod_name": "56938bd28ffc4195-80bf57835af34bc1",
+        "task_uuid": "80bf57835af34bc19299f4d6c7a4dd53"
+      },
+      {
+        "name": "worker",
+        "status": "COMPLETED",
+        "exit_code": null,
+        "pod_name": "56938bd28ffc4195-d571bbd2c53c42c3",
+        "task_uuid": "d571bbd2c53c42c3b55b742256ad9942"
+      }
+    ]
+  },
+  {
+    "name": "audit-mapped-short-1",
+    "uuid": "1a491178f4ed4a6b851befa08fbef33b",
+    "submitted_by": "alice",
+    "status": "COMPLETED",
+    "start_time": "2026-10-16T11:31:05.724469",
+    "end_time": "2026-10-16T11:34:18.341713",
+    "tasks": [
+      {
+        "name": "leader",
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "pod_name": "1a491178f4ed4a6b-d34b1a9faa0843cc",
+        "task_uuid": "d34b1a9faa0843ccb541c96966d15074"
+      },
+      {
+        "name": "worker",
+        "status": "COMPLETED",
+        "exit_code": null,
+        "pod_name": "1a491178f4ed4a6b-9db3b3b0444a4170",
+        "task_uuid": "9db3b3b0444a4170849db6c9b025eea6"
+      }
+    ]
+  },
+  {
+    "name": "audit-unknown-one-char-1",
+    "uuid": "14bd9604760f43a4af758eaa4492a6d8",
+    "submitted_by": "a",
+    "status": "COMPLETED",
+    "start_time": "2026-10-16T11:31:07.070329",
+    "end_time": "2026-10-16T11:34:17.712635",
+    "tasks": [
+      {
+        "name": "leader",
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "pod_name": "14bd9604760f43a4-2770494b64f044ae",
+        "task_uuid": "2770494b64f044aea66d29c5137057c1"
+      },
+      {
+        "name": "worker",
+        "status": "COMPLETED",
+        "exit_code": null,
+        "pod_name": "14bd9604760f43a4-57f223c617c2469b",
+        "task_uuid": "57f223c617c2469ba8c989449f0b95bd"
+      }
+    ]
+  }
+]

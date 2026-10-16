@@ -1,0 +1,5 @@
+{
+  "settings": [
+    "skip-sanitize-object-metadata: true"
+  ]
+}

@@ -9,12 +9,12 @@ Start with the [shareable PDF](audit-summary.pdf) or its [editable Markdown](aud
 Each platform shows the submitted request, resulting workload structure, CEL
 mapping, actual metric output and remaining gaps.
 
-| Path | Freshly tested | Result |
+| Path | Verification | Result |
 | --- | --- | --- |
 | Direct Kubernetes | Authenticated client certificate; Deployment and finite Job | alice@example.test; spoof and update attempts rejected |
 | Run:AI API | Finite training and Knative HTTP inference | test@run.ai inherited from the root; inference Pod has no submitter key |
-| OSMO API | Single task and leader/worker group | Both completed; alice is a shortened identity; each task Pod remains a workload root |
-| NVCF / NVCT | HTTP function and finite task | HTTP 200 and COMPLETED; human submitter absent from Kubernetes metadata |
+| OSMO API | Single tasks, leader/worker groups and administrator mapping | Completed; mapping supplies the configured full principal; missing identity stays empty; task Pods remain individual workloads |
+| NVCF / NVCT | Live container function/task; local Helm render and source review | HTTP 200 and COMPLETED; human metadata absent; live Helm creation blocked by registry prerequisites |
 
 The exporter adds only `submitted_by` to existing `karta_pod_workload_info` and
 `karta_workload_status` when enabled. Karta's CRD/SDK and the health metric remain
@@ -28,7 +28,9 @@ unchanged. The earlier two companion submitter metrics are removed.
 | [Implementation history](IMPLEMENTATION-HISTORY.md) | Earlier companion-metric prototype, fixes and original build scopes |
 | [Historical results](RESULTS.md) | Earlier installation and platform issues |
 | [Operator metadata proposal](OPERATOR-CONTRACT.md) | Broader platform contract; not a claim that all fields are metric labels |
-| [NVCF feature request draft](NVCF-FEATURE-REQUEST.md) | Proposed upstream metadata propagation; no issue opened |
+| [Platform source audit](evidence/platform-source-audit/README.md) | Existing configuration options, new live captures, prerequisites and remaining limits |
+| [OSMO feature request draft](OSMO-FEATURE-REQUEST.md) | Lossless principal access in administrator templates; no issue opened |
+| [NVCF feature request draft](NVCF-FEATURE-REQUEST.md) | Authenticated creator/deployer capture and metadata; no issue opened |
 
 The initial [research PDF](submitter-attribution.pdf), [design](DESIGN.md) and
 existing diagrams describe earlier proposals. Their identity-source/type/status

@@ -1,0 +1,3 @@
+{
+  "file": "workflow:\n  name: audit-unknown-one-char\n  resources:\n    default:\n      cpu: 1\n      memory: 512Mi\n      storage: 1Gi\n      platform: karta-source-audit\n  groups:\n  - name: pair\n    tasks:\n    - name: leader\n      lead: true\n      image: ubuntu:24.04\n      command:\n      - /bin/sh\n      - -c\n      args:\n      - echo attribution-check; sleep 180; echo done\n    - name: worker\n      lead: false\n      image: ubuntu:24.04\n      command:\n      - /bin/sh\n      - -c\n      args:\n      - echo attribution-check; sleep 180; echo done\n"
+}

@@ -1,0 +1,36 @@
+{
+  "fullnameOverride": "karta-metadata-probe",
+  "replicaCount": 1,
+  "service": {
+    "type": "ClusterIP",
+    "ports": {
+      "http": 8080
+    }
+  },
+  "networkPolicy": {
+    "enabled": false
+  },
+  "commonAnnotations": {
+    "workload.dgxc.nvidia.com/org": "audit-org",
+    "workload.dgxc.nvidia.com/submitter-id": "audit-user"
+  },
+  "podAnnotations": {
+    "workload.dgxc.nvidia.com/org": "audit-org",
+    "workload.dgxc.nvidia.com/submitter-id": "audit-user"
+  },
+  "pdb": {
+    "create": false
+  },
+  "tls": {
+    "enabled": false
+  },
+  "serviceAccount": {
+    "create": false
+  },
+  "image": {
+    "registry": "docker.io",
+    "repository": "bitnamilegacy/nginx",
+    "tag": "1.27.2-debian-12-r1",
+    "digest": "sha256:2d08c41aebabe86837ed1c0ca6857135558d8d2bd90b08ccfbe639b996bc1097"
+  }
+}

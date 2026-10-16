@@ -1,65 +1,45 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# NVCF submitter identity in workload metadata
+# Capture authenticated creators and deployers in workload metadata
 
-Issue draft for review. No GitHub issue has been created.
+Issue draft for maintainer review. No issue has been opened.
 
 ## Problem
 
-The tested NVCF Pods carry account, function/version or task IDs, but no original
-submitting principal. A creation audit identifies a client or API-key owner,
-which may be a service. Workload observers need a documented identity mapping
-across submission platforms, including service-key paths.
+NVCF/NVCT authenticates callers and records actor/subject information in audit events, but the traced function, deployment and task models do not retain that principal for supported propagation to Kubernetes workload metadata. Observers can identify the account and workload, but cannot distinguish two authenticated submitters sharing an account from metadata alone.
 
-## Follow-up test
+In the self-managed lab, the container function became ACTIVE and returned HTTP 200; the finite task reached COMPLETED at 100%. Pods carried account and function/version or task IDs. Both tested Karta exporter PoC metric families retained `submitted_by=""`. A caller-supplied environment value reached the Pod specs and the task process, but was not projected into metadata. These service-credential tests do not establish a human identity. [Requests and outcomes](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/README.md), [environment follow-up](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/review-suggestions/README.md).
 
-The `containerEnvironment` field was tested through both the function and finite
-task APIs. `KARTA_TEST_SUBMITTED_BY=alice@example.test` reached both Pod specs;
-the task returned that value from `printenv`. The function became ACTIVE and
-returned HTTP 200. Its image had no shell, so its process environment was not
-inspected. This was a caller-supplied fixture, not an authenticated principal.
+## Existing options
 
-Neither path projected that value into Kubernetes labels or annotations. Both
-existing Karta metric families kept `submitted_by=""`. The remaining work is
-trusted identity capture and metadata projection, not basic environment transport.
-See [requests and captures](evidence/review-suggestions/README.md).
+- Audit events already record authenticated actor/subject information and correlation IDs. Durable collection and joins can support reporting; they do not populate metadata for observers restricted to labels and annotations. Function creation, deployment creation/update and task submission must remain distinct operations.
+- Helm configuration already transports supplied values through `deploymentSpecifications[].configuration` or `gpuSpecification.configuration`. A chart can stamp annotations on workload roots and Pod templates. ReVal's `skipSanitizeObjectMetadata` / `preserveAnnotations` settings control preservation. This solves transport when a trusted submission service supplies the principal and controls submission; it does not authenticate arbitrary values.
+- NVCA `agent.customAnnotations` can stamp fixed annotations on directly created worker Pods. It can classify a dedicated backend, but cannot derive per-request identity. The Helm utils-Pod feature flag has narrower scope.
+- Account/NCA, function/version, deployment, task, ICMSRequest and MiniService identifiers already support correlation. Standard Deployment/Job owner chains provide grouping. This request does not propose a new grouping model.
+
+The public-source audit and local Helm render establish the configuration path. The live Helm test stopped before function creation because the chosen registry hostname was unsupported or lacked a registered HELM credential. It did not establish a full Helm-to-observer result.
+
+Sources at public commit `81d815fedda70477655a4ecc1b1a4ee6b4187a32`: [audit identity](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/libraries/java/nv-boot-parent/nv-boot-starter-audit/src/main/java/com/nvidia/boot/audit/AuditService.java#L151), [audit emission](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/libraries/java/nv-boot-parent/nv-boot-starter-audit/src/main/java/com/nvidia/boot/audit/listener/BootAuditEventListener.java#L35), [native metadata](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/compute-plane-services/nvca/pkg/types/common_labels.go#L104), [Helm rendering](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/compute-plane-services/nvca/internal/miniservice/reconcile.go#L1152), [ReVal preservation](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/control-plane-services/helm-reval/reval/run.go#L1016).
 
 ## Requested behavior
 
-1. Define the actor for each operation. Function creator, deployer and invoker
-   can be different; task submission is another operation.
-2. Capture the authenticated principal and its type at the API boundary. Include
-   a delegated human only when that delegation is verifiable.
-3. Carry approved fields through the launch spec. If an environment variable
-   transports them, NVCA must also project them into Kubernetes metadata.
-4. Stamp full principal, type, authority/tenant namespace and platform workload ID on
-   workload resources and Pods. Add a short-user label only when known.
-5. Preserve existing IDs and client behavior. Represent missing identity
-   explicitly and never expose credentials as metadata.
-
-See the [proposed operator contract](OPERATOR-CONTRACT.md) for candidate names.
-An opt-in rollout can precede broader adoption; final key names are negotiable.
-
-## Questions for maintainers
-
-- Which authenticated subject is available for personal and service keys?
-- Within which authority/tenant scope is that principal ID unique?
-- Can an upstream platform provide a verified on-behalf-of identity?
-- Which launch-spec field should carry these values, and which component will
-  stamp metadata on both function and task resources?
-- Which actor should be attributed to a long-lived function?
-- How should Helm-created resources and nested Pod templates receive the metadata?
-- Can a corrected identity be updated, or is it immutable after submission?
+1. Capture and retain the authenticated principal for function-version creation, deployment creation/update and task submission. Define which actor remains attached to each object; do not collapse creator, deployer and invoker into one ambiguous user.
+2. Retain a stable principal ID, principal type and authority/tenant scope. Preserve a service identity when a shared/service credential is used. Include a delegated human only when verified delegation is available.
+3. Carry the approved identity through the launch path and publish it in documented, server-controlled annotations on workload roots and Pods for container and Helm paths. Cover replacement Pods and redeployments. An administrator template variable may complement this; arbitrary caller values must not replace the authoritative fields.
+4. Use annotations for lossless identity. An optional short-user label should require an agreed unique mapping. Represent unavailable identity explicitly and never include tokens or credential material.
+5. Preserve current account/workload IDs and client behavior. Provide an opt-in rollout if needed. The tested observer PoC can read an agreed annotation through its existing CEL without an API or metric-schema change; `workload.dgxc.nvidia.com/submitter-id` is one candidate, not a required standard.
 
 ## Acceptance criteria
 
-Test personal and service keys, functions and finite tasks, Pod and parent
-metadata, absent values, unsupported modes and cleanup. A shared service key
-remains a service identity without verified delegation.
+- Human A creates a function, B deploys/updates it and C invokes it: metadata and audit records distinguish the agreed creator/deployer roles. Invocation does not rewrite workload identity.
+- Two authenticated submitters in one account launch finite tasks: workload/Pod annotations identify the correct submitting principals.
+- A shared service key remains a service principal unless verified delegation is supplied. Missing identity does not become a guessed username.
+- Container and Helm paths retain authoritative metadata across Pod recreation. Caller chart values cannot override the authoritative identity fields; unrelated metadata remains intact.
+- Document retention, update semantics, supported versions and how to join the metadata with existing audit/account/workload identifiers.
 
-## Interim option
+## Related public work and scope
 
-Correlate account plus function/version or task ID with a documented audit/API
-source. Retain principal type and operation. This needs an adapter and retention
-policy; audit access alone does not identify the human behind a service.
+[Issue #813](https://github.com/NVIDIA/nvcf/issues/813) covers Pod event enrichment for container, Helm and task paths. [Issue #1014](https://github.com/NVIDIA/nvcf/issues/1014) discusses metadata propagation to operator-created objects. [PR #1944](https://github.com/NVIDIA/nvcf/pull/1944) preserves existing account/function labels on worker metrics. These are related propagation and observability paths; their described scope is not authenticated creator/deployer capture.
+
+The tested Karta exporter PoC's controller-owner-reference behavior, NVCT helper-image packaging, task cancellation cleanup, registry provisioning and organization-directory mapping remain separate integration or operational work.

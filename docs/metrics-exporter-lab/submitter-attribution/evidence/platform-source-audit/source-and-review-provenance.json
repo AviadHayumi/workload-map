@@ -1,0 +1,82 @@
+{
+  "osmo": {
+    "liveVersion": "6.3.1",
+    "liveVersionSource": "ed59b69715e4ee6fff70bcd9d715106358a7205f",
+    "alsoCompared": [
+      "483ae4188d4f5a0900a1bf39d1b0daaa76cad83e",
+      "19b5170268bc2e221f2db9367f5893687b060864"
+    ]
+  },
+  "nvcf": {
+    "publicSource": "81d815fedda70477655a4ecc1b1a4ee6b4187a32",
+    "observedImageVersions": {
+      "nvcf": "1.18.0",
+      "nvct": "1.66.0",
+      "nvca": "3.10.0",
+      "reval": "0.20.2"
+    }
+  },
+  "reviews": [
+    {
+      "repository": "osmo",
+      "cli": "Claude Code",
+      "requestedModel": "claude-opus-5-5",
+      "requestedEffort": "max",
+      "reportedModel": "claude-opus-5-5",
+      "successful": true
+    },
+    {
+      "repository": "osmo",
+      "lane": "identity",
+      "cli": "Codex",
+      "requestedModel": "gpt-6-astra",
+      "requestedEffort": "ultra",
+      "successful": true,
+      "serverResolvedModel": "Not exposed by JSONL; selected invocation verified"
+    },
+    {
+      "repository": "osmo",
+      "lane": "metadata",
+      "cli": "Codex",
+      "requestedModel": "gpt-6-astra",
+      "requestedEffort": "ultra",
+      "successful": true,
+      "serverResolvedModel": "Not exposed by JSONL; selected invocation verified"
+    },
+    {
+      "repository": "nvcf",
+      "cli": "Claude Code",
+      "requestedModel": "claude-opus-5-5",
+      "requestedEffort": "max",
+      "reportedModel": "claude-opus-5-5",
+      "successful": true
+    },
+    {
+      "repository": "nvcf",
+      "lane": "identity",
+      "cli": "Codex",
+      "requestedModel": "gpt-6-astra",
+      "requestedEffort": "ultra",
+      "successful": true,
+      "serverResolvedModel": "Not exposed by JSONL; selected invocation verified"
+    },
+    {
+      "repository": "nvcf",
+      "lane": "metadata",
+      "cli": "Codex",
+      "requestedModel": "gpt-6-astra",
+      "requestedEffort": "ultra",
+      "successful": true,
+      "serverResolvedModel": "Not exposed by JSONL; selected invocation verified"
+    },
+    {
+      "scope": "Final report and issue-draft review",
+      "cli": "Claude Code",
+      "version": "2.1.301",
+      "requestedModel": "claude-opus-5-5",
+      "requestedEffort": "max",
+      "reportedModel": "claude-opus-5-5",
+      "successful": true
+    }
+  ]
+}

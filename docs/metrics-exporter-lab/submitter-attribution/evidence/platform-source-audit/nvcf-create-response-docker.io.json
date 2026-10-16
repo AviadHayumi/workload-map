@@ -1,0 +1,10 @@
+{
+  "httpStatus": 400,
+  "response": {
+    "detail": "Missing HELM registry credential for hostname 'docker.io'",
+    "instance": "/v2/nvcf/functions",
+    "status": 400,
+    "title": "Bad Request",
+    "type": "urn:nv-boot:problem-details:bad-request"
+  }
+}

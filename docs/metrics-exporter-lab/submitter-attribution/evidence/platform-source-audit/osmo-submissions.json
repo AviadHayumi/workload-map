@@ -1,0 +1,23 @@
+[
+  {
+    "case": "mapped-email",
+    "inputUser": "alice@example.test",
+    "name": "audit-mapped-email-4",
+    "httpStatus": 200,
+    "capturedAt": "2026-10-16T11:30:35.535565+00:00"
+  },
+  {
+    "case": "mapped-short",
+    "inputUser": "alice",
+    "name": "audit-mapped-short-1",
+    "httpStatus": 200,
+    "capturedAt": "2026-10-16T11:30:36.290866+00:00"
+  },
+  {
+    "case": "unknown-one-char",
+    "inputUser": "a",
+    "name": "audit-unknown-one-char-1",
+    "httpStatus": 200,
+    "capturedAt": "2026-10-16T11:30:37.270211+00:00"
+  }
+]

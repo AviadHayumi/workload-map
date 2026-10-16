@@ -1,0 +1,9 @@
+{
+  "name": "karta-helm-metadata-audit-20261016",
+  "inferenceUrl": "/",
+  "inferencePort": 8080,
+  "healthUri": "/",
+  "helmChart": "oci://registry-1.docker.io/bitnamicharts/nginx:18.2.5",
+  "helmChartServiceName": "karta-metadata-probe",
+  "apiBodyFormat": "CUSTOM"
+}

@@ -1,0 +1,11 @@
+{
+  "taskMetricsEnvironment": [
+    {
+      "name": "OSMO_DISABLE_TASK_METRICS",
+      "value": "false"
+    }
+  ],
+  "metricsPorts": [
+    9464
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "default_variables": {
+    "KARTA_USER_BY_SUBMITTER": {
+      "alice": {
+        "principal": "alice@example.test",
+        "org": "demo_research_training"
+      }
+    }
+  }
+}

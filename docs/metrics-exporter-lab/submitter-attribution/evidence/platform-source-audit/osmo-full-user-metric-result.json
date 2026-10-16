@@ -1,0 +1,13 @@
+{
+  "name": "audit-full-user-metric-2",
+  "uuid": "4c92f554382c4875b9e4add587563721",
+  "submitted_by": "alice@example.test",
+  "status": "COMPLETED",
+  "tasks": [
+    {
+      "name": "worker",
+      "status": "COMPLETED",
+      "exit_code": 0
+    }
+  ]
+}

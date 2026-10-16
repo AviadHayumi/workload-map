@@ -1,0 +1,10 @@
+{
+  "httpStatus": 400,
+  "response": {
+    "detail": "400 BAD_REQUEST, ProblemDetail[type='urn:nv-boot:problem-details:bad-request', title='Bad Request', status=400, detail='Unsupported registry hostname registry-1.docker.io for registry type HELM', instance='null', properties='null']",
+    "instance": "/v2/nvcf/functions",
+    "status": 400,
+    "title": "Bad Request",
+    "type": "urn:nv-boot:problem-details:bad-request"
+  }
+}

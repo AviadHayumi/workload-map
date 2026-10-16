@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "labels": {
+      "workload.dgxc.nvidia.com/user": "{{WF_SUBMITTED_BY | default('')}}",
+      "osmo.submitted_by": "{{WF_SUBMITTED_BY | default('')}}"
+    },
+    "annotations": {
+      "workload.dgxc.nvidia.com/submitter-id": "{{KARTA_USER_BY_SUBMITTER.get(WF_SUBMITTED_BY | default(''), {}).get('principal', '')}}",
+      "workload.dgxc.nvidia.com/org_hierarchy": "{{KARTA_USER_BY_SUBMITTER.get(WF_SUBMITTED_BY | default(''), {}).get('org', '')}}"
+    }
+  }
+}

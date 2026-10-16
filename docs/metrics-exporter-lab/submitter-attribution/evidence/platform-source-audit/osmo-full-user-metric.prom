@@ -1,0 +1,2 @@
+osmo_tasks_count{pool="default",status="PROCESSING",user="alice@example.test",workflow_uuid="4c92f554382c4875b9e4add587563721"} 1.0
+osmo_tasks_count{pool="default",status="RUNNING",user="alice@example.test",workflow_uuid="4c92f554382c4875b9e4add587563721"} 1.0

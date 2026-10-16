@@ -1,0 +1,8 @@
+{
+  "osmoPoolRestoredExactly": true,
+  "osmoTemplatesRestoredExactly": true,
+  "allFourTestWorkflowsCompleted": true,
+  "remainingTestPodsAndPodGroups": 0,
+  "temporaryRefreshLabelRemoved": true,
+  "verifiedAt": "2026-10-16T11:47:38.467951+00:00"
+}

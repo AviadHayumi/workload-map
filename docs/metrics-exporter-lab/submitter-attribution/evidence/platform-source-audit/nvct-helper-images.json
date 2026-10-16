@@ -1,0 +1,7 @@
+{
+  "observedImageReferences": [
+    "nvcr.io/nvidia/nvcf/nvcf-worker-init-oss:1.2.1",
+    "nvcr.io/nvidia/nvcf/nvcf-worker-task-oss:1.1.4"
+  ],
+  "readScope": "Only matching public image references from current ConfigMap data"
+}
