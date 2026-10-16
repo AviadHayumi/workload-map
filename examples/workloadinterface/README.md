@@ -94,6 +94,168 @@ Already have the workload reference? Use `sdk.Workload(ctx, rootRef)`.
 A reference contains its exact group/version/kind, namespace, name and current UID.
 That call also works for a workload with zero Pods.
 
+## Read the workload tree
+
+The JobSet fixture has this declared structure:
+
+```text
+component: jobset (workload root)
+  instance: anonymous
+    component: replicatedjob
+      instance: evaluation   scale.replicas: 1
+      instance: training     scale.replicas: 2
+```
+
+Read it from the captured workload:
+
+```go
+desired, err := observed.DesiredTree(ctx)
+if err != nil { return err }
+```
+
+If you already create a workload with `karta.New(definition, object)`, keep using
+`workload.Tree(ctx)`. It returns the same tree model. The Pod-selection methods
+below are separate queries; they do not replace `Tree()`.
+
+| View | Contents |
+| --- | --- |
+| `workload.Tree(ctx)` or `observed.DesiredTree(ctx)` | Declared components, instances, templates, scale and root status. |
+| `observed.Component(...).Instance(...).Replica(...).Pods()` | Actual captured Pods matching those coordinates. |
+
+The declared tree does not expand scale into runtime replicas or contain actual
+Pods. Its builder leaves `InstanceNode.ReplicaKey` unset.
+
+### Walk from the root through every declared instance
+
+Each component has instances. Each instance has child components.
+Start at `Root` to include the workload itself:
+
+```go
+var visit func(karta.ComponentNode, string)
+visit = func(component karta.ComponentNode, indent string) {
+    fmt.Printf("%scomponent: %s\n", indent, component.Name)
+    for _, instance := range component.Instances {
+        name := "anonymous"
+        if instance.InstanceKey != nil { name = *instance.InstanceKey }
+        fmt.Printf("%s  instance: %s\n", indent, name)
+        for _, child := range instance.Children {
+            visit(child, indent + "    ")
+        }
+    }
+}
+visit(*desired.Root, "")
+```
+
+`instance.Scale` holds requested scale; `instance.ExtractedInstance` holds extracted
+Pod template/spec data. Scale and status fields can be nil when not defined.
+`desired.RootStatus` preserves raw workload conditions; `desired.Status.Phases`
+contains all matched phases. The fixture reports `[Running]` and `Completed=False`.
+[SummarizeDesired](desired.go) is a complete consumer example retaining these values.
+
+`Children` still exposes the first root instance's children.
+`Instances()` walks that view and excludes the root.
+This SDK branch adds `Root` and `RootStatus` while retaining `Children` and `Status`.
+Callers that serialize the struct or use positional struct literals must account
+for the added fields; the old serialized shape is not guaranteed.
+Child definitions are extracted globally and appear under each parent instance.
+Do not sum every appearance to infer resource totals or actual Pod counts.
+Tree extraction evaluates templates, scale and root status together; a status-only
+consumer can retain a separate status read.
+
+## Select actual Pods from the workload structure
+
+![Workload, component, named instance and replica, with the actual fixture Pods](sdk-workload-scopes.png)
+
+The diagram shows the captured Pods grouped by Karta coordinates.
+It is a view of `PodMemberships()`, not the literal result of `DesiredTree()`.
+
+### Follow one JobSet branch
+
+```text
+JobSet training-set
+  component: replicatedjob
+    instance: evaluation
+      replica: "0" -> evaluation-0-pod
+    instance: training
+      replica: "0" -> training-0-pod
+      replica: "1" -> training-1-pod
+```
+
+In the JobSet definition:
+
+- `replicatedjob` is the component: a repeated Job template.
+- `training` is a named instance: one entry in `spec.replicatedJobs`.
+- `"0"` is a replica key: the Job index within that instance, read from its Pod label.
+
+This fixture uses Job parallelism `1`. Its extracted scale is replicas times
+parallelism; one Job replica can have several Pods when parallelism is greater.
+
+```go
+jobs, err := observed.Component("replicatedjob")
+if err != nil { return err }
+training, err := jobs.Instance("training")
+if err != nil { return err }
+firstJob, err := training.Replica("0")
+if err != nil { return err }
+trainingPods, err := firstJob.Pods()
+if err != nil { return err }
+fmt.Printf("training replica 0: %d Pods\n", len(trainingPods))
+```
+
+| Selection | Returned Pod names |
+| --- | --- |
+| Whole workload | `evaluation-0-pod`, `training-0-pod`, `training-1-pod` |
+| `Component("replicatedjob")` | All three Pods. |
+| Its `Instance("training")` | `training-0-pod`, `training-1-pod` |
+| Training `Replica("0")` | `training-0-pod` |
+| Evaluation `Replica("0")` | `evaluation-0-pod` |
+
+These are local queries on `observed`. They preserve the enclosing instance;
+replica `"0"` in training is different from replica `"0"` in evaluation.
+A component selection also includes its descendant components.
+
+### Select an inference group
+
+First look at the observed grouping for this LeaderWorkerSet:
+
+```text
+LeaderWorkerSet inference
+  component: group
+    replica: "0"
+      component: leader -> inference-0
+      component: worker -> inference-0-1
+    replica: "1"
+      component: leader -> inference-1
+      component: worker -> inference-1-1
+```
+
+The `group` component has one anonymous instance, omitted from this picture.
+Its replica key is the operator's group ID. Follow group `"0"` to its worker Pods:
+
+```go
+groups, err := observed.Component("group")
+if err != nil { return err }
+firstGroup, err := groups.Replica("0")
+if err != nil { return err }
+workers, err := firstGroup.Component("worker")
+if err != nil { return err }
+workerPods, err := workers.Pods()
+if err != nil { return err }
+fmt.Printf("group 0 workers: %d Pods\n", len(workerPods))
+```
+
+The [group example](traversal_test.go) returns `inference-0-1` here.
+Changing the final component to `leader` returns `inference-0`.
+Replica keys are supplied by the consumer; replica-ID enumeration is not implemented.
+There is no `observed.Tree()` method returning this Pod grouping today.
+Use `PodMemberships()` when a UI needs to build it.
+
+A scheduling gang can span components. The [SchedulingGroups example](groups.go)
+combines full Pods using the definition's explicit scheduling keys.
+It reuses `PodMemberships()` and performs no second attribution pass.
+It supports `gangScheduling.podGroups` with explicit keys; unsupported formats
+return an error. Creating scheduler objects remains the consumer's job.
+
 ## Replace a controller's ownership walk
 
 Use the same SDK when you need the physical chain rather than every sibling Pod:
@@ -123,67 +285,6 @@ An inventory controller can feed this path to its existing tree builder.
 Keep its metadata display, path merging, watches and stored records.
 The path returns identities; it does not contain labels or annotations.
 A Karta definition is not required.
-
-## Select the actual Pods of a component
-
-![Workload, component, named instance and replica, with the actual fixture Pods](sdk-workload-scopes.png)
-
-In the JobSet definition:
-
-- `replicatedjob` is the component: a repeated Job template.
-- `training` is a named instance: one entry in `spec.replicatedJobs`.
-- `"0"` is a replica key: the first Job created for that instance.
-
-```go
-jobs, err := observed.Component("replicatedjob")
-if err != nil { return err }
-training, err := jobs.Instance("training")
-if err != nil { return err }
-firstJob, err := training.Replica("0")
-if err != nil { return err }
-trainingPods, err := firstJob.Pods()
-if err != nil { return err }
-fmt.Printf("training replica 0: %d Pods\n", len(trainingPods))
-```
-
-| Selection | Returned Pod names |
-| --- | --- |
-| Whole workload | `evaluation-0-pod`, `training-0-pod`, `training-1-pod` |
-| `Component("replicatedjob")` | All three Pods. |
-| Its `Instance("training")` | `training-0-pod`, `training-1-pod` |
-| Training `Replica("0")` | `training-0-pod` |
-| Evaluation `Replica("0")` | `evaluation-0-pod` |
-
-These are local queries on `observed`. They preserve the enclosing instance;
-replica `"0"` in training is different from replica `"0"` in evaluation.
-A component selection also includes its descendant components.
-
-### Select an inference group
-
-LeaderWorkerSet uses a `group` component. Its replica key is the operator's group ID.
-For an observation of a LeaderWorkerSet:
-
-```go
-groups, err := observed.Component("group")
-if err != nil { return err }
-firstGroup, err := groups.Replica("0")
-if err != nil { return err }
-workers, err := firstGroup.Component("worker")
-if err != nil { return err }
-workerPods, err := workers.Pods()
-if err != nil { return err }
-fmt.Printf("group 0 workers: %d Pods\n", len(workerPods))
-```
-
-The [group example](traversal_test.go) returns `inference-0-1` here.
-Changing the final component to `leader` returns `inference-0`.
-Keys are supplied by the consumer; replica-ID enumeration is not implemented.
-
-A scheduling gang can span components. The [SchedulingGroups example](groups.go)
-combines full Pods using the definition's explicit scheduling keys.
-It reuses `PodMemberships()` and performs no second attribution pass.
-It supports `gangScheduling.podGroups` with explicit keys; unsupported formats
-return an error. Creating scheduler objects remains the consumer's job.
 
 ## Reuse the result in an integration or metrics collector
 
@@ -226,32 +327,6 @@ The existing exporter retains its event-driven metric store and scrape callbacks
 Its compatibility adapters already share ownership and legacy attribution code.
 It has not migrated to this high-level discovery interface.
 The [exporter comparison](COLLECTOR.md) explains the remaining behavior differences.
-
-## Read desired scale and status
-
-Pod count is observed state. A workload's template, requested scale and conditions
-come from its root object and Karta definition:
-
-```go
-desired, err := observed.DesiredTree(ctx)
-if err != nil { return err }
-if desired.Status != nil {
-    fmt.Printf("workload phases=%v\n", desired.Status.Phases)
-}
-```
-
-The [JobSet status fixture](traversal_test.go) reports `[Running]` and preserves its
-raw `Completed=False` condition. There may be zero or several matching Karta phases.
-Pod status remains available on each returned Pod.
-
-`desired.Root` contains component instances and their child components.
-For a complete traversal, visit every root instance and recurse into its children.
-[SummarizeDesired](desired.go) shows that traversal while retaining templates, scale
-and raw conditions. It is an example consumer adapter, not a new SDK subsystem.
-Do not sum nested replica counts to infer the observed Pod total.
-
-`DesiredTree` evaluates spec, scale and status together. A status-only exporter
-may retain its existing separate status read so a template error cannot suppress it.
 
 ## Inspect or edit an object you already have
 
