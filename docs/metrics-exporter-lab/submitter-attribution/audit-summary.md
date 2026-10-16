@@ -130,7 +130,18 @@ kubectl --kubeconfig "$USER_KUBECONFIG" apply \
   -f "direct-deployment-request.json"
 ```
 
-The Deployment ran. The Job completed after 300 seconds. Its annotation was `workload.dgxc.nvidia.com/submitter-id: alice@example.test`. The Pod inherited the value in the metric without copying the annotation.
+The Deployment ran; the Job completed after 300 seconds. Karta admission wrote the caller onto each submitted object, not a Karta CR. Captured Job fields:
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cel-label-job
+  annotations:
+    workload.dgxc.nvidia.com/submitter-id: alice@example.test
+```
+
+CEL reads `annotations["workload.dgxc.nvidia.com/submitter-id"]`. The Pod metric inherits this value through workload attribution; its Pod has no copied annotation. `ownerReferences` links controllers and children; it does not identify the human.
 
 ```prometheus
 karta_workload_status{
@@ -185,12 +196,27 @@ curl -fsS "$RUNAI_API/api/v1/workloads/inferences" \
   -H 'Content-Type: application/json' --data-binary @"inference.json"
 ```
 
-Both requests use BusyBox, 50m CPU and 64Mi memory, with no GPU request. Training sleeps for 300 seconds. Inference serves HTTP on port 8080 with one replica.
+Both use BusyBox, 50m CPU and 64Mi memory, without GPUs. Training completed after 300 seconds. Inference served HTTP 200 on port 8080 with one replica.
 
-| Submitted | Result | Metadata used by CEL |
-| --- | --- | --- |
-| cel-label-training | Job -> Pod; Job completed | Job annotation run.ai/submitted-by=test@run.ai |
-| cel-label-inference | Knative Service -> controllers -> Pod; Ready and HTTP 200 | Service has the same annotation; Pod has no submitter key |
+Run:AI supplied the identity on these objects. Captured fields:
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cel-label-training
+  annotations:
+    run.ai/submitted-by: test@run.ai
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: cel-label-inference
+  annotations:
+    run.ai/submitted-by: test@run.ai
+```
+
+CEL reads `annotations["run.ai/submitted-by"]`. The WorkloadRunner CRs had no submitter annotation. Karta attributed these Pods to the Job and Service above. The inference Pod had no submitter key; its metric inherited the Service's value.
 
 ```prometheus
 karta_workload_status{
@@ -202,13 +228,15 @@ karta_pod_workload_info{
 } 1
 ```
 
-Extra setup used: Knative had `kubernetes.podspec-schedulername` and `kubernetes.podspec-affinity` enabled. A separate exporter watched the test namespace. Its Role grants `get/list/watch` on `run.ai/workloadrunners`. These are required setup in this lab, not an external identity mapper.
+Extraction is generic. Knative was the runtime of this inference test; the same CEL reads the annotation on the training Job.
 
-The HTTP check used the Knative revision proxy through a port-forward. External ingress and real model inference were not tested.
+- Runtime setup: Knative's `kubernetes.podspec-schedulername` and `kubernetes.podspec-affinity` flags allowed this test's scheduler and affinity settings. They do not enable submitter extraction.
+- Exporter access: `get/list/watch` on `run.ai/workloadrunners` lets Karta read the Run:AI ownership graph. The separate exporter was for lab isolation. No identity mapper was used.
+- Test limit: HTTP was checked through a Knative revision proxy port-forward. External ingress and model inference were not tested.
 
-Current gap: the value has not been checked against the agreed NVIDIA username. No submitter propagation bug was found in these two Run:AI paths. Root inheritance already covers the missing inference Pod annotation. Suggested follow-up: agree the identity format with Run:AI and document the exporter RBAC/Knative prerequisites in Karta.
+Current gap: agree the NVIDIA username format with Run:AI. No submitter propagation bug was observed in these two paths.
 
-[Run:AI metric capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/converged-runai.prom) contains both workload results.
+See the [captured resource fields](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/converged-resources.json) and [Run:AI metrics](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/converged-runai.prom).
 
 <!-- pagebreak -->
 
@@ -232,12 +260,20 @@ done
 
 The requests submit one task and a leader/worker group. Each task uses Ubuntu 24.04, one CPU, 512Mi memory and a 300-second command. Both workflows completed; all three tasks in the repeated run exited with code 0.
 
-```text
-Workflow API: submitted_by=alice@example.test
-Task Pod:     osmo.submitted_by=alice
-CEL reads:    labels["osmo.submitted_by"]
-Karta root:   each task Pod, not the whole OSMO workflow
+The workflow API returned `submitted_by: alice@example.test`. Kubernetes had no workflow CR in this setup. The identity available to CEL was on the task Pod. Captured fields:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e5d1abe4ce374717-e923b371aa294f01
+  labels:
+    osmo.workflow_id: cel-label-single-2
+    osmo.task_name: worker
+    osmo.submitted_by: alice
 ```
+
+CEL reads `labels["osmo.submitted_by"]`. Karta used each task Pod as the workload; the full identity in the OSMO API was not read by the exporter.
 
 ```prometheus
 karta_pod_workload_info{
@@ -300,7 +336,27 @@ curl -fsS "$NVCT_API/v1/nvct/tasks" \
 
 Observed: COMPLETED at 100%, with result uploads disabled.
 
-Karta saw Pods with account and function/task IDs, but no user for CEL to read. Both metric families had `submitted_by=""`. HTTP-service sample:
+<!-- pagebreak -->
+
+## NVCF / NVCT: where the identity is missing
+
+The Kubernetes CR was `ICMSRequest` (`nvca.nvcf.nvidia.io/v2beta1`). Its metadata had account and function/task IDs, but no human submitter field. The Pods also lacked that field.
+
+These are the observed label paths, not user identities:
+
+```text
+ICMSRequest metadata.labels:
+  nca-id
+  nvca.nvcf.nvidia.io/function-id          # NVCF
+  nvca.nvcf.nvidia.io/function-version-id  # NVCF
+  nvca.nvcf.nvidia.io/task-id              # NVCT
+Pod metadata.labels:
+  nca-id
+  function-id, function-version-id        # NVCF
+  task-id                                # NVCT
+```
+
+Both existing metric families had `submitted_by=""`. Captured HTTP-service sample:
 
 ```prometheus
 karta_pod_workload_info{
@@ -309,12 +365,22 @@ karta_pod_workload_info{
 } 1
 ```
 
-Current gaps and suggested fixes:
+To expose the human submitter, NVCF needs to capture a verified caller at submission and pass it to NVCA, the cluster agent. NVCA would write it onto the ICMSRequest and its Pods. For functions, first agree whether this means creator or deployer; the caller invoking a running function is a different identity.
 
-- NVCF identity: publish the authenticated submitter in workload/Pod annotations. Agree creator versus deployer for functions. Until then, leave the value empty; an audit lookup only helps if it records the original user. No lookup was implemented.
-- Karta/NVCF grouping: owner links lacked `controller: true`, so Karta used each Pod as a workload. Function/task-level mapping remains missing.
-- Platform bugs: NVCT helper image references did not resolve; the overrides below worked. NVCA, the cluster agent, left a request after malformed-task cancellation; manual cleanup was required. Suggest issues for both.
+Proposed metadata on both objects, not present in the captures:
 
-Extra lab setup: self-managed NVCF with service credentials from OpenBao; helper images `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4`; test-container CPU reduced to 100m. Hosted NVCF and human login were not tested.
+```yaml
+metadata:
+  annotations:
+    workload.dgxc.nvidia.com/submitter-id: alice@example.test
+```
 
-See [execution evidence](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) and the [identity issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md). No issues have been opened.
+The CEL expression on page 1 already reads this key. Stamping only the CR would not cover this test: Pod owner links lacked `controller: true`, so Karta treated each Pod as the workload. Function/task-level grouping also needs a Karta/NVCF integration fix.
+
+For now, leave the value empty. An external lookup could correlate account and function/version/task IDs with an audit record, but only if it contains the original user. No lookup was implemented. A service credential alone cannot identify a human. Suggested NVCF issue: propagate the authenticated submitter to Kubernetes metadata.
+
+Other current platform gaps: NVCT helper image references did not resolve; overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4` worked. NVCA left an ICMSRequest after malformed-task cancellation; manual cleanup was required. Suggest issues for both.
+
+Lab setup: self-managed NVCF with service credentials from OpenBao; test-container CPU reduced to 100m. Hosted NVCF and human login were not tested.
+
+See the [NVCF capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-active-resources.json), [NVCT capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvct-running-resources.json) and [identity issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md). No issues have been opened.
