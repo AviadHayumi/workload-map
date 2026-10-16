@@ -94,6 +94,24 @@ A scheduler-filtered cache cannot satisfy that contract.
 Replacing label-derived membership also requires controller ownership to identify
 the same Pod set.
 
+### Preserve an existing parser's selection rules
+
+`Tree` evaluates templates and scale throughout the definition, plus the root status.
+It is appropriate when the caller wants that complete result.
+It can change the behavior of a parser that deliberately reads only selected components:
+
+- An ignored descendant can now fail an expression during extraction.
+- Scale on a structural component can fail even if the caller only needs its children.
+- A child definition can appear below several parent instances.
+  Summing every appearance can count the same globally extracted child more than once.
+
+For a compatibility migration, keep the consumer's component selection and accounting.
+The lower-level [`resource.ComponentFactory`](../../pkg/resource/component_factory.go) lets
+that adapter request the components it already uses.
+Compare the complete consumer output against its original parser before replacing
+selection rules with recursive tree traversal.
+This compatibility path does not migrate ownership, Pod membership or persistent IDs.
+
 ### Enrich members the consumer already selected
 
 When the consumer has confirmed a root and a selected Pod set, retain that
