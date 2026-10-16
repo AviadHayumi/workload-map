@@ -74,7 +74,7 @@ note over App, Reader
   Construction performs no Kubernetes reads and starts no background work.
 end note
 
-== B. Resolve the seed's terminal controller ==
+== B. Find the starting object's workload ==
 App -[#315E8C]> SDK: discoverer.WorkloadForPod(ctx, podRef)\nexample/training-0-pod, UID training-0-pod
 SDK -[#315E8C]> Reader: Get Pod example/training-0-pod (UID training-0-pod)
 Reader -[#315E8C]> API: GET Pod example/training-0-pod
@@ -121,7 +121,7 @@ break Incomplete list, unreadable owner or invalid ownership
   SDK -[#A54848]-> App: nil, error (for example ErrIncompleteOwnership)
   note over App, SDK #FDE9E7
     Acquisition fails; no partial or false-empty workload is returned.
-    A changed or missing seed during collection also fails.
+    A changed or missing starting object during collection also fails.
   end note
 end
 SDK -[#39746B]> SDK: Keep Pods whose terminal UID is jobset-uid; sort\nIllustration: 3 members, 2 unrelated Pods excluded

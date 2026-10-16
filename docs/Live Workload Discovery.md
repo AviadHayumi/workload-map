@@ -73,6 +73,38 @@ root with no Pods. An intermediate owner returns `ErrNotWorkloadRoot`.
 make acquisition return `ErrNoClient`; they do not return a successful empty
 workload. The client-go adapter rejects nil dependencies during construction.
 
+## One ownership chain
+
+`karta.NewDiscoverer` exposes the same discovery operations through a small
+consumer interface. `OwnershipPath(ctx, ref)` returns the input object's identity
+followed by each controller owner through the terminal root.
+Use `discovery.PodReference(pod)` for typed Pods received from a client or informer;
+it supplies core v1 even when TypeMeta is empty. A nil Pod produces an empty
+reference, which query validation rejects.
+
+`discovery.Options.MaxDepth` configures the hop limit once, with zero selecting 32.
+The path query does not list Pods or evaluate definitions. A concrete `*Index`
+traces under one read lock; other readers use `Mapping` and `Get`, including
+wrappers implementing `IndexedReader`. Only workload acquisition calls `Capture`.
+Separate direct reads are not a cross-resource Kubernetes transaction.
+
+On failure, the path result is nil. Typed ownership errors retain their verified
+prefix for diagnostics. Path entries contain identity only, not labels or
+annotations. See the [complete usage guide](../examples/workloadinterface/README.md).
+
+## Reuse captured Pod coordinates
+
+`Workload.PodMemberships()` returns a map from Pod UID to captured component
+membership. It includes generic and incomplete results and copies the map,
+coordinate slices, instance/replica pointers and issue slices.
+It performs no cluster reads or expression evaluation.
+
+Consumers can join the map with `Pods()` by UID instead of running selectors again.
+Inspect each membership's `Issues` before treating its coordinates as complete.
+The scheduling-group example now reuses this captured attribution, so time-dependent
+selectors cannot silently change a saved observation while grouping it.
+Legacy exporter attribution remains a separate compatibility policy.
+
 ## Optional metadata reads for owners
 
 For direct discovery, `clientgo.NewReaderWithOwnerMetadata(dynamicClient,
@@ -81,7 +113,7 @@ as well. Both clients and the mapper must refer to the same Kubernetes authority
 and exact resource versions. The constructor performs no network work.
 
 This opt-in reader uses `PartialObjectMetadata` for newly encountered owners
-other than core v1 Pods, after the initial full seed-to-root trace. The root and
+other than core v1 Pods, after the initial full trace from the starting object to its root. The root and
 returned Pods stay complete. Initial ancestors, core v1 Pod owners, public `Collect` and indexed
 capture keep their existing full-object paths. A server that supports metadata
 responses can omit owner spec/status from those later GETs. A server returning
@@ -119,8 +151,8 @@ resolver, err := discovery.New(reader, discovery.Options{})
 ```
 
 The decorator requests JSON and decodes complete Pods directly, avoiding the
-dynamic client's intermediate unstructured representation. It exhausts
-pagination, keeps all Pod phases and scheduling states, and transfers fresh
+dynamic client's intermediate unstructured representation. It reads every page of
+results, keeps all Pod phases and scheduling states, and transfers fresh
 owned Pod data through `PodTransferReader`. Object reads and mappings stay
 delegated to the base. `OwnerMetadataReader` is preserved only when the base
 provides it. List errors never fall back to the base reader.
@@ -155,8 +187,8 @@ remain eligible. A standalone Pod is its own root. Labels used for semantic
 attribution never replace the ownership check.
 
 Each acquisition resolves the full relevant Pod list and memoizes owner reads for
-that acquisition. The client-go adapter exhausts pagination. An expired page,
-changed seed, missing owner, denied read, or unresolved unrelated ownership chain
+that acquisition. The client-go adapter reads every page of results. An expired page,
+changed starting object, missing owner, denied read, or unresolved unrelated ownership chain
 fails acquisition; no partial workload is returned. Direct reads therefore cost
 a complete namespace Pod list, or a cluster-wide list, plus the required owner
 GETs. They are not optimized for repeatedly querying many roots in one namespace.

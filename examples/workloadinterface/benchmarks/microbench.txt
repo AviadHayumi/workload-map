@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+#
+# Recorded: 2026-10-16; command exit code: 0
+# Toolchain: Go 1.26.3; Darwin/arm64; Apple M4 Pro
+# Source parent: b3591bc093eb311dc1b1b41341800bf277092e28
+# Source state: modified checkout delivered with the accompanying guide.
+# This is not a run of the unmodified parent commit.
+# Three reported samples per case; one command invocation; 100 ms target.
+# Command:
+# go test ./pkg/ownership ./pkg/discovery ./pkg/discovery/clientgo -run '^$' -bench '^(BenchmarkTraceResult|BenchmarkAffectedDescendants|BenchmarkIndexApplyOnePod|BenchmarkReaderWorkloadPodTransfer)$' -benchmem -benchtime=100ms -count=3
+#
+# Benchmark output below is unchanged. No private paths or endpoints occurred.
+
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/pkg/ownership
+cpu: Apple M4 Pro
+BenchmarkAffectedDescendants/1000-14         	  991872	       122.6 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAffectedDescendants/1000-14         	 1000000	       120.9 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAffectedDescendants/1000-14         	 1000000	       121.4 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAffectedDescendants/100000-14       	 1000000	       120.3 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAffectedDescendants/100000-14       	 1000000	       124.8 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAffectedDescendants/100000-14       	  971594	       119.3 ns/op	      96 B/op	       1 allocs/op
+BenchmarkTraceResult/full-path-14            	  578708	       205.8 ns/op	     512 B/op	       1 allocs/op
+BenchmarkTraceResult/full-path-14            	  629644	       200.9 ns/op	     512 B/op	       1 allocs/op
+BenchmarkTraceResult/full-path-14            	  615344	       199.3 ns/op	     512 B/op	       1 allocs/op
+BenchmarkTraceResult/root-reference-14       	  714976	       161.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTraceResult/root-reference-14       	  747837	       161.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTraceResult/root-reference-14       	  723945	       164.1 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/pkg/ownership	3.503s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkIndexApplyOnePod/1000-14         	   14666	      8219 ns/op	    4172 B/op	      41 allocs/op
+BenchmarkIndexApplyOnePod/1000-14         	   14841	      8069 ns/op	    4172 B/op	      41 allocs/op
+BenchmarkIndexApplyOnePod/1000-14         	   14887	      7996 ns/op	    4172 B/op	      41 allocs/op
+BenchmarkIndexApplyOnePod/10000-14        	   14948	      8254 ns/op	    4172 B/op	      41 allocs/op
+BenchmarkIndexApplyOnePod/10000-14        	   14600	      8111 ns/op	    4172 B/op	      41 allocs/op
+BenchmarkIndexApplyOnePod/10000-14        	   14017	      8186 ns/op	    4172 B/op	      41 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/pkg/discovery	3.751s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/pkg/discovery/clientgo
+cpu: Apple M4 Pro
+BenchmarkReaderWorkloadPodTransfer/pods=1000/transfer-14         	       2	  62838146 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	43373448 B/op	  661331 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=1000/transfer-14         	       2	  61583625 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	42021300 B/op	  659243 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=1000/transfer-14         	       2	  61060875 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	42026428 B/op	  659246 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=1000/fallback-14         	       2	  63072666 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	46608988 B/op	  690240 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=1000/fallback-14         	       2	  62799208 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	46627964 B/op	  690242 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=1000/fallback-14         	       2	  61462542 ns/op	       101.0 API_GET/op	         2.000 API_LIST/op	      1000 ListedPods/op	46621032 B/op	  690237 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/transfer-14        	       1	 597858834 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	437736896 B/op	 6583376 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/transfer-14        	       1	 607368250 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	437711056 B/op	 6583359 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/transfer-14        	       1	 680809750 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	437718408 B/op	 6583348 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/fallback-14        	       1	 619620750 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	483586112 B/op	 6893375 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/fallback-14        	       1	 620674208 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	483585688 B/op	 6893365 allocs/op
+BenchmarkReaderWorkloadPodTransfer/pods=10000/fallback-14        	       1	 624620250 ns/op	      1001 API_GET/op	        20.00 API_LIST/op	     10000 ListedPods/op	483594560 B/op	 6893379 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/pkg/discovery/clientgo	7.008s

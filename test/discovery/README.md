@@ -39,6 +39,18 @@ invalidation. A cluster-scoped root also passed exact membership across two
 namespaces, and a namespace-only index rejected that query as incomplete coverage.
 These are correctness checks, not performance claims.
 
+Each mode also checks the public `OwnershipPath` and `PodMemberships` APIs:
+
+- Paths include every controller owner, including intermediate Jobs and ReplicaSets.
+- Every edge matches the independently read controller reference and UID.
+- Memberships cover the exact Pod UID set.
+- JobSet instance/replica values and LWS group/role values match the operator-label oracle.
+- Root-based, Pod-based and repeated cached queries agree.
+
+The churn test retries only an initial `ErrStaleInput` for up to ten seconds.
+A new Pod can change between GET and LIST before the test begins its own mutations.
+Other errors fail immediately; production consistency checks are unchanged.
+
 ## Exercise real consumer flows
 
 Three additional E2E tests cover the SDK examples against running controllers:

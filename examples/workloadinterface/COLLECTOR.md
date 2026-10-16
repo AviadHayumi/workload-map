@@ -9,8 +9,10 @@ Prometheus scrapes the resulting records.
 The SDK branch shares the attribution and owner graph with the Karta library.
 It does not replace the exporter controller with `NewDiscoverer`.
 
-This comparison uses PoC revision `11847572` and SDK revision `630fbf78`.
-The PoC also has newer changes that have not been integrated into the SDK branch.
+The compatibility comparison below uses PoC revision `11847572` and SDK revision
+`630fbf78`. The adapters remain in the current checkout. The newer convenience
+methods shown here do not establish a completed exporter migration.
+The PoC also has changes that have not been integrated into the SDK branch.
 
 ## Follow one Pod into a metric
 
@@ -57,6 +59,7 @@ Object names and UIDs are placeholders, not captured cluster output.
 | Root status | Exporter state builder. | Remains with the exporter. |
 | Scraping and metric labels | Store snapshot and OTel gauges. | Same collection path. |
 | Full Pods for other consumers | No general discovery API. | `WorkloadForPod` and component, instance and replica scopes. |
+| Classification for other consumers | Consumer-specific projection. | `PodMemberships()` exposes the observation's existing classification. |
 
 The controller's attribution call remains:
 
@@ -86,6 +89,32 @@ controller, telemetry provider and Helm chart unchanged.
 That source comparison does not establish parity with newer PoC commits.
 
 [Compatibility implementation](https://github.com/AviadHayumi/workload-map/blob/630fbf78672161cfc3ac624aaef4e046518cd52a/pkg/attribution/legacy.go), [attribution adapter](https://github.com/AviadHayumi/workload-map/blob/630fbf78672161cfc3ac624aaef4e046518cd52a/exporter/pkg/attribute/attributor.go) and [owner adapter](https://github.com/AviadHayumi/workload-map/blob/630fbf78672161cfc3ac624aaef4e046518cd52a/exporter/pkg/owner/index.go).
+
+## Read classification without evaluating it again
+
+A new collector can read each Pod's component, instance and replica coordinates
+from one discovered observation:
+
+```go
+observed, err := discoverer.WorkloadForPod(ctx, discovery.PodReference(pod))
+if err != nil {
+    return err
+}
+for uid, member := range observed.PodMemberships() {
+    fmt.Printf("pod=%s component=%s path=%v issues=%v\n",
+        uid, member.Component, member.Path, member.Issues)
+}
+```
+
+The returned `map[types.UID]attribution.Membership` is detached from the
+observation. It does not run selectors again. Preserve unresolved `Issues` in
+any health or diagnostic projection; coordinates alone do not encode them.
+Map iteration order is unspecified.
+
+This is strict discovery attribution. The existing exporter continues using its
+legacy adapter until its metric and failure semantics are explicitly migrated.
+For an already selected Pod set, the advanced `Compile` / `Prepare` / `Evaluate`
+path remains available without requiring complete discovery coverage.
 
 ## If a new collector needs full Pods
 
@@ -146,6 +175,7 @@ metric projection, Prometheus delivery and Helm configuration.
 
 Discovery benchmark results do not prove an exporter improvement.
 The exporter evaluates events and stores small records; full-object discovery has different costs.
+See [performance and reuse](PERFORMANCE.md) for implemented mechanisms and public microbenchmarks.
 
 [Exporter policy](https://github.com/AviadHayumi/workload-map/blob/11847572cdb2de87d07ad6915129f4a7958af774/exporter/pkg/registry/registry.go#L60), [status evaluation](https://github.com/AviadHayumi/workload-map/blob/11847572cdb2de87d07ad6915129f4a7958af774/exporter/pkg/state/workload.go#L23) and [discovery contract](https://github.com/AviadHayumi/workload-map/blob/630fbf78672161cfc3ac624aaef4e046518cd52a/pkg/discovery/resolver.go).
 

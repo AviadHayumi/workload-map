@@ -9,7 +9,45 @@ its desired templates, and errors when that information is incomplete.
 For example, starting from one JobSet Pod must return the JobSet and all three
 of its Pods. Returning only the Pod's immediate Job would fail the test.
 
-## End-to-end consumer flows
+## Ownership paths and reusable memberships
+
+The API update was validated on 2026-10-16 with Go 1.26.3.
+Its Go source is committed at `9cbc3baecf75760faefef68001d100ac368fb507`.
+The checks ran before commit against the same relevant source files.
+
+| Check | Result |
+| --- | --- |
+| Root module with the race detector | Passed, including the new path and membership regression tests. |
+| Exporter module | Passed; metric and Helm contracts were unchanged. |
+| Full recording corpus | 582 state checks passed; the existing Grove limitation and eight exclusions still apply. |
+| Live suite with the race detector | All seven top-level live tests passed, including 42 membership cases; zero skips. |
+| Normal and live-tagged lint | Passed. |
+| Consumer examples | All 16 runnable examples passed. |
+| README Go snippets | All ten blocks compile with typed function parameters and caller-owned outputs. |
+| Complete inspect command | Both modes matched the independent JobSet oracle: exact three Pods, component coordinates and Pod -> Job -> JobSet path. |
+
+The new [path tests](../../pkg/discovery/ownership_path_test.go) cover depth limits,
+missing owners, cycles, scope, cancellation and UID reuse.
+They require no Pod list, allow unrelated incomplete ownership, and verify that a
+built-in index never mixes generations during a concurrent owner change.
+
+The [membership tests](../../pkg/discovery/pod_memberships_test.go) cover direct,
+indexed and cached observations, generic workloads and incomplete classification.
+Changing returned maps, coordinate pointers or issue slices cannot change the observation.
+The live suite compares these coordinates with the independent operator-label oracle.
+
+[Scheduling groups](groups_test.go) now reuse captured memberships.
+A regression with a time-dependent selector proves that grouping an older
+observation cannot silently reclassify its Pods.
+
+The first live run caught a test startup race: a newly created Pod changed between
+GET and LIST, so discovery correctly returned `ErrStaleInput`.
+The test now retries only that error for up to ten seconds while acquiring its
+initial observation. It still rejects a partial result, and all other errors fail.
+Production consistency checks and subsequent owner-change assertions remain intact.
+The full live suite passed after this test-only adjustment.
+
+## Earlier end-to-end consumer flows
 
 The additional [live tests](../../test/discovery/README.md#exercise-real-consumer-flows)
 run against Kubernetes v1.34.0, JobSet v0.10.1 and LWS v0.7.0 in the dedicated kind cluster.
@@ -70,7 +108,7 @@ The E2E run also corrected an earlier blanket statement about JobSet immutabilit
 Suspended JobSets allow selected template scheduling edits; instance-name changes
 remain outside that allowance. The test proves the label-edit case directly.
 
-## Recording replay and live validation
+## Earlier recording replay and live validation
 
 The earlier recording run added regression tests and consumer examples.
 Its production library, exporter, catalog, metric and Helm files were unchanged.
@@ -124,7 +162,7 @@ Run from the repository root. No cluster is required:
 go test ./examples/workloadinterface -run '^Example' -v
 ```
 
-Fourteen runnable examples cover these uses:
+Sixteen runnable examples cover these uses:
 
 | Use case | What the example checks |
 | --- | --- |
@@ -133,6 +171,8 @@ Fourteen runnable examples cover these uses:
 | Count observed Pods | Include completed, terminating and unscheduled Pods. |
 | Select part of a workload | Read Pods for a component, named instance or replica. |
 | Start from one Pod | Return its terminal workload and sibling Pods. |
+| Read one ownership path | Return Pod, intermediate Job and terminal JobSet without listing siblings. |
+| Reuse Pod classification | Read captured component, instance and replica coordinates by UID. |
 | Inspect a workload with no Pods | Return an empty Pod set and retain its desired template. |
 | Inspect an unfamiliar workload type | Return generic Pod membership without inventing a Karta definition. |
 | Suspend and resume | Change the local workload object when its definition supports it. |
