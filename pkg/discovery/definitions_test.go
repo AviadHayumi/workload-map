@@ -7,14 +7,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 	"github.com/dsx-ai-factory/workload-map/pkg/catalog/kartas"
+	"github.com/dsx-ai-factory/workload-map/pkg/jq"
+	"github.com/dsx-ai-factory/workload-map/pkg/resource"
 )
 
 type definitionProviderFunc func(context.Context, schema.GroupVersionKind) (*Definition, error)
@@ -316,6 +323,7 @@ func TestDefinitionRegistryConcurrentPublicationAndQueries(t *testing.T) {
 	changed := f.definition.DeepCopy()
 	changed.Spec.StructureDefinition.ChildComponents[0].Name = "trainer"
 	var workers sync.WaitGroup
+	defer workers.Wait()
 	for i := 0; i < 8; i++ {
 		workers.Go(func() {
 			for j := 0; j < 100; j++ {
@@ -352,7 +360,6 @@ func TestDefinitionRegistryConcurrentPublicationAndQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	workers.Wait()
 }
 
 func TestDefinitionProviderDoesNotAffectOwnershipAndHonorsCancellation(t *testing.T) {
@@ -375,5 +382,118 @@ func TestDefinitionProviderDoesNotAffectOwnershipAndHonorsCancellation(t *testin
 	workload, err := resolver.Workload(ctx, reference(f.root))
 	if !errors.Is(err, context.Canceled) || workload != nil || calls != 1 {
 		t.Fatalf("provider cancellation returned success: workload %v, calls %d, error %v", workload, calls, err)
+	}
+}
+
+func TestDefinitionRegistryErrorSources(t *testing.T) {
+	first := kartas.Deployment()
+	first.Name = "first-definition"
+	second := kartas.Deployment()
+	second.Namespace = "selected"
+	second.Name = "second-definition"
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	_, err := NewDefinitionRegistry(first, second)
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("duplicate lost invalid-input class: %v", err)
+	}
+	for _, want := range []string{gvk.String(), `"first-definition"`, `"selected/second-definition"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("duplicate diagnostic %q omits %q", err, want)
+		}
+	}
+	invalid := second.DeepCopy()
+	invalid.Spec.StructureDefinition.RootComponent.InstanceIdPath = ptr.To("..")
+	_, err = CompileDefinition(invalid)
+	if !errors.Is(err, jq.ErrRecursiveDescent) {
+		t.Fatalf("compilation lost wrapped validation class: %v", err)
+	}
+	for _, want := range []string{gvk.String(), `"selected/second-definition"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("compile diagnostic %q omits %q", err, want)
+		}
+	}
+	invalid.Spec.StructureDefinition.RootComponent.Kind = nil
+	_, err = CompileDefinition(invalid)
+	if !errors.Is(err, ErrInvalidInput) || !strings.Contains(err.Error(), `"selected/second-definition"`) {
+		t.Fatalf("missing-GVK diagnostic lost class or source: %v", err)
+	}
+	invalid.Name, invalid.Namespace = "", ""
+	_, err = CompileDefinition(invalid)
+	if !errors.Is(err, ErrInvalidInput) || !strings.Contains(err.Error(), `"<unnamed>"`) {
+		t.Fatalf("unnamed diagnostic lost class or source: %v", err)
+	}
+}
+
+func TestDefinitionRegistryInformerObjectEquality(t *testing.T) {
+	f := attributionFixtureFor(t, 1)
+	input := f.definition.DeepCopy()
+	input.TypeMeta = metav1.TypeMeta{}
+	input.UID = "definition-uid"
+	input.ResourceVersion = "opaque-version-a"
+	input.CreationTimestamp = metav1.NewTime(time.Date(2026, time.October, 16, 12, 0, 0, 0, time.UTC))
+	input.ManagedFields = []metav1.ManagedFieldsEntry{{Manager: "definition-controller", Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "run.ai/v1alpha1", Time: input.CreationTimestamp.DeepCopy(), FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{}}`)}}}
+	input.Status.Conditions = []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Validated", Message: "valid definition", LastTransitionTime: input.CreationTimestamp}}
+	registry, err := NewDefinitionRegistry(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := registry.Definition(t.Context(), indexBundleGVK)
+	if err != nil || first == nil {
+		t.Fatalf("initial informer definition = %v, %v", first, err)
+	}
+	if !reflect.DeepEqual(first.Karta(), input) {
+		t.Fatal("compilation normalized informer metadata or status")
+	}
+	if err := registry.Replace(input.DeepCopy()); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := registry.Definition(t.Context(), indexBundleGVK)
+	if err != nil || unchanged != first {
+		t.Fatalf("identical informer object did not reuse its handle: %v", err)
+	}
+	resolver, err := New(f.index, Options{DefinitionProvider: registry, Cache: &CacheOptions{MaxWorkloads: 2, MaxPods: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := resolver.Snapshot(t.Context(), resource.NewComponentFactoryFromObject(input.DeepCopy(), f.root.DeepCopy()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name string
+		edit func(*v1alpha1.Karta)
+	}{
+		{"resourceVersion", func(k *v1alpha1.Karta) { k.ResourceVersion = "opaque-version-b" }},
+		{"labels", func(k *v1alpha1.Karta) { k.Labels = map[string]string{"example.org/revision": "next"} }},
+		{"managedFields", func(k *v1alpha1.Karta) { k.ManagedFields[0].Manager = "another-controller" }},
+		{"status", func(k *v1alpha1.Karta) { k.Status.Conditions[0].Message = "validation refreshed" }},
+		{"TypeMeta", func(k *v1alpha1.Karta) { k.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"} }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			current, err := registry.Definition(t.Context(), indexBundleGVK)
+			if err != nil {
+				t.Fatal(err)
+			}
+			previous := current.Karta()
+			updated := previous.DeepCopy()
+			test.edit(updated)
+			if err := registry.Replace(updated); err != nil {
+				t.Fatal(err)
+			}
+			next, err := registry.Definition(t.Context(), indexBundleGVK)
+			if err != nil || next == current || !reflect.DeepEqual(next.Karta(), updated) {
+				t.Fatalf("whole-object change was normalized or reused: %v", err)
+			}
+			if _, err := resolver.Snapshot(t.Context(), resource.NewComponentFactoryFromObject(previous, f.root.DeepCopy())); !errors.Is(err, ErrStaleInput) {
+				t.Fatalf("old full definition no longer rejected as stale: %v", err)
+			}
+			observed, err := resolver.Snapshot(t.Context(), resource.NewComponentFactoryFromObject(updated.DeepCopy(), f.root.DeepCopy()))
+			if err != nil || !reflect.DeepEqual(observed.Definition(), updated) {
+				t.Fatalf("updated full definition no longer matches Snapshot: %v", err)
+			}
+			if !reflect.DeepEqual(observed.PodMemberships(), original.PodMemberships()) || !reflect.DeepEqual(original.Definition(), input) {
+				t.Fatal("metadata update changed attribution or the retained original definition")
+			}
+		})
 	}
 }

@@ -96,8 +96,10 @@ to refresh its former workload. Do not call `WorkloadForPod` for a deleted Pod.
 Do the same for the old workload after a Pod is reparented.
 The executable example uses one worker. With concurrent Pod workers, enqueue the
 root identity and have a root worker acquire `sdk.Workload` and publish the result
-in one serialized operation. Two Pod keys can refer to the same root. A write lock
-alone cannot stop an older observation overwriting a newer one.
+in one serialized operation. Make that root queue the only writer of workload
+records. Pod, owner and definition events feed that same root queue.
+Two Pod keys can refer to the same root.
+A write lock alone cannot stop an older observation overwriting a newer one.
 
 ## 3. Replace an ownership-discovery loop
 
@@ -146,7 +148,8 @@ jobSet, err := catalog.Get(schema.GroupVersionKind{
 })
 if err != nil { return err }
 
-definitions, err := discovery.NewDefinitionRegistry(jobSet)
+catalogSelection := []*v1alpha1.Karta{jobSet}
+definitions, err := discovery.NewDefinitionRegistry(catalogSelection...)
 if err != nil { return err }
 
 sdk, err := karta.NewDiscoverer(reader, discovery.Options{
@@ -160,6 +163,10 @@ This registry is the authoritative selection.
 Other catalog kinds do not appear implicitly.
 Without `DefinitionProvider`, existing `Options.Definitions` still overrides the
 full built-in catalog as before. Do not supply both options.
+
+When adding a Karta watch, keep all workload workers gated until the first
+successful publication from the synchronized definition source.
+A static-only catalog registry needs no external synchronization.
 
 Your Karta watcher queues definition reconciliation:
 
@@ -177,14 +184,29 @@ It validates the whole set before making it visible.
 On error it keeps the last valid set and returns the error for your retry/status path.
 On success, definitions omitted from the replacement are removed.
 
-For example:
+Include the selected catalog entries in every publication. Passing only watched
+Karta objects would intentionally remove the catalog entries from this registry.
+The [tested selection helper](definition_selection.go) makes the merge explicit:
 
 ```go
-if err := definitions.Replace(selected...); err != nil {
-    return err
-}
-enqueueTrackedWorkloads() // Your queue; include roots affected by removed definitions.
+selected, err := workloadinterface.SelectDefinitions(catalogSelection, watchedKartas)
+if err != nil { return err }
+if err := definitions.Replace(selected...); err != nil { return err }
+enqueueTrackedWorkloads() // The same root queue used by Pod-driven refreshes.
 ```
+
+This example's consumer policy is:
+
+- A watched Karta overrides the selected catalog entry for the same exact GVK.
+- Removing that watched Karta restores the selected catalog entry.
+- Two watched Kartas for one GVK return a conflict naming both objects.
+  Resolve the conflict or deliberately select a winner before publication.
+- A watched Karta changing its target GVK removes its previous watched mapping.
+  The complete selection still includes any catalog fallback for the old GVK.
+
+The SDK registry itself has no catalog/cluster precedence rule.
+It receives the already selected set. The exporter can retain its different
+oldest-wins selection policy instead of adopting this example's conflict rule.
 
 Serialize the selection/read/publication steps in one definition worker.
 Read current source state instead of applying a stale delete payload by name.
@@ -214,6 +236,17 @@ type DefinitionProvider interface {
 Compile a Karta with `discovery.CompileDefinition` when publishing it.
 Return the same immutable handle until the definition changes.
 The built-in registry does this for you.
+Identical replacements preserve handle identity. Compare the handles for the
+union of previous and current GVKs to avoid requeueing unchanged workloads;
+include removed GVKs. The [selection example](definition_selection_test.go)
+shows that comparison for one GVK.
+
+Equality covers the complete Karta object. A metadata or status edit creates a
+new handle even if its spec is unchanged. This preserves the existing `Snapshot`
+contract, which compares the factory's complete definition with the observation.
+Do not strip resourceVersion or status implicitly in a provider adapter.
+Validation and component-ancestry preparation happen at publication.
+Workload expressions still run against each observed object when it is interpreted.
 
 - `nil, nil`: the synchronized source confirms there is no selected definition.
 - Non-nil definition: use that exact-GVK interpretation.
@@ -271,6 +304,27 @@ explains the tradeoffs and source evidence.
 [Zoomable preview](operator-flow.preview.html), [SVG](sdk-operator-flow.svg),
 and [editable sequence](diagrams/sdk-operator-flow.puml).
 This is an integration flow, not a trace from a running cluster.
+
+</details>
+
+<details>
+<summary>Handle errors without deleting valid output</summary>
+
+Provider failures are retryable under the consumer's policy; they are never
+confirmed absence. An invalid publication retains the last valid definition set
+and still needs a visible error and a retry or configuration fix.
+
+Direct readers preserve wrapped Kubernetes API errors. Ownership traversal can
+wrap those errors in `ownership.Error` with the failed reference. An indexed read
+can report a typed missing-object error without an API response.
+A missing intermediate owner is not proof that the workload root was deleted.
+Confirm the root's deletion through its own authoritative read or delete handling
+before removing the saved workload record.
+
+`Resolver.Snapshot` requires the supplied factory's object revision and complete
+Karta definition to match the observation. `ErrStaleInput` includes a removed or
+changed selected definition. Recheck selection and rebuild the factory when
+appropriate; repeatedly retrying the same mismatched factory cannot fix it.
 
 </details>
 

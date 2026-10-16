@@ -59,11 +59,11 @@ func CompileDefinition(karta *v1alpha1.Karta) (*Definition, error) {
 	}
 	gvk := catalog.RootKey(karta)
 	if gvk.Version == "" || gvk.Kind == "" {
-		return nil, fmt.Errorf("%w: definition requires root GVK", ErrInvalidInput)
+		return nil, fmt.Errorf("%w: definition %q requires root GVK", ErrInvalidInput, definitionSource(karta))
 	}
 	plan, err := attribution.Compile(karta)
 	if err != nil {
-		return nil, fmt.Errorf("definition for %s: %w", gvk, err)
+		return nil, fmt.Errorf("definition %q for %s: %w", definitionSource(karta), gvk, err)
 	}
 	return &Definition{gvk: gvk, plan: plan, cacheable: cacheableAttribution(plan.Definition())}, nil
 }
@@ -89,8 +89,10 @@ func NewDefinitionRegistry(definitions ...*v1alpha1.Karta) (*DefinitionRegistry,
 // whole replacement and leaves the previous selection available. A consumer
 // that must stop serving after a rejected update can gate provider reads with
 // its own error state. Unchanged definitions reuse their compiled handles,
-// preserving attribution cache hits.
-// Resource versions are opaque; Replace does not infer source event ordering.
+// preserving attribution cache hits. Equality covers the whole Karta, including
+// TypeMeta, metadata and status, because Snapshot compares complete definitions.
+// Metadata-only changes therefore publish a new handle and miss attribution
+// cache entries. Resource versions are opaque; Replace does not infer ordering.
 func (r *DefinitionRegistry) Replace(definitions ...*v1alpha1.Karta) error {
 	if r == nil {
 		return fmt.Errorf("%w: nil definition registry", ErrInvalidInput)
@@ -106,8 +108,8 @@ func (r *DefinitionRegistry) Replace(definitions ...*v1alpha1.Karta) error {
 			return fmt.Errorf("%w: nil definition", ErrInvalidInput)
 		}
 		gvk := catalog.RootKey(karta)
-		if _, exists := entries[gvk]; exists {
-			return fmt.Errorf("%w: duplicate definition for %s", ErrInvalidInput, gvk)
+		if first, exists := entries[gvk]; exists {
+			return fmt.Errorf("%w: duplicate definitions for %s: %q and %q", ErrInvalidInput, gvk, definitionSource(first.Karta()), definitionSource(karta))
 		}
 		if old := previous[gvk]; old != nil && reflect.DeepEqual(karta, old.Karta()) {
 			entries[gvk] = old
@@ -139,4 +141,15 @@ func (r *DefinitionRegistry) Definition(ctx context.Context, gvk schema.GroupVer
 	definition := r.entries[gvk]
 	r.mu.RUnlock()
 	return definition, nil
+}
+
+func definitionSource(karta *v1alpha1.Karta) string {
+	name := karta.Name
+	if name == "" {
+		name = "<unnamed>"
+	}
+	if karta.Namespace != "" {
+		return karta.Namespace + "/" + name
+	}
+	return name
 }

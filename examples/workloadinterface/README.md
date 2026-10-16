@@ -511,12 +511,12 @@ Use the Go version in [go.mod](../../go.mod).
 To consume the tested SDK revision directly from the fork in another Go module:
 
 ```bash
-go mod edit -replace=github.com/dsx-ai-factory/workload-map=github.com/AviadHayumi/workload-map@v0.2.1-0.20261016105221-b841499553b7
-go get github.com/dsx-ai-factory/workload-map@v0.2.1-0.20261016105221-b841499553b7
+go mod edit -replace=github.com/dsx-ai-factory/workload-map=github.com/AviadHayumi/workload-map@v0.2.1-0.20261016120027-b8552595af39
+go get github.com/dsx-ai-factory/workload-map@v0.2.1-0.20261016120027-b8552595af39
 ```
 
 Keep imports under `github.com/dsx-ai-factory/workload-map`, its declared module path.
-The replacement selects immutable fork commit `b841499553b785b2277b0ced1a9268b819e0bedf`.
+The replacement selects immutable fork commit `b8552595af39136ad49f57ffd12d32048216b36a`.
 It downloads from GitHub; it does not require a local Karta checkout.
 This is an experiment revision, not a released SDK version.
 

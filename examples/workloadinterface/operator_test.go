@@ -175,6 +175,9 @@ func ExamplePodReconciler_definitionUpdates() {
 	// That worker lists the current selected definitions from its synchronized
 	// source, calls Replace, then requeues affected workloads after success.
 	// These lists represent three successive reconciliations of that source.
+	// The removed stage intentionally clears the entire selection, including
+	// catalog entries. ExampleSelectDefinitions instead removes a watched
+	// override while preserving the selected catalog fallback.
 	updates := []struct {
 		name        string
 		definitions []*v1alpha1.Karta

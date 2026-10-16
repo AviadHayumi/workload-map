@@ -9,6 +9,51 @@ its desired templates, and errors when that information is incomplete.
 For example, starting from one JobSet Pod must return the JobSet and all three
 of its Pods. Returning only the Pod's immediate Job would fail the test.
 
+## Live definitions and operator integration
+
+Implementation revision: `b8552595af39136ad49f57ffd12d32048216b36a`.
+The SDK remains independent of controller-runtime imports.
+The separate adapter example is compiled in the operator module.
+
+| Check | Result |
+| --- | --- |
+| Full root SDK and exporter race suites | Passed. Existing metric and Helm contracts were not changed. |
+| `make check` | Passed on the committed source, including generated files, licenses, root/CLI tests and CLI verification. |
+| Root and operator lint | Passed. |
+| Provider and registry tests | Passed: exact GVK, selected-only definitions, atomic rejection, concurrent publication, immutable observations and bounded attribution reuse. |
+| Executable operator examples | Passed: real client-go event-handler/queue types, Pod deletion, reparenting, owner-only lookup and live definition replacement. Events are delivered from fixtures. |
+| Live provider E2E | Passed against the existing kind JobSet, using direct, indexed and cached discovery. No Kubernetes objects were changed by this test. |
+| Existing live membership and LWS grouping | Passed: 42 membership cases across six reader modes, plus scheduling-group checks. |
+| Recording replay | Passed: 60 supported recordings, 582 state checks and 582 current-tree comparisons. Existing exclusions remain below. |
+| Consumer-side adapter | Race tests and vet passed with controller-runtime v0.23.3/v0.24.1 and resolved Kubernetes v0.36.3; v0.25.2 resolved Kubernetes v0.37.0. |
+
+The [live provider test](../../test/discovery/provider_updates_test.go) retains one
+actual JobSet observation, removes its definition, changes the component name,
+and restores the definition. Every step must preserve the exact root identity,
+full root object, Pod UIDs and full Pod bodies. Restored memberships must match.
+Provider errors must fail both direct queries and already-warmed attribution caches.
+
+The [adapter tests](../../operator/examples/sdk-reader/reader_test.go) include a
+controller-runtime fake client feeding `WorkloadForPod`.
+They cover API pagination, unlimited cache lists, synchronization, namespace
+coverage, errors and detached objects. These are in-process compatibility tests,
+not a real informer/API-server test or a promise for arbitrary version combinations.
+
+The six-project [OSS council](../../docs/design/sdk-operator-integration-decision.md)
+records why readers, definitions and controller lifecycle are separate.
+An independent implementation review corrected guidance about concurrent publication:
+serialize workload acquisition plus output publication, not just writes.
+
+The client-go informer example requires indirect
+`github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2` (BSD-3-Clause).
+Using a toy queue would avoid that graph addition but would hide actual event and
+tombstone wiring. The official generator refreshed license notices.
+The adapter reuses the operator's existing controller-runtime dependency.
+
+The historical Grove limitation remains: 22 frames in both cache modes produce
+44 matching tree-extraction errors. Eight recordings remain explicitly excluded.
+These are documented limits, not new passing workload cases.
+
 ## Ownership paths and reusable memberships
 
 The API update was validated on 2026-10-16 with Go 1.26.3.
