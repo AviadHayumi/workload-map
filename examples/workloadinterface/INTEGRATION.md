@@ -219,8 +219,10 @@ It does not prove ownership or complete Pod coverage.
 The consumer converts coordinates into its existing IDs, groups and writes.
 
 This grouping replacement is proposed, not implemented in the EWI prototype.
-Owner-kind fallback, first-match behavior and persistent IDs must compare correctly
-before it can replace the existing grouping engine.
+EWI can append multiple matching components in sorted order.
+SDK `Evaluate` chooses one most-specific producer and reports unrelated matches
+as ambiguous. Compare those paths, owner-kind fallback and persistent IDs before
+replacing the existing grouping engine.
 A scheduler-filtered Pod cache is insufficient for full SDK workload discovery.
 
 ### Karta metrics exporter: share algorithms during events
@@ -426,7 +428,7 @@ Detailed [client contracts](../../docs/Live%20Workload%20Discovery.md) and
 | Replacement | Evidence available | Required before broader adoption |
 | --- | --- | --- |
 | WLD owner walk | Complete normal-fixture output, GET-count comparisons and focused race checks | Accept stricter malformed-chain behavior; validate consumer deployment |
-| EWI component reader | Complete parse-output comparisons, input immutability and focused race checks | Compare persistent grouping, fallback selection and IDs before replacing them |
+| EWI component reader | Complete parse-output comparisons, input immutability and focused race checks | Compare multi-match paths, fallback selection and persistent IDs before replacement |
 | Exporter algorithms | Matching complete fixture exposition and exporter race checks | Integrate newer PoC behavior and test the target deployment |
 | SDK discovery | Recorded-object replay, live membership, mutation and grouping evidence | Keep documented exclusions; do not infer deployed consumer coverage |
 | Proposed parent boundary | Design only | Direct, indexed and cached boundary tests before claiming support |
