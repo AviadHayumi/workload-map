@@ -117,8 +117,12 @@ func isReusableQuery(query *gojq.Query, variables []string) bool {
 		return false
 	}
 	if query.Term == nil {
-		return (query.Op == gojq.OpPipe || query.Op == gojq.OpComma) &&
-			isReusableQuery(query.Left, variables) && isReusableQuery(query.Right, variables)
+		switch query.Op {
+		case gojq.OpPipe, gojq.OpComma, gojq.OpEq:
+			return isReusableQuery(query.Left, variables) && isReusableQuery(query.Right, variables)
+		default:
+			return false
+		}
 	}
 	term := query.Term
 	switch term.Type {

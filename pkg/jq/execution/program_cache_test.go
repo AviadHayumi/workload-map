@@ -22,6 +22,8 @@ func TestProgramCacheEligibility(t *testing.T) {
 		`.`, `.metadata.name`, `.spec.containers[0].name`, `.items[]?.name`,
 		`.metadata.labels["example.io/key"]`, `.items | .[] | .name`,
 		`(.first, .second)`, `"literal", null, true, false, 123`, `$first, $second`,
+		`.metadata.labels.role == "worker"`, `.left == .right`, `$first == $second`,
+		`(.first, .second) == "worker"`, `.missing == null`,
 	} {
 		t.Run(expression, func(t *testing.T) {
 			cache := newProgramCache(2, 1024)
@@ -37,12 +39,15 @@ func TestProgramCacheEligibility(t *testing.T) {
 	}
 	for _, expression := range []string{
 		`{a:[1]}`, `[1]`, `999999999999999999999999999999`,
-		`1 + 2`, `-1`, `1.5`, `.items[0:1]`, `.a = 1`, `.a |= .b`,
+		`1 + 2`, `-1`, `1.5`, `.items[0:1]`, `.a = 1`, `.a |= .b`, `.a != .b`,
 		`env`, `$ENV`, `from_entries`, `@json`, `"value: \(.name)"`,
 		`test(.pattern)`, `.pattern as $p | .text | test($p)`,
 		`def field: .a; field`, `..`, `if .a then .b else .c end`,
 		`try .a catch .`, `reduce .[] as $x (0; . + $x)`,
 		`error({a:[1]})`, `({a:[1]} | halt_error)`,
+		`.a == {nested:[1]}`, `{nested:[1]} == .a`, `.a == [1]`,
+		`999999999999999999999999999999 == .a`, `.a == $ENV`,
+		`test("a") == true`, `(.a = 1) == .b`, `.items[0:1] == .b`,
 	} {
 		t.Run(expression, func(t *testing.T) {
 			cache := newProgramCache(2, 1024)
@@ -276,5 +281,126 @@ func TestProgramCacheConcurrentReuse(t *testing.T) {
 	wg.Wait()
 	if len(cache.entries) != 1 || cache.recency.Len() != 1 {
 		t.Fatal("concurrent misses inserted duplicate entries")
+	}
+}
+
+func TestProgramCacheEqualitySemantics(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		expression string
+		input      any
+	}{
+		{"matching string", `.role == "worker"`, map[string]any{"role": "worker"}},
+		{"different string", `.role == "worker"`, map[string]any{"role": "leader"}},
+		{"missing label", `.role == "worker"`, map[string]any{}},
+		{"missing null", `.missing == null`, map[string]any{}},
+		{"null source", `.missing == null`, nil},
+		{"numeric equality", `.left == .right`, map[string]any{"left": 1, "right": float64(1)}},
+		{"array equality", `.left == .right`, map[string]any{"left": []any{1, "a"}, "right": []any{1, "a"}}},
+		{"object equality", `.left == .right`, map[string]any{"left": map[string]any{"a": 1}, "right": map[string]any{"a": 1}}},
+		{"multiple results", `(.left, .right) == (.left, .right)`, map[string]any{"left": 1, "right": 2}},
+		{"empty stream", `.items[]? == "worker"`, map[string]any{}},
+		{"selector error", `.items.name == "worker"`, map[string]any{"items": 1}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cache := newProgramCache(2, 1024)
+			cached, err := cache.compile(test.expression, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			again, err := cache.compile(test.expression, nil)
+			if err != nil || cached != again {
+				t.Fatalf("equality program was not reused: %v", err)
+			}
+			fresh, err := newProgramCache(0, 1024).compile(test.expression, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, want := cached.Run(test.input), fresh.Run(test.input)
+			for {
+				value, ok := got.Next()
+				expected, more := want.Next()
+				if ok != more || reflect.TypeOf(value) != reflect.TypeOf(expected) || fmt.Sprint(value) != fmt.Sprint(expected) {
+					t.Fatalf("cached result %T(%v), %v differs from fresh %T(%v), %v", value, value, ok, expected, expected, more)
+				}
+				if !ok {
+					break
+				}
+			}
+		})
+	}
+}
+
+func TestProgramCacheEqualityFreshInputsAndCancellation(t *testing.T) {
+	const expression = `.role == "worker"`
+	ctx := context.Background()
+	for _, role := range []string{"worker", "leader", "worker"} {
+		runner := NewDefaultRunner(map[string]any{"role": role})
+		got, err := runner.Evaluate(ctx, expression)
+		if err != nil || !reflect.DeepEqual(got, []any{role == "worker"}) {
+			t.Fatalf("cached equality used a previous input: %v, %v", got, err)
+		}
+		if err := runner.Assign(ctx, ".role", "changed"); err != nil {
+			t.Fatal(err)
+		}
+		got, err = runner.Evaluate(ctx, expression)
+		if err != nil || !reflect.DeepEqual(got, []any{false}) {
+			t.Fatalf("cached equality ignored assignment: %v, %v", got, err)
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := runner.Evaluate(canceled, expression); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cached equality ignored cancellation: %v", err)
+		}
+		if _, err := runner.Evaluate(ctx, expression); err != nil {
+			t.Fatalf("cancellation leaked into next execution: %v", err)
+		}
+	}
+}
+
+func TestProgramCacheEqualityConcurrentReuse(t *testing.T) {
+	cache := newProgramCache(2, 1024)
+	var wg sync.WaitGroup
+	for i := range 32 {
+		wg.Go(func() {
+			for range 20 {
+				code, err := cache.compile(`.value == "worker"`, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				input := "leader"
+				if i%2 == 0 {
+					input = "worker"
+				}
+				value, ok := code.Run(map[string]any{"value": input}).Next()
+				if !ok || value != (i%2 == 0) {
+					t.Errorf("equality shared runtime/input: %v", value)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	if len(cache.entries) != 1 || cache.recency.Len() != 1 {
+		t.Fatal("concurrent equality misses inserted duplicate entries")
+	}
+}
+
+func TestProgramCacheEqualityPreservesResultOwnership(t *testing.T) {
+	const expression = `(.role == "worker"), .nested`
+	input := map[string]any{"role": "worker", "nested": map[string]any{"name": "original"}}
+	first := NewDefaultRunner(input)
+	got, err := first.Evaluate(context.Background(), expression)
+	if err != nil || len(got) != 2 || got[0] != true {
+		t.Fatalf("first equality result: %v, %v", got, err)
+	}
+	got[1].(map[string]any)["name"] = "changed"
+	current, err := first.Evaluate(context.Background(), expression)
+	if err != nil || current[1].(map[string]any)["name"] != "changed" {
+		t.Fatalf("same-runner result ownership changed: %v, %v", current, err)
+	}
+	fresh, err := NewDefaultRunner(input).Evaluate(context.Background(), expression)
+	if err != nil || !reflect.DeepEqual(fresh, []any{true, map[string]any{"name": "original"}}) {
+		t.Fatalf("equality expression retained a previous result: %v, %v", fresh, err)
 	}
 }
