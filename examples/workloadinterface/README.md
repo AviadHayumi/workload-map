@@ -20,6 +20,93 @@ These APIs are available in this checkout. Use it or a pinned revision; the late
 published module may not contain them. The snippets below are function bodies
 with errors returned to the caller. Linked runnable examples include their setup.
 
+## Replace logic in an existing consumer
+
+Start with the part the consumer already owns. These are integration examples,
+not a claim that every controller has been migrated.
+
+### 1. Replace an ownership walk in a discovery service
+
+Before: select the controller owner, fetch it, validate identity and repeat for
+every Pod. After: supply the existing lookup/cache to the shared walker:
+
+```go
+path, err := ownership.Trace(ctx, seed, lookup, maxDepth)
+if err != nil { return err }
+for i := len(path) - 1; i >= 0; i-- {
+    ref := path[i].Ref
+    fmt.Printf("%s/%s\n", ref.GVK.Kind, ref.Name)
+}
+```
+
+`seed` is an `ownership.Object` for the Pod. `lookup` is an `ownership.Lookup`
+that returns the fetched object's actual identity, owner references and scope.
+The returned path runs Pod-to-root; this loop prints root-to-Pod.
+Keep the consumer's metadata projection, path merging, watches and persistence.
+A Karta definition is not required.
+
+If the consumer needs only the root and its complete Pod set, use
+[`WorkloadForPod`](#troubleshoot-from-one-pod) instead. That result does not expose
+all intermediate owners. `DesiredTree` is the definition's logical hierarchy,
+not the physical ownership tree.
+
+### 2. Replace framework-specific grouping in an integration controller
+
+Before: read each framework's fields and classify its Pods in separate handlers.
+After: select a definition, prepare it against the complete root, and classify
+Pods whose ownership the caller has already confirmed:
+
+```go
+plan, err := attribution.Compile(definition)
+if err != nil { return err }
+prepared, err := attribution.Prepare(ctx, plan, rootObject)
+if err != nil { return err }
+for _, pod := range selectedPods {
+    member, err := attribution.Evaluate(ctx, pod, prepared)
+    if err != nil { return err }
+    fmt.Printf("pod=%s component=%s path=%v issues=%v\n",
+        pod.Name, member.Component, member.Path, member.Issues)
+}
+```
+
+For a JobSet, coordinates distinguish the `replicatedjob` component, a named
+instance such as `training`, and a replica such as `0`.
+Keep incomplete-attribution issues visible; classification does not prove ownership.
+Use [`karta.New` and tree inspection](#build-a-workload-inventory) for desired
+configuration and phases. The consumer retains eligibility filters, stable record
+IDs, product status conversion and writes. Existing Karta integrations can reuse
+these SDK operations without replacing their event loop.
+
+### 3. Replace duplicated logic inside the metrics exporter
+
+Before: exporter-local owner index, Pod selector evaluation and instance traversal.
+In this branch, its adapters already delegate those operations to shared packages:
+
+```go
+// Body of the existing exporter attribution adapter:
+return Result(attribution.AttributeLegacy(
+    ctx, pod, entry.Summary, entry.Definitions, instanceIDs,
+))
+```
+
+The owner adapter uses `ownership.Index`; declared instances use
+`attribution.InstanceIDs`. The exporter keeps watch handling, health checks,
+compact metric records and scrape callbacks. Scrapes do not call discovery.
+The legacy attribution adapter preserves first-match and degraded-field behavior;
+it does not silently switch metrics to the stricter discovery policy.
+See the [exact PoC comparison](COLLECTOR.md) for the retained contract and remaining gaps.
+
+### Choose the workload boundary before replacing discovery
+
+For `Pod -> Job -> WorkloadEnvelope`, current discovery returns the envelope.
+Some consumers need the Job to remain the workload.
+
+The exporter already supports ignored-owner boundaries through its lower-level
+owner index. `NewDiscoverer` currently has no equivalent option.
+This is a required migration decision, not an available SDK setting.
+See [replacement boundaries and the proposed parent cutoff](INTEGRATION.md),
+including sibling workloads, unknown kinds and direct/index/cache consistency.
+
 ## Build a workload inventory
 
 An inventory service needs the requested scale, container images and status of

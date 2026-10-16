@@ -135,6 +135,9 @@ These differences need explicit handling before replacing the current controller
 | Root status | Evaluated separately from scale. | `DesiredTree` evaluates spec, scale and status. |
 | Cached data | Trimmed Pods and intermediate-owner metadata by default. | Full Pods and roots for full-object output. |
 
+The [parent-cutoff discussion](INTEGRATION.md#keep-a-workload-below-an-orchestration-parent)
+separates existing exporter candidate selection from the proposed generic SDK boundary.
+
 Keep root status evaluation separate when metrics do not need scale or templates.
 Otherwise, an unrelated expression failure could start suppressing useful status.
 
