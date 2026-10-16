@@ -93,6 +93,31 @@ KARTA_DISCOVERY_MUTATION_TESTS=true \
   -run '^(TestLiveConsumerJobLifecycle|TestLiveConsumerJobSetScopes|TestLiveLeaderWorkerSchedulingGroups)$'
 ```
 
+## Update definitions without rebuilding the SDK
+
+[Provider updates](provider_updates_test.go) reads the existing JobSet and its
+three actual Pods. It changes only an in-process definition registry:
+
+1. Observe the selected catalog definition.
+2. Publish an empty selection. The same workload becomes generic.
+3. Publish a revised component name. New observations use that name.
+4. Restore the original definition. Classified memberships match the first result.
+5. Return a provider error. The query fails instead of reporting a generic workload.
+
+Direct, indexed and cached queries must preserve the exact root and full Pod bodies.
+Each query starts from both the root and its actual Pods.
+Earlier observations must stay unchanged after every publication.
+The test makes no Kubernetes writes and does not require the mutation switch.
+
+```bash
+go test -race -tags live_discovery ./test/discovery -count=1 -v \
+  -run '^TestLiveDefinitionProviderUpdates$'
+```
+
+The registry does not watch Karta objects itself.
+The [operator example](../../examples/workloadinterface/OPERATORS.md) shows how a
+consumer publishes its selected definitions and controls readiness.
+
 ## Prepare the dedicated cluster
 
 Run from the repository root. Prerequisites are Docker, kind, kubectl, Python 3.9

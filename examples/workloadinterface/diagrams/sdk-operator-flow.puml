@@ -1,0 +1,124 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+
+title One operator, its watches, and the Karta SDK
+actor "Kubernetes API" as API
+box "Your operator process: caller-owned lifecycle" #EAF2F8
+participant "Watch + queue\nRead current state" as Controller
+participant "Karta SDK\nOwnership + interpretation" as SDK
+participant "Definition registry\nSelected exact GVKs" as Definitions
+database "Your output\nInventory / product / metrics" as Output
+end box
+legend left
+  Blue: object observation and queued work
+  Green: definition publication
+  Gray: local result and consumer decision
+endlegend
+== A. Select and publish definitions ==
+Controller -[#24936E]> Definitions: NewDefinitionRegistry(selected catalog entries)
+Definitions --> Controller: validated immutable definitions
+Controller -> SDK: NewDiscoverer(reader, DefinitionProvider)
+SDK --> Controller: reusable SDK; no watches started
+note over Controller,Definitions
+  Caller owns client, cache scope, readiness and retries.
+  A deliberately empty registry is valid generic mode.
+  An unsynchronized external source must remain gated.
+end note
+== B. A Pod changes ==
+API -[#367DC4]> Controller: Pod event -> enqueue namespace/name
+Controller -[#367DC4]> API: worker reads current Pod
+API --> Controller: Pod with current UID
+Controller -> SDK: WorkloadForPod(ctx, PodReference(pod))
+SDK -> Controller: reader.Mapping / Get
+Controller --> SDK: verified root chain
+note over Controller,SDK
+  Direct-reader flow shown here. Index queries instead
+  capture one complete generation before definition lookup.
+  A scheduler-filtered list is not complete coverage.
+end note
+SDK -> Definitions: Definition(ctx, root GVK)
+alt matching definition
+  Definitions --> SDK: immutable compiled definition
+  SDK -> Controller: reader.ListPods + verify owner closure
+  Controller --> SDK: complete Pod coverage
+  SDK --> Controller: workload + Pods + component memberships
+else confirmed absence
+  Definitions --> SDK: nil, nil
+  SDK -> Controller: reader.ListPods + verify owner closure
+  Controller --> SDK: complete Pod coverage
+  SDK --> Controller: same workload + Pods; generic pods component
+else provider unavailable
+  Definitions --> SDK: error
+  SDK --> Controller: error; no generic success
+  Controller -> Controller: retain output; retry under caller policy
+end
+opt successful observation
+  Controller -> Output: replace record for workload UID
+end
+== C. A Karta definition changes or is deleted ==
+API -[#24936E]> Controller: Karta event -> enqueue definition reconciliation
+Controller -> Controller: serialized worker reads current selected set
+Controller -[#24936E]> Definitions: Replace(selected...)
+alt valid complete selection
+  Definitions --> Controller: atomically published; omitted entries removed
+  Controller -> Controller: enqueue affected workload roots
+  Controller -> SDK: Workload(ctx, rootRef)
+  SDK -> Definitions: Definition(ctx, root GVK)
+  Definitions --> SDK: current definition or confirmed absence
+  SDK --> Controller: newly interpreted observation
+  Controller -> Output: update existing record
+else invalid selection
+  Definitions --> Controller: error; previous selection remains
+  Controller -> Controller: expose failure and retry
+end
+note over SDK,Definitions
+  Previously returned observations keep their definition.
+  Changing a definition does not change ownership roots.
+end note
+== D. A Pod disappears ==
+API -[#367DC4]> Controller: delete or tombstone -> enqueue key
+Controller -[#367DC4]> API: GET current Pod
+API --> Controller: NotFound
+Controller -> Output: read saved Pod-to-workload association
+Output --> Controller: previous workload reference
+Controller -> SDK: Workload(ctx, previousRoot)
+SDK --> Controller: remaining Pods, or root-read error
+Controller -> Output: refresh workload; remove only confirmed deleted records
+note over Controller,SDK
+  Never discover a deleted Pod by calling WorkloadForPod.
+  Reparenting also refreshes the saved former workload.
+end note
+@enduml

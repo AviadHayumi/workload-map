@@ -9,6 +9,10 @@ Start with a Pod. Karta finds its workload, returns all its Pods, and groups the
 by component, named instance and replica when a definition is available.
 Your controller keeps its Kubernetes client, event loop and decisions.
 
+Start with [Pod watch -> Karta call -> workload result](OPERATORS.md) to integrate
+an operator. It includes selected catalog definitions, live definition updates,
+and direct or cached client adapters.
+
 This guide uses a JobSet with training and evaluation Jobs.
 The same calls work with other definitions and with ordinary ownership discovery.
 These APIs are implemented in this checkout; they may not be in the published module yet.
@@ -385,9 +389,12 @@ Automatic CEL reference resolution remains a separate prototype.
 | --- | --- | --- |
 | `MaxDepth` | `0` selects 32 | Maximum controller-owner hops; exceeding it returns an error. |
 | `Definitions` | Built-in catalog | Add or override definitions by exact group/version/kind. |
+| `DefinitionProvider` | `nil` | Authoritative live selection by exact GVK; cannot combine with static `Definitions`. |
 | `Cache` | `nil`, disabled | Reuse successful attribution for a concrete `*discovery.Index`. |
 
-Definitions are copied at construction. Construct a new SDK when they change.
+Static `Definitions` are copied at construction. Recreate the SDK to change those overrides.
+For live updates, supply a `DefinitionProvider` and publish changes through its
+registry, as shown in the [operator recipe](OPERATORS.md#4-select-definitions-and-update-them-from-your-own-watch).
 `MaxDepth` does not select a child as the workload root.
 The existing `Collect` helper uses a fixed 32-hop limit when initializing an index.
 

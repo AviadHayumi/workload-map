@@ -3,6 +3,10 @@
 
 # Replace repeated workload logic
 
+Start with the [operator recipe](OPERATORS.md): Pod watch, queue, reconciliation,
+exact SDK call and output. It also shows how your own Karta watcher publishes
+selected definitions without introducing another controller.
+
 Use the discoverer for ownership and already computed Pod classification.
 Keep the consumer's event loop, output format and writes.
 The examples below are integration paths; they do not claim a completed migration

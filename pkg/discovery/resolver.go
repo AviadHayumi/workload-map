@@ -29,11 +29,10 @@ import (
 // client. It owns no goroutines or client lifecycle. Results are immutable
 // observations, not continuously refreshed handles.
 type Resolver struct {
-	reader    Reader
-	plans     map[schema.GroupVersionKind]*attribution.Plan
-	maxDepth  int
-	cache     *attributionCache
-	cacheable map[*attribution.Plan]bool
+	reader      Reader
+	definitions DefinitionProvider
+	maxDepth    int
+	cache       *attributionCache
 }
 
 // CacheOptions bounds optional reuse of successful derived attribution.
@@ -46,11 +45,16 @@ type CacheOptions struct {
 	MaxPods      int
 }
 
-// Options controls definition selection and the owner-hop limit. Definitions
-// override the built-in catalog by exact GVK. MaxDepth zero selects 32 hops.
+// Options controls definition selection and the owner-hop limit. Without a
+// DefinitionProvider, Definitions override the built-in catalog by exact GVK.
+// MaxDepth zero selects 32 hops.
 type Options struct {
 	Definitions []*v1alpha1.Karta
-	MaxDepth    int
+	// DefinitionProvider is authoritative when supplied: missing GVKs are generic
+	// without falling back to the catalog. It cannot be combined with Definitions.
+	// The caller owns provider readiness, updates and concurrent-read safety.
+	DefinitionProvider DefinitionProvider
+	MaxDepth           int
 	// Cache nil disables attribution reuse. Generic workloads, structural root
 	// instance paths (including iteration), and static field/constant-index Pod
 	// selectors are eligible. Other expressions bypass reuse. The cache does not
@@ -58,8 +62,9 @@ type Options struct {
 	Cache *CacheOptions
 }
 
-// New copies and validates definitions without accessing Kubernetes. A nil
-// reader is allowed with Cache disabled; acquisition then returns ErrNoClient.
+// New copies and validates Definitions without accessing Kubernetes. A supplied
+// DefinitionProvider is retained and first called during workload observation.
+// A nil reader is allowed with Cache disabled; acquisition returns ErrNoClient.
 func New(reader Reader, options Options) (*Resolver, error) {
 	if options.Cache != nil {
 		if options.Cache.MaxWorkloads <= 0 || options.Cache.MaxPods <= 0 {
@@ -78,39 +83,44 @@ func New(reader Reader, options Options) (*Resolver, error) {
 	if isNil(reader) {
 		reader = nil
 	}
-	definitions := make(map[schema.GroupVersionKind]*v1alpha1.Karta)
-	for _, definition := range catalog.List() {
-		definitions[catalog.RootKey(definition)] = definition
+	provider := options.DefinitionProvider
+	if provider != nil {
+		if isNil(provider) {
+			return nil, fmt.Errorf("%w: nil definition provider", ErrInvalidInput)
+		}
+		if len(options.Definitions) != 0 {
+			return nil, fmt.Errorf("%w: Definitions and DefinitionProvider cannot be combined", ErrInvalidInput)
+		}
+	} else {
+		definitions := make(map[schema.GroupVersionKind]*v1alpha1.Karta)
+		for _, definition := range catalog.List() {
+			definitions[catalog.RootKey(definition)] = definition
+		}
+		seen := make(map[schema.GroupVersionKind]bool)
+		for _, definition := range options.Definitions {
+			if definition == nil {
+				return nil, fmt.Errorf("%w: nil definition", ErrInvalidInput)
+			}
+			key := catalog.RootKey(definition)
+			if seen[key] {
+				return nil, fmt.Errorf("%w: duplicate definition for %s", ErrInvalidInput, key)
+			}
+			seen[key] = true
+			definitions[key] = definition
+		}
+		selected := make([]*v1alpha1.Karta, 0, len(definitions))
+		for _, definition := range definitions {
+			selected = append(selected, definition)
+		}
+		registry, err := NewDefinitionRegistry(selected...)
+		if err != nil {
+			return nil, err
+		}
+		provider = registry
 	}
-	seen := make(map[schema.GroupVersionKind]bool)
-	for _, definition := range options.Definitions {
-		if definition == nil {
-			return nil, fmt.Errorf("%w: nil definition", ErrInvalidInput)
-		}
-		key := catalog.RootKey(definition)
-		if key.Version == "" || key.Kind == "" {
-			return nil, fmt.Errorf("%w: definition requires root GVK", ErrInvalidInput)
-		}
-		if seen[key] {
-			return nil, fmt.Errorf("%w: duplicate definition for %s", ErrInvalidInput, key)
-		}
-		seen[key] = true
-		definitions[key] = definition
-	}
-	r := &Resolver{reader: reader, maxDepth: options.MaxDepth, plans: make(map[schema.GroupVersionKind]*attribution.Plan)}
+	r := &Resolver{reader: reader, maxDepth: options.MaxDepth, definitions: provider}
 	if options.Cache != nil {
 		r.cache = newAttributionCache(*options.Cache)
-		r.cacheable = map[*attribution.Plan]bool{nil: true}
-	}
-	for key, definition := range definitions {
-		plan, err := attribution.Compile(definition)
-		if err != nil {
-			return nil, fmt.Errorf("definition for %s: %w", key, err)
-		}
-		r.plans[key] = plan
-		if r.cache != nil {
-			r.cacheable[plan] = cacheableAttribution(plan.Definition())
-		}
 	}
 	return r, nil
 }
@@ -223,8 +233,11 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 		if err != nil {
 			return nil, err
 		}
-		plan := r.plans[snapshot.object.GroupVersionKind()]
-		if r.cache == nil || !r.cacheable[plan] {
+		plan, cacheable, err := r.plan(ctx, snapshot.object.GroupVersionKind())
+		if err != nil {
+			return nil, err
+		}
+		if r.cache == nil || !cacheable {
 			return buildWorkload(ctx, snapshot.object, snapshot.pods, plan, snapshot.observation)
 		}
 		return r.cachedWorkload(ctx, snapshot, plan)
@@ -252,6 +265,10 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	root := path[len(path)-1].Ref
 	if requireRoot && root.UID != seed.UID {
 		return nil, ErrNotWorkloadRoot
+	}
+	plan, _, err := r.plan(ctx, root.GVK)
+	if err != nil {
+		return nil, err
 	}
 	// The initial trace retains the full root. Further owner reads only need
 	// metadata to establish membership and validate observation consistency.
@@ -289,7 +306,7 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	}
 	sort.Slice(members, func(i, j int) bool { return podLess(members[i], members[j]) })
 	observation := Observation{Source: "direct", Namespace: scope, Started: started, Completed: time.Now(), PodResourceVersion: data.PodResourceVersion}
-	return buildWorkload(ctx, rootObject, members, r.plans[root.GVK], observation)
+	return buildWorkload(ctx, rootObject, members, plan, observation)
 }
 
 // capturedReader serves only one detached observation. Missing data cannot
@@ -429,6 +446,10 @@ func (r *Resolver) fromCapture(ctx context.Context, seed ObjectRef, requireRoot 
 	if capture.Observation.Namespace != "" && capture.Observation.Namespace != root.Namespace {
 		return nil, ErrInsufficientScope
 	}
+	plan, _, err := r.plan(ctx, root.GVK)
+	if err != nil {
+		return nil, err
+	}
 	var members []*corev1.Pod
 	for _, pod := range pods {
 		if err := ctx.Err(); err != nil {
@@ -450,5 +471,22 @@ func (r *Resolver) fromCapture(ctx context.Context, seed ObjectRef, requireRoot 
 		return nil, err
 	}
 	sort.Slice(members, func(i, j int) bool { return podLess(members[i], members[j]) })
-	return buildWorkload(ctx, rootObject, members, r.plans[root.GVK], capture.Observation)
+	return buildWorkload(ctx, rootObject, members, plan, capture.Observation)
+}
+
+func (r *Resolver) plan(ctx context.Context, gvk schema.GroupVersionKind) (*attribution.Plan, bool, error) {
+	definition, err := r.definitions.Definition(ctx, gvk)
+	if err != nil {
+		return nil, false, fmt.Errorf("definition for %s: %w", gvk, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	if definition == nil {
+		return nil, true, nil
+	}
+	if definition.plan == nil || definition.gvk != gvk {
+		return nil, false, fmt.Errorf("%w: provider returned an uncompiled definition or wrong GVK for %s", ErrInvalidInput, gvk)
+	}
+	return definition.plan, definition.cacheable, nil
 }

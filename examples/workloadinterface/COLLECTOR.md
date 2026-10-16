@@ -159,7 +159,7 @@ These differences need explicit handling before replacing the current controller
 | --- | --- | --- |
 | Workload boundary | Outermost selected Karta root; supports ignored owners. | Terminal controller owner; no ignored-owner option. |
 | Unknown kind | Not automatically exported as a workload. | Generic workload with a `pods` component. |
-| Definition selection | Registry chooses per group/kind; bare Pods are opt-in. | Constructor selects by exact GVK, including the built-in catalog. |
+| Definition selection | Registry chooses per group/kind; bare Pods are opt-in. | Exact GVK. Defaults to catalog plus constructor overrides; an explicit live provider is authoritative. |
 | Classification failure | Keeps the Pod metric with degraded fields and failed observation health. | Keeps ownership-confirmed Pods; an affected scope query reports incomplete attribution. |
 | Root status | Evaluated separately from scale. | `DesiredTree` evaluates spec, scale and status. |
 | Cached data | Trimmed Pods and intermediate-owner metadata by default. | Full Pods and roots for full-object output. |
