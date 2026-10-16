@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Submitter attribution PoC
+# Who submitted the workload?
 
 How to reproduce the tests and what is still missing | 16 October 2026
 
