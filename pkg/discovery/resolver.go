@@ -194,8 +194,8 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 	}
 
 	members := make([]*corev1.Pod, 0)
-	for _, pod := range data.Pods {
-		if c.roots[pod.UID] == root.UID {
+	for index, pod := range data.Pods {
+		if c.podRoots[index] == root.UID {
 			members = append(members, pod)
 		}
 	}

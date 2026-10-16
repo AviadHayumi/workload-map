@@ -32,7 +32,7 @@ type collection struct {
 	mappings         map[schema.GroupVersionKind]*meta.RESTMapping
 	objects          map[objectKey]*unstructured.Unstructured
 	identities       map[types.UID]*unstructured.Unstructured
-	roots            map[types.UID]types.UID
+	podRoots         []types.UID // Terminal UIDs in the collected Pod order.
 	pods             map[objectKey]*corev1.Pod
 	podUIDs          map[types.UID]*corev1.Pod
 	metadata         map[*unstructured.Unstructured]*ownership.Object
@@ -47,7 +47,7 @@ type ownerRecord struct {
 }
 
 func newCollection(reader Reader) *collection {
-	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), roots: make(map[types.UID]types.UID), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]*ownership.Object), lookups: make(map[ObjectRef]*ownership.Object)}
+	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]*ownership.Object), lookups: make(map[ObjectRef]*ownership.Object)}
 }
 
 func (c *collection) mapping(ctx context.Context, gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
@@ -337,7 +337,7 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	}
 	c.pods = make(map[objectKey]*corev1.Pod, len(list.Items))
 	c.podUIDs = make(map[types.UID]*corev1.Pod, len(list.Items))
-	c.roots = make(map[types.UID]types.UID, len(list.Items))
+	c.podRoots = make([]types.UID, len(list.Items))
 	ownedPods := list.Items
 	if !ownsPods {
 		ownedPods = make([]corev1.Pod, len(list.Items))
@@ -373,13 +373,13 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	// Index the entire Pod list first because a Pod can itself control another Pod.
 	// These detached Pods already passed podIdentity. Later owner reads are
 	// checked against podUIDs by remember before entering the object cache.
-	for _, pod := range dataset.Pods {
+	for index, pod := range dataset.Pods {
 		start := ownership.Object{Ref: podReference(pod), Owners: pod.OwnerReferences, Namespaced: true}
 		root, err := ownership.TraceRoot(ctx, start, c.lookup, depth)
 		if err != nil {
 			return Dataset{}, fmt.Errorf("%w: Pod %s/%s: %w", ErrIncompleteOwnership, pod.Namespace, pod.Name, err)
 		}
-		c.roots[pod.UID] = root.UID
+		c.podRoots[index] = root.UID
 	}
 	for _, ref := range extras {
 		object, err := c.get(ctx, ref)
