@@ -24,7 +24,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/pkg/ownership"
 )
 
-// JobSet makes replicatedJobs immutable. A dedicated suspended fixture exercises
+// JobSet instance names are immutable. A dedicated suspended fixture exercises
 // warmed named-instance results, an allowed metadata update, and UID replacement.
 // Same-UID declaration changes and actual cache hits are checked by unit tests.
 func TestLiveJobSetNamedInstanceCache(t *testing.T) {
