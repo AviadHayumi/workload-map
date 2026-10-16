@@ -136,12 +136,15 @@ isolated resources and cleans them up. It exercises reparenting, UID reuse,
 termination, authorization failure, and index invalidation, including warmed
 attribution entries before ownership changes. The cluster-root test
 creates a temporary cluster-scoped CRD and Pods in two namespaces, checks
-all-namespace membership, and rejects a namespace-only index:
+all-namespace membership, and rejects a namespace-only index. A separate suspended
+JobSet checks named-instance scopes, a metadata update with a forced API conflict,
+and replacement by a new UID. Its immutable declarations are not changed in place;
+unit tests cover declaration changes under the same UID:
 
 ```bash
 KARTA_DISCOVERY_MUTATION_TESTS=true \
   go test -tags live_discovery ./test/discovery \
-  -run '^(TestLiveOwnershipChurn|TestLiveClusterRoot)$' -count=1 -v
+  -run '^(TestLiveOwnershipChurn|TestLiveClusterRoot|TestLiveJobSetNamedInstanceCache)$' -count=1 -v
 ```
 
 Run all live checks together with:
