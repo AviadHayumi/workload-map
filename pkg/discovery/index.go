@@ -55,7 +55,7 @@ type indexState struct {
 
 type indexRecord struct {
 	object   *unstructured.Unstructured
-	aliases  map[schema.GroupVersionKind]*unstructured.Unstructured
+	aliases  map[schema.GroupVersionKind]*unstructured.Unstructured // nil when object is the only alias
 	pod      *corev1.Pod
 	metadata ownership.Object
 	revision *indexRevision
@@ -519,7 +519,7 @@ func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot 
 		}
 	}
 	if excessive != nil {
-		pod := state.records[excessive.UID].aliases[podGVK]
+		pod := state.records[excessive.UID].alias(podGVK)
 		if _, err := state.traceDepth(ctx, pod, maxDepth); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrIncompleteOwnership, err)
 		}
@@ -563,7 +563,7 @@ func (i *Index) captureLocked(ctx context.Context, seed ObjectRef) (*Capture, er
 		if record == nil {
 			return nil, fmt.Errorf("%w: absent descendant %s", ErrIncompleteOwnership, ref.UID)
 		}
-		for gvk, alias := range record.aliases {
+		for gvk, alias := range record.eachAlias {
 			mapping, err := copyMapping(state.mappings[gvk])
 			if err != nil {
 				return nil, err
@@ -635,15 +635,20 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 		uid := object.GetUID()
 		record := groups[uid]
 		if record == nil {
-			record = &indexRecord{object: object, aliases: make(map[schema.GroupVersionKind]*unstructured.Unstructured), metadata: metadata, revision: &indexRevision{}}
+			record = &indexRecord{object: object, metadata: metadata, revision: &indexRevision{}}
 			groups[uid] = record
-		} else if objectName(record.object) != objectName(object) || record.object.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(record.metadata.Owners, metadata.Owners) {
-			return nil, fmt.Errorf("%w: inconsistent served-version aliases for UID %s", ErrStaleInput, uid)
+		} else {
+			if objectName(record.object) != objectName(object) || record.object.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(record.metadata.Owners, metadata.Owners) {
+				return nil, fmt.Errorf("%w: inconsistent served-version aliases for UID %s", ErrStaleInput, uid)
+			}
+			if record.alias(gvk) != nil {
+				return nil, fmt.Errorf("%w: duplicate object coordinates", ErrInvalidInput)
+			}
+			if record.aliases == nil {
+				record.aliases = map[schema.GroupVersionKind]*unstructured.Unstructured{record.metadata.Ref.GVK: record.object}
+			}
+			record.aliases[gvk] = object
 		}
-		if _, exists := record.aliases[gvk]; exists {
-			return nil, fmt.Errorf("%w: duplicate object coordinates", ErrInvalidInput)
-		}
-		record.aliases[gvk] = object
 		if gvk == podGVK {
 			pod, err := objectPod(object)
 			if err != nil {
@@ -654,6 +659,28 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 		}
 	}
 	return groups, nil
+}
+
+func (r *indexRecord) alias(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	if r.aliases == nil {
+		if gvk == r.metadata.Ref.GVK {
+			return r.object
+		}
+		return nil
+	}
+	return r.aliases[gvk]
+}
+
+func (r *indexRecord) eachAlias(yield func(schema.GroupVersionKind, *unstructured.Unstructured) bool) {
+	if r.aliases == nil {
+		yield(r.metadata.Ref.GVK, r.object)
+		return
+	}
+	for gvk, object := range r.aliases {
+		if !yield(gvk, object) {
+			return
+		}
+	}
 }
 
 func (s *indexState) get(ref ObjectRef) (*unstructured.Unstructured, error) {
@@ -707,7 +734,7 @@ func (s *indexState) traceDepth(ctx context.Context, object *unstructured.Unstru
 func (s *indexState) add(uid types.UID, record *indexRecord) {
 	s.records[uid] = record
 	s.names[objectName(record.object)] = uid
-	for gvk, object := range record.aliases {
+	for gvk, object := range record.eachAlias {
 		s.objects[objectKey{gvk, object.GetNamespace(), object.GetName()}] = object
 	}
 	var tracked metav1.Object = record.object
@@ -749,7 +776,7 @@ func (s *indexState) remove(uid types.UID) {
 	}
 	delete(s.records, uid)
 	delete(s.names, objectName(record.object))
-	for gvk, object := range record.aliases {
+	for gvk, object := range record.eachAlias {
 		delete(s.objects, objectKey{gvk, object.GetNamespace(), object.GetName()})
 	}
 	s.graph.DeleteObject(uid)
