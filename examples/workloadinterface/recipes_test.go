@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/catalog"
@@ -150,4 +151,53 @@ func ExampleDesiredInspector_suspendResume() {
 	// Output:
 	// component=job suspendable=true
 	// suspended=true resumed=true input untouched=true
+}
+
+func ExamplePodSource_attributionCache() {
+	ctx := context.Background()
+	root := jobObject()
+	pod := ownedPod("worker", root, corev1.PodRunning)
+	index := discovery.NewIndex()
+	generation, err := index.Replace(ctx, jobDataset(root, []*corev1.Pod{pod}))
+	if err != nil {
+		panic(err)
+	}
+	discoverer, err := karta.NewDiscoverer(index, discovery.Options{
+		Cache: &discovery.CacheOptions{MaxWorkloads: 1000, MaxPods: 10000},
+	})
+	if err != nil {
+		panic(err)
+	}
+	before, err := discoverer.Workload(ctx, objectRef(root))
+	if err != nil {
+		panic(err)
+	}
+	// A repeated query may reuse attribution; object accessors still return copies.
+	repeated, err := discoverer.Workload(ctx, objectRef(root))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("new observation=%t pods=%d\n", before != repeated, len(repeated.Pods()))
+
+	// Publish the current object from the caller's ordered Kubernetes feed.
+	pod.ResourceVersion = "2"
+	pod.Status.Phase = corev1.PodSucceeded
+	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pod)
+	if err != nil {
+		panic(err)
+	}
+	_, err = index.Apply(ctx, generation, discovery.Changes{
+		Upserts: []*unstructured.Unstructured{{Object: data}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	after, err := discoverer.Workload(ctx, objectRef(root))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("previous=%s current=%s\n", before.Pods()[0].Status.Phase, after.Pods()[0].Status.Phase)
+	// Output:
+	// new observation=true pods=1
+	// previous=Running current=Succeeded
 }

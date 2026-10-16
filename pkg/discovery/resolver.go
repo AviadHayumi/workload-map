@@ -29,9 +29,21 @@ import (
 // client. It owns no goroutines or client lifecycle. Results are immutable
 // observations, not continuously refreshed handles.
 type Resolver struct {
-	reader   Reader
-	plans    map[schema.GroupVersionKind]*attribution.Plan
-	maxDepth int
+	reader    Reader
+	plans     map[schema.GroupVersionKind]*attribution.Plan
+	maxDepth  int
+	cache     *attributionCache
+	cacheable map[*attribution.Plan]bool
+}
+
+// CacheOptions bounds optional reuse of successful derived attribution.
+// MaxWorkloads limits entries; MaxPods limits their total retained Pod membership records.
+// These are cardinality limits, not byte limits. Both must be positive.
+// Only a non-nil *Index supports this option. Unsupported jq plans and failed
+// attribution bypass the cache without changing behavior.
+type CacheOptions struct {
+	MaxWorkloads int
+	MaxPods      int
 }
 
 // Options controls definition selection and the owner-hop limit. Definitions
@@ -39,11 +51,23 @@ type Resolver struct {
 type Options struct {
 	Definitions []*v1alpha1.Karta
 	MaxDepth    int
+	// Cache nil disables attribution reuse. Initially only anonymous instance
+	// declarations and static field/constant-index Pod selectors are eligible,
+	// along with generic workloads. It does not manage watches or guarantee hits.
+	Cache *CacheOptions
 }
 
 // New copies and validates definitions without accessing Kubernetes. A nil
-// reader is allowed for construction; acquisition then returns ErrNoClient.
+// reader is allowed with Cache disabled; acquisition then returns ErrNoClient.
 func New(reader Reader, options Options) (*Resolver, error) {
+	if options.Cache != nil {
+		if options.Cache.MaxWorkloads <= 0 || options.Cache.MaxPods <= 0 {
+			return nil, fmt.Errorf("%w: cache limits must be positive", ErrInvalidInput)
+		}
+		if index, ok := reader.(*Index); !ok || index == nil {
+			return nil, fmt.Errorf("%w: attribution cache requires a non-nil *Index", ErrInvalidInput)
+		}
+	}
 	if options.MaxDepth < 0 {
 		return nil, fmt.Errorf("%w: negative MaxDepth", ErrInvalidInput)
 	}
@@ -73,12 +97,19 @@ func New(reader Reader, options Options) (*Resolver, error) {
 		definitions[key] = definition
 	}
 	r := &Resolver{reader: reader, maxDepth: options.MaxDepth, plans: make(map[schema.GroupVersionKind]*attribution.Plan)}
+	if options.Cache != nil {
+		r.cache = newAttributionCache(*options.Cache)
+		r.cacheable = map[*attribution.Plan]bool{nil: true}
+	}
 	for key, definition := range definitions {
 		plan, err := attribution.Compile(definition)
 		if err != nil {
 			return nil, fmt.Errorf("definition for %s: %w", key, err)
 		}
 		r.plans[key] = plan
+		if r.cache != nil {
+			r.cacheable[plan] = cacheableAttribution(plan.Definition())
+		}
 	}
 	return r, nil
 }
@@ -149,11 +180,15 @@ func (r *Resolver) acquire(ctx context.Context, seed ObjectRef, requireRoot bool
 		return nil, err
 	}
 	if index, ok := r.reader.(*Index); ok {
-		snapshot, err := index.snapshotWorkload(ctx, seed, requireRoot, r.maxDepth)
+		snapshot, err := index.snapshotWorkload(ctx, seed, requireRoot, r.maxDepth, r.cache != nil)
 		if err != nil {
 			return nil, err
 		}
-		return buildWorkload(ctx, snapshot.object, snapshot.pods, r.plans[snapshot.object.GroupVersionKind()], snapshot.observation)
+		plan := r.plans[snapshot.object.GroupVersionKind()]
+		if r.cache == nil || !r.cacheable[plan] {
+			return buildWorkload(ctx, snapshot.object, snapshot.pods, plan, snapshot.observation)
+		}
+		return r.cachedWorkload(ctx, snapshot, plan)
 	}
 	if indexed, ok := r.reader.(IndexedReader); ok {
 		capture, err := indexed.Capture(ctx, seed)

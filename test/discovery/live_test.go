@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -218,17 +219,21 @@ func TestLiveOperatorMembership(t *testing.T) {
 		}
 	}
 	for _, mode := range []struct {
-		name   string
-		reader sdk.Reader
+		name    string
+		reader  sdk.Reader
+		options sdk.Options
 	}{
-		{"direct", reader},
-		{"direct-owner-metadata", counted},
-		{"direct-pod-rest", podReader},
-		{"direct-pod-rest-owner-metadata", podMetadataReader},
-		{"indexed", index},
+		{name: "direct", reader: reader},
+		{name: "direct-owner-metadata", reader: counted},
+		{name: "direct-pod-rest", reader: podReader},
+		{name: "direct-pod-rest-owner-metadata", reader: podMetadataReader},
+		{name: "indexed", reader: index},
+		{name: "indexed-attribution-cache", reader: index, options: sdk.Options{
+			Cache: &sdk.CacheOptions{MaxWorkloads: 100, MaxPods: 1000},
+		}},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
-			resolver, err := karta.NewDiscoverer(mode.reader, sdk.Options{})
+			resolver, err := karta.NewDiscoverer(mode.reader, mode.options)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -242,6 +247,15 @@ func TestLiveOperatorMembership(t *testing.T) {
 						t.Fatalf("wrong root %v", workload.Root())
 					}
 					assertPods(t, workload.Pods(), item.PodUIDs)
+					if mode.options.Cache != nil {
+						repeated, err := resolver.Workload(ctx, item.Root.ref())
+						if err != nil {
+							t.Fatal(err)
+						}
+						if repeated == workload || !reflect.DeepEqual(repeated.Object(), workload.Object()) || !reflect.DeepEqual(repeated.Pods(), workload.Pods()) {
+							t.Fatal("repeated acquisition changed complete bodies or reused the observation handle")
+						}
+					}
 					assertInterfaceConsumers(t, ctx, workload, len(item.PodUIDs))
 					if len(workload.MembershipIssues()) != 0 {
 						t.Fatalf("unexpected attribution issues: %v", workload.MembershipIssues())

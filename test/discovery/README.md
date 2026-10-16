@@ -6,7 +6,8 @@
 The `live_discovery` build tag runs public SDK checks against a dedicated kind
 cluster. An independent Python oracle reads fixture identities and upstream
 operator labels, then compares exact root and Pod UID sets against default direct,
-opt-in owner metadata and indexed discovery. It imports no Karta code and does not
+opt-in owner metadata, JSON Pod reads and indexed discovery with and without
+attribution reuse. It imports no Karta code and does not
 derive expectations from the resolver under test.
 
 The reproducible fixture contains seven roots and fourteen Pods:
@@ -28,8 +29,9 @@ components with anonymous instances. The oracle cross-checks explicit LWS Pod
 names and JobSet Job ownership. Physical Pods and StatefulSets are not relabeled
 as semantic component instances.
 
-The membership suite checks twenty-one workload subtests: seven roots in each
-of default direct, opt-in owner metadata and indexed mode. It also requires the
+The membership suite checks forty-two workload subtests: seven roots in each
+of four direct reader configurations, indexed mode, and indexed mode with
+attribution reuse. The cache-enabled mode also repeats full-object reads. It also requires the
 metadata route to perform owner reads against the live API. Separate ownership
 churn checks passed for reparenting, immutable prior observations, terminating and
 unscheduled Pods, RBAC denial, owner-name reuse, rejected retired UIDs, and
@@ -131,7 +133,8 @@ go test -tags live_discovery ./test/discovery \
 
 The mutation suite requires an additional explicit environment switch. It creates
 isolated resources and cleans them up. It exercises reparenting, UID reuse,
-termination, authorization failure, and index invalidation. The cluster-root test
+termination, authorization failure, and index invalidation, including warmed
+attribution entries before ownership changes. The cluster-root test
 creates a temporary cluster-scoped CRD and Pods in two namespaces, checks
 all-namespace membership, and rejects a namespace-only index:
 

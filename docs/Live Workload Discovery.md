@@ -69,7 +69,7 @@ a namespace. Name reuse cannot silently select a replacement lifetime.
 known workload kinds. `Workload` accepts an explicit terminal root, including a
 root with no Pods. An intermediate owner returns `ErrNotWorkloadRoot`.
 
-`discovery.New(nil, options)` is valid for construction. Nil and typed-nil readers
+`discovery.New(nil, options)` is valid when attribution caching is disabled. Nil and typed-nil readers
 make acquisition return `ErrNoClient`; they do not return a successful empty
 workload. The client-go adapter rejects nil dependencies during construction.
 
@@ -404,6 +404,47 @@ complete authoritative replacements while preserving feed ordering. A rebuild
 needs room for the old index, replacement input and new index at the same time.
 Retaining old workload observations also retains their selected Pod data; release
 observations when the consumer no longer needs them.
+
+## Cache derived attribution
+
+Set `Options.Cache` when constructing a resolver over a non-nil `*Index`:
+
+```go
+resolver, err := discovery.New(index, discovery.Options{
+    Cache: &discovery.CacheOptions{MaxWorkloads: 1000, MaxPods: 10000},
+})
+```
+
+A nil option disables reuse. Both limits must be positive; invalid limits or a
+reader other than `*Index` return `ErrInvalidInput` during construction. The
+cache belongs to that resolver. It starts no watches and does not update the
+index. Its limits cover retained workload entries and their total Pod membership
+records. They do not bound bytes, index storage, caller caches or retained results.
+Entries are evicted in least recently used order. A workload larger than MaxPods
+is evaluated without admission.
+
+Every query first performs ordinary index readiness, identity, scope, ownership,
+completeness and depth validation. Reuse then requires the same root revision,
+selected GVK and complete ordered Pod revision sequence. Each published upsert
+gets a new internal revision even when its UID and resourceVersion are unchanged.
+Unrelated index updates can leave an entry reusable. A replacement or affected
+update causes a miss; invalidation returns `ErrNotSynced`. Old entries can remain
+until eviction, but their revisions cannot match newly published records.
+
+The cache retains derived component membership and lookup tables, not root or
+Pod bodies. Each result uses the newly captured object and Pods with current
+observation metadata. Public accessors still return detached copies. Evaluation
+errors, incomplete attribution and failed instance preparation are not admitted.
+Concurrent misses may compute independently; cancellation is not shared between
+callers. `DesiredTree` continues to evaluate on request.
+
+Generic workloads are eligible. For known definitions, every component must use
+an anonymous declared instance (`InstanceIdPath == nil`), and Pod selectors must
+be static field or constant-index paths. Named instance extraction, functions,
+variables, iteration, interpolation and computed paths bypass reuse. JobSet's
+named replicated-job instances therefore use normal evaluation. This conservative
+subset avoids changing the meaning of time-dependent or arbitrary jq expressions;
+enabling the option does not guarantee a hit for every workload type.
 
 ## Errors and validation
 

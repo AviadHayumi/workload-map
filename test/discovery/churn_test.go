@@ -125,6 +125,22 @@ func TestLiveOwnershipChurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cached, err := sdk.New(index, sdk.Options{Cache: &sdk.CacheOptions{MaxWorkloads: 10, MaxPods: 100}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cachedBefore, err := cached.WorkloadForPod(ctx, liveRef(podA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPods(t, cachedBefore.Pods(), originalUIDs)
+	for range 2 {
+		empty, err := cached.Workload(ctx, liveRef(rootB))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertPods(t, empty.Pods(), nil)
+	}
 
 	// Move one existing lifetime to the other root and publish its current API object.
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -143,7 +159,7 @@ func TestLiveOwnershipChurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, resolver := range []*sdk.Resolver{direct, indexed} {
+	for _, resolver := range []*sdk.Resolver{direct, indexed, cached} {
 		a, err := resolver.Workload(ctx, liveRef(rootA))
 		if err != nil {
 			t.Fatal(err)
@@ -159,7 +175,8 @@ func TestLiveOwnershipChurn(t *testing.T) {
 		assertPods(t, b.Pods(), []string{string(podA.GetUID())})
 	}
 	assertPods(t, before.Pods(), originalUIDs)
-	t.Log("reparent: direct and indexed exact membership updated; earlier observation unchanged")
+	assertPods(t, cachedBefore.Pods(), originalUIDs)
+	t.Log("reparent: direct, indexed and cached membership updated; earlier observations unchanged")
 
 	// A terminating Pod remains part of the observed workload until it disappears.
 	if err := pods.Delete(ctx, podA.GetName(), metav1.DeleteOptions{GracePeriodSeconds: ptr.To(int64(0))}); err != nil {
@@ -176,11 +193,16 @@ func TestLiveOwnershipChurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	terminating, err := indexed.Workload(ctx, liveRef(rootB))
-	if err != nil {
-		t.Fatal(err)
+	for _, resolver := range []*sdk.Resolver{indexed, cached} {
+		terminating, err := resolver.Workload(ctx, liveRef(rootB))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertPods(t, terminating.Pods(), []string{string(podA.GetUID())})
+		if terminating.Pods()[0].DeletionTimestamp == nil {
+			t.Fatal("updated Pod body lost its deletion timestamp")
+		}
 	}
-	assertPods(t, terminating.Pods(), []string{string(podA.GetUID())})
 	t.Log("terminating and unscheduled Pods remain visible")
 
 	// An authenticated caller lacking GET permission receives Forbidden, never
@@ -226,15 +248,19 @@ func TestLiveOwnershipChurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if workload, err := indexed.WorkloadForPod(ctx, liveRef(podB)); workload != nil || !errors.Is(err, ownership.ErrUIDMismatch) {
-		t.Fatalf("indexed old owner UID mismatch: %v / %v", workload, err)
+	for _, resolver := range []*sdk.Resolver{indexed, cached} {
+		if workload, err := resolver.WorkloadForPod(ctx, liveRef(podB)); workload != nil || !errors.Is(err, ownership.ErrUIDMismatch) {
+			t.Fatalf("indexed old owner UID mismatch: %v / %v", workload, err)
+		}
 	}
 	if _, err := index.Apply(ctx, generation, sdk.Changes{Upserts: []*unstructured.Unstructured{rootA}}); !errors.Is(err, sdk.ErrRetiredUID) {
 		t.Fatalf("late old owner must not resurrect: %v", err)
 	}
 	index.Invalidate(fmt.Errorf("test watch continuity lost"))
-	if workload, err := indexed.Workload(ctx, liveRef(rootB)); workload != nil || !errors.Is(err, sdk.ErrNotSynced) {
-		t.Fatalf("invalidated index: %v / %v", workload, err)
+	for _, resolver := range []*sdk.Resolver{indexed, cached} {
+		if workload, err := resolver.Workload(ctx, liveRef(rootB)); workload != nil || !errors.Is(err, sdk.ErrNotSynced) {
+			t.Fatalf("invalidated index: %v / %v", workload, err)
+		}
 	}
 	t.Log("name reuse rejects stale UID; late resurrection and invalidated reads fail explicitly")
 }

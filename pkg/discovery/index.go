@@ -58,7 +58,12 @@ type indexRecord struct {
 	aliases  map[schema.GroupVersionKind]*unstructured.Unstructured
 	pod      *corev1.Pod
 	metadata ownership.Object
+	revision *indexRevision
 }
+
+// A nonzero-sized token identifies one immutable record without retaining its
+// object body when derived attribution outlives an index update.
+type indexRevision struct{ _ byte }
 
 type indexName struct {
 	kind      schema.GroupKind
@@ -78,12 +83,23 @@ type indexResolution struct {
 }
 
 type indexedWorkload struct {
-	object      *unstructured.Unstructured
-	pods        []*corev1.Pod
-	observation Observation
+	object       *unstructured.Unstructured
+	pods         []*corev1.Pod
+	observation  Observation
+	rootRevision *indexRevision
+	podRevisions []*indexRevision
 }
 
+type indexedPodOrder struct{ snapshot *indexedWorkload }
+
 var _ IndexedReader = (*Index)(nil)
+
+func (p indexedPodOrder) Len() int           { return len(p.snapshot.pods) }
+func (p indexedPodOrder) Less(i, j int) bool { return podLess(p.snapshot.pods[i], p.snapshot.pods[j]) }
+func (p indexedPodOrder) Swap(i, j int) {
+	p.snapshot.pods[i], p.snapshot.pods[j] = p.snapshot.pods[j], p.snapshot.pods[i]
+	p.snapshot.podRevisions[i], p.snapshot.podRevisions[j] = p.snapshot.podRevisions[j], p.snapshot.podRevisions[i]
+}
 
 func NewIndex() *Index {
 	return &Index{}
@@ -422,16 +438,20 @@ func (i *Index) Capture(ctx context.Context, seed ObjectRef) (*Capture, error) {
 
 // snapshotWorkload shares immutable records only with this package. Public
 // Capture still returns detached copies for arbitrary callers.
-func (i *Index) snapshotWorkload(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int) (*indexedWorkload, error) {
+func (i *Index) snapshotWorkload(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int, withRevisions bool) (*indexedWorkload, error) {
 	started := time.Now()
 	i.mu.RLock()
-	snapshot, err := i.workloadLocked(ctx, seed, requireRoot, maxDepth)
+	snapshot, err := i.workloadLocked(ctx, seed, requireRoot, maxDepth, withRevisions)
 	i.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
 	snapshot.object = snapshot.object.DeepCopy()
-	sort.Slice(snapshot.pods, func(a, b int) bool { return podLess(snapshot.pods[a], snapshot.pods[b]) })
+	if withRevisions {
+		sort.Sort(indexedPodOrder{snapshot})
+	} else {
+		sort.Slice(snapshot.pods, func(a, b int) bool { return podLess(snapshot.pods[a], snapshot.pods[b]) })
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -440,7 +460,7 @@ func (i *Index) snapshotWorkload(ctx context.Context, seed ObjectRef, requireRoo
 	return snapshot, nil
 }
 
-func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int) (*indexedWorkload, error) {
+func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot bool, maxDepth int, withRevisions bool) (*indexedWorkload, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -479,9 +499,12 @@ func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot 
 	if requireRoot && terminal.UID != seed.UID {
 		return nil, ErrNotWorkloadRoot
 	}
-	snapshot := &indexedWorkload{object: root, pods: make([]*corev1.Pod, 0, len(state.rootPods[terminal.UID])), observation: Observation{
+	snapshot := &indexedWorkload{object: root, rootRevision: state.records[terminal.UID].revision, pods: make([]*corev1.Pod, 0, len(state.rootPods[terminal.UID])), observation: Observation{
 		Source: "indexed", Namespace: terminal.Namespace, Generation: i.generation, PodResourceVersion: state.podVersion,
 	}}
+	if withRevisions {
+		snapshot.podRevisions = make([]*indexRevision, 0, len(state.rootPods[terminal.UID]))
+	}
 	var excessive *corev1.Pod
 	for uid, pod := range state.rootPods[terminal.UID] {
 		if err := ctx.Err(); err != nil {
@@ -491,6 +514,9 @@ func (i *Index) workloadLocked(ctx context.Context, seed ObjectRef, requireRoot 
 			excessive = pod
 		}
 		snapshot.pods = append(snapshot.pods, pod)
+		if withRevisions {
+			snapshot.podRevisions = append(snapshot.podRevisions, state.records[uid].revision)
+		}
 	}
 	if excessive != nil {
 		pod := state.records[excessive.UID].aliases[podGVK]
@@ -609,7 +635,7 @@ func (s *indexState) prepare(ctx context.Context, objects []*unstructured.Unstru
 		uid := object.GetUID()
 		record := groups[uid]
 		if record == nil {
-			record = &indexRecord{object: object, aliases: make(map[schema.GroupVersionKind]*unstructured.Unstructured), metadata: metadata}
+			record = &indexRecord{object: object, aliases: make(map[schema.GroupVersionKind]*unstructured.Unstructured), metadata: metadata, revision: &indexRevision{}}
 			groups[uid] = record
 		} else if objectName(record.object) != objectName(object) || record.object.GetResourceVersion() != object.GetResourceVersion() || !sameOwnerReferences(record.metadata.Owners, metadata.Owners) {
 			return nil, fmt.Errorf("%w: inconsistent served-version aliases for UID %s", ErrStaleInput, uid)

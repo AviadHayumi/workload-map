@@ -20,8 +20,10 @@ type Discoverer interface {
 
 // NewDiscoverer validates discovery options without accessing Kubernetes.
 // Pass a Reader for direct acquisition or a populated discovery.Index for
-// indexed queries. The caller owns index updates; construction starts no watches.
-// A nil reader is allowed; acquisition then returns discovery.ErrNoClient.
+// indexed queries. Options.Cache optionally reuses attribution on that Index.
+// The caller owns index updates; construction starts no watches.
+// With caching disabled, a nil reader is allowed; acquisition then returns
+// discovery.ErrNoClient.
 func NewDiscoverer(reader discovery.Reader, options discovery.Options) (Discoverer, error) {
 	return discovery.New(reader, options)
 }

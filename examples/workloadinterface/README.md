@@ -18,6 +18,7 @@ pinned revision; the latest published module may not contain them.
 | Find the workload that owns a Pod | `discoverer.WorkloadForPod(ctx, podRef)` |
 | Find a workload, including one with no Pods | `discoverer.Workload(ctx, rootRef)` |
 | Query repeatedly from your own cache | `karta.NewDiscoverer(index, options)` |
+| Reuse component attribution between queries | Set `options.Cache` with workload and Pod limits |
 
 ## Find a workload
 
@@ -202,6 +203,32 @@ Observations are detached snapshots. Acquire again to see updates. The index add
 no background watchers and is not a Kubernetes-wide transaction. See the
 [reader and index contract](../../docs/Live%20Workload%20Discovery.md) for feed,
 freshness and memory considerations.
+
+## Reuse attribution between queries
+
+Enable the optional cache when constructing a discoverer backed by your index:
+
+```go
+discoverer, err := karta.NewDiscoverer(index, discovery.Options{
+    Cache: &discovery.CacheOptions{MaxWorkloads: 1000, MaxPods: 10000},
+})
+if err != nil { return err }
+```
+
+This reuses successful component and replica attribution while the root and its
+Pods are unchanged. Every call still validates the current index and returns a
+new observation. Publishing changed objects makes affected entries miss; losing
+index readiness still returns an error. `Cache: nil` disables this reuse.
+
+Both limits must be positive. They bound retained workloads and total Pod
+membership records, not bytes or the index itself. Least recently used entries
+are evicted. Generic workloads and definitions with anonymous instances and
+simple Pod field selectors are eligible. Other definitions, including named
+instance extraction such as JobSet, evaluate normally. This option requires a
+`*discovery.Index`; it does not start watches or cache direct Kubernetes reads.
+
+See the [runnable update example](recipes_test.go) and
+[cache contract](../../docs/Live%20Workload%20Discovery.md#cache-derived-attribution).
 
 ## Use only the interface your consumer needs
 
