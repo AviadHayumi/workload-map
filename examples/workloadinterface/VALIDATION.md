@@ -11,7 +11,7 @@ of its Pods. Returning only the Pod's immediate Job would fail the test.
 
 ## Live definitions and operator integration
 
-Implementation revision: `b8552595af39136ad49f57ffd12d32048216b36a`.
+Implementation revision: `c6cad432ab565b3f42538496546ddbad6c156218`.
 The SDK remains independent of controller-runtime imports.
 The separate adapter example is compiled in the operator module.
 
@@ -20,7 +20,8 @@ The separate adapter example is compiled in the operator module.
 | Full root SDK and exporter race suites | Passed. Existing metric and Helm contracts were not changed. |
 | `make check` | Passed on the committed source, including generated files, licenses, root/CLI tests and CLI verification. |
 | Root and operator lint | Passed. |
-| Provider and registry tests | Passed: exact GVK, selected-only definitions, atomic rejection, concurrent publication, immutable observations and bounded attribution reuse. |
+| Provider and registry tests | Passed: exact GVK, selected-only definitions, atomic rejection, concurrent publication, immutable observations, full-metadata equality and bounded attribution reuse. |
+| Catalog and watched selection | Passed: exact-GVK overrides, named conflicts, no-op reuse, target-GVK changes and catalog fallback after deletion. |
 | Executable operator examples | Passed: real client-go event-handler/queue types, Pod deletion, reparenting, owner-only lookup and live definition replacement. Events are delivered from fixtures. |
 | Live provider E2E | Passed against the existing kind JobSet, using direct, indexed and cached discovery. No Kubernetes objects were changed by this test. |
 | Existing live membership and LWS grouping | Passed: 42 membership cases across six reader modes, plus scheduling-group checks. |
@@ -41,8 +42,14 @@ not a real informer/API-server test or a promise for arbitrary version combinati
 
 The six-project [OSS council](../../docs/design/sdk-operator-integration-decision.md)
 records why readers, definitions and controller lifecycle are separate.
-An independent implementation review corrected guidance about concurrent publication:
-serialize workload acquisition plus output publication, not just writes.
+Independent implementation reviews corrected guidance about concurrent publication:
+serialize workload acquisition plus output publication in the same root queue.
+Opus 5.5 at maximum reasoning effort also identified a catalog-selection gap.
+The tested selection helper now preserves selected catalog entries when watched
+definitions change, and conflict errors identify both Karta sources.
+The final provider fixes passed the focused race suites and `make check`.
+Live and full-recording runs used the preceding provider implementation; the
+follow-up changes add diagnostics, example selection policy and regression tests.
 
 The client-go informer example requires indirect
 `github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2` (BSD-3-Clause).
