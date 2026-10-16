@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-16T12:10:17.248682+00:00",
+  "checkedAt": "2026-10-16T13:24:07.700266+00:00",
   "reportBaseCommit": "4825bcf0",
   "implementationCommit": "49ff26cccd65a64fd69f74ebc2547d7b2de51459",
   "implementationUnchanged": true,
@@ -9,7 +9,26 @@
     "nvcf": "81d815fedda70477655a4ecc1b1a4ee6b4187a32 plus retained lab captures",
     "runai": "retained API requests, resulting resources, metrics and revision-proxy HTTP result"
   },
-  "freshChecks": {
+  "priorFullChecks": "Full root/exporter/operator make check results retained in ../submitted-by/validation.json; implementation source unchanged.",
+  "pdf": {
+    "pages": 16,
+    "linkAnnotations": 19,
+    "allPagesVisuallyInspected": true,
+    "textBounds": "passed",
+    "title": "Who submitted the workload?",
+    "sha256": "67928b755e67e89f8b12b98e39230e3dbea97d00bb7a55c22c9a69edba48c10a"
+  },
+  "markdownSHA256": "cd67fefc52771b4d42ae70b860346b4715e6d489966ed54656166f18f8816379",
+  "liveTestsRepeatedInThisDocumentPass": true,
+  "limits": [
+    "OSMO production IdP and NVIDIA username mapping not verified",
+    "NVCF Helm caller-supplied metadata transport passed; native authenticated principal capture not implemented",
+    "NVCF Helm gateway invocation and stricter ReVal sanitization not established",
+    "Karta watch selector and admission matchConditions remain proposals",
+    "OSMO and NVCF direct-Pod workload grouping remains an integration gap"
+  ],
+  "previousDocumentCheckedAt": "2026-10-16T12:10:17.248682+00:00",
+  "priorDocumentChecks": {
     "exporterIdentityAndControllerTests": "passed",
     "operatorSubmitterAdmissionTests": "passed",
     "helmFullExpressionRender": "passed",
@@ -32,22 +51,22 @@
       ]
     }
   },
-  "priorFullChecks": "Full root/exporter/operator make check results retained in ../submitted-by/validation.json; implementation source unchanged.",
-  "pdf": {
-    "pages": 14,
-    "linkAnnotations": 21,
-    "allPagesVisuallyInspected": true,
-    "textBounds": "passed",
-    "title": "Who submitted the workload?",
-    "sha256": "5634e8e4689c152e77af07724975ea93acc3d758ca0a4a4c931725e2dbff2395"
+  "freshChecks": {
+    "shellBlocksSyntaxChecked": 15,
+    "yamlBlocksParsed": 11,
+    "jsonBlocksParsed": 0,
+    "inlineHelmValuesEqualLiveValues": true,
+    "sourceAndReproductionPeerReview": "passed after correcting version-default origin, worker.featureFlags chart location and delete_function permission",
+    "credentialAndInternalEndpointPatternMatches": 0
   },
-  "markdownSHA256": "861df9b4872e404eaa0100cd8feb24c41c879e4def2c7b14df1c089bdd358a80",
-  "liveTestsRepeatedInThisDocumentPass": false,
-  "limits": [
-    "OSMO production IdP and NVIDIA username mapping not verified",
-    "NVCF live Helm path blocked before function creation by registry prerequisites; no full Helm-to-Karta result",
-    "No new authentication or cluster operations in this pass",
-    "Karta watch selector and admission matchConditions remain proposals",
-    "OSMO and NVCF direct-Pod workload grouping remains an integration gap"
-  ]
+  "nvcfHelmRetest": {
+    "functionStatus": "ACTIVE",
+    "functionServiceHTTP": 200,
+    "gatewayWithManagementTokenHTTP": 403,
+    "bothMetricFamiliesCarrySuppliedValue": true,
+    "workloadObservationHealthy": 1,
+    "nativeAuthenticatedPrincipalCaptureProven": false,
+    "temporaryNVCASettingsRestored": true,
+    "testResourcesRemoved": true
+  }
 }

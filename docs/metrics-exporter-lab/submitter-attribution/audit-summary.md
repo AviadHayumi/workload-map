@@ -502,7 +502,7 @@ OSMO already has workflow/group UUIDs and KAI PodGroups. Karta currently follows
 
 The container function served HTTP 200 and the finite task completed. Both carried account and workload IDs, but neither placed the authenticated caller in Kubernetes metadata. Both tested Karta exporter PoC metric families kept `submitted_by=""`.
 
-Use your management URL/token as `NVCF_API` / `NVCF_ADMIN_TOKEN`, and an available `GPU` / `INSTANCE_TYPE`. The management credential needs `register_function`, `deploy_function` and either `list_functions` or `list_functions_details`. The invocation key needs `invoke_function`; API-key authorities have the `apikey:` prefix. These commands contain the complete HTTP fixture:
+Use your management URL/token as `NVCF_API` / `NVCF_ADMIN_TOKEN`, and an available `GPU` / `INSTANCE_TYPE`. The management credential needs `register_function`, `deploy_function`, `delete_function` and either `list_functions` or `list_functions_details`. The invocation key needs `invoke_function`; API-key authorities have the `apikey:` prefix. These commands contain the complete HTTP fixture:
 
 ```sh
 curl -fsS "$NVCF_API/v2/nvcf/functions" \
@@ -609,35 +609,132 @@ These are the [actual chart setting names](https://github.com/NVIDIA/nvcf/blob/8
 
 <!-- pagebreak -->
 
-## NVCF / NVCT: existing options and remaining gap
+## NVCF Helm: configure the test
 
-The tested Pods had `nca-id`, function/version or task IDs and an ICMSRequest owner. No human submitter appeared in labels or annotations. Captured metrics, with other labels omitted:
+The live Helm function reached ACTIVE. Its Service returned HTTP 200, and both Karta metrics carried `submitted_by="transport-test-only"`. NVCF's existing NGC registry credential pulled the chart. No registry credential change or image/chart push was needed.
+
+Use the same management token and available GPU/instance type as the container test. This uses NIM chart `1.14.0-pb5.0` to launch a small HTTP server. It tests Helm metadata, not NIM inference. Save the complete chart values:
+
+```sh
+cat > helm-values.json <<'JSON'
+{
+  "fullnameOverride":"karta-helm-attribution-retest",
+  "statefulSet":{"enabled":false}, "replicaCount":1,
+  "image":{
+    "repository":"docker.io/library/python",
+    "tag":"3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4",
+    "pullPolicy":"IfNotPresent"
+  },
+  "customCommand":["python3","-m","http.server","8080","--directory","/tmp"],
+  "env":[{"name":"PYTHONDONTWRITEBYTECODE","value":"1"}],
+  "imagePullSecrets":[{"name":"karta-http-fixture-unused-pull"}],
+  "model":{"ngcAPIKey":"unused-http-fixture",
+           "ngcAPISecret":"karta-http-fixture-placeholder","openaiPort":8080},
+  "podAnnotations":{
+    "workload.dgxc.nvidia.com/submitter-id":"transport-test-only"
+  },
+  "podSecurityContext":{"runAsUser":1001,"runAsGroup":1001,"fsGroup":1001},
+  "containerSecurityContext":{"allowPrivilegeEscalation":false,
+    "capabilities":{"drop":["ALL"]},"runAsNonRoot":true},
+  "resources":{"requests":{"cpu":"50m","memory":"64Mi"},
+    "limits":{"cpu":"250m","memory":"128Mi","nvidia.com/gpu":1}},
+  "service":{"type":"ClusterIP","name":"karta-helm-attribution-retest",
+             "openaiPort":8080},
+  "startupProbe":{"path":"/","initialDelaySeconds":0},
+  "readinessProbe":{"path":"/","initialDelaySeconds":0},
+  "livenessProbe":{"path":"/"},
+  "serviceAccount":{"create":false}, "persistence":{"enabled":false},
+  "multiNode":{"enabled":false}, "ingress":{"enabled":false}
+}
+JSON
+```
+
+`unused-http-fixture` is a noncredential placeholder for chart-generated Secrets. This public HTTP image does not use it or download a model. Real model deployments need their normal credentials.
+
+Required lab settings:
+
+- On NVCA 3.10.0, ReVal used its default Kubernetes v1.20.0 because the actual server version was not supplied. The chart needs at least v1.23.0. Set the operator chart's `k8sVersionOverride` to the actual server version, `v1.35.5` in this lab. Current public source includes [automatic version discovery](https://github.com/NVIDIA/nvcf/commit/d9cf89008a399d0ee43b95c2e77ba7d6961eb963); a release containing it was not tested.
+- The lab had no SMB CSI driver. For this storage-free function, append `-HelmSharedStorage` to the NVCA operator chart's existing `worker.featureFlags` list. This affects the whole backend; preserve other flags and restore it after testing. Helm tasks and functions needing shared storage require the normal storage setup.
+- The lab already used `reval.serviceConfig.skipSanitizeObjectMetadata: true`. Stricter sanitization was not live-tested. With sanitization enabled, exact `preserveAnnotations` keys preserve root annotations; this chart's `podAnnotations` targets the Deployment template.
+
+<!-- pagebreak -->
+
+## NVCF Helm: submit and inspect the result
+
+```sh
+CHART=https://helm.ngc.nvidia.com/nvidia/charts/nim-llm-1.14.0-pb5.0.tgz
+jq -n --arg chart "$CHART" '{
+  name:"karta-helm-attribution-retest-20261016", helmChart:$chart,
+  helmChartServiceName:"karta-helm-attribution-retest",
+  inferenceUrl:"/", inferencePort:8080, healthUri:"/", apiBodyFormat:"CUSTOM"
+}' | curl -fsS "$NVCF_API/v2/nvcf/functions" \
+  -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' --data-binary @- > helm-function.json
+HFID=$(jq -r '.function.id' helm-function.json)
+HVID=$(jq -r '.function.versionId' helm-function.json)
+HDEPLOY="$NVCF_API/v2/nvcf/deployments/functions/$HFID/versions/$HVID"
+HFUNCTION="$NVCF_API/v2/nvcf/functions/$HFID/versions/$HVID"
+jq -n --arg gpu "$GPU" --arg it "$INSTANCE_TYPE" \
+  --slurpfile values helm-values.json \
+  '{deploymentSpecifications:[{gpu:$gpu,instanceType:$it,
+    minInstances:1,maxInstances:1,maxRequestConcurrency:1,
+    configuration:$values[0]}]}' |
+  curl -fsS "$HDEPLOY" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
+    -H 'Content-Type: application/json' --data-binary @-
+curl -fsS "$HFUNCTION" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" |
+  jq '.function.status'
+```
+
+Wait for ACTIVE. Find the generated namespace with `kubectl get deployments -A`, then set `HELM_NS`. Using cluster credentials with read and port-forward access:
+
+```sh
+kubectl -n "$HELM_NS" get deployment karta-helm-attribution-retest \
+  -o json | jq '.spec.template.metadata.annotations'
+kubectl -n "$HELM_NS" port-forward \
+  svc/karta-helm-attribution-retest 18080:8080
+# In another terminal:
+curl -i http://127.0.0.1:18080/
+```
+
+Observed: HTTP 200. The annotation was on the Deployment's Pod template and its Pod, not on the Deployment root. Karta followed Pod -> ReplicaSet -> Deployment and used the Pod identity for both metric families. The first page's CEL already reads this key. Selected labels:
 
 ```prometheus
-karta_pod_workload_info{workload_kind="Pod",submitted_by=""} 1
-karta_workload_status{workload_kind="Pod",phase="Running",submitted_by=""} 1
+karta_pod_workload_info{workload="karta-helm-attribution-retest",
+  workload_kind="Deployment", submitted_by="transport-test-only"} 1
+karta_workload_status{workload="karta-helm-attribution-retest",
+  phase="Running", submitted_by="transport-test-only"} 1
+karta_exporter_observation_healthy{workload="karta-helm-attribution-retest",
+  scope="workload", reason="none"} 1
 ```
 
-Source review found these existing options:
+The HTTP check used the Service port-forward. A separate gateway attempt with the management token returned 403; it did not prove gateway invocation for this Helm function. The container-function gateway test above used its invocation key and passed.
 
-- Audit joins: retain INFO-level `[AUDIT]` events from NVCF/NVCT. Join account plus function/version/deployment or task ID, preserving operation and time. Events include authenticated actor/subject identity. A shared service credential remains a service identity. This needs a log pipeline and identity mapping; it does not feed Karta's metadata-only CEL. [Audit emission](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/libraries/java/nv-boot-parent/nv-boot-starter-audit/src/main/java/com/nvidia/boot/audit/listener/BootAuditEventListener.java#L35).
-- Static classification: NVCA `agent.customAnnotations` populates `nvca-namespace-pod-annotations` and is copied literally onto directly created worker Pods. It can identify a dedicated pool's organization; it cannot derive each submitter. `worker.featureFlags: ["HelmCustomAnnotations"]` enables the separate Helm utils-Pod copy, not a general chart-Pod stamp. [Workload application](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/compute-plane-services/nvca/pkg/nvca/k8scomputebackend.go#L1059).
-- Helm metadata: function `deploymentSpecifications[].configuration` and task `gpuSpecification.configuration` already reach chart values. A chart can stamp root and Pod-template annotations without NVCF source changes. For a chart supporting these keys, the configuration is:
+After capture, stop the port-forward and remove only this test function:
 
-```json
-{
-  "commonAnnotations": {"workload.dgxc.nvidia.com/submitter-id":"alice@example.test"},
-  "podAnnotations": {"workload.dgxc.nvidia.com/submitter-id":"alice@example.test"}
-}
+```sh
+curl -fsS -X DELETE "$HDEPLOY" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN"
+curl -fsS -X DELETE "$HFUNCTION" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN"
 ```
 
-The pinned public nginx chart `18.2.5` rendered both locations locally; its `commonAnnotations` and `podAnnotations` keys are chart-specific. The lab ReVal had `reval.serviceConfig.skipSanitizeObjectMetadata: true`. If sanitization is enabled, retain the root key through `reval.serviceConfig.preserveAnnotations: [workload.dgxc.nvidia.com/submitter-id]`. These are exact keys, not regex; `preserveLabels` alone does not preserve Deployment template labels. [ReVal settings](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/deploy/helm/helm-reval/values.yaml#L94).
+The lab test was removed and both temporary NVCA settings restored. Two failed attempts left ICMSRequests that required manual cleanup. [Retained requests, metadata, metrics and cleanup](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/platform-source-audit/nvcf-helm-registry-retest.md).
 
-Full live Helm submission stopped before creation: `registry-1.docker.io` was not a recognized HELM registry; `docker.io` required a registered HELM credential. An account credential needs `manage_registry_credentials` (or `apikey:manage_registry_credentials`) to inspect `GET /v2/nvcf/registry-credentials?artifactType=HELM` and register real read credentials through `POST /v2/nvcf/registry-credentials`, with `registryHostname: docker.io` and `artifactTypes: [HELM]`. [Exact API authorization and fields](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/control-plane-services/cloud-functions/nvcf-core/src/main/java/com/nvidia/nvcf/rest/registry/RegistryCredentialManagementController.java#L83). No credential was added or shared setting changed; the follow-up did not execute. No full Helm-to-Karta success is claimed.
+<!-- pagebreak -->
 
-Helm values and environment variables are caller-supplied. A trusted upstream submitter can supply a verified principal, but the submission path must enforce that trust. The remaining request is automatic capture of the authenticated function creator/deployer and task submitter, then supported workload/Pod metadata propagation. Invokers are separate.
+## NVCF / NVCT: what remains
 
-Grouping exists through account, function/version, deployment, task, ICMSRequest and MiniService IDs. Standard Helm Deployment/Job owner chains also exist. In the direct-container captures, Pod owner references lacked `controller: true`, so the tested Karta exporter PoC selected each Pod. That is an integration limitation; stamping only ICMSRequest would not cover it. See the [narrow feature-request draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md).
+Helm metadata transport now works end to end. `transport-test-only` was supplied in chart values; NVCF did not derive it from an authenticated user. The direct-container function and task still had no submitter metadata. No Karta, NVCF or OSMO source/API change was needed for these tests.
+
+Existing options:
+
+- Audit joins: collect INFO-level `[AUDIT]` events across NVCF/NVCT replicas. Join account plus function/version/deployment or task ID, preserving operation and time. Events include authenticated actor/subject identity. This needs a log pipeline and identity mapping; it does not feed Karta's metadata-only CEL. [Audit emission](https://github.com/NVIDIA/nvcf/blob/81d815fedda70477655a4ecc1b1a4ee6b4187a32/src/libraries/java/nv-boot-parent/nv-boot-starter-audit/src/main/java/com/nvidia/boot/audit/listener/BootAuditEventListener.java#L35).
+- Fixed classification: NVCA `agent.customAnnotations` is copied literally onto directly created worker Pods. It can identify a dedicated backend's organization, but cannot derive each submitter. `HelmCustomAnnotations` separately controls the Helm utility Pod, not every chart Pod.
+- Trusted submission service: an existing authenticated service could derive the principal and supply the Helm annotation. It must control the submission path and prevent callers from replacing the authoritative value. This additional component was not implemented or tested here. Arbitrary client values are not proof of identity.
+
+The preferred native solution is to retain the authenticated function creator, deployment actor and task submitter, then propagate the appropriate principal to workload/Pod annotations. A shared service credential must remain a service identity unless verified human delegation exists. Function invocation is a separate action and should not rewrite workload identity.
+
+The [NVCF request draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md) is limited to that capture and propagation. Generic Helm values, account IDs and audit logs already exist.
+
+Grouping is also separate. The Helm test resolved one Deployment workload. In the earlier direct-container captures, Pod owner references lacked `controller: true`, so the tested Karta exporter selected each Pod. OSMO bare tasks have the same integration gap. Their existing workload IDs and grouping metadata are available for a future Karta integration.
 
 
 <!-- pagebreak -->
@@ -662,7 +759,7 @@ The first query shows the active phase with `submitted_by`. The second shows eac
 | Run:AI | Training completed; inference HTTP 200; both attributed from workload metadata. | Agree the NVIDIA username format. External ingress and model inference were not tested. |
 | OSMO | Native label, guarded template and administrator mapping reach Karta. Full user is also in OSMO task metrics. | Production IdP not tested. Request lossless principal access; map only unique usernames in the meantime. |
 | NVCF / NVCT | HTTP function and finite task work. Supplied environment values reach containers. | Human metadata remains empty. Audit joins exist; request trusted creator/deployer/submitter metadata. |
-| NVCF Helm | Chart annotations render locally. | Live creation stopped at HELM registry credentials. Configure account read credentials, then test deployment, metadata and Karta metrics. |
+| NVCF Helm | ACTIVE; Service HTTP 200; Pod annotation appears on both Karta metrics. | Supplied value is not authenticated identity. Use a trusted submission path or native capture. Helm gateway invocation was not verified. |
 | Karta grouping | Controller ownership works for tested Kubernetes and Run:AI paths. | OSMO bare tasks and captured NVCF direct Pods remain separate workloads. Add integration for their existing grouping metadata. |
 | Karta selectors | Admission namespace selectors and CEL identity matching work. | Admission GVK `matchConditions` and workload LIST/WATCH selectors are proposals. |
 

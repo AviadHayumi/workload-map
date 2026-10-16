@@ -1,0 +1,62 @@
+{
+  "checkedDate": "2026-10-16",
+  "operation": "isolated Helm function metadata transport",
+  "chart": "https://helm.ngc.nvidia.com/nvidia/charts/nim-llm-1.14.0-pb5.0.tgz",
+  "chartSHA256": "421d65ba7528c834a8b8a27c41186d1531bf3e927223c3922e1718b3e671e716",
+  "versions": {
+    "nvcf": "1.18.0",
+    "nvct": "1.66.0",
+    "nvca": "3.10.0",
+    "reval": "0.20.2",
+    "kubernetes": "v1.35.5"
+  },
+  "registeredRegistryCredentialChanged": false,
+  "registryPushPerformed": false,
+  "suppliedCredentialStored": false,
+  "suppliedCredentialRead": {
+    "tritonChart": 403,
+    "nvcfSampleChart": 403,
+    "nimChartMetadata": 200,
+    "nimChartPull": 200
+  },
+  "storedCredentialComparedWithSuppliedCredential": false,
+  "functionStatus": "ACTIVE",
+  "serviceHTTP": {
+    "httpStatus": 200,
+    "path": "owned port-forward to function Service",
+    "responseBytes": 187,
+    "bodySHA256": "411372345ffabd3a7daf97f3dce9cfffbd36586d51e08f232c01963d08538181"
+  },
+  "gatewayAttempt": {
+    "httpStatus": 403,
+    "credentialType": "management JWT",
+    "successEstablished": false
+  },
+  "revalValidation": {
+    "valid": true,
+    "validationErrors": []
+  },
+  "submitterValue": "transport-test-only",
+  "valueSource": "caller-supplied chart configuration",
+  "authenticatedPrincipalCaptureProven": false,
+  "deploymentRootHasSubmitterAnnotation": false,
+  "podTemplateAndPodHaveSubmitterAnnotation": true,
+  "kartaOwnerChain": [
+    "Pod",
+    "ReplicaSet",
+    "Deployment"
+  ],
+  "bothKartaMetricFamiliesCarryValue": true,
+  "workloadObservationHealthy": 1,
+  "temporarySettings": {
+    "k8sVersionOverride": "v1.35.5",
+    "featureFlagAppended": "-HelmSharedStorage",
+    "backendWide": true,
+    "restored": true
+  },
+  "existingRevalSkipSanitizeObjectMetadata": true,
+  "strictSanitizationLiveTested": false,
+  "sourceAPIChanges": false,
+  "fixture": "public Python HTTP server; fake GPU allocation; no model inference",
+  "sanitization": "Namespace and object UIDs replaced consistently in retained objects and metrics; no credentials, endpoints or account IDs retained"
+}

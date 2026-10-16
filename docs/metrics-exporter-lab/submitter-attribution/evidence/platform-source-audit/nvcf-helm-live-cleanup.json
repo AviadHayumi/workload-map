@@ -1,0 +1,16 @@
+{
+  "functionDeploymentDeleteHTTP": 200,
+  "functionVersionDeleteHTTP": 204,
+  "removedFailedRequestCount": 2,
+  "storageFlagRestored": true,
+  "versionOverrideRestored": true,
+  "credentialDiscarded": true,
+  "ownedForwardsStopped": true,
+  "statelessJWTRevocationClaimed": false,
+  "operatorAndAgentReady": true,
+  "effectiveVersionOverrideAbsent": true,
+  "effectiveDisableSharedStorageAbsent": true,
+  "podsRemaining": 0,
+  "miniservicesRemaining": 0,
+  "icmsrequestsRemaining": 0
+}

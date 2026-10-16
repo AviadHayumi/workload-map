@@ -1,0 +1,22 @@
+{
+  "operation": "chart metadata reads only",
+  "credentialStored": false,
+  "results": [
+    {
+      "check": "indexed-triton-chart",
+      "httpStatus": 403,
+      "statusCode": "FORBIDDEN",
+      "statusDescription": "Access Denied"
+    },
+    {
+      "check": "documented-nvcf-sample",
+      "httpStatus": 403,
+      "statusCode": "FORBIDDEN",
+      "statusDescription": "Access Denied"
+    },
+    {
+      "check": "indexed-nim-chart",
+      "httpStatus": 200
+    }
+  ]
+}

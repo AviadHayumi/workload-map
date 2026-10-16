@@ -1,0 +1,9 @@
+{
+  "name": "karta-helm-attribution-retest-20261016",
+  "inferenceUrl": "/",
+  "inferencePort": 8080,
+  "healthUri": "/",
+  "helmChart": "https://helm.ngc.nvidia.com/nvidia/charts/nim-llm-1.14.0-pb5.0.tgz",
+  "helmChartServiceName": "karta-helm-attribution-retest",
+  "apiBodyFormat": "CUSTOM"
+}

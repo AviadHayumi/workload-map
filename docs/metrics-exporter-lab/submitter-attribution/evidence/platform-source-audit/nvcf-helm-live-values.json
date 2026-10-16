@@ -1,0 +1,92 @@
+{
+  "fullnameOverride": "karta-helm-attribution-retest",
+  "statefulSet": {
+    "enabled": false
+  },
+  "replicaCount": 1,
+  "image": {
+    "repository": "docker.io/library/python",
+    "tag": "3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4",
+    "pullPolicy": "IfNotPresent"
+  },
+  "imagePullSecrets": [
+    {
+      "name": "karta-http-fixture-unused-pull"
+    }
+  ],
+  "model": {
+    "ngcAPIKey": "unused-http-fixture",
+    "ngcAPISecret": "karta-http-fixture-placeholder",
+    "openaiPort": 8080
+  },
+  "podAnnotations": {
+    "workload.dgxc.nvidia.com/submitter-id": "transport-test-only"
+  },
+  "podSecurityContext": {
+    "runAsUser": 1001,
+    "runAsGroup": 1001,
+    "fsGroup": 1001
+  },
+  "containerSecurityContext": {
+    "allowPrivilegeEscalation": false,
+    "capabilities": {
+      "drop": [
+        "ALL"
+      ]
+    },
+    "runAsNonRoot": true
+  },
+  "resources": {
+    "requests": {
+      "cpu": "50m",
+      "memory": "64Mi"
+    },
+    "limits": {
+      "cpu": "250m",
+      "memory": "128Mi",
+      "nvidia.com/gpu": 1
+    }
+  },
+  "service": {
+    "type": "ClusterIP",
+    "name": "karta-helm-attribution-retest",
+    "openaiPort": 8080
+  },
+  "startupProbe": {
+    "path": "/",
+    "initialDelaySeconds": 0
+  },
+  "readinessProbe": {
+    "path": "/",
+    "initialDelaySeconds": 0
+  },
+  "livenessProbe": {
+    "path": "/"
+  },
+  "serviceAccount": {
+    "create": false
+  },
+  "persistence": {
+    "enabled": false
+  },
+  "multiNode": {
+    "enabled": false
+  },
+  "ingress": {
+    "enabled": false
+  },
+  "customCommand": [
+    "python3",
+    "-m",
+    "http.server",
+    "8080",
+    "--directory",
+    "/tmp"
+  ],
+  "env": [
+    {
+      "name": "PYTHONDONTWRITEBYTECODE",
+      "value": "1"
+    }
+  ]
+}

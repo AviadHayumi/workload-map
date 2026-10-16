@@ -1,0 +1,75 @@
+[
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "karta-helm-attribution-retest",
+      "namespace": "karta-helm-test",
+      "uid": "00000000-0000-4000-8000-000000000001",
+      "ownerReferences": [],
+      "annotations": {}
+    },
+    "status": {
+      "availableReplicas": 1,
+      "readyReplicas": 1,
+      "replicas": 1
+    },
+    "templateAnnotations": {
+      "workload.dgxc.nvidia.com/submitter-id": "transport-test-only"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "ReplicaSet",
+    "metadata": {
+      "name": "karta-helm-attribution-retest-6cfd85f46d",
+      "namespace": "karta-helm-test",
+      "uid": "00000000-0000-4000-8000-000000000002",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Deployment",
+          "name": "karta-helm-attribution-retest",
+          "uid": "00000000-0000-4000-8000-000000000001"
+        }
+      ],
+      "annotations": {}
+    },
+    "status": {
+      "availableReplicas": 1,
+      "readyReplicas": 1,
+      "replicas": 1
+    },
+    "templateAnnotations": {
+      "workload.dgxc.nvidia.com/submitter-id": "transport-test-only"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "karta-helm-attribution-retest-6cfd85f46d-fvsmp",
+      "namespace": "karta-helm-test",
+      "uid": "00000000-0000-4000-8000-000000000003",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "karta-helm-attribution-retest-6cfd85f46d",
+          "uid": "00000000-0000-4000-8000-000000000002"
+        }
+      ],
+      "annotations": {
+        "workload.dgxc.nvidia.com/submitter-id": "transport-test-only"
+      }
+    },
+    "status": {
+      "phase": "Running"
+    },
+    "templateAnnotations": {}
+  }
+]
