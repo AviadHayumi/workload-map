@@ -39,6 +39,48 @@ invalidation. A cluster-scoped root also passed exact membership across two
 namespaces, and a namespace-only index rejected that query as incomplete coverage.
 These are correctness checks, not performance claims.
 
+## Exercise real consumer flows
+
+Three additional E2E tests cover the SDK examples against running controllers:
+
+| Test | What must happen |
+| --- | --- |
+| [Job lifecycle](consumer_e2e_test.go) | Persist Suspend, edit a suspended template, Resume, then verify Karta lifecycle phases and Kubernetes status. The actual Pod must inherit the template label. |
+| [JobSet scopes](consumer_e2e_test.go) | Persist a workers-only template label. Chief stays unchanged. Return exact full Pods by component, named instance, replica and scheduling gang. |
+| [LeaderWorkerSet gangs](scheduling_groups_test.go) | Each group contains its actual leader and worker. Groups never cross replica boundaries or lose full Pod fields. |
+
+Each flow runs through direct discovery, an index and an index with attribution reuse.
+The lifecycle tests start from both the root and its actual Pods.
+They retain earlier observations and verify that later API changes leave them intact.
+
+Expected full Pod bodies come from a separate dynamic-client List and independent
+conversion to Kubernetes Pod types. The SDK reader is not its own body oracle.
+LWS membership also uses the independent fixture UID oracle above.
+
+The Job test checks Karta phases `Suspended`, `Running` and `Completed` in
+`DesiredTree(ctx).Status.Phases`. It separately verifies that
+`RootStatus.Conditions` preserves the controller's raw conditions.
+The API waits require Job `Suspended=True`, then `status.ready=1`, then `Complete=True`.
+The actual Pod moves from Kubernetes phase `Running` to `Succeeded`.
+
+The Job waits for an explicit completion signal inside its container.
+The test releases it with `kubectl exec` after checking the running state, so timing
+alone cannot skip it. Controller status is never fabricated.
+Mutation tests create temporary namespaces and register cleanup immediately.
+
+JobSet v0.10.1 permits selected Pod-template scheduling changes while suspended.
+The test persists a label edit before the first start, then checks that only
+workers inherit it. This does not imply arbitrary template or instance-name edits
+are accepted. See the [upstream update validation](https://github.com/kubernetes-sigs/jobset/blob/v0.10.1/pkg/webhooks/jobset_webhook.go#L285-L303).
+
+After preparing the cluster and oracle below, run just these flows:
+
+```bash
+KARTA_DISCOVERY_MUTATION_TESTS=true \
+  go test -race -tags live_discovery ./test/discovery -count=1 -v \
+  -run '^(TestLiveConsumerJobLifecycle|TestLiveConsumerJobSetScopes|TestLiveLeaderWorkerSchedulingGroups)$'
+```
+
 ## Prepare the dedicated cluster
 
 Run from the repository root. Prerequisites are Docker, kind, kubectl, Python 3.9
@@ -138,8 +180,8 @@ attribution entries before ownership changes. The cluster-root test
 creates a temporary cluster-scoped CRD and Pods in two namespaces, checks
 all-namespace membership, and rejects a namespace-only index. A separate suspended
 JobSet checks named-instance scopes, a metadata update with a forced API conflict,
-and replacement by a new UID. Its immutable declarations are not changed in place;
-unit tests cover declaration changes under the same UID:
+and replacement by a new UID. Its instance names are not changed in place;
+unit tests cover instance declaration changes under the same UID:
 
 ```bash
 KARTA_DISCOVERY_MUTATION_TESTS=true \
@@ -183,6 +225,7 @@ contract and examples are in [Live Workload Discovery](../../docs/Live%20Workloa
 
 The mutation suite also creates a dedicated suspended JobSet to verify repeated
 named-instance scopes, a published metadata update, and delete/recreate with a
-new UID and different instance name. JobSet makes replicatedJobs immutable;
-same-UID declaration edits and internal cache-hit reuse are unit-tested. The
-live control does not weaken admission or alter existing operator fixtures.
+new UID and different instance name. Instance-name changes and internal
+cache-hit reuse are unit-tested. The separate consumer E2E test persists a
+permitted workers-only template-label edit while suspended. Neither test
+weakens admission or changes the shared operator fixtures.

@@ -373,6 +373,11 @@ Each mutation either succeeds completely or leaves the local copy unchanged.
 It never writes Kubernetes or changes a captured observation. Serialize access
 to the mutable `karta.Workload`; the caller owns persistence and conflict handling.
 
+The [live consumer tests](../../test/discovery/README.md#exercise-real-consumer-flows)
+persist permitted edits through Kubernetes, resume workloads and observe real
+controller status transitions. They also verify that a named JobSet template
+edit reaches only its workers' Pods.
+
 ## Query repeatedly and choose where state lives
 
 Reuse the same `observed` value when counting or selecting its Pods: these are

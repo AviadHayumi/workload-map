@@ -9,10 +9,72 @@ its desired templates, and errors when that information is incomplete.
 For example, starting from one JobSet Pod must return the JobSet and all three
 of its Pods. Returning only the Pod's immediate Job would fail the test.
 
+## End-to-end consumer flows
+
+The additional [live tests](../../test/discovery/README.md#exercise-real-consumer-flows)
+run against Kubernetes v1.34.0, JobSet v0.10.1 and LWS v0.7.0 in the dedicated kind cluster.
+
+- A Job is suspended, edited through the SDK, persisted and resumed.
+  Its Pod must inherit the edit. Karta must expose the expected lifecycle phases.
+- A suspended JobSet receives a workers-only template label.
+  Actual worker Pods inherit it; the chief does not.
+- JobSet component, instance, replica and scheduling-group queries return exact full Pods.
+- Each LWS scheduling gang contains its real leader and worker across component boundaries.
+- Direct, indexed and cached discovery preserve earlier observations and detached return values.
+
+The Job test distinguishes three status views:
+
+- `DesiredTree(ctx).Status.Phases`: Karta phases `Suspended`, `Running` and `Completed`.
+- `DesiredTree(ctx).RootStatus.Conditions`: the controller's raw condition type,
+  status, reason and message, preserved from the observed root.
+- `Pod.Status.Phase`: Kubernetes `Running`, then `Succeeded`.
+
+The API waits require Job `Suspended=True`, then `status.ready=1`, then `Complete=True`.
+Karta evaluates its phases from that controller-produced status.
+
+Full Pod expectations use an independent dynamic-client read and conversion.
+The finite Job waits for an explicit completion signal, so a slow test cannot
+miss its running state. API status is supplied by controllers throughout.
+
+Independent source review found a mutation contract bug: a container patch
+containing only a name could return success without changing anything.
+The shared validator now returns `ErrEmptyPatch` when no operation is present.
+[Regression tests](../../pkg/karta/empty_container_patch_test.go) cover typed and raw
+patches, static validation, meaningful mixed updates and atomic rejection of unknown selectors.
+
+The Go source and live tests for this run are committed at
+`e65001570192709b37045d7d3667411470107c3e`.
+The commands ran against those exact source files with Go 1.26.3 before commit;
+only documentation changed afterward.
+
+After preparing the dedicated cluster and corpus with the linked guides:
+
+```bash
+GOTOOLCHAIN=go1.26.3 GOWORK=off KARTA_DISCOVERY_MUTATION_TESTS=true \
+  go test -race -tags=live_discovery ./test/discovery -count=1 -v
+GOTOOLCHAIN=go1.26.3 GOWORK=off \
+  go test -race ./test/discovery -run TestRecorded -count=1 -v
+```
+
+The recording command requires `KARTA_RECORDING_CORPUS` to point to the full
+pinned corpus described in the [replay guide](../../test/discovery/RECORDINGS.md).
+Without it, the test uses the smaller checked-in fixture set.
+
+The final live run passed all seven live tests with the race detector and no skips.
+This includes the existing 42 operator-membership cases and the three new flows.
+Root race tests, exporter tests, normal lint and live-tagged lint passed too.
+The full recording replay still passed 582 state checks after the mutation fix.
+Its previously documented Grove extraction limitation and eight exclusions remain.
+
+The E2E run also corrected an earlier blanket statement about JobSet immutability.
+Suspended JobSets allow selected template scheduling edits; instance-name changes
+remain outside that allowance. The test proves the label-edit case directly.
+
 ## Recording replay and live validation
 
-The 2026-10-16 run added regression tests and consumer examples.
-Production library, exporter, catalog, metric and Helm files were unchanged in this update.
+The earlier recording run added regression tests and consumer examples.
+Its production library, exporter, catalog, metric and Helm files were unchanged.
+The subsequent empty-patch fix and consumer E2E coverage are described above.
 
 | Check | Result |
 | --- | --- |
@@ -214,8 +276,9 @@ The [live JobSet test](../../test/discovery/root_instances_test.go) checks repea
 named scopes, a metadata update with a forced API conflict, and replacement by a
 new UID.
 
-JobSet declarations are immutable through its Kubernetes API. Same-UID declaration
-changes and actual internal cache reuse are therefore checked by unit tests.
+JobSet instance-name changes are not permitted through its Kubernetes API.
+Same-UID instance declaration changes and actual internal cache reuse are checked
+by unit tests. The consumer E2E test separately persists a supported template-label edit.
 
 [Alias lifecycle tests](../../pkg/discovery/index_alias_lifecycle_test.go) check
 objects served through one or several API versions:
@@ -233,6 +296,7 @@ with another implementation.
 
 | Previous behavior | Correction | Coverage |
 | --- | --- | --- |
+| A selector-only container patch silently succeeded | Return `ErrEmptyPatch`; preserve validation and atomicity for meaningful mixed patches. | [Empty container patches](../../pkg/karta/empty_container_patch_test.go) |
 | The desired tree omitted the workload's own template and raw status | Include `Root` and `RootStatus`; retain the existing child view. | [Tree inspection](../../pkg/tree/inspection_test.go) |
 | Typed nil inputs could panic | Reject nil workload objects; return `ErrEmptyPatch` for nil updates. | [Constructors](../../pkg/karta/regression_test.go), [patches](../../pkg/karta/patch_contract_test.go) |
 | A read-only metadata path blocked a spec-only update | Check and route only the requested part. | [Interface regression](../../pkg/karta/regression_test.go) |
