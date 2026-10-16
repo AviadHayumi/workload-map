@@ -12,6 +12,19 @@ submitting principal. A creation audit identifies a client or API-key owner,
 which may be a service. Workload observers need a documented identity mapping
 across submission platforms, including service-key paths.
 
+## Follow-up test
+
+The `containerEnvironment` field was tested through both the function and finite
+task APIs. `KARTA_TEST_SUBMITTED_BY=alice@example.test` reached both Pod specs;
+the task returned that value from `printenv`. The function became ACTIVE and
+returned HTTP 200. Its image had no shell, so its process environment was not
+inspected. This was a caller-supplied fixture, not an authenticated principal.
+
+Neither path projected that value into Kubernetes labels or annotations. Both
+existing Karta metric families kept `submitted_by=""`. The remaining work is
+trusted identity capture and metadata projection, not basic environment transport.
+See [requests and captures](evidence/review-suggestions/README.md).
+
 ## Requested behavior
 
 1. Define the actor for each operation. Function creator, deployer and invoker

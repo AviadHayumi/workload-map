@@ -1,0 +1,10 @@
+{
+  "workflow": "suggestion-one-char-template-1",
+  "inputUser": "a",
+  "workflowStatus": "PENDING",
+  "taskStatus": "PROCESSING",
+  "podCreated": false,
+  "jobStatus": "FAILED_NO_RETRY",
+  "error": "Jinja substitution failure: UndefinedError: 'WF_SUBMITTED_BY' is undefined",
+  "capturedAt": "2026-10-16T10:55:39.175108+00:00"
+}

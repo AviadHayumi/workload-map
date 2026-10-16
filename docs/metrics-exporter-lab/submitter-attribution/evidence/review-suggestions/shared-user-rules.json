@@ -1,0 +1,3 @@
+{
+  "submittedByExpression": "(\n  [\n    \"workload.dgxc.nvidia.com/submitter-id\",\n    \"run.ai/submitted-by\",\n    \"workflow.example.com/submitter\",\n    \"platform.example.com/username\",\n    \"platform.example.com/created-by\"\n  ]\n  .filter(key, key in annotations && annotations[key] != \"\")\n  .map(key, annotations[key])\n  +\n  [\n    \"workload.dgxc.nvidia.com/user\",\n    \"identity.example.com/submitted-by\",\n    \"osmo.submitted_by\",\n    \"workflow.example.com/submitter\",\n    \"platform.example.com/username\",\n    \"platform.example.com/created-by\"\n  ]\n  .filter(key, key in labels && labels[key] != \"\")\n  .map(key, labels[key])\n  + [\"\"]\n)[0]\n"
+}

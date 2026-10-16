@@ -1,0 +1,9 @@
+{
+  "capturedAt": "2026-10-16T10:49:04.012072+00:00",
+  "functionId": "d3d51f06-846d-4097-b215-11e3780a9579",
+  "status": "ACTIVE",
+  "httpStatus": 200,
+  "bytes": 896,
+  "envInPodSpec": true,
+  "envExecutionCheck": "Image has no shell or printenv; not checked in process."
+}

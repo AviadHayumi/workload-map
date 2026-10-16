@@ -29,6 +29,7 @@ exporter:
         .map(key, annotations[key])
         +
         [
+          "workload.dgxc.nvidia.com/user",
           "identity.example.com/submitted-by",
           "osmo.submitted_by",
           "workflow.example.com/submitter",
@@ -43,7 +44,7 @@ exporter:
 
 Admission records the authenticated Kubernetes caller before a selected workload is saved. Karta's operator serves this webhook over HTTPS (TLS). Within the selected scope, it also rejects changes to the recorded identity. Keep `operator.enabled` and `webhook.enabled` true. Setting `exporter.attribution.admission.enabled: false` stops capture; CEL can still read existing platform metadata.
 
-Proposed platform label: `workload.dgxc.nvidia.com/user` for the agreed NVIDIA username. The tested CEL above does not read that key yet; add it to the label fallbacks when adopted. Organization attribution is outside this PoC.
+The shared user-label fallback was tested in a separate exporter. A Job labeled `workload.dgxc.nvidia.com/user: alice` produced `submitted_by="alice"` on both metrics, including its unlabeled Pod. The original exporter returned an empty value. No metric or Helm API changed. The agreed NVIDIA username still needs validation.
 
 <!-- pagebreak -->
 
@@ -310,43 +311,51 @@ These are the same workflow specifications used in the API test below. The CLI c
 
 ## OSMO: result and gaps
 
-The requests submit one task and a leader/worker group. Each task uses Ubuntu 24.04, one CPU, 512Mi memory and a 300-second command. Both workflows completed; all three tasks in the repeated run exited with code 0.
+The single-task and leader/worker tests completed with exit code 0. The workflow API returned `submitted_by: alice@example.test`; its task Pods had `osmo.submitted_by: alice`. Karta used each task Pod as the workload because this setup has no Kubernetes workflow CR.
 
-The workflow API returned `submitted_by: alice@example.test`. Kubernetes had no workflow CR in this setup. The identity available to CEL was on the task Pod. Captured fields:
+The shared label can also be added without changing OSMO code. An administrator can attach this Pod template to a selected platform's `override_pod_template` list, keeping the existing templates:
 
 ```yaml
-apiVersion: v1
-kind: Pod
 metadata:
-  name: e5d1abe4ce374717-e923b371aa294f01
   labels:
-    osmo.workflow_id: cel-label-single-2
-    osmo.task_name: worker
-    osmo.submitted_by: alice
+    workload.dgxc.nvidia.com/user: "{{WF_SUBMITTED_BY | default('')}}"
+    workload.dgxc.nvidia.com/org_heirarchy: demo_research_training
 ```
 
-CEL reads `labels["osmo.submitted_by"]`. Karta used each task Pod as the workload; the full identity in the OSMO API was not read by the exporter.
+Submit the same workflow with that platform selected. Captured task Pod fields:
+
+```yaml
+metadata:
+  labels:
+    osmo.workflow_id: suggestion-shared-email-1
+    osmo.task_name: worker
+    osmo.submitted_by: alice
+    workload.dgxc.nvidia.com/user: alice
+    workload.dgxc.nvidia.com/org_heirarchy: demo_research_training
+```
+
+The CEL expression on page 1 reads this label before `osmo.submitted_by`. Both metric families carried the value:
 
 ```prometheus
 karta_pod_workload_info{
-  workload="e5d1abe4ce374717-e923b371aa294f01",
+  workload="21c6fd9fd8db4da8-bb22bddc61ac4673",
   workload_kind="Pod", submitted_by="alice"
 } 1
 ```
 
-`karta_workload_status` carried the same `submitted_by="alice"`. Samples were captured while the tasks were running.
+The template receives the shortened user: both `alice` and `alice@example.test` became `alice`. It cannot recover the full email. This is enough only if that name matches the agreed NVIDIA username; that mapping was not verified.
 
-The API test used OSMO 6.3.1 with development headers `x-osmo-user: alice@example.test` and `x-osmo-roles: osmo-user`. Those headers supplied the test identity; production login was not tested. The workflows ran on a separate platform using the existing scheduler. No external identity mapper was used.
+The organization value above was a fixed test value. No AIHub lookup was tested, and no organization label was added to Karta's metrics. `org_heirarchy` follows the proposed key spelling; agree the final spelling before adoption.
 
-Observed OSMO limitation: the Pod label contains the name before the email domain. A short name can be valid if it matches the agreed NVIDIA username, but that mapping was not verified. Different emails can produce the same `alice`.
+Current gaps:
 
-Suggested OSMO feature request: document and expose a stable submitter identity on task Pods. Preserve the full principal in an annotation when needed. Today the full value requires a workflow API lookup; this PoC has no such adapter.
+- The user `a` had no submitter label/token. The unguarded template failed and left the workflow PENDING. The guard above lets it run with unknown attribution. Report both the missing identity and failure reporting to OSMO.
+- For a full or globally unique principal, ask OSMO to expose it in an annotation. The template alone does not solve that. No external identity mapper was used.
+- Workflow-level grouping remains missing: metrics identify task Pods. Open a Karta/OSMO integration issue for a workload root containing all tasks.
 
-Separate potential bug: the one-character user `a` produced no submitter label. Report it with the OSMO 6.3.1 development-auth reproduction and confirm the expected behavior with maintainers.
+These tests used OSMO 6.3.1 development headers, not production login. Existing platforms and the default selection were preserved. The new platform needed about ten minutes before its resources appeared.
 
-Separate Karta/OSMO grouping gap: there is no Kubernetes workflow root in this setup. Today the metric represents each task Pod. Suggested integration issue: provide a workload-root mapping so one workflow can contain all its tasks.
-
-[OSMO outcomes](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-outcomes.json) show completion and task exit codes. The original [identity edge tests](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/osmo-identity-results.json) cover the shortened and missing values.
+[Requests, template, outcomes and metrics](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/review-suggestions/README.md) include the follow-up tests. The original [single/group outcomes](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-outcomes.json) remain available.
 
 <!-- pagebreak -->
 
@@ -394,9 +403,7 @@ Observed: COMPLETED at 100%, with result uploads disabled.
 
 ## NVCF / NVCT: where the identity is missing
 
-The Kubernetes CR was `ICMSRequest` (`nvca.nvcf.nvidia.io/v2beta1`). Its metadata had account and function/task IDs, but no human submitter field. The Pods also lacked that field.
-
-These are the observed label paths, not user identities:
+The `ICMSRequest` CR (`nvca.nvcf.nvidia.io/v2beta1`) and its Pods had account and function/task IDs, but no human submitter:
 
 ```text
 ICMSRequest metadata.labels:
@@ -410,33 +417,33 @@ Pod metadata.labels:
   task-id                                # NVCT
 ```
 
-Both existing metric families had `submitted_by=""`. Captured HTTP-service sample:
+The suggested environment-variable path was tested in both APIs. Add this field to the function request, or append the entry to the task's existing `containerEnvironment` list:
+
+```json
+"containerEnvironment": [
+  {"key": "KARTA_TEST_SUBMITTED_BY", "value": "alice@example.test"}
+]
+```
+
+The function became ACTIVE and returned HTTP 200; the finite task completed. Both Pod specs contained the value; `printenv KARTA_TEST_SUBMITTED_BY` inside the running NVCT task returned `alice@example.test`. The function image had no shell or `printenv`, so its process environment was not inspected.
+
+This proves transport of a caller-supplied value, not capture of an authenticated user. Neither path copied it into labels or annotations. Both metric families still had `submitted_by=""`:
 
 ```prometheus
 karta_pod_workload_info{
-  workload="0-sr-df24444a-8807-4fc9-89c6-534c7a701643",
+  workload="0-sr-00f9ba22-94a7-414f-8ee2-cc085bff3aba",
   workload_kind="Pod", submitted_by=""
 } 1
 ```
 
-Feature request: carry the authenticated submitting principal from the NVCF API to NVCA, the cluster agent. A launch-spec environment variable could transport it. NVCA would also need to write it onto the ICMSRequest and its Pods: the current CEL extractor reads metadata, not container environment variables.
+The remaining feature request is for the API to capture a trusted principal and for NVCA to publish it as metadata on the workload and its Pods. The existing CEL can read `workload.dgxc.nvidia.com/submitter-id` from annotations, or the agreed username from `workload.dgxc.nvidia.com/user` labels. It cannot read container environment variables.
 
-For functions, first agree whether the submitter means creator or deployer. The caller invoking a running function is a different identity. This requests a new identity capability; it is not a failed propagation path in the tested version.
+For functions, agree whether submitter means creator or deployer. The invoker is a different identity. A service credential alone cannot identify the human behind it. No identity lookup or metadata projection was implemented in this test.
 
-Proposed metadata on both objects, not present in the captures:
+Grouping is also missing: Pod owner links lacked `controller: true`, so Karta used each Pod as the workload. Stamping only the ICMSRequest would not cover this path.
 
-```yaml
-metadata:
-  annotations:
-    workload.dgxc.nvidia.com/submitter-id: alice@example.test
-```
+Other current gaps from the earlier tests: NVCT helper image references did not resolve; overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4` worked. Malformed-task cancellation left an ICMSRequest requiring cleanup. Suggest separate issues.
 
-The CEL expression on page 1 already reads this key. Stamping only the CR would not cover this test: Pod owner links lacked `controller: true`, so Karta treated each Pod as the workload. Function/task-level grouping also needs a Karta/NVCF integration fix.
+Lab setup: self-managed NVCF, service credentials from OpenBao, fake GPU allocation and test-container CPU reduced to 100m. Hosted NVCF, human login and model inference were not tested.
 
-For now, leave the value empty. An external lookup could correlate account and function/version/task IDs with an audit record, but only if it contains the original user. No lookup was implemented. A service credential alone cannot identify a human. Suggested NVCF feature request: expose the authenticated submitter in Kubernetes metadata for functions and finite tasks, including service-key paths.
-
-Other current platform gaps: NVCT helper image references did not resolve; overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4` worked. NVCA left an ICMSRequest after malformed-task cancellation; manual cleanup was required. Suggest issues for both.
-
-Lab setup: self-managed NVCF with service credentials from OpenBao; test-container CPU reduced to 100m. Hosted NVCF and human login were not tested.
-
-See the [NVCF capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-active-resources.json), [NVCT capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvct-running-resources.json) and [identity issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md). No issues have been opened.
+See the [follow-up requests and captures](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/review-suggestions/README.md) and [identity feature-request draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md). No issues have been opened.

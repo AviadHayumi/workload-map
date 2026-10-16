@@ -1,0 +1,9 @@
+{
+  "metadata": {
+    "labels": {
+      "workload.dgxc.nvidia.com/user": "{{WF_SUBMITTED_BY}}",
+      "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training",
+      "workload.dgxc.nvidia.com/org_hierarchy": "demo_research_training"
+    }
+  }
+}

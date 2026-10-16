@@ -1,0 +1,130 @@
+{
+  "capturedAt": "2026-10-16T10:49:00.618927+00:00",
+  "resources": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "0-sr-00f9ba22-94a7-414f-8ee2-cc085bff3aba",
+      "namespace": "nvcf-backend",
+      "uid": "0f394ad3-c663-49b5-80e0-8aa0b5c2ec4f",
+      "labels": {
+        "function-id": "d3d51f06-846d-4097-b215-11e3780a9579"
+      },
+      "labelKeys": [
+        "ENVIRONMENT",
+        "FUNCTION_ID",
+        "FUNCTION_VERSION_ID",
+        "GPU_COUNT",
+        "NCA_ID",
+        "environment",
+        "function-id",
+        "function-version-id",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvcf.nvidia.io/deployment-id",
+        "nvcf.nvidia.io/gpu-specification-id",
+        "nvcf.nvidia.io/message-batch-id",
+        "performance_class"
+      ],
+      "annotationKeys": [
+        "FUNCTION_NAME",
+        "function-name",
+        "icms-cluster-group",
+        "icms-request-id",
+        "instance-count",
+        "nca-id",
+        "nvcf.nvidia.io/backend",
+        "nvcf.nvidia.io/environment",
+        "nvcf.nvidia.io/instance-type-name",
+        "nvcf.nvidia.io/instance-type-value",
+        "nvcf.nvidia.io/region"
+      ],
+      "testEnvironment": [
+        {
+          "path": "spec/containers/0/env/0",
+          "name": "KARTA_TEST_SUBMITTED_BY",
+          "value": "alice@example.test"
+        }
+      ],
+      "phase": "Running",
+      "owners": [
+        {
+          "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+          "kind": "ICMSRequest",
+          "name": "sr-00f9ba22-94a7-414f-8ee2-cc085bff3aba",
+          "uid": "6c820b62-7a09-4cdd-aa49-c6b9c995d525"
+        }
+      ]
+    },
+    {
+      "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+      "kind": "ICMSRequest",
+      "name": "sr-00f9ba22-94a7-414f-8ee2-cc085bff3aba",
+      "namespace": "nvcf-backend",
+      "uid": "6c820b62-7a09-4cdd-aa49-c6b9c995d525",
+      "labels": {},
+      "labelKeys": [
+        "SQSMessageID",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvca.nvcf.nvidia.io/function-id",
+        "nvca.nvcf.nvidia.io/function-version-id",
+        "nvcf.nvidia.io/message-batch-id"
+      ],
+      "annotationKeys": [
+        "storage.nvcf.nvidia.io/model-cache-selection"
+      ],
+      "testEnvironment": [],
+      "phase": null,
+      "owners": []
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "suggestion-shared-user-hwlch",
+      "namespace": "karta-suggestions",
+      "uid": "dbd75ede-30a9-4e9e-9568-e0c55c724393",
+      "labels": {},
+      "labelKeys": [
+        "batch.kubernetes.io/controller-uid",
+        "batch.kubernetes.io/job-name",
+        "controller-uid",
+        "job-name"
+      ],
+      "annotationKeys": [],
+      "testEnvironment": [],
+      "phase": "Pending",
+      "owners": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Job",
+          "name": "suggestion-shared-user",
+          "uid": "d9a3fb84-59dc-4045-97f6-342f1b35136f"
+        }
+      ]
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "name": "suggestion-shared-user",
+      "namespace": "karta-suggestions",
+      "uid": "d9a3fb84-59dc-4045-97f6-342f1b35136f",
+      "labels": {
+        "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "labelKeys": [
+        "workload.dgxc.nvidia.com/org_heirarchy",
+        "workload.dgxc.nvidia.com/user"
+      ],
+      "annotationKeys": [],
+      "testEnvironment": [],
+      "phase": null,
+      "owners": []
+    }
+  ]
+}

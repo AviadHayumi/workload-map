@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-10-16T10:56:12.386669+00:00",
+  "actions": [
+    {
+      "resource": "NVCF test definition",
+      "httpStatus": 204
+    },
+    {
+      "resource": "NVCT completed test",
+      "httpStatus": 204
+    }
+  ]
+}

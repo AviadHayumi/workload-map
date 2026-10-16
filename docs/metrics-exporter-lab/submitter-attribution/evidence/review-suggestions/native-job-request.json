@@ -1,0 +1,42 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "suggestion-shared-user",
+    "namespace": "karta-suggestions",
+    "labels": {
+      "workload.dgxc.nvidia.com/user": "alice",
+      "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training"
+    }
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 480,
+    "template": {
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [
+          {
+            "name": "worker",
+            "image": "busybox:1.36",
+            "command": [
+              "sh",
+              "-c",
+              "echo attribution-check; sleep 180; echo done"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "16Mi"
+              },
+              "limits": {
+                "cpu": "50m",
+                "memory": "32Mi"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "pod": "0-sr-f8321116-cea8-4aff-adaa-3d12dbdb51e4-task",
+  "container": "task",
+  "cpuRequestAndLimitBefore": "1",
+  "cpuRequestAndLimitAfter": "100m",
+  "reason": "Insufficient CPU in shared lab",
+  "capturedAt": "2026-10-16T10:50:07.108361+00:00"
+}

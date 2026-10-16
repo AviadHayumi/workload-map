@@ -1,0 +1,3 @@
+{
+  "file": "workflow:\n  name: suggestion-guarded-user\n  resources:\n    default:\n      cpu: 1\n      memory: 512Mi\n      storage: 1Gi\n      platform: karta-shared-label-check\n  tasks:\n  - name: worker\n    image: ubuntu:24.04\n    command:\n    - /bin/sh\n    - -c\n    args:\n    - echo attribution-check; sleep 60; echo done\n"
+}

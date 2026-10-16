@@ -1,0 +1,19 @@
+{
+  "scope": "only this newly submitted test container",
+  "cpuBefore": {
+    "limits": {
+      "cpu": "1",
+      "ephemeral-storage": "1Gi",
+      "memory": "1Gi",
+      "nvidia.com/gpu": "1"
+    },
+    "requests": {
+      "cpu": "1",
+      "ephemeral-storage": "1Gi",
+      "memory": "1Gi",
+      "nvidia.com/gpu": "1"
+    }
+  },
+  "cpuRequestAfter": "100m",
+  "cpuLimitAfter": "100m"
+}

@@ -1,0 +1,30 @@
+{
+  "job": "suggestion-shared-user",
+  "status": {
+    "completionTime": "2026-10-16T10:52:02Z",
+    "conditions": [
+      {
+        "lastProbeTime": "2026-10-16T10:52:02Z",
+        "lastTransitionTime": "2026-10-16T10:52:02Z",
+        "message": "Reached expected number of succeeded pods",
+        "reason": "CompletionsReached",
+        "status": "True",
+        "type": "SuccessCriteriaMet"
+      },
+      {
+        "lastProbeTime": "2026-10-16T10:52:02Z",
+        "lastTransitionTime": "2026-10-16T10:52:02Z",
+        "message": "Reached expected number of succeeded pods",
+        "reason": "CompletionsReached",
+        "status": "True",
+        "type": "Complete"
+      }
+    ],
+    "ready": 0,
+    "startTime": "2026-10-16T10:48:58Z",
+    "succeeded": 1,
+    "terminating": 0,
+    "uncountedTerminatedPods": {}
+  },
+  "capturedAt": "2026-10-16T10:54:01.706473+00:00"
+}

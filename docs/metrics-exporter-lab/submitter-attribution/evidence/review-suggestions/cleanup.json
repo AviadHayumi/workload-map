@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-10-16T10:59:17.458563+00:00",
+  "actions": [
+    {
+      "resource": "unguarded OSMO edge test",
+      "status": "FAILED_CANCELED",
+      "forcedCancellationRequired": true
+    },
+    {
+      "resource": "added OSMO platform",
+      "httpStatus": 200
+    },
+    {
+      "resource": "added OSMO template",
+      "httpStatus": 200
+    },
+    {
+      "resource": "nvcf-api disposable API key",
+      "httpStatus": 204
+    },
+    {
+      "resource": "nvct-api disposable API key",
+      "httpStatus": 204
+    },
+    {
+      "resource": "native test namespace",
+      "deleted": true
+    },
+    {
+      "resource": "temporary exporter",
+      "deleted": true
+    }
+  ],
+  "originalExporterSpecUnchanged": true,
+  "originalExporterConfigUnchanged": true,
+  "originalOsmoPoolRestored": true,
+  "originalOsmoTemplatesRestored": true,
+  "deploymentHealth": [
+    {
+      "namespace": "karta-submitter-test",
+      "name": "karta-submitter-runai-audit",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "karta-submitter-test",
+      "name": "karta-submitter-test",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "karta-submitter-test",
+      "name": "karta-submitter-test-exporter",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "localstack-s3",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-agent",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-delayed-job-monitor",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-logger",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-router",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-service",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-listener",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-submitter-lab-osmo-backend-worker",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-ui",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "osmo-worker",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "postgres",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "quick-start-envoy",
+      "desired": 1,
+      "ready": 1
+    },
+    {
+      "namespace": "osmo-submitter-lab",
+      "name": "redis",
+      "desired": 1,
+      "ready": 1
+    }
+  ],
+  "finalAbsenceChecks": {
+    "testNamespaceGone": true,
+    "extraExporterGone": true,
+    "osmoTestPodsRemaining": 0,
+    "nvcfTestResourcesRemaining": 0
+  }
+}

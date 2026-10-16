@@ -1,0 +1,275 @@
+{
+  "capturedAt": "2026-10-16T10:51:06.446728+00:00",
+  "resources": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "0-sr-f8321116-cea8-4aff-adaa-3d12dbdb51e4-task",
+      "namespace": "nvcf-backend",
+      "uid": "7d46a550-b2a5-4257-b036-caff527a84b9",
+      "labels": {
+        "task-id": "ae8fd0fb-3ede-47a3-b15f-e043147caf09"
+      },
+      "labelKeys": [
+        "ENVIRONMENT",
+        "GPU_COUNT",
+        "NCA_ID",
+        "TASK_ID",
+        "environment",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvcf.nvidia.io/deployment-id",
+        "nvcf.nvidia.io/gpu-specification-id",
+        "nvcf.nvidia.io/message-batch-id",
+        "performance_class",
+        "task-id"
+      ],
+      "annotationKeys": [
+        "TASK_NAME",
+        "icms-cluster-group",
+        "icms-request-id",
+        "instance-count",
+        "nca-id",
+        "nvcf.nvidia.io/backend",
+        "nvcf.nvidia.io/environment",
+        "nvcf.nvidia.io/instance-type-name",
+        "nvcf.nvidia.io/instance-type-value",
+        "nvcf.nvidia.io/region",
+        "task-name"
+      ],
+      "testEnvironment": [
+        {
+          "path": "spec/containers/0/env/1",
+          "name": "KARTA_TEST_SUBMITTED_BY",
+          "value": "alice@example.test"
+        }
+      ],
+      "phase": "Running",
+      "owners": [
+        {
+          "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+          "kind": "ICMSRequest",
+          "name": "sr-f8321116-cea8-4aff-adaa-3d12dbdb51e4",
+          "uid": "73e5f3ac-1cfa-4f88-b65c-b52ef1f8b946"
+        }
+      ]
+    },
+    {
+      "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+      "kind": "ICMSRequest",
+      "name": "sr-f8321116-cea8-4aff-adaa-3d12dbdb51e4",
+      "namespace": "nvcf-backend",
+      "uid": "73e5f3ac-1cfa-4f88-b65c-b52ef1f8b946",
+      "labels": {},
+      "labelKeys": [
+        "SQSMessageID",
+        "gpu-name",
+        "icms-request-id",
+        "nca-id",
+        "nvca.nvcf.nvidia.io/task-id",
+        "nvcf.nvidia.io/message-batch-id"
+      ],
+      "annotationKeys": [
+        "storage.nvcf.nvidia.io/model-cache-selection"
+      ],
+      "testEnvironment": [],
+      "phase": null,
+      "owners": []
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "01e729b22bb6468a-0a8a3d8e3e034c86",
+      "namespace": "osmo-submitter-lab",
+      "uid": "6bff819d-8b88-479a-8d12-bf4c4c853391",
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "683e5180595741279ecbc8afc10762a6",
+        "osmo.lead_container": "true",
+        "osmo.platform": "cel-audit-control-plane",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "0a8a3d8e3e034c86b47b8a80b14473cb",
+        "osmo.workflow_id": "suggestion-one-character-1",
+        "osmo.workflow_uuid": "01e729b22bb6468a82aa166246d085e0"
+      },
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.lead_container",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue"
+      ],
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "testEnvironment": [],
+      "phase": "Running",
+      "owners": []
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "21c6fd9fd8db4da8-bb22bddc61ac4673",
+      "namespace": "osmo-submitter-lab",
+      "uid": "30da8b93-b5f4-4c38-93db-a2b92c47afc2",
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "b4679373fa80435baf84173976708b2d",
+        "osmo.lead_container": "true",
+        "osmo.platform": "karta-shared-label-check",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "bb22bddc61ac4673b2688b7a9b990b94",
+        "osmo.workflow_id": "suggestion-shared-email-1",
+        "osmo.workflow_uuid": "21c6fd9fd8db4da89a45edffbff5f558",
+        "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/org_hierarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.lead_container",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.submitted_by",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue",
+        "workload.dgxc.nvidia.com/org_heirarchy",
+        "workload.dgxc.nvidia.com/org_hierarchy",
+        "workload.dgxc.nvidia.com/user"
+      ],
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "testEnvironment": [],
+      "phase": "Running",
+      "owners": []
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "44d49dc6d1ab42a4-6828c7a4377d42a6",
+      "namespace": "osmo-submitter-lab",
+      "uid": "865de13f-01fb-4f26-bf09-7b05ab75f79a",
+      "labels": {
+        "osmo.group_name": "worker-group",
+        "osmo.group_uuid": "d3642eb01e2d4f2c806767559041fa32",
+        "osmo.lead_container": "true",
+        "osmo.platform": "karta-shared-label-check",
+        "osmo.pool": "default",
+        "osmo.priority": "normal",
+        "osmo.retry_id": "0",
+        "osmo.submitted_by": "alice",
+        "osmo.task_name": "worker",
+        "osmo.task_uuid": "6828c7a4377d42a698f51671683834be",
+        "osmo.workflow_id": "suggestion-shared-user-3",
+        "osmo.workflow_uuid": "44d49dc6d1ab42a4b3ec6acfe490b62f",
+        "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/org_hierarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "labelKeys": [
+        "kai.scheduler/queue",
+        "kubernetes.io/os",
+        "node-role.kubernetes.io/control-plane",
+        "osmo.group_name",
+        "osmo.group_uuid",
+        "osmo.lead_container",
+        "osmo.platform",
+        "osmo.pool",
+        "osmo.priority",
+        "osmo.retry_id",
+        "osmo.submitted_by",
+        "osmo.task_name",
+        "osmo.task_uuid",
+        "osmo.workflow_id",
+        "osmo.workflow_uuid",
+        "runai/queue",
+        "workload.dgxc.nvidia.com/org_heirarchy",
+        "workload.dgxc.nvidia.com/org_hierarchy",
+        "workload.dgxc.nvidia.com/user"
+      ],
+      "annotationKeys": [
+        "pod-group-name",
+        "received-resource-type"
+      ],
+      "testEnvironment": [],
+      "phase": "Running",
+      "owners": []
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "suggestion-shared-user-hwlch",
+      "namespace": "karta-suggestions",
+      "uid": "dbd75ede-30a9-4e9e-9568-e0c55c724393",
+      "labels": {},
+      "labelKeys": [
+        "batch.kubernetes.io/controller-uid",
+        "batch.kubernetes.io/job-name",
+        "controller-uid",
+        "job-name"
+      ],
+      "annotationKeys": [],
+      "testEnvironment": [],
+      "phase": "Running",
+      "owners": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Job",
+          "name": "suggestion-shared-user",
+          "uid": "d9a3fb84-59dc-4045-97f6-342f1b35136f"
+        }
+      ]
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "name": "suggestion-shared-user",
+      "namespace": "karta-suggestions",
+      "uid": "d9a3fb84-59dc-4045-97f6-342f1b35136f",
+      "labels": {
+        "workload.dgxc.nvidia.com/org_heirarchy": "demo_research_training",
+        "workload.dgxc.nvidia.com/user": "alice"
+      },
+      "labelKeys": [
+        "workload.dgxc.nvidia.com/org_heirarchy",
+        "workload.dgxc.nvidia.com/user"
+      ],
+      "annotationKeys": [],
+      "testEnvironment": [],
+      "phase": null,
+      "owners": []
+    }
+  ]
+}

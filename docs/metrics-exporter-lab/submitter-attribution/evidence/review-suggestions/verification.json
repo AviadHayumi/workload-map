@@ -1,0 +1,15 @@
+{
+  "capturedAt": "2026-10-16T11:01:59.050859+00:00",
+  "sharedLabelBaselineComparison": true,
+  "rootToPodInheritance": true,
+  "osmoFiveSuccessfulWorkflows": true,
+  "osmoTemplateFailureReproducedAndForceCanceled": true,
+  "guardedTemplateUnknownRemainsEmpty": true,
+  "nvcfAndNvctEnvironmentNotReadAsIdentity": true,
+  "nativeJobCompleted": true,
+  "nvctCompletedPercent": 100,
+  "verifiedCaseObservationHealthAllOne": true,
+  "initialSnapshotsAlsoContainTransientUnhealthyRows": true,
+  "metricAndHelmApisChanged": false,
+  "organizationMetricAdded": false
+}

@@ -1,0 +1,23 @@
+{
+  "name": "suggestion-env-function",
+  "containerImage": "nvcr.io/nvidia/omniverse/simple-nginx:1.0.2",
+  "inferenceUrl": "/",
+  "inferencePort": 80,
+  "health": {
+    "protocol": "HTTP",
+    "uri": "/",
+    "port": 80,
+    "timeout": "PT10S",
+    "expectedStatusCode": 200
+  },
+  "description": "Finite attribution audit; HTTP fixture",
+  "tags": [
+    "attribution-lab"
+  ],
+  "containerEnvironment": [
+    {
+      "key": "KARTA_TEST_SUBMITTED_BY",
+      "value": "alice@example.test"
+    }
+  ]
+}

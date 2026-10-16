@@ -1,0 +1,89 @@
+{
+  "capturedAt": "2026-10-16T10:58:52.696896+00:00",
+  "workflows": [
+    {
+      "case": "shared-user",
+      "name": "suggestion-shared-user-3",
+      "submitted_by": "alice",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "exit_code": 0,
+          "failure_message": null
+        }
+      ]
+    },
+    {
+      "case": "shared-email",
+      "name": "suggestion-shared-email-1",
+      "submitted_by": "alice@example.test",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "exit_code": 0,
+          "failure_message": null
+        }
+      ]
+    },
+    {
+      "case": "one-character",
+      "name": "suggestion-one-character-1",
+      "submitted_by": "a",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "exit_code": 0,
+          "failure_message": null
+        }
+      ]
+    },
+    {
+      "case": "one-char-template",
+      "name": "suggestion-one-char-template-1",
+      "submitted_by": "a",
+      "status": "FAILED_CANCELED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "FAILED_CANCELED",
+          "exit_code": null,
+          "failure_message": "Task was canceled by user: admin."
+        }
+      ]
+    },
+    {
+      "case": "guarded-one-char",
+      "name": "suggestion-guarded-one-char-1",
+      "submitted_by": "a",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "exit_code": 0,
+          "failure_message": null
+        }
+      ]
+    },
+    {
+      "case": "guarded-user",
+      "name": "suggestion-guarded-user-1",
+      "submitted_by": "alice",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "exit_code": 0,
+          "failure_message": null
+        }
+      ]
+    }
+  ]
+}
