@@ -152,7 +152,11 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 			return false
 		}
 		cached := watched.informer.GetStore()
-		item, exists, err := cached.GetByKey(u.GetNamespace() + "/" + u.GetName())
+		key, err := cache.MetaNamespaceKeyFunc(u)
+		if err != nil {
+			return false
+		}
+		item, exists, err := cached.GetByKey(key)
 		current, valid := asUnstructured(item)
 		if err != nil || !exists || !valid || current.GetUID() != u.GetUID() || current.GroupVersionKind() != gvk {
 			return false
@@ -183,7 +187,7 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 			(selectedEntry != entry && (selectedEntry.Catalog != entry.Catalog || !reflect.DeepEqual(selectedEntry.Karta, entry.Karta))) {
 			return false
 		}
-		item, exists, err = cached.GetByKey(u.GetNamespace() + "/" + u.GetName())
+		item, exists, err = cached.GetByKey(key)
 		current, valid = asUnstructured(item)
 		if err != nil || !exists || !valid || current.GetUID() != u.GetUID() ||
 			current.GroupVersionKind() != gvk || current.GetResourceVersion() != u.GetResourceVersion() {
@@ -527,7 +531,7 @@ func (c *Controller) attributeTrackedPod(pod *corev1.Pod, podKey string) {
 		return
 	}
 
-	item, exists, err := workloadStore.GetByKey(pod.Namespace + "/" + result.Root.Name)
+	item, exists, err := workloadStore.GetByKey(cache.NewObjectName(result.Root.Namespace, result.Root.Name).String())
 	if err != nil || !exists {
 		c.store.DeletePod(pod.UID)
 		c.index.MarkPending(result.Root.UID, podKey)
@@ -614,7 +618,7 @@ func (c *Controller) reattributeDescendants(uid types.UID) {
 		if cached == nil {
 			continue
 		}
-		obj, exists, err := cached.GetByKey(ref.Namespace + "/" + ref.Name)
+		obj, exists, err := cached.GetByKey(cache.NewObjectName(ref.Namespace, ref.Name).String())
 		if err == nil && exists {
 			c.processWorkload(obj, false)
 		}
@@ -636,7 +640,7 @@ func (c *Controller) retryPendingWorkloads() {
 		if cached == nil {
 			return true
 		}
-		item, exists, err := cached.GetByKey(ref.Namespace + "/" + ref.Name)
+		item, exists, err := cached.GetByKey(cache.NewObjectName(ref.Namespace, ref.Name).String())
 		if err != nil || !exists {
 			c.pendingWorkloads.CompareAndDelete(key, ref)
 			return true
@@ -700,7 +704,7 @@ func (c *Controller) retireObservedWorkloadDeletions() {
 			if !informer.HasSynced() {
 				return true
 			}
-			item, exists, err := informer.GetStore().GetByKey(ref.Namespace + "/" + ref.Name)
+			item, exists, err := informer.GetStore().GetByKey(cache.NewObjectName(ref.Namespace, ref.Name).String())
 			current, valid := item.(metav1.Object)
 			if err != nil || (exists && (!valid || current.GetUID() == ref.UID)) {
 				return true

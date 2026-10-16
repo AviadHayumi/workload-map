@@ -312,6 +312,7 @@ func (i *Index) Resolve(ownerRefs []metav1.OwnerReference, isRoot func(schema.Gr
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	namespace := ""
+	namespaceKnown := candidate != nil || len(namespaces) > 0
 	if candidate != nil {
 		namespace = candidate.Namespace
 	}
@@ -340,11 +341,17 @@ func (i *Index) Resolve(ownerRefs []metav1.OwnerReference, isRoot func(schema.Gr
 			return WalkResult{Outcome: OutcomeDepthExceeded}
 		}
 		middle, ok := i.nodes[current.UID]
-		if !ok || (middle.ref.Name != "" && (middle.ref.Name != current.Name || middle.ref.GVK.GroupKind() != gvk.GroupKind() || (namespace != "" && middle.ref.Namespace != namespace))) {
+		if !ok || (middle.ref.Name != "" && (middle.ref.Name != current.Name || middle.ref.GVK.GroupKind() != gvk.GroupKind() || (namespaceKnown && middle.ref.Namespace != "" && middle.ref.Namespace != namespace))) {
 			return WalkResult{Outcome: OutcomeMissing, Missing: current.UID, MissingRef: Ref{UID: current.UID, Name: current.Name, GVK: gvk}}
 		}
+		if middle.ref.Name != "" {
+			// Namespaced dependents may have cluster-scoped owners, but a
+			// cluster-scoped object cannot point back into a namespace.
+			namespace = middle.ref.Namespace
+			namespaceKnown = true
+		}
 		if isRoot(gvk.GroupKind()) {
-			best = &Ref{UID: current.UID, GVK: gvk, Name: current.Name}
+			best = &Ref{UID: current.UID, Namespace: namespace, GVK: gvk, Name: current.Name}
 		}
 		current = middle.owner
 	}

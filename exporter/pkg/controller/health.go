@@ -577,10 +577,13 @@ func (v *ownerVerifier) root(ctx context.Context, obj metav1.Object, candidate t
 				v.failures[ref.UID] = err
 				return "", "", err
 			}
+			ownerNamespace := namespace
 			if mapping.Scope.Name() == meta.RESTScopeNameRoot {
-				return "", "", fmt.Errorf("%w: controller owner is not namespaced", errUnresolvedOwner)
+				ownerNamespace = ""
+			} else if namespace == "" {
+				return "", "", fmt.Errorf("%w: cluster-scoped dependent has a namespaced owner", errUnresolvedOwner)
 			}
-			fetched, err := v.controller.metadataClient.Resource(mapping.Resource).Namespace(namespace).Get(ctx, ref.Name, metav1.GetOptions{})
+			fetched, err := v.controller.metadataClient.Resource(mapping.Resource).Namespace(ownerNamespace).Get(ctx, ref.Name, metav1.GetOptions{})
 			if err != nil {
 				v.failures[ref.UID] = err
 				return "", "", err
@@ -592,7 +595,7 @@ func (v *ownerVerifier) root(ctx context.Context, obj metav1.Object, candidate t
 			v.objects[ref.UID] = next
 		}
 		nextObject, hasKind := next.(runtime.Object)
-		if next.GetUID() != ref.UID || next.GetName() != ref.Name || next.GetNamespace() != namespace || !hasKind || nextObject.GetObjectKind().GroupVersionKind().GroupKind() != gvk.GroupKind() {
+		if next.GetUID() != ref.UID || next.GetName() != ref.Name || (next.GetNamespace() != "" && next.GetNamespace() != namespace) || !hasKind || nextObject.GetObjectKind().GroupVersionKind().GroupKind() != gvk.GroupKind() {
 			return "", "", fmt.Errorf("%w: %s/%s %s", errUnresolvedOwner, namespace, ref.Name, gvk.String())
 		}
 		if v.cacheMismatches[next.GetUID()] {
@@ -601,6 +604,7 @@ func (v *ownerVerifier) root(ctx context.Context, obj metav1.Object, candidate t
 		if v.entries[gvk.GroupKind()] != nil {
 			root = ref.UID
 		}
+		namespace = next.GetNamespace()
 		obj = next
 	}
 }
