@@ -6,7 +6,7 @@
     "method": [
       "Five independent processes per implementation and fixture profile, three implementations.",
       "Alternate original/previous/optimized and optimized/previous/original order; timed processes run serially.",
-      "GOMAXPROCS=2 and GOGC=100 in both modes.",
+      "GOMAXPROCS=2 and GOGC=100 in all implementations.",
       "Fixed operation counts, same fixtures and output correctness checks.",
       "Do not drop slow samples. Report medians and ranges.",
       "CPU and peak RSS measured for the whole precompiled child; compilation excluded.",

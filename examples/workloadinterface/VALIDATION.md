@@ -580,3 +580,8 @@ Focused regression tests:
 [terminal validation](../../pkg/ownership/trace_terminal_test.go),
 [long-path failures](../../pkg/ownership/trace_validation_test.go), and
 [index compatibility](../../pkg/ownership/resolve_test.go).
+
+Final presubmit also passed: root `make check`, root `make lint-go` and
+`make -C exporter check`. Generated files and dependency-license reports stayed
+unchanged. The first concurrent lint attempt hit the linter's process lock;
+the sequential rerun passed without changing code or lint settings.
