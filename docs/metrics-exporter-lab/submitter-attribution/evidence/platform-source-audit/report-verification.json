@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-16T12:10:17.248682+00:00",
+  "reportBaseCommit": "4825bcf0",
+  "implementationCommit": "49ff26cccd65a64fd69f74ebc2547d7b2de51459",
+  "implementationUnchanged": true,
+  "sourceReview": {
+    "karta": "watch scope, identity evaluator, admission webhook, chart and retained live evidence",
+    "osmo": "6.3.1 and 6.4.0 source plus retained lab captures",
+    "nvcf": "81d815fedda70477655a4ecc1b1a4ee6b4187a32 plus retained lab captures",
+    "runai": "retained API requests, resulting resources, metrics and revision-proxy HTTP result"
+  },
+  "freshChecks": {
+    "exporterIdentityAndControllerTests": "passed",
+    "operatorSubmitterAdmissionTests": "passed",
+    "helmFullExpressionRender": "passed",
+    "helmMatchingRulesRender": "passed",
+    "compiledExampleCases": 14,
+    "compiledExampleCasesPassed": 14,
+    "shellBlocksSyntaxChecked": 11,
+    "yamlBlocksParsed": 11,
+    "jsonBlocksParsed": 1
+  },
+  "priorFullChecks": "Full root/exporter/operator make check results retained in ../submitted-by/validation.json; implementation source unchanged.",
+  "pdf": {
+    "pages": 14,
+    "linkAnnotations": 21,
+    "allPagesVisuallyInspected": true,
+    "textBounds": "passed",
+    "title": "Who submitted the workload?",
+    "sha256": "5634e8e4689c152e77af07724975ea93acc3d758ca0a4a4c931725e2dbff2395"
+  },
+  "markdownSHA256": "861df9b4872e404eaa0100cd8feb24c41c879e4def2c7b14df1c089bdd358a80",
+  "liveTestsRepeatedInThisDocumentPass": false,
+  "limits": [
+    "OSMO production IdP and NVIDIA username mapping not verified",
+    "NVCF live Helm path blocked before function creation by registry prerequisites; no full Helm-to-Karta result",
+    "No new authentication or cluster operations in this pass",
+    "Karta watch selector and admission matchConditions remain proposals",
+    "OSMO and NVCF direct-Pod workload grouping remains an integration gap"
+  ]
+}

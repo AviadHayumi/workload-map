@@ -11,7 +11,7 @@ In [6.3.1 label generation](https://github.com/NVIDIA/OSMO/blob/ed59b69715e4ee6f
 
 A live 6.3.1 check covered six Pods across three leader/worker groups. With an administrator mapping, both `alice@example.test` and `alice` produced the configured `alice@example.test` annotation. Karta read that value into `karta_pod_workload_info` and `karta_workload_status`. The missing `a` lookup stayed empty. This confirms the workaround, but a map requires unique lookup keys and maintained identity data. These tests used development authentication; production IdP integration and NVIDIA username claims were not tested.
 
-To repeat the template check, add this to the selected platform, preserving existing settings:
+To repeat the template check, add this to the selected platform, preserving existing settings. The ConfigMap path is `services.configs.pools.YOUR_POOL.platforms.YOUR_PLATFORM` in 6.3.1, or `configuration.pools.YOUR_POOL.platforms.YOUR_PLATFORM` in 6.4 (inside `configuration.snapshot` when set):
 
 ```yaml
 default_variables:
@@ -20,7 +20,7 @@ default_variables:
       principal: alice@example.test
 ```
 
-Use the existing configuration route: API/CLI in 6.3.1 database mode, or Helm/GitOps in ConfigMap mode; 6.4 is ConfigMap-only. Register this administrator template and append it to the platform's `override_pod_template`, preserving existing entries:
+Use the existing configuration route: API/CLI in 6.3.1 database mode, or Helm/GitOps in ConfigMap mode; 6.4 is ConfigMap-only. In 6.3.1 database mode, use `PUT /api/configs/pod_template/attribution` with `{"configs": <template>}`, then `PATCH /api/configs/pool/YOUR_POOL` with `configs_dict.platforms.YOUR_PLATFORM` containing `default_variables` and the preserved `override_pod_template` list. In ConfigMap mode, register the template under the matching `podTemplates` map. Append its name to the platform's `override_pod_template`, preserving existing entries:
 
 ```yaml
 metadata:

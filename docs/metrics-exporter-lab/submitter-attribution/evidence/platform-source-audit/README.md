@@ -69,3 +69,7 @@ The [NVCF cleanup check](nvcf-cleanup.json) confirms no test function was create
 ## Remaining agreements
 
 Select a stable NVIDIA username and define service/shared credential semantics. Organization mapping needs an authoritative directory and agreed key spelling. The experiment used an organization annotation with a generic test value; it did not implement a directory lookup or add an exporter metric. Production IdP integration, human A creating/B deploying, hosted NVCF, and the full Helm path remain untested. No public issues or messages were posted.
+
+## Final report verification
+
+The [document verification record](report-verification.json) captures the final source/evidence review, chart rendering, compiled CEL examples, focused admission and attribution tests, and PDF inspection. This pass corrected OSMO versioned settings and attachment paths, NVCF read permissions, and Run:AI verification commands. It did not rerun platform submissions or change implementation or cluster settings.

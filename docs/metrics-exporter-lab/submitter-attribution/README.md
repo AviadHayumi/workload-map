@@ -7,7 +7,13 @@ Current label-only PoC and fresh execution evidence, 16 October 2026.
 
 Start with the [shareable PDF](audit-summary.pdf) or its [editable Markdown](audit-summary.md).
 Each platform shows the submitted request, resulting workload structure, CEL
-mapping, actual metric output and remaining gaps.
+mapping, actual metric output and remaining gaps. The final page collects
+verification queries and open gaps. Admission scope, CEL matching and proposed
+watch filtering are distinguished explicitly.
+
+The PDF renderer uses [its layout settings](audit-summary-layout.json). The
+[final verification record](evidence/platform-source-audit/report-verification.json)
+separates fresh document checks from earlier live platform captures.
 
 | Path | Verification | Result |
 | --- | --- | --- |

@@ -48,9 +48,9 @@ The full expression above was tested. A workload label also supplies the identit
 
 <!-- pagebreak -->
 
-## Choose namespaces and workload types
+## Choose where admission captures the caller
 
-Already supported: namespace include/exclude selectors and a resource allowlist. Add this under the existing exporter values; keep `submittedByExpression` unchanged.
+Already supported: namespace include/exclude selectors and a resource allowlist for admission. These settings do not filter exporter watches. Add this under the existing exporter values; keep `submittedByExpression` unchanged.
 
 ```yaml
 exporter:
@@ -111,16 +111,56 @@ This follows [Kubernetes webhook matching](https://kubernetes.io/docs/reference/
 
 <!-- pagebreak -->
 
+## Match labels or annotations for attribution
+
+The current PoC supports CEL `rules[].matchExpression`. This chooses where a rule extracts identity; it does not remove workloads from metrics or reduce Kubernetes LIST/WATCH traffic. Use this alternative to the first page's expression. Clear `submittedByExpression` when switching to `rules`.
+
+```yaml
+exporter:
+  enabled: true
+  attribution:
+    enabled: true
+    submittedByExpression: ""
+    rules:
+      - name: configured-submitter
+        matchExpression: |
+          ("workload.dgxc.nvidia.com/user" in labels &&
+           labels["workload.dgxc.nvidia.com/user"] != "") ||
+          ("workload.dgxc.nvidia.com/submitter-id" in annotations &&
+           annotations["workload.dgxc.nvidia.com/submitter-id"] != "")
+        submittedByExpression: |
+          ("workload.dgxc.nvidia.com/submitter-id" in annotations &&
+           annotations["workload.dgxc.nvidia.com/submitter-id"] != "")
+            ? annotations["workload.dgxc.nvidia.com/submitter-id"]
+            : labels["workload.dgxc.nvidia.com/user"]
+        identitySourceExpression: "'configured-metadata'"
+        submitterTypeExpression: "'unknown'"
+        partial: true
+```
+
+Either nonempty key matches. The annotation wins when both exist on the same object. Without either key, this rule supplies no identity; a Pod can still inherit identity from its workload. A metadata update triggers reevaluation. Changing the configured expression requires an exporter rollout.
+
+The chart and evaluator checks cover this exact example. It is an alternative configuration, not the configuration used for the platform captures below. The first page's full expression also accepts native Run:AI and OSMO keys.
+
+Watch filtering with a Helm `workloadSelector.matchExpressions` is still proposed, not implemented. Kubernetes supports [label selectors on LIST/WATCH](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering); annotations need filtering inside the exporter. Native selector requirements use AND; the CEL example above uses OR.
+
+Any watch-filter implementation must retain required child Pods and intermediate owners even when they have no matching label. Matching only root labels is not enough to resolve the ownership graph. A selector also does not discover arbitrary workload kinds or grant RBAC.
+
+<!-- pagebreak -->
+
 ## Direct Kubernetes: capture and protect the caller
 
-As an administrator, create `karta-label-direct` and label it `karta.run.ai/capture-submitter=true`. Use a user's kubeconfig with get/create/patch permission there. The test used a one-hour certificate for `alice@example.test`, without impersonation.
+As an administrator, create `karta-label-direct` and label it `karta.run.ai/capture-submitter=true`. Use a user's kubeconfig with get/list/watch/create/patch permission there. The test used a one-hour certificate for `alice@example.test`, without impersonation.
 
 Save as `direct-job.yaml`:
 
 ```yaml
 apiVersion: batch/v1
 kind: Job
-metadata: {name: cel-label-job, namespace: karta-label-direct}
+metadata:
+  name: cel-label-job
+  namespace: karta-label-direct
+  annotations: {review.example.com/note: keep-me}
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 3600
@@ -155,7 +195,8 @@ Try claiming another user at creation, then changing the saved identity:
 
 ```sh
 KEY=workload.dgxc.nvidia.com/submitter-id
-kubectl create --dry-run=client -f direct-job.yaml -o json |
+kubectl --kubeconfig "$USER_KUBECONFIG" create \
+  --dry-run=client -f direct-job.yaml -o json |
   jq --arg key "$KEY" '.metadata.name="cel-label-forged" |
     .metadata.annotations[$key]="bob@example.test"' |
   kubectl --kubeconfig "$USER_KUBECONFIG" create -f -
@@ -163,7 +204,7 @@ kubectl --kubeconfig "$USER_KUBECONFIG" -n karta-label-direct \
   annotate job cel-label-job "$KEY=bob@example.test" --overwrite
 ```
 
-Both were rejected. A caller may prefill their own matching identity. Unrelated metadata is preserved. Protection applies only to the configured scope; system-owned children are skipped. A service account alone does not identify the human behind it.
+Both were rejected. A caller may prefill their own matching identity. Unrelated metadata is preserved. Protection applies only to the configured scope. Creation by a system caller is skipped when the object has owner references. A service account alone does not identify the human behind it.
 
 [Captured requests and rejection results](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/README.md).
 
@@ -212,7 +253,7 @@ Required setup for this test:
 
 - A Run:AI project and enough CPU capacity for both workloads.
 - Knative serving for this inference path. Its `kubernetes.podspec-schedulername` and `kubernetes.podspec-affinity` flags allowed the scheduler and affinity settings; they do not enable identity extraction.
-- Exporter RBAC with `get/list/watch` on `run.ai/workloadrunners`, so Karta can inspect the ownership graph. Existing access to Jobs, Services and Pods remains required.
+- Exporter RBAC with `get/list/watch` on `run.ai/workloadrunners`, so Karta can inspect the ownership graph. Keep the chart-default access to Jobs, Pods, apps Deployments/ReplicaSets and Knative Services/Configurations/Revisions. Add a ClusterRole labeled `karta.run.ai/exporter-rbac: "true"` for WorkloadRunners; the chart aggregates it without replacing defaults.
 
 <!-- pagebreak -->
 
@@ -248,7 +289,28 @@ karta_pod_workload_info{
 } 1
 ```
 
-The same CEL reads the annotation on both the Job and the Knative Service. No external identity mapper was used. The separate exporter was for lab isolation. HTTP was checked through a Knative revision proxy port-forward; external ingress was not tested.
+The same CEL reads the annotation on both the Job and the Knative Service. No external identity mapper was used. The separate exporter was for lab isolation.
+
+Set `RUNAI_NS` to the project's Kubernetes namespace. Use cluster credentials with read and Pod port-forward access. Once the objects appear, repeat the completion/readiness and HTTP checks:
+
+```sh
+kubectl -n "$RUNAI_NS" wait --for=condition=complete \
+  job/cel-label-training --timeout=10m
+kubectl -n "$RUNAI_NS" wait --for=condition=Ready \
+  services.serving.knative.dev/cel-label-inference --timeout=10m
+POD=$(kubectl -n "$RUNAI_NS" get pods \
+  -l serving.knative.dev/service=cel-label-inference \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n "$RUNAI_NS" port-forward "pod/$POD" 18080:8012
+```
+
+In another terminal:
+
+```sh
+curl -i http://127.0.0.1:18080/
+```
+
+Expect HTTP 200 and `attribution-inference`. Stop the port-forward with Ctrl-C. This checks the [Knative queue proxy](https://knative.dev/docs/serving/request-flow/); external ingress was not tested.
 
 Current gap: agree the NVIDIA username format with Run:AI. No submitter propagation bug was observed in these two paths.
 
@@ -357,7 +419,7 @@ karta_pod_workload_info{
 
 The same value appeared on `karta_workload_status`. This is sufficient if `alice` is the agreed unique username. It is not a directory lookup. The template variable has already lost the email domain; `alice@example.test` and `alice@another.example` cannot be distinguished from that value alone.
 
-Current edge case: the user `a` has no native submitter label. An unguarded `{{WF_SUBMITTED_BY}}` template failed and left the workflow PENDING. The guard above keeps missing attribution empty. The one-character omission and raw-principal limitation are included in the OSMO draft.
+Current edge case: the user `a` has no native submitter label. An unguarded `{{WF_SUBMITTED_BY}}` template failed; the workflow stayed PENDING until it was cancelled. The guard above keeps missing attribution empty. The one-character omission and raw-principal limitation are included in the OSMO draft.
 
 Version note: workflow `labels` / CLI `--label` arrived in 6.4.0. Those are caller-supplied values. If used, configure `workflow.labels_config.pod_label_prefix: caller.example.com/` in the appropriate configuration wrapper and keep identity templates administrator-owned. Do not use caller labels as proof of who submitted.
 
@@ -365,7 +427,42 @@ Version note: workflow `labels` / CLI `--label` arrived in 6.4.0. Those are call
 
 <!-- pagebreak -->
 
-## OSMO: select the identity and preserve the full value
+## OSMO: map a known username
+
+A maintained administrator mapping is another existing option. This 6.3.1 ConfigMap-mode fragment shows exactly where the template and platform settings go. Merge it with existing values. Replace `YOUR_POOL` and `YOUR_CPU_PLATFORM`; replace `existing-template` with the platform's current template names, in their current order, then append `attribution`.
+
+```yaml
+services:
+  configs:
+    podTemplates:
+      attribution:
+        metadata:
+          annotations:
+            workload.dgxc.nvidia.com/submitter-id: >-
+              {{KARTA_USER_BY_SUBMITTER.get(
+                WF_SUBMITTED_BY | default(''), {}).get('principal', '')}}
+            workload.dgxc.nvidia.com/org_hierarchy: >-
+              {{KARTA_USER_BY_SUBMITTER.get(
+                WF_SUBMITTED_BY | default(''), {}).get('org', '')}}
+    pools:
+      YOUR_POOL:
+        platforms:
+          YOUR_CPU_PLATFORM:
+            override_pod_template: [existing-template, attribution]
+            default_variables:
+              KARTA_USER_BY_SUBMITTER:
+                alice:
+                  principal: alice@example.test
+                  org: demo_research_training
+```
+
+For 6.4, put `podTemplates` and `pools` under `configuration`, or inside `configuration.snapshot` when set. In 6.3.1 database mode, register the template with `PUT /api/configs/pod_template/attribution` and patch `PATCH /api/configs/pool/YOUR_POOL` with `configs_dict.platforms.YOUR_CPU_PLATFORM` containing the preserved template list and `default_variables`. These are administrator changes; normal workflow callers should not edit the mapping.
+
+Both `alice` and `alice@example.test` produced `submitted_by="alice@example.test"` on the two Karta metrics. Missing `a` stayed empty. All three groups completed; leaders exited 0, workers had no reported exit code. This requires unique usernames and a maintained map; it cannot recover an ambiguous identity. Organization was a test value. No organization metric was added.
+
+<!-- pagebreak -->
+
+## OSMO: authenticated login and native metrics
 
 For an authenticated 6.3.1 gateway, select the username claim on each human JWT provider. Keep existing issuer, audience, JWKS and other providers:
 
@@ -384,29 +481,6 @@ gateway:
 
 Use a verified, unique IdP claim for browser and CLI tokens. Keep `unique_name` for OSMO-issued tokens. For 6.4 external OIDC, use `authentication.externalOidc.userClaim`. Changing it changes the account identity; existing tokens and ownership do not migrate. This setting was source-reviewed, not tested with a production IdP.
 
-A maintained administrator mapping is another existing option. Add this to the selected platform's `default_variables` and append the annotation to its Pod template:
-
-```yaml
-# Platform default_variables
-KARTA_USER_BY_SUBMITTER:
-  alice:
-    principal: alice@example.test
-    org: demo_research_training
-```
-
-```yaml
-metadata:
-  annotations:
-    workload.dgxc.nvidia.com/submitter-id: >-
-      {{KARTA_USER_BY_SUBMITTER.get(
-        WF_SUBMITTED_BY | default(''), {}).get('principal', '')}}
-    workload.dgxc.nvidia.com/org_hierarchy: >-
-      {{KARTA_USER_BY_SUBMITTER.get(
-        WF_SUBMITTED_BY | default(''), {}).get('org', '')}}
-```
-
-Both `alice` and `alice@example.test` produced `submitted_by="alice@example.test"` on the two Karta metrics. Missing `a` stayed empty. All three groups completed; leaders exited 0, workers had no reported exit code. This requires unique usernames and a maintained map; it cannot recover an ambiguous identity. Organization was a test value. No organization metric was added.
-
 OSMO also already exports the full stored identity in its own metrics:
 
 ```prometheus
@@ -417,7 +491,7 @@ osmo_tasks_count{
 } 1.0
 ```
 
-Keep `services.service.disableTaskMetrics: false` and scrape port 9464, `/metrics`. This was enabled in the lab. The gauge counts tasks; completed-task coverage is short. A UUID join supports reporting, but does not populate Karta's metadata-only CEL input.
+In 6.3.1, keep `services.service.disableTaskMetrics: false`. In the unified 6.4 chart, use `services.api.disableTaskMetrics: false`. Scrape port 9464, `/metrics`; this was enabled and verified in the 6.3.1 lab. The gauge counts tasks; completed-task coverage is short. A UUID join supports reporting, but does not populate Karta's metadata-only CEL input.
 
 OSMO already has workflow/group UUIDs and KAI PodGroups. Karta currently follows controller ownership, so these bare task Pods remain individual workloads. That grouping gap belongs to Karta. The [OSMO request](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/OSMO-FEATURE-REQUEST.md) is for lossless principal access. [Source audit and retained captures](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/platform-source-audit/README.md) document the settings and test limits.
 
@@ -428,7 +502,7 @@ OSMO already has workflow/group UUIDs and KAI PodGroups. Karta currently follows
 
 The container function served HTTP 200 and the finite task completed. Both carried account and workload IDs, but neither placed the authenticated caller in Kubernetes metadata. Both tested Karta exporter PoC metric families kept `submitted_by=""`.
 
-Use your management URL/token as `NVCF_API` / `NVCF_ADMIN_TOKEN`, and an available `GPU` / `INSTANCE_TYPE`. The account needs function registration and deployment permission. These commands contain the complete HTTP fixture:
+Use your management URL/token as `NVCF_API` / `NVCF_ADMIN_TOKEN`, and an available `GPU` / `INSTANCE_TYPE`. The management credential needs `register_function`, `deploy_function` and either `list_functions` or `list_functions_details`. The invocation key needs `invoke_function`; API-key authorities have the `apikey:` prefix. These commands contain the complete HTTP fixture:
 
 ```sh
 curl -fsS "$NVCF_API/v2/nvcf/functions" \
@@ -477,7 +551,7 @@ Lab versions: NVCF `1.18.0`, NVCT `1.66.0`, NVCA `3.10.0`, ReVal `0.20.2`. The l
 
 ## NVCT: reproduce a task that finishes
 
-Use `NVCT_API` / `NVCT_API_KEY` with task-launch and task-detail permissions. A bare sleep does not complete the NVCT protocol: write progress, reach 100, then exit. This script reproduces the saved finite task, with result uploads disabled:
+Use `NVCT_API` / `NVCT_API_KEY` with `launch_task` and `task_details` permissions. A bare sleep does not complete the NVCT protocol: write progress, reach 100, then exit. This script reproduces the saved finite task, with result uploads disabled:
 
 ```sh
 cat > nvct-task.sh <<'SH'
@@ -564,3 +638,32 @@ Full live Helm submission stopped before creation: `registry-1.docker.io` was no
 Helm values and environment variables are caller-supplied. A trusted upstream submitter can supply a verified principal, but the submission path must enforce that trust. The remaining request is automatic capture of the authenticated function creator/deployer and task submitter, then supported workload/Pod metadata propagation. Invokers are separate.
 
 Grouping exists through account, function/version, deployment, task, ICMSRequest and MiniService IDs. Standard Helm Deployment/Job owner chains also exist. In the direct-container captures, Pod owner references lacked `controller: true`, so the tested Karta exporter PoC selected each Pod. That is an integration limitation; stamping only ICMSRequest would not cover it. See the [narrow feature-request draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md).
+
+
+<!-- pagebreak -->
+
+## Confirm the result and track the remaining gaps
+
+Submit the fixtures above with your own platform login. While Pods still exist, run these instant queries in Prometheus or Grafana Explore, replacing `YOUR_NAMESPACE`:
+
+```promql
+karta_workload_status{namespace="YOUR_NAMESPACE"} == 1
+karta_pod_workload_info{namespace="YOUR_NAMESPACE"}
+karta_exporter_observation_healthy{
+  namespace="YOUR_NAMESPACE", scope="workload"
+}
+```
+
+The first query shows the active phase with `submitted_by`. The second shows each Pod's workload and submitter. The third should be 1 for a healthy workload observation. An empty identity means unknown. Missing rows are not proof of success: check exporter scrape health, namespace scope and read permissions. Completed workloads can disappear after platform cleanup; use the recorded time range to inspect their earlier samples.
+
+| Path | Confirmed | Remaining gap / next step |
+| --- | --- | --- |
+| Direct Kubernetes | Authenticated caller captured; forged create and identity update rejected. | Applies only inside admission scope. Service accounts do not establish a separate human. |
+| Run:AI | Training completed; inference HTTP 200; both attributed from workload metadata. | Agree the NVIDIA username format. External ingress and model inference were not tested. |
+| OSMO | Native label, guarded template and administrator mapping reach Karta. Full user is also in OSMO task metrics. | Production IdP not tested. Request lossless principal access; map only unique usernames in the meantime. |
+| NVCF / NVCT | HTTP function and finite task work. Supplied environment values reach containers. | Human metadata remains empty. Audit joins exist; request trusted creator/deployer/submitter metadata. |
+| NVCF Helm | Chart annotations render locally. | Live creation stopped at HELM registry credentials. Configure account read credentials, then test deployment, metadata and Karta metrics. |
+| Karta grouping | Controller ownership works for tested Kubernetes and Run:AI paths. | OSMO bare tasks and captured NVCF direct Pods remain separate workloads. Add integration for their existing grouping metadata. |
+| Karta selectors | Admission namespace selectors and CEL identity matching work. | Admission GVK `matchConditions` and workload LIST/WATCH selectors are proposals. |
+
+These results cover the shown versions and paths. They do not establish all platform submission modes, production identity mapping or 100,000-workload attribution performance. The OSMO and NVCF request drafts are ready for discussion; no issues were opened.
