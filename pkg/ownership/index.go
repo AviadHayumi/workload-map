@@ -4,8 +4,6 @@
 package ownership
 
 import (
-	"context"
-	"errors"
 	"reflect"
 	"sync"
 
@@ -320,43 +318,44 @@ func (i *Index) Resolve(ownerRefs []metav1.OwnerReference, isRoot func(schema.Gr
 	if len(namespaces) > 0 {
 		namespace = namespaces[0]
 	}
-	best := candidate
-	resolution := "resolved"
-	lookup := func(_ context.Context, ref Ref) (Object, error) {
-		middle, ok := i.nodes[ref.UID]
-		if !ok || (middle.ref.Name != "" && (middle.ref.Name != ref.Name || middle.ref.GVK.GroupKind() != ref.GVK.GroupKind() || (namespace != "" && middle.ref.Namespace != namespace))) {
-			return Object{}, &Error{Kind: ErrMissing, Expected: ref}
-		}
-		if isRoot(ref.GVK.GroupKind()) {
-			best = &Ref{UID: ref.UID, GVK: ref.GVK, Name: ref.Name}
-		}
-		object := Object{Ref: ref}
-		if middle.owner != nil {
-			object.Owners = []metav1.OwnerReference{*middle.owner}
-		}
-		return object, nil
+	var best Ref
+	hasRoot := candidate != nil
+	if hasRoot {
+		best = *candidate
 	}
-	policy := walkPolicy{beforeLookup: func(ref Ref) bool {
-		if ignored != nil && ignored(ref.GVK) {
-			resolution = "ignored_owner"
-			return true
+	var current *metav1.OwnerReference
+	if selected, _ := selectController(ownerRefs, false); selected >= 0 {
+		current = &ownerRefs[selected]
+	}
+	resolution := "resolved"
+	// This bounded index walk preserves the exporter's first-controller policy.
+	// It needs neither Trace's verified path nor its external lookup adapter.
+	for depth := 0; current != nil; depth++ {
+		// Stored references retain the caller's controller flag. Reselect the
+		// edge on every hop, matching the compatibility walker's behavior.
+		if current.Controller == nil || !*current.Controller {
+			break
 		}
-		return false
-	}}
-	_, err := walk(context.Background(), Object{Ref: Ref{Namespace: namespace}, Owners: ownerRefs}, lookup, maxWalkDepth, policy, nil)
-	if err != nil {
-		if errors.Is(err, ErrDepthExceeded) {
+		gvk := refGVK(current)
+		if ignored != nil && ignored(gvk) {
+			resolution = "ignored_owner"
+			break
+		}
+		if depth == maxWalkDepth {
 			return WalkResult{Outcome: OutcomeDepthExceeded}
 		}
-		var failure *Error
-		if errors.As(err, &failure) {
-			ref := failure.Expected
-			ref.Namespace = ""
-			return WalkResult{Outcome: OutcomeMissing, Missing: ref.UID, MissingRef: ref}
+		middle, ok := i.nodes[current.UID]
+		if !ok || (middle.ref.Name != "" && (middle.ref.Name != current.Name || middle.ref.GVK.GroupKind() != gvk.GroupKind() || (namespace != "" && middle.ref.Namespace != namespace))) {
+			return WalkResult{Outcome: OutcomeMissing, Missing: current.UID, MissingRef: Ref{UID: current.UID, Name: current.Name, GVK: gvk}}
 		}
+		if isRoot(gvk.GroupKind()) {
+			best = Ref{UID: current.UID, GVK: gvk, Name: current.Name}
+			hasRoot = true
+		}
+		current = middle.owner
 	}
-	if best != nil {
-		return WalkResult{Outcome: OutcomeFound, Root: *best, Resolution: resolution}
+	if hasRoot {
+		return WalkResult{Outcome: OutcomeFound, Root: best, Resolution: resolution}
 	}
 	return WalkResult{Outcome: OutcomeNoController, Resolution: resolution}
 }

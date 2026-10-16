@@ -36,11 +36,6 @@ type Error struct {
 	Cause    error
 }
 
-type walkPolicy struct {
-	strict       bool
-	beforeLookup func(Ref) bool
-}
-
 var (
 	ErrMissing             = errors.New("owner is missing")
 	ErrUIDMismatch         = errors.New("owner UID does not match")
@@ -81,51 +76,54 @@ func (e *Error) Unwrap() []error {
 // terminal seed. On failure, Trace returns the verified prefix and a typed Error.
 // Different served API versions may identify the same group-kind and UID.
 func Trace(ctx context.Context, start Object, lookup Lookup, maxDepth int) ([]Object, error) {
-	return walk(ctx, start, lookup, maxDepth, walkPolicy{strict: true}, nil)
+	var scratch [16]Object
+	path, err := walk(ctx, start, lookup, maxDepth, scratch[:0])
+	// Copy only the observed prefix, not storage reserved for an arbitrary depth.
+	return append([]Object(nil), path...), err
 }
 
 // TraceRoot follows controller ownership and returns the terminal object's reference.
 // Validation and depth limits match Trace. On failure, the returned reference is
 // empty and the typed Error contains the same verified prefix as Trace.
 func TraceRoot(ctx context.Context, start Object, lookup Lookup, maxDepth int) (Ref, error) {
-	var scratch [8]Object
-	path, err := walk(ctx, start, lookup, maxDepth, walkPolicy{strict: true}, scratch[:0])
+	if len(start.Owners) == 0 {
+		var scratch [1]Object
+		if _, err := walk(ctx, start, lookup, maxDepth, scratch[:0]); err != nil {
+			return Ref{}, err
+		}
+		return start.Ref, nil
+	}
+	return traceOwnedRoot(ctx, start, lookup, maxDepth)
+}
+
+// Keep the larger path scratch out of terminal-object calls.
+func traceOwnedRoot(ctx context.Context, start Object, lookup Lookup, maxDepth int) (Ref, error) {
+	var scratch [16]Object
+	path, err := walk(ctx, start, lookup, maxDepth, scratch[:0])
 	if err != nil {
 		return Ref{}, err
 	}
 	return path[len(path)-1].Ref, nil
 }
 
-func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy walkPolicy, scratch []Object) ([]Object, error) {
-	var path []Object
-	var seen map[types.UID]struct{}
-	if policy.strict {
-		if err := ctx.Err(); err != nil {
-			return nil, walkError(nil, nil, start.Ref, Ref{}, err)
-		}
-		if maxDepth < 0 {
-			return nil, walkError(ErrInvalidReference, nil, start.Ref, Ref{}, errors.New("maxDepth must not be negative"))
-		}
-		if err := validateObject(start); err != nil {
-			return nil, walkError(err, nil, start.Ref, start.Ref, nil)
-		}
-		path = scratch[:0]
-		if cap(path) == 0 {
-			capacity := 1
-			if len(start.Owners) != 0 {
-				capacity += min(maxDepth, 3)
-			}
-			path = make([]Object, 0, capacity)
-		}
-		path = append(path, start)
-		seen = map[types.UID]struct{}{start.Ref.UID: {}}
+func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, scratch []Object) ([]Object, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, walkError(nil, nil, start.Ref, Ref{}, err)
 	}
+	if maxDepth < 0 {
+		return nil, walkError(ErrInvalidReference, nil, start.Ref, Ref{}, errors.New("maxDepth must not be negative"))
+	}
+	if err := validateObject(start); err != nil {
+		return nil, walkError(err, nil, start.Ref, start.Ref, nil)
+	}
+	path := append(scratch[:0], start)
+	var seen map[types.UID]struct{}
 	current := start
 	for depth := 0; ; depth++ {
 		if err := ctx.Err(); err != nil {
 			return path, walkError(nil, path, current.Ref, Ref{}, err)
 		}
-		ownerIndex, err := selectController(current.Owners, policy.strict)
+		ownerIndex, err := selectController(current.Owners, true)
 		if err != nil {
 			return path, walkError(err, path, current.Ref, Ref{}, nil)
 		}
@@ -135,20 +133,29 @@ func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy
 		owner := current.Owners[ownerIndex]
 		gv, parseErr := schema.ParseGroupVersion(owner.APIVersion)
 		next := Ref{Namespace: current.Ref.Namespace, UID: owner.UID, GVK: gv.WithKind(owner.Kind), Name: owner.Name}
-		if policy.strict {
-			if parseErr != nil || gv.Version == "" || validateRef(next) != nil {
-				return path, walkError(ErrInvalidReference, path, next, Ref{}, parseErr)
-			}
-		}
-		if policy.beforeLookup != nil && policy.beforeLookup(next) {
-			return path, nil
+		if parseErr != nil || gv.Version == "" || validateRef(next) != nil {
+			return path, walkError(ErrInvalidReference, path, next, Ref{}, parseErr)
 		}
 		if depth >= maxDepth {
 			return path, walkError(ErrDepthExceeded, path, next, Ref{}, nil)
 		}
-		if policy.strict {
+		// Common ownership chains fit in the path scratch. Longer chains switch
+		// to a UID set so cycle detection remains linear in total chain length.
+		if seen == nil && len(path) > 16 {
+			seen = make(map[types.UID]struct{}, len(path))
+			for i := range path {
+				seen[path[i].Ref.UID] = struct{}{}
+			}
+		}
+		if seen != nil {
 			if _, exists := seen[next.UID]; exists {
 				return path, walkError(ErrCycle, path, next, Ref{}, nil)
+			}
+		} else {
+			for i := range path {
+				if path[i].Ref.UID == next.UID {
+					return path, walkError(ErrCycle, path, next, Ref{}, nil)
+				}
 			}
 		}
 		if lookup == nil {
@@ -165,22 +172,22 @@ func walk(ctx context.Context, start Object, lookup Lookup, maxDepth int, policy
 		if err := ctx.Err(); err != nil {
 			return path, walkError(nil, path, next, Ref{}, err)
 		}
-		if policy.strict {
-			if actual.Ref.UID != next.UID {
-				return path, walkError(ErrUIDMismatch, path, next, actual.Ref, nil)
-			}
-			if err := validateObject(actual); err != nil {
-				return path, walkError(err, path, next, actual.Ref, nil)
-			}
-			if actual.Ref.Name != next.Name || actual.Ref.GVK.GroupKind() != next.GVK.GroupKind() {
-				return path, walkError(ErrInvalidReference, path, next, actual.Ref, nil)
-			}
-			if actual.Namespaced && (!current.Namespaced || actual.Ref.Namespace != current.Ref.Namespace) {
-				return path, walkError(ErrScope, path, next, actual.Ref, nil)
-			}
-			seen[actual.Ref.UID] = struct{}{}
-			path = append(path, actual)
+		if actual.Ref.UID != next.UID {
+			return path, walkError(ErrUIDMismatch, path, next, actual.Ref, nil)
 		}
+		if err := validateObject(actual); err != nil {
+			return path, walkError(err, path, next, actual.Ref, nil)
+		}
+		if actual.Ref.Name != next.Name || actual.Ref.GVK.GroupKind() != next.GVK.GroupKind() {
+			return path, walkError(ErrInvalidReference, path, next, actual.Ref, nil)
+		}
+		if actual.Namespaced && (!current.Namespaced || actual.Ref.Namespace != current.Ref.Namespace) {
+			return path, walkError(ErrScope, path, next, actual.Ref, nil)
+		}
+		if seen != nil {
+			seen[actual.Ref.UID] = struct{}{}
+		}
+		path = append(path, actual)
 		current = actual
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -150,22 +152,166 @@ func TestTracePathGrowthAndDepthBoundaries(t *testing.T) {
 	}
 }
 
-func TestLegacyWalkPreservesParsedOwnerAtBoundary(t *testing.T) {
+func TestIndexPreservesParsedOwnerAtBoundary(t *testing.T) {
 	for _, version := range []string{"", "/", "apps/", "apps/v1/extra", "/v1", "apps/v1"} {
 		t.Run(version, func(t *testing.T) {
 			owner := traceOwner("owner")
 			owner.APIVersion = version
-			start := traceObject("seed", "team", owner)
-			var actual Ref
+			var actual schema.GroupVersionKind
 			calls := 0
-			path, err := walk(context.Background(), start, nil, -1, walkPolicy{beforeLookup: func(ref Ref) bool {
-				actual = ref
+			index := New()
+			result := index.Resolve([]metav1.OwnerReference{owner}, func(schema.GroupKind) bool {
+				t.Fatal("ignored owner reached root selection")
+				return false
+			}, func(gvk schema.GroupVersionKind) bool {
+				actual = gvk
 				calls++
 				return true
-			}}, nil)
-			expected := Ref{UID: owner.UID, Name: owner.Name, Namespace: "team", GVK: refGVK(&owner)}
-			if err != nil || path != nil || actual != expected || calls != 1 {
-				t.Fatalf("legacy boundary: path=%+v, error=%v, ref=%+v, calls=%d", path, err, actual, calls)
+			}, nil)
+			if result.Outcome != OutcomeNoController || result.Resolution != "ignored_owner" || actual != refGVK(&owner) || calls != 1 {
+				t.Fatalf("legacy boundary: result=%+v, kind=%+v, calls=%d", result, actual, calls)
+			}
+		})
+	}
+}
+
+func TestTraceCycleDetectionAcrossScratchBoundary(t *testing.T) {
+	for _, length := range []int{1, 16, 17, 18, 65} {
+		t.Run(fmt.Sprint(length), func(t *testing.T) {
+			objects := make([]Object, length)
+			for i := range objects {
+				objects[i] = traceObject(fmt.Sprint(i), "team")
+				if i+1 < length {
+					objects[i].Owners = []metav1.OwnerReference{traceOwner(fmt.Sprint(i + 1))}
+				}
+			}
+			for _, target := range []int{0, length / 2, length - 1} {
+				objects[length-1].Owners = []metav1.OwnerReference{traceOwner(fmt.Sprint(target))}
+				reads := 0
+				lookup := func(_ context.Context, ref Ref) (Object, error) {
+					reads++
+					for i := range objects {
+						if objects[i].Ref.UID == ref.UID {
+							return objects[i], nil
+						}
+					}
+					t.Fatalf("unexpected lookup: %+v", ref)
+					return Object{}, nil
+				}
+				path, err := Trace(context.Background(), objects[0], lookup, length+1)
+				var failure *Error
+				if !errors.Is(err, ErrCycle) || !errors.As(err, &failure) || len(path) != length || len(failure.Path) != length || reads != length-1 || failure.Expected != objects[target].Ref {
+					t.Fatalf("target %d: path=%+v, error=%+v, reads=%d", target, path, err, reads)
+				}
+				reads = 0
+				root, rootErr := TraceRoot(context.Background(), objects[0], lookup, length+1)
+				if root != (Ref{}) || !reflect.DeepEqual(err, rootErr) || reads != length-1 {
+					t.Fatalf("root traversal differs: root=%+v, error=%v, reads=%d", root, rootErr, reads)
+				}
+			}
+			objects[length-1].Owners = nil
+			lookup := func(_ context.Context, ref Ref) (Object, error) {
+				for i := range objects {
+					if objects[i].Ref.UID == ref.UID {
+						return objects[i], nil
+					}
+				}
+				t.Fatalf("unexpected lookup: %+v", ref)
+				return Object{}, nil
+			}
+			path, err := Trace(context.Background(), objects[0], lookup, int(^uint(0)>>1))
+			if err != nil || !reflect.DeepEqual(path, objects) {
+				t.Fatalf("successful path=%+v, error=%v", path, err)
+			}
+			path[0].Ref.Name = "caller-mutated"
+			second, err := Trace(context.Background(), objects[0], lookup, length-1)
+			if err != nil || !reflect.DeepEqual(second, objects) || path[0].Ref.Name != "caller-mutated" {
+				t.Fatalf("returned path aliases a later traversal: path=%+v, error=%v", second, err)
+			}
+		})
+	}
+}
+
+func TestTraceLongFailuresPreserveVerifiedPrefix(t *testing.T) {
+	for _, name := range []string{"missing", "forbidden", "canceled", "malformed"} {
+		t.Run(name, func(t *testing.T) {
+			objects := make([]Object, 20)
+			for i := range objects {
+				objects[i] = traceObject(fmt.Sprint(i), "team")
+				if i+1 < len(objects) {
+					objects[i].Owners = []metav1.OwnerReference{traceOwner(fmt.Sprint(i + 1))}
+				}
+			}
+			var kind, cause error
+			wantReads := 18
+			switch name {
+			case "missing":
+				kind = ErrMissing
+				cause = apierrors.NewNotFound(schema.GroupResource{Resource: "workloads"}, "18")
+			case "forbidden":
+				cause = apierrors.NewForbidden(schema.GroupResource{Resource: "workloads"}, "18", errors.New("denied"))
+			case "canceled":
+				cause = context.Canceled
+			case "malformed":
+				kind = ErrInvalidReference
+				objects[17].Owners[0].APIVersion = "invalid/version/extra"
+				wantReads = 17
+			}
+			var failures [2]*Error
+			for run := range 2 {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				reads := 0
+				lookup := func(_ context.Context, ref Ref) (Object, error) {
+					reads++
+					if reads == 18 {
+						if name == "canceled" {
+							cancel()
+						} else if cause != nil {
+							return Object{}, cause
+						}
+					}
+					return objects[reads], nil
+				}
+				var err error
+				if run == 0 {
+					var path []Object
+					path, err = Trace(ctx, objects[0], lookup, 32)
+					if !reflect.DeepEqual(path, objects[:18]) {
+						t.Fatalf("verified object prefix = %+v", path)
+					}
+					path[0].Ref.Name = "caller-mutated"
+				} else {
+					var root Ref
+					root, err = TraceRoot(ctx, objects[0], lookup, 32)
+					if root != (Ref{}) {
+						t.Fatalf("failed root = %+v", root)
+					}
+				}
+				if !errors.As(err, &failures[run]) || failures[run].Kind != kind || len(failures[run].Path) != 18 || reads != wantReads {
+					t.Fatalf("error=%+v, reads=%d", err, reads)
+				}
+				if cause != nil && !errors.Is(err, cause) {
+					t.Fatalf("lost cause %v: %v", cause, err)
+				}
+				for i := range failures[run].Path {
+					if failures[run].Path[i] != objects[i].Ref {
+						t.Fatalf("verified reference prefix[%d] = %+v", i, failures[run].Path[i])
+					}
+				}
+			}
+			if !reflect.DeepEqual(failures[0], failures[1]) {
+				t.Fatalf("trace/root errors differ: %+v/%+v", failures[0], failures[1])
+			}
+			preserved := append([]Ref(nil), failures[1].Path...)
+			objects[17].Owners[0].APIVersion = "example.test/v1"
+			index := 0
+			_, err := Trace(context.Background(), objects[0], func(context.Context, Ref) (Object, error) {
+				index++
+				return objects[index], nil
+			}, 32)
+			if err != nil || !reflect.DeepEqual(failures[1].Path, preserved) {
+				t.Fatalf("retained failure changed after a later traversal: %+v, error=%v", failures[1], err)
 			}
 		})
 	}
