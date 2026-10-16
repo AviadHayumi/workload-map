@@ -10,10 +10,12 @@ import (
 )
 
 // Discoverer acquires immutable observations through a caller-owned reader.
-// Each acquisition captures the reader's root object and complete Pod membership.
+// Workload queries capture the reader's root object and complete Pod membership.
+// OwnershipPath reads only one controller ownership chain.
 // Freshness and cache synchronization remain the reader owner's responsibility.
 // Offline changes made through Workload do not change an acquired observation.
 type Discoverer interface {
+	OwnershipPath(context.Context, discovery.ObjectRef) ([]discovery.ObjectRef, error)
 	Workload(context.Context, discovery.ObjectRef) (*discovery.Workload, error)
 	WorkloadForPod(context.Context, discovery.ObjectRef) (*discovery.Workload, error)
 }

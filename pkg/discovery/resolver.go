@@ -115,6 +115,44 @@ func New(reader Reader, options Options) (*Resolver, error) {
 	return r, nil
 }
 
+// OwnershipPath returns the starting object followed by each controller owner
+// through the terminal root. It uses Options.MaxDepth and reads only this chain,
+// without collecting Pods or evaluating a Karta definition. A concrete *Index
+// traces one generation; other readers use Mapping and Get, including readers
+// that implement IndexedReader. Direct reads are not a Kubernetes transaction.
+// On failure the result is nil; an ownership.Error retains the verified prefix.
+func (r *Resolver) OwnershipPath(ctx context.Context, object ObjectRef) ([]ObjectRef, error) {
+	if r == nil || r.reader == nil {
+		return nil, ErrNoClient
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateRef(object); err != nil {
+		return nil, err
+	}
+	if index, ok := r.reader.(*Index); ok {
+		return index.ownershipPath(ctx, object, r.maxDepth)
+	}
+	collection := newCollection(r.reader)
+	start, err := collection.get(ctx, object)
+	if err != nil {
+		return nil, err
+	}
+	if reference(start) != object {
+		return nil, fmt.Errorf("%w: starting object identity or namespace differs", ownership.ErrScope)
+	}
+	path, err := collection.trace(ctx, start, r.maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]ObjectRef, len(path))
+	for index, entry := range path {
+		refs[index] = entry.Ref
+	}
+	return refs, nil
+}
+
 // WorkloadForPod returns the terminal controller-owned workload and all its
 // descendant Pods, including completed, terminating and unscheduled Pods.
 func (r *Resolver) WorkloadForPod(ctx context.Context, pod ObjectRef) (*Workload, error) {

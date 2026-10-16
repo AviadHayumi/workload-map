@@ -39,6 +39,9 @@ func TestDiscovererWithoutReader(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if path, err := discoverer.OwnershipPath(t.Context(), discovery.ObjectRef{}); path != nil || !errors.Is(err, discovery.ErrNoClient) {
+			t.Errorf("OwnershipPath with reader %T = %v, want ErrNoClient", reader, err)
+		}
 		for _, acquire := range []func(context.Context, discovery.ObjectRef) (*discovery.Workload, error){
 			discoverer.Workload, discoverer.WorkloadForPod,
 		} {
@@ -61,6 +64,9 @@ func TestDiscovererPreservesErrors(t *testing.T) {
 	ref := discovery.ObjectRef{
 		GVK:       schema.GroupVersionKind{Version: "v1", Kind: "Pod"},
 		Namespace: "example", Name: "training", UID: "pod-uid",
+	}
+	if path, err := discoverer.OwnershipPath(t.Context(), ref); path != nil || !errors.Is(err, readErr) {
+		t.Errorf("OwnershipPath = %v, want reader error", err)
 	}
 	for _, acquire := range []func(context.Context, discovery.ObjectRef) (*discovery.Workload, error){
 		discoverer.Workload, discoverer.WorkloadForPod,

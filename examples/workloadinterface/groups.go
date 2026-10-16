@@ -12,7 +12,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/dsx-ai-factory/workload-map/pkg/attribution"
 	"github.com/dsx-ai-factory/workload-map/pkg/discovery"
 	"github.com/dsx-ai-factory/workload-map/pkg/instructions"
 	"github.com/dsx-ai-factory/workload-map/pkg/resource"
@@ -31,7 +30,7 @@ type SchedulingGroup struct {
 // Generic workloads, singular podGroup instructions and owner-walk fallback
 // without explicit grouping keys return ErrUnsupported.
 // Unresolved attribution or grouping returns an error, never partial groups.
-// This consumer example re-evaluates attribution; it performs no cluster reads.
+// It reuses captured attribution and performs no cluster reads.
 func SchedulingGroups(ctx context.Context, observed *discovery.Workload) ([]SchedulingGroup, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -46,24 +45,17 @@ func SchedulingGroups(ctx context.Context, observed *discovery.Workload) ([]Sche
 	if gang := definition.Spec.Instructions.GangScheduling; gang != nil && gang.PodGroup != nil {
 		return nil, fmt.Errorf("%w: singular podGroup instructions", discovery.ErrUnsupported)
 	}
-	plan, err := attribution.Compile(definition)
-	if err != nil {
-		return nil, err
-	}
-	prepared, err := attribution.Prepare(ctx, plan, observed.Object())
-	if err != nil {
-		return nil, err
-	}
 	summary, err := instructions.NewStructureSummary(definition)
 	if err != nil {
 		return nil, err
 	}
+	memberships := observed.PodMemberships()
 	groups := make(map[string]*SchedulingGroup)
 	for _, pod := range observed.Pods() {
-		membership, err := attribution.Evaluate(ctx, pod, prepared)
-		if err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		membership := memberships[pod.UID]
 		if len(membership.Issues) > 0 {
 			return nil, fmt.Errorf("%w: Pod %s/%s has unresolved %s attribution",
 				discovery.ErrIncompleteAttribution, pod.Namespace, pod.Name, membership.Issues[0].Axis)

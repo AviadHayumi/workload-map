@@ -65,9 +65,10 @@ type OwnerMetadataReader interface {
 	GetOwnerMetadata(context.Context, ObjectRef) (*metav1.PartialObjectMetadata, error)
 }
 
-// IndexedReader captures the seed, its complete terminal workload, and all
-// relevant owner objects from one local generation. Errors never trigger an
-// implicit direct-read fallback.
+// IndexedReader captures the starting object, its complete terminal workload,
+// and all relevant owner objects from one local generation for workload queries.
+// Errors never trigger an implicit direct-read fallback. OwnershipPath uses
+// Mapping and Get instead of Capture; a concrete *Index traces one generation.
 type IndexedReader interface {
 	Reader
 	Capture(context.Context, ObjectRef) (*Capture, error)
@@ -136,6 +137,16 @@ func isNil(value any) bool {
 		return reflect.ValueOf(value).IsNil()
 	}
 	return false
+}
+
+// PodReference copies a Pod's identity for discovery queries. It uses core v1/Pod
+// even when the typed Pod has no TypeMeta. A nil Pod returns a zero reference;
+// query methods validate the reference before reading objects.
+func PodReference(pod *corev1.Pod) ObjectRef {
+	if pod == nil {
+		return ObjectRef{}
+	}
+	return podReference(pod)
 }
 
 func reference(object *unstructured.Unstructured) ObjectRef {

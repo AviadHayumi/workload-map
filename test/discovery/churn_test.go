@@ -106,10 +106,22 @@ func TestLiveOwnershipChurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := direct.WorkloadForPod(ctx, liveRef(podA))
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The scheduler may update a new unscheduled Pod between the initial GET
+	// and complete LIST. Establish a consistent observation before mutating owners.
+	initialContext, cancelInitial := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelInitial()
+	var before *sdk.Workload
+	waitLive(t, initialContext, func() (bool, error) {
+		var err error
+		before, err = direct.WorkloadForPod(initialContext, liveRef(podA))
+		if errors.Is(err, sdk.ErrStaleInput) {
+			if before != nil {
+				return false, fmt.Errorf("stale acquisition returned a workload: %w", err)
+			}
+			return false, nil
+		}
+		return err == nil, err
+	})
 	originalUIDs := []string{string(podA.GetUID()), string(podB.GetUID())}
 	assertPods(t, before.Pods(), originalUIDs)
 	data, err := sdk.Collect(ctx, reader, namespace, liveRef(rootA), liveRef(rootB))

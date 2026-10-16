@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/dsx-ai-factory/workload-map/pkg/attribution"
 	sdk "github.com/dsx-ai-factory/workload-map/pkg/discovery"
 	sdkclient "github.com/dsx-ai-factory/workload-map/pkg/discovery/clientgo"
 	"github.com/dsx-ai-factory/workload-map/pkg/karta"
@@ -38,6 +39,7 @@ import (
 
 type identity struct {
 	Namespace, Name, UID, APIVersion, Kind string
+	Owners                                 []metav1.OwnerReference
 }
 
 func (i identity) ref() sdk.ObjectRef {
@@ -134,6 +136,107 @@ func (r *countingOwnerMetadataReader) ListPodsForTransfer(ctx context.Context, n
 	return r.OwnerMetadataReader.(sdk.PodTransferReader).ListPodsForTransfer(ctx, namespace)
 }
 
+func assertLiveOwnershipPath(t *testing.T, path []sdk.ObjectRef, pod, root sdk.ObjectRef, objects map[types.UID]identity) {
+	t.Helper()
+	if len(path) == 0 || path[0] != pod || path[len(path)-1] != root {
+		t.Fatalf("ownership path endpoints: got %+v, want %v through %v", path, pod, root)
+	}
+	kinds := make([]string, len(path))
+	seen := make(map[types.UID]bool, len(path))
+	for i, ref := range path {
+		object, ok := objects[ref.UID]
+		if !ok || object.ref() != ref || seen[ref.UID] {
+			t.Fatalf("path entry %d is not a unique oracle identity: %+v", i, ref)
+		}
+		seen[ref.UID] = true
+		kinds[i] = ref.GVK.Kind
+		var controller *metav1.OwnerReference
+		for _, owner := range object.Owners {
+			if owner.Controller != nil && *owner.Controller {
+				if controller != nil {
+					t.Fatalf("oracle object %s has multiple controller owners", object.Name)
+				}
+				controller = &owner
+			}
+		}
+		if i == len(path)-1 {
+			if controller != nil {
+				t.Fatalf("path stopped before oracle controller %s of %s", controller.Name, object.Name)
+			}
+			continue
+		}
+		next := path[i+1]
+		if controller == nil || controller.UID != next.UID || controller.Name != next.Name || controller.Kind != next.GVK.Kind || controller.APIVersion != next.GVK.GroupVersion().String() {
+			t.Fatalf("path edge %v -> %v disagrees with oracle controller %+v", ref, next, controller)
+		}
+	}
+	switch root.GVK.Kind {
+	case "JobSet":
+		if !slices.Equal(kinds, []string{"Pod", "Job", "JobSet"}) {
+			t.Fatalf("JobSet path omitted its Job: %v", kinds)
+		}
+	case "Deployment":
+		if !slices.Equal(kinds, []string{"Pod", "ReplicaSet", "Deployment"}) {
+			t.Fatalf("Deployment path omitted its ReplicaSet: %v", kinds)
+		}
+	}
+}
+
+func assertLivePodMemberships(t *testing.T, workload *sdk.Workload, expected []string) map[types.UID]attribution.Membership {
+	t.Helper()
+	memberships := workload.PodMemberships()
+	if len(memberships) != len(expected) {
+		t.Fatalf("PodMemberships has %d entries for %d oracle Pods", len(memberships), len(expected))
+	}
+	rootComponent := strings.ToLower(workload.Root().GVK.Kind)
+	pathLength := 1
+	switch workload.Root().GVK.Kind {
+	case "Bundle":
+		rootComponent = "pods"
+	case "JobSet":
+		pathLength = 2
+	case "LeaderWorkerSet":
+		pathLength = 3
+	}
+	for _, uid := range expected {
+		membership, ok := memberships[types.UID(uid)]
+		if !ok || len(membership.Issues) != 0 || len(membership.Path) != pathLength {
+			t.Fatalf("Pod %s membership: %+v, found=%t; want %d complete coordinates", uid, membership, ok, pathLength)
+		}
+		first := membership.Path[0]
+		if first.Component != rootComponent || first.Instance == nil || *first.Instance != "" || first.Replica != nil {
+			t.Fatalf("Pod %s root coordinate: %+v, want anonymous %s without a replica", uid, first, rootComponent)
+		}
+		if membership.Component == "" || membership.Path[len(membership.Path)-1].Component != membership.Component {
+			t.Fatalf("Pod %s membership does not end at its selected component: %+v", uid, membership)
+		}
+	}
+	return memberships
+}
+
+func assertLiveMembershipCoordinate(t *testing.T, memberships map[types.UID]attribution.Membership, podUIDs []string, component, instance string, replica *string) {
+	t.Helper()
+	for _, uid := range podUIDs {
+		membership, ok := memberships[types.UID(uid)]
+		if !ok {
+			t.Fatalf("oracle Pod %s has no membership", uid)
+		}
+		found := false
+		for _, coordinate := range membership.Path {
+			if coordinate.Component != component {
+				continue
+			}
+			if found || coordinate.Instance == nil || *coordinate.Instance != instance || !reflect.DeepEqual(coordinate.Replica, replica) {
+				t.Fatalf("Pod %s coordinate %+v does not match oracle component=%s instance=%q replica=%v", uid, coordinate, component, instance, replica)
+			}
+			found = true
+		}
+		if !found {
+			t.Fatalf("Pod %s membership omits oracle component %s: %+v", uid, component, membership)
+		}
+	}
+}
+
 func TestLiveOperatorMembership(t *testing.T) {
 	ctx, config, client, mapper, reader := liveClient(t)
 	metadataClient, err := metadata.NewForConfig(config)
@@ -213,7 +316,9 @@ func TestLiveOperatorMembership(t *testing.T) {
 		t.Fatal(err)
 	}
 	podRefs := make(map[string]sdk.ObjectRef)
+	oracleObjects := make(map[types.UID]identity, len(expected.APIObjects))
 	for _, object := range expected.APIObjects {
+		oracleObjects[types.UID(object.UID)] = object
 		if object.Kind == "Pod" {
 			podRefs[object.UID] = object.ref()
 		}
@@ -247,6 +352,7 @@ func TestLiveOperatorMembership(t *testing.T) {
 						t.Fatalf("wrong root %v", workload.Root())
 					}
 					assertPods(t, workload.Pods(), item.PodUIDs)
+					memberships := assertLivePodMemberships(t, workload, item.PodUIDs)
 					if mode.options.Cache != nil {
 						repeated, err := resolver.Workload(ctx, item.Root.ref())
 						if err != nil {
@@ -254,6 +360,9 @@ func TestLiveOperatorMembership(t *testing.T) {
 						}
 						if repeated == workload || !reflect.DeepEqual(repeated.Object(), workload.Object()) || !reflect.DeepEqual(repeated.Pods(), workload.Pods()) {
 							t.Fatal("repeated acquisition changed complete bodies or reused the observation handle")
+						}
+						if !reflect.DeepEqual(repeated.PodMemberships(), memberships) {
+							t.Fatal("repeated acquisition changed captured Pod memberships")
 						}
 					}
 					assertInterfaceConsumers(t, ctx, workload, len(item.PodUIDs))
@@ -275,6 +384,11 @@ func TestLiveOperatorMembership(t *testing.T) {
 						assertPods(t, pods, item.PodUIDs)
 					}
 					for _, podUID := range item.PodUIDs {
+						path, err := resolver.OwnershipPath(ctx, podRefs[podUID])
+						if err != nil {
+							t.Fatal(err)
+						}
+						assertLiveOwnershipPath(t, path, podRefs[podUID], item.Root.ref(), oracleObjects)
 						fromPod, err := resolver.WorkloadForPod(ctx, podRefs[podUID])
 						if err != nil {
 							t.Fatal(err)
@@ -283,6 +397,9 @@ func TestLiveOperatorMembership(t *testing.T) {
 							t.Fatalf("wrong root %v", fromPod.Root())
 						}
 						assertPods(t, fromPod.Pods(), item.PodUIDs)
+						if !reflect.DeepEqual(fromPod.PodMemberships(), memberships) {
+							t.Fatal("root and Pod queries returned different Pod memberships")
+						}
 					}
 					for _, expectedComponent := range item.SemanticComponents {
 						component, err := workload.Component(expectedComponent.Name)
@@ -316,6 +433,7 @@ func TestLiveOperatorMembership(t *testing.T) {
 									t.Fatal(err)
 								}
 								assertPods(t, pods, expectedReplica.PodUIDs)
+								assertLiveMembershipCoordinate(t, memberships, expectedReplica.PodUIDs, expectedComponent.Name, expectedInstance.Name, &expectedReplica.Key)
 								for _, expectedChild := range expectedReplica.Components {
 									child, err := replica.Component(expectedChild.Name)
 									if err != nil {
@@ -331,6 +449,12 @@ func TestLiveOperatorMembership(t *testing.T) {
 											t.Fatal(err)
 										}
 										assertPods(t, pods, expectedChildInstance.PodUIDs)
+										assertLiveMembershipCoordinate(t, memberships, expectedChildInstance.PodUIDs, expectedChild.Name, expectedChildInstance.Name, nil)
+										for _, uid := range expectedChildInstance.PodUIDs {
+											if memberships[types.UID(uid)].Component != expectedChild.Name {
+												t.Fatalf("Pod %s selected component %s, want oracle component %s", uid, memberships[types.UID(uid)].Component, expectedChild.Name)
+											}
+										}
 									}
 								}
 							}

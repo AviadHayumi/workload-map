@@ -6,7 +6,10 @@ package workloadinterface_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +46,39 @@ func TestSchedulingGroupsJobSet(t *testing.T) {
 	if diff := cmp.Diff(want, again); diff != "" {
 		t.Fatalf("returned groups modified the captured workload (-want +got):\n%s", diff)
 	}
+}
+
+func TestSchedulingGroupsReuseCapturedMembership(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dataset, root := jobSetDataset()
+		definition, err := catalog.Get(root.GroupVersionKind())
+		if err != nil {
+			t.Fatal(err)
+		}
+		selector := definition.Spec.StructureDefinition.ChildComponents[0].PodSelector.ComponentInstanceSelector
+		selector.IdPath = fmt.Sprintf(`if now < %d then %s else "undeclared" end`, time.Now().Unix()+1, selector.IdPath)
+		observed := groupingObservation(t, dataset, root, definition)
+		if issues := observed.MembershipIssues(); len(issues) != 0 {
+			t.Fatalf("initial membership issues = %v, want none", issues)
+		}
+		time.Sleep(2 * time.Second)
+		groups, err := workloadinterface.SchedulingGroups(t.Context(), observed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []workloadinterface.SchedulingGroup{
+			{Name: "job", Keys: []string{"evaluation"}, Pods: []*corev1.Pod{dataset.Pods[2]}},
+			{Name: "job", Keys: []string{"training"}, Pods: []*corev1.Pod{dataset.Pods[0], dataset.Pods[1]}},
+		}
+		if diff := cmp.Diff(want, groups); diff != "" {
+			t.Fatalf("captured grouping mismatch (-want +got):\n%s", diff)
+		}
+		current := groupingObservation(t, dataset, root, definition)
+		groups, err = workloadinterface.SchedulingGroups(t.Context(), current)
+		if !errors.Is(err, discovery.ErrIncompleteAttribution) || groups != nil {
+			t.Fatalf("new observation grouping = %v, %v, want no groups and incomplete attribution", groups, err)
+		}
+	})
 }
 
 func TestSchedulingGroupsCombinePyTorchMembers(t *testing.T) {

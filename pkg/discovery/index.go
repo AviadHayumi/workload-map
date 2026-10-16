@@ -400,6 +400,35 @@ func (i *Index) ListPods(ctx context.Context, namespace string) (*corev1.PodList
 	return list, nil
 }
 
+// ownershipPath holds one generation for the entire chain. Pod coverage and
+// unrelated owner closure are not needed to establish this object's owners.
+func (i *Index) ownershipPath(ctx context.Context, object ObjectRef, maxDepth int) ([]ObjectRef, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := i.ready(); err != nil {
+		return nil, err
+	}
+	start, err := i.state.get(object)
+	if err != nil {
+		return nil, err
+	}
+	if reference(start) != object {
+		return nil, fmt.Errorf("%w: starting object identity or namespace differs", ownership.ErrScope)
+	}
+	path, err := i.state.traceDepth(ctx, start, maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]ObjectRef, len(path))
+	for index, entry := range path {
+		refs[index] = entry.Ref
+	}
+	return refs, nil
+}
+
 func (i *Index) Capture(ctx context.Context, seed ObjectRef) (*Capture, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

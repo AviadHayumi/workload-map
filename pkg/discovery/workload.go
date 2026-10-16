@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 	"github.com/dsx-ai-factory/workload-map/pkg/attribution"
@@ -134,6 +135,32 @@ func (w *Workload) Pods() []*corev1.Pod {
 	result := make([]*corev1.Pod, len(w.pods))
 	for i, pod := range w.pods {
 		result[i] = pod.DeepCopy()
+	}
+	return result
+}
+
+// PodMemberships returns the captured attribution of every ownership-confirmed
+// Pod, keyed by UID, including generic and incomplete memberships. The map,
+// coordinate values and issue slices are caller-owned copies. It evaluates no
+// expressions and performs no cluster reads.
+func (w *Workload) PodMemberships() map[types.UID]attribution.Membership {
+	result := make(map[types.UID]attribution.Membership, len(w.pods))
+	for i, pod := range w.pods {
+		membership := w.memberships[i]
+		membership.Path = slices.Clone(membership.Path)
+		for j := range membership.Path {
+			coordinate := &membership.Path[j]
+			if coordinate.Instance != nil {
+				value := *coordinate.Instance
+				coordinate.Instance = &value
+			}
+			if coordinate.Replica != nil {
+				value := *coordinate.Replica
+				coordinate.Replica = &value
+			}
+		}
+		membership.Issues = slices.Clone(membership.Issues)
+		result[pod.UID] = membership
 	}
 	return result
 }
