@@ -9,9 +9,14 @@ its desired templates, and errors when that information is incomplete.
 For example, starting from one JobSet Pod must return the JobSet and all three
 of its Pods. Returning only the Pod's immediate Job would fail the test.
 
+Latest optimization: SDK `355d8c96e5aed865aa447af9cd89cbded1b434ce`.
+See [consumer optimization](#consumer-integration-optimization) for its final
+race suites, recording replay, live tests and presubmit results.
+Earlier sections retain the revision and scope of each historical check.
+
 ## Live definitions and operator integration
 
-Implementation revision: `c6cad432ab565b3f42538496546ddbad6c156218`.
+Provider integration revision: `c6cad432ab565b3f42538496546ddbad6c156218`.
 The SDK remains independent of controller-runtime imports.
 The separate adapter example is compiled in the operator module.
 
@@ -560,6 +565,9 @@ Correctness checks cover the optimized paths:
 - EWI's typed definition conversion preserves the complete serialized schema,
   independent copies, edits between parses and concurrent immutable reads.
   Its 26 focused race specs and complete-output fixtures passed.
+  The broader follow-up also passed all 186 handler/parser/status specs and
+  seven captured-object replays with race detection. A missing parser suite
+  entrypoint was added in the local consumer branch so its existing spec runs.
 
 The final SDK package suite and public recording corpus passed with race detection:
 60 supported recordings, 582 recorded-state checks and 582 current-catalog tree
@@ -585,3 +593,19 @@ Final presubmit also passed: root `make check`, root `make lint-go` and
 `make -C exporter check`. Generated files and dependency-license reports stayed
 unchanged. The first concurrent lint attempt hit the linter's process lock;
 the sequential rerun passed without changing code or lint settings.
+
+Both local consumer integrations now use the published fork module
+`v0.2.1-0.20261016142957-355d8c96e5ae` through their normal `go.mod` files.
+The downloaded module resolves to SDK commit `355d8c96e5ae`; no local SDK path
+or temporary modfile is used in these verification runs.
+
+- WLD: the full controller race suite passed. Downloaded SDK source hashes match
+  the source used by the final optimized benchmark binary.
+- EWI: all 186 specs, three complete-output fixtures with 20 comparisons per mode,
+  and seven captured-object replays passed with race detection. Its optional
+  fixed-work instrumentation test is intentionally excluded from this race run;
+  the serial performance comparison exercised it separately.
+
+These local adapters remain unpushed and undeployed. Their post-publication
+verification does not change the benchmark provenance: optimized EWI timing used
+its earlier component reader plus the typed conversion, as recorded in the report.

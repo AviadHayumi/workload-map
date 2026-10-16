@@ -339,6 +339,10 @@ Optimization must preserve the results being measured.
 The broad SDK race tests and existing discovery recording corpus passed.
 The live SDK E2E suite also passed with race detection: eight top-level tests,
 six membership modes and 42 workload cases, with no skipped tests.
+After publication, both local consumers downloaded SDK `355d8c96e5ae` through
+normal module requirements and passed their full targeted race suites. EWI also
+passed 186 specs and all seven captured-object replays. This follow-up verifies
+the published dependency; it does not change the measured EWI revision above.
 All six WLD/EWI memory profiles produced identical complete-output digests across
 all three implementations and all five samples. Exporter correctness checks
 cover the full sorted 392-line exposition separately from the timed runs.
