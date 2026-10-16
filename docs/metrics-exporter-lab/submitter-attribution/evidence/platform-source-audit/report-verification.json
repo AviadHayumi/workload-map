@@ -1,6 +1,6 @@
 {
   "checkedAt": "2026-10-16T13:24:07.700266+00:00",
-  "reportBaseCommit": "4825bcf0",
+  "reportBaseCommit": "33f5b322",
   "implementationCommit": "49ff26cccd65a64fd69f74ebc2547d7b2de51459",
   "implementationUnchanged": true,
   "sourceReview": {
@@ -57,7 +57,20 @@
     "jsonBlocksParsed": 0,
     "inlineHelmValuesEqualLiveValues": true,
     "sourceAndReproductionPeerReview": "passed after correcting version-default origin, worker.featureFlags chart location and delete_function permission",
-    "credentialAndInternalEndpointPatternMatches": 0
+    "credentialAndInternalEndpointPatternMatches": 0,
+    "rootMakeCheck": {
+      "result": "passed",
+      "commit": "33f5b322",
+      "checkout": "clean temporary clone",
+      "includes": [
+        "generated-file validation",
+        "root tests",
+        "CLI tests",
+        "CLI lint (0 issues)",
+        "CLI version verification"
+      ]
+    },
+    "localDocumentLinksChecked": 46
   },
   "nvcfHelmRetest": {
     "functionStatus": "ACTIVE",
