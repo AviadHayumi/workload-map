@@ -17,17 +17,29 @@ exporter:
     admission:
       enabled: true
     submittedByExpression: |
-      ("workload.dgxc.nvidia.com/submitter-id" in annotations &&
-       annotations["workload.dgxc.nvidia.com/submitter-id"] != "")
-        ? annotations["workload.dgxc.nvidia.com/submitter-id"]
-        : ("run.ai/submitted-by" in annotations &&
-           annotations["run.ai/submitted-by"] != "")
-          ? annotations["run.ai/submitted-by"]
-          : ("osmo.submitted_by" in labels
-              ? labels["osmo.submitted_by"] : "")
+      (
+        [
+          "workload.dgxc.nvidia.com/submitter-id",
+          "run.ai/submitted-by",
+          "workflow.example.com/submitter",
+          "platform.example.com/username",
+          "platform.example.com/created-by"
+        ]
+        .filter(key, key in annotations && annotations[key] != "")
+        .map(key, annotations[key])
+        +
+        [
+          "identity.example.com/submitted-by",
+          "osmo.submitted_by",
+          "workflow.example.com/submitter",
+          "platform.example.com/username",
+          "platform.example.com/created-by"
+        ]
+        .filter(key, key in labels && labels[key] != "")
+        .map(key, labels[key])
+        + [""]
+      )[0]
 ```
-
-This is the short configuration. The [deployed expression](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/rules.json) adds other fallback keys. CEL runs on the workload and its Pods. A workload value also appears on the Pod metric. Conflicting values clear `submitted_by`; empty means unknown. Cross-platform username mapping still needs agreement.
 
 Admission uses the Karta operator's TLS webhook. Keep the operator and webhook enabled. Label only the direct-submission test namespace; the default capture scope is Deployments, Jobs and Pods. Set `admission.enabled: false` for extraction only.
 
@@ -40,7 +52,7 @@ From that checkout, keep the current installation values and image settings:
 ```sh
 helm upgrade --install "$RELEASE" ./charts/karta \
   -n "$KARTA_NS" --create-namespace -f current-values.yaml \
-  -f exporter/examples/submitter-attribution/values.yaml
+  -f exporter/examples/submitter-attribution/values-complex.yaml
 
 export CASES="$PWD/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by"
 export OUT="$(mktemp -d)"
