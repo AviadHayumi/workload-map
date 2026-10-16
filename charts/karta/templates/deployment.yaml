@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+{{- $submitterAdmission := include "karta.submitterAdmission" . | fromYaml -}}
 {{- if .Values.operator.enabled -}}
 {{- if and (gt (int .Values.replicaCount) 1) (not .Values.leaderElection.enabled) -}}
   {{- fail "replicaCount > 1 requires leaderElection.enabled=true; without leader election multiple replicas reconcile concurrently" -}}
@@ -56,8 +59,8 @@ spec:
             - --mutating-webhook-name={{ include "karta.webhook.configName" . }}
             - --validating-webhook-name={{ include "karta.webhook.validatingConfigName" . }}
             {{- end }}
-            {{- if .Values.submitterAdmission.enabled }}
-            - {{ printf "--submitter-identity-source=%s" (required "submitterAdmission.identitySource is required" .Values.submitterAdmission.identitySource) | quote }}
+            {{- if $submitterAdmission.enabled }}
+            - {{ printf "--submitter-identity-source=%s" (required "submitterAdmission.identitySource is required" $submitterAdmission.identitySource) | quote }}
             {{- end }}
             {{- with .Values.extraArgs }}
             {{- toYaml . | nindent 12 }}

@@ -3,10 +3,12 @@
 
 # Optional submitter attribution
 
-Use [values.yaml](values.yaml) with operator and exporter images built from this
-branch. Edit the namespace scopes and identity authorities before installing.
-The feature is off by default. Existing Karta metric names and labels remain
-unchanged; two companion families appear when attribution is enabled.
+Use [values.yaml](values.yaml) or [values-complex.yaml](values-complex.yaml) with
+operator and exporter images built from this branch. The feature is off by
+default. A nonempty `exporter.attribution.submittedByExpression` adds only
+`submitted_by` to `karta_pod_workload_info` and `karta_workload_status`. Their
+names, values and other labels remain unchanged. Observation health has no new
+label. The earlier companion submitter metric families are removed.
 
 ```sh
 helm upgrade --install karta ./charts/karta \
@@ -14,76 +16,98 @@ helm upgrade --install karta ./charts/karta \
   --values exporter/examples/submitter-attribution/values.yaml
 ```
 
+For an existing installation, review the rendered change and merge these options
+with its current values and image references. The example is not a complete
+replacement for an installation's configuration.
+
 ## Extract metadata
 
-Rules use CEL maps named `labels`, `annotations`, and `resource`. The last map
-contains namespace, name, group, version and kind. Missing metadata maps are
-empty. Compile and type errors reject startup. Evaluate expressions only on
-metadata updates; scrapes read stored results.
+CEL receives maps named `labels`, `annotations`, and `resource`. The resource
+map contains namespace, name, group, version and kind. Missing metadata maps are
+empty. The expression must return a string; empty means no candidate. A literal
+dot in a map key does not need a backslash. Neither expression performs platform
+API calls or directory lookups.
 
-| Field | Required result |
-| --- | --- |
-| `matchExpression` | Boolean selecting the intended resource scope |
-| `submittedByExpression` | String; empty means no candidate |
-| `identitySourceExpression` | String identifying the authority and tenant |
-| `submitterTypeExpression` | `human`, `service`, or `unknown` |
-| `partial` | Set true for lossy values such as a shortened email |
+The simple example checks the admission annotation, Run:AI's workload annotation,
+then OSMO's Pod label. The complex example filters two ordered key lists, combines
+the values and selects the first nonempty result. Its precedence is deliberate:
+conflicting keys inside the same object are not detected by this expression.
 
-Every matching candidate is compared. Different nonempty identities produce
-`conflict`; no winner is guessed. Ternary chains inside a rule implement their
-own precedence. They do not detect conflicts in keys that the expression skips.
+Pods and the selected root are evaluated independently. Their nonempty candidates
+must agree. The resolved workload value is placed on both metrics, so a root-only
+value can appear on a Pod sample without copying metadata to the Kubernetes Pod.
+Conflicts, evaluator errors and unhealthy observations produce an empty label.
+An empty label does not distinguish those causes from missing metadata. A
+nonempty label can be a shortened or unverified identifier, including a service.
 
-Pods and observed workload resources are evaluated independently. Add exact
-`exporter.attribution.resourceKinds` entries and get/list/watch RBAC for other
-resource types. A resource metric does not establish a Karta workload hierarchy.
+Only the selected root and its currently attributed Pods participate. Additional
+`exporter.attribution.resourceKinds` and explicit read RBAC can observe metadata
+on other kinds, but do not make an intermediate parent a root or a contributor
+to the resolved label. No separate resource-identity metric is emitted.
+
+Legacy `exporter.attribution.enabled` plus `rules` remains supported. Those rules
+have match, submitter, source, type and partial fields for internal resolution.
+Their extra fields are not metric labels. Configure rules or the single
+expression, never both. Use scoped expressions and trusted metadata keys.
 
 ## Capture direct Kubernetes submission
 
-`submitterAdmission.enabled` installs TLS mutation and validation handlers in the
-operator. Label only intended namespaces with
+`exporter.attribution.admission.enabled` installs scoped TLS mutation and
+validation webhooks in the operator. Label intended namespaces with
 `karta.run.ai/capture-submitter=true`. Keep the operator namespace out of scope.
-The default resource rules cover Deployments, Jobs and Pods. Extend them for the
-original CRD or controller object when needed.
+Default rules cover Deployments, Jobs and Pods; extend them for the original
+controller or CRD when needed. This is an operator webhook, not a native
+MutatingAdmissionPolicy.
 
-The handler records `request.userInfo.username` on CREATE. It overwrites supplied
-values and protects captured annotations on UPDATE. System callers creating
-owned children are skipped. Direct service-account submissions remain service
-identities. This cannot recover the human behind a platform's service account.
-Existing objects are not backfilled. Admission uses `failurePolicy: Fail`, so
-operator availability affects submissions and updates in the selected scope.
+On CREATE, the handler records `request.userInfo.username` in
+`workload.dgxc.nvidia.com/submitter-id`, plus identity-source and submitter-type
+annotations. It preserves unrelated metadata, accepts matching captured values,
+and rejects conflicting supplied values instead of overwriting them. Captured
+fields are immutable on UPDATE within the selected scope. Existing objects are
+not backfilled. System callers creating owned children are skipped; direct
+service-account submissions remain service identities. The handler cannot infer
+a human behind a platform's service account.
 
-Admission is independent of CEL. An extraction-only deployment can disable it.
-`operator.webhookOnly=true` serves admission without reconciling Karta definitions.
-Changing the configured identity authority requires an explicit migration plan;
-do not silently reinterpret existing annotations.
+Admission is independent of CEL. It uses `failurePolicy: Fail`, so operator
+availability affects matching submissions and updates. The legacy top-level
+`submitterAdmission` settings remain supported, but cannot be enabled alongside
+the nested option. `operator.webhookOnly=true` serves admission without Karta
+reconciliation. Changing the identity source needs a deliberate migration.
 
 ## Query the output
 
-```promql
-karta_workload_submitter_info{status="complete", submitter!=""}
-```
+Show current Pod-to-workload mappings with the extracted label:
 
 ```promql
-count by (status) (karta_resource_submitter_info)
+karta_pod_workload_info{namespace="example-team"}
 ```
 
-Statuses are `unknown`, `partial`, `complete`, `conflict`, `evaluation_error`, and
-`stale`. Complete describes a configured identifier, not authentication or
-coverage of every Pod. Keep all statuses visible when reporting coverage.
-Stale and conflicting observations clear the identity fields.
+Show active phase samples without discarding missing identity:
 
-Workload output merges the selected root and currently attributed Pods, not every
-intermediate owner. Resource output uses resource UID; workload output uses
-workload UID. Preserve those keys and cluster identity in joins. Do not join
-historical GPU measurements to today's identity mapping.
+```promql
+karta_workload_status{namespace="example-team"} == 1
+```
 
-Rules compile once. Helm changes trigger a rollout through a configuration
-checksum; editing a mounted ConfigMap does not hot-reload the running process.
-Budgets: 32 rules, 8 KiB per expression, 256 KiB configuration, 10,000 CEL cost
-units per expression and 512 bytes per output field.
+Count workloads by the raw identifier, deduplicating phase samples:
 
-The [execution report](../../../docs/metrics-exporter-lab/submitter-attribution/IMPLEMENTATION.md)
-contains actual submissions, raw metric examples, fixes and unverified cases.
-NVCF account IDs cannot be converted into a missing human identity by CEL. OSMO
-short labels remain partial. Metadata is not an identity attestation mechanism;
-use trusted platform scopes and never treat these metrics as authorization.
+```promql
+count by (submitted_by) (
+  max by (namespace, workload_uid, submitted_by) (karta_workload_status)
+)
+```
+
+These are current observations, not a durable submitter ledger. Use workload and
+Pod UIDs plus a consistent cluster label for joins. Never join old GPU samples
+to today's mapping. Do not assume that equal names from different authorities
+identify the same person, or use these metrics as an authorization check.
+
+Rules compile at startup. Helm config changes roll the exporter through a
+checksum; editing a mounted ConfigMap alone does not hot-reload it. Bounds are
+32 legacy rules, 8 KiB per expression, 256 KiB configuration, 10,000 CEL cost
+units per expression and 512 bytes per output. Invalid configuration rejects
+startup. Runtime errors clear the label; values are never silently truncated.
+
+The [execution report](../../../docs/metrics-exporter-lab/submitter-attribution/audit-summary.md)
+shows fresh submissions, workload structures, raw samples, fixes and platform
+gaps. NVCF cannot supply a missing human through CEL. OSMO's shortened label
+cannot reconstruct its original email domain.

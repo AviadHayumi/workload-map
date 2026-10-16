@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
+{{- $submitterAdmission := include "karta.submitterAdmission" . | fromYaml -}}
 {{- if and .Values.operator.enabled .Values.webhook.enabled }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -35,7 +36,7 @@ webhooks:
         path: /validate-run-ai-v1alpha1-karta
         port: 443
   {{- end }}
-  {{- if .Values.submitterAdmission.enabled }}
+  {{- if $submitterAdmission.enabled }}
   - name: submitter.validate.karta.run.ai
     admissionReviewVersions: ["v1"]
     failurePolicy: Fail
@@ -43,9 +44,9 @@ webhooks:
     matchPolicy: Equivalent
     timeoutSeconds: 5
     namespaceSelector:
-      {{- toYaml .Values.submitterAdmission.namespaceSelector | nindent 6 }}
+      {{- toYaml $submitterAdmission.namespaceSelector | nindent 6 }}
     rules:
-      {{- range .Values.submitterAdmission.resourceRules }}
+      {{- range $submitterAdmission.resourceRules }}
       - apiGroups: {{ toJson .apiGroups }}
         apiVersions: {{ toJson .apiVersions }}
         operations: ["UPDATE"]

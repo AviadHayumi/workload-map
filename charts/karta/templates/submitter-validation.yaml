@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
-{{- if .Values.submitterAdmission.enabled }}
+{{- $submitterAdmission := include "karta.submitterAdmission" . | fromYaml -}}
+{{- if $submitterAdmission.enabled }}
 {{- if not (and .Values.operator.enabled .Values.webhook.enabled) }}
-{{- fail "submitterAdmission requires operator.enabled and webhook.enabled" }}
+{{- fail "submitter admission requires operator.enabled and webhook.enabled" }}
 {{- end }}
-{{- if not (or .Values.submitterAdmission.namespaceSelector.matchLabels .Values.submitterAdmission.namespaceSelector.matchExpressions) }}
-{{- fail "submitterAdmission requires an explicit namespaceSelector" }}
+{{- if not (or $submitterAdmission.namespaceSelector.matchLabels $submitterAdmission.namespaceSelector.matchExpressions) }}
+{{- fail "submitter admission requires an explicit namespaceSelector" }}
 {{- end }}
-{{- if not .Values.submitterAdmission.resourceRules }}
-{{- fail "submitterAdmission requires explicit resourceRules" }}
+{{- if not $submitterAdmission.resourceRules }}
+{{- fail "submitter admission requires explicit resourceRules" }}
 {{- end }}
 {{- end }}
 
-{{- if and .Values.operator.webhookOnly (not .Values.submitterAdmission.enabled) }}
-{{- fail "operator.webhookOnly requires submitterAdmission.enabled" }}
+{{- if and .Values.operator.webhookOnly (not $submitterAdmission.enabled) }}
+{{- fail "operator.webhookOnly requires submitter admission enabled" }}
 {{- end }}

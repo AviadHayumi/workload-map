@@ -28,6 +28,7 @@ const (
 	LabelReplicaGroupID    = "replica_group_id"
 	LabelPhase             = "phase"
 	LabelReason            = "reason"
+	LabelSubmittedBy       = "submitted_by"
 )
 
 // SentinelUnknown cannot collide with a Kubernetes object name.

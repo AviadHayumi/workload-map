@@ -24,7 +24,8 @@ type Evaluator struct {
 }
 
 type Config struct {
-	Rules []Rule `json:"rules"`
+	SubmittedByExpression string `json:"submittedByExpression,omitempty"`
+	Rules                 []Rule `json:"rules,omitempty"`
 }
 
 type Rule struct {
@@ -82,6 +83,12 @@ func Parse(data []byte) (*Evaluator, error) {
 }
 
 func New(cfg Config) (*Evaluator, error) {
+	if cfg.SubmittedByExpression != "" {
+		if len(cfg.Rules) != 0 {
+			return nil, fmt.Errorf("configure submittedByExpression or rules, not both")
+		}
+		cfg.Rules = []Rule{{Name: "submitted-by", MatchExpression: "true", SubmittedByExpression: cfg.SubmittedByExpression, IdentitySourceExpression: "'configured-metadata'", SubmitterTypeExpression: "'unknown'", Partial: true}}
+	}
 	if len(cfg.Rules) == 0 || len(cfg.Rules) > maxRules {
 		return nil, fmt.Errorf("identity configuration requires 1 to %d rules", maxRules)
 	}

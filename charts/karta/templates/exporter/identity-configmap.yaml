@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
-{{- if and .Values.exporter.enabled .Values.exporter.attribution.enabled }}
-{{- if not .Values.exporter.attribution.rules }}
-{{- fail "exporter.attribution.rules must contain at least one CEL rule" }}
-{{- end }}
+{{- if and .Values.exporter.enabled (eq (include "karta.exporter.attributionEnabled" .) "true") }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "karta.exporter.fullname" . }}-identity
   namespace: {{ .Release.Namespace }}
 data:
-  rules.json: {{ dict "rules" .Values.exporter.attribution.rules | toJson | quote }}
+  rules.json: {{ include "karta.exporter.identityConfig" . | quote }}
 {{- end }}

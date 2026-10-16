@@ -18,10 +18,10 @@ spec:
     metadata:
       labels:
         {{- include "karta.exporter.selectorLabels" . | nindent 8 }}
-      {{- if or .Values.exporter.podAnnotations .Values.exporter.attribution.enabled }}
+      {{- if or .Values.exporter.podAnnotations (eq (include "karta.exporter.attributionEnabled" .) "true") }}
       annotations:
-        {{- if .Values.exporter.attribution.enabled }}
-        checksum/identity: {{ toJson .Values.exporter.attribution.rules | sha256sum }}
+        {{- if (eq (include "karta.exporter.attributionEnabled" .) "true") }}
+        checksum/identity: {{ include "karta.exporter.identityConfig" . | sha256sum }}
         {{- end }}
         {{- with .Values.exporter.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -41,7 +41,7 @@ spec:
           imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
           args:
             - --metrics-bind-address=:{{ .Values.exporter.ports.metrics }}
-            {{- if .Values.exporter.attribution.enabled }}
+            {{- if (eq (include "karta.exporter.attributionEnabled" .) "true") }}
             - --identity-config=/etc/karta/identity/rules.json
             {{- with .Values.exporter.attribution.resourceKinds }}
             - {{ printf "--identity-kinds=%s" (join "," .) | quote }}
@@ -61,7 +61,7 @@ spec:
             - --use-catalog
             {{- end }}
             - --workload-phases={{ .Values.exporter.metrics.workloadPhases | join "," }}
-          {{- if .Values.exporter.attribution.enabled }}
+          {{- if (eq (include "karta.exporter.attributionEnabled" .) "true") }}
           volumeMounts:
             - name: identity
               mountPath: /etc/karta/identity
@@ -87,7 +87,7 @@ spec:
             {{- toYaml .Values.exporter.securityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.exporter.resources | nindent 12 }}
-      {{- if .Values.exporter.attribution.enabled }}
+      {{- if (eq (include "karta.exporter.attributionEnabled" .) "true") }}
       volumes:
         - name: identity
           configMap:

@@ -67,7 +67,7 @@ func main() {
 	flag.DurationVar(&healthInterval, "health-check-interval", 30*time.Second, "Interval between fresh API and attribution verification passes.")
 	flag.DurationVar(&healthMaxAge, "health-max-age", 2*time.Minute, "Maximum age of a successful verification; must exceed twice the check interval.")
 	flag.StringVar(&identityKinds, "identity-kinds", "", "Additional metadata-only kinds for CEL, including resources without a Karta or controller owner link.")
-	flag.StringVar(&identityConfig, "identity-config", "", "Optional JSON CEL rules file; compiled once at startup. Empty disables submitter metrics.")
+	flag.StringVar(&identityConfig, "identity-config", "", "Optional JSON CEL rules file; compiled once at startup. Empty disables the submitted_by label.")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))

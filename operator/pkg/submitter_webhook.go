@@ -64,6 +64,11 @@ func (h *SubmitterAdmission) Handle(_ context.Context, req admission.Request) ad
 	if strings.HasPrefix(req.UserInfo.Username, "system:") {
 		principalType = "service"
 	}
+	for key, want := range map[string]string{"submitter-id": req.UserInfo.Username, "identity-source": h.Source, "submitter-type": principalType} {
+		if existing, ok := annotations[submitterPrefix+key]; ok && existing != want {
+			return admission.Denied("existing submitter annotations conflict with the authenticated principal")
+		}
+	}
 	annotations[submitterPrefix+"submitter-id"] = req.UserInfo.Username
 	annotations[submitterPrefix+"identity-source"] = h.Source
 	annotations[submitterPrefix+"submitter-type"] = principalType

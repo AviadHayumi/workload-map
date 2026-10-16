@@ -39,13 +39,13 @@ func TestPlatformRulesFromChartExample(t *testing.T) {
 		name, namespace, kind, want, status string
 		labels, annotations                 map[string]string
 	}{
-		{name: "runai root", namespace: "runai-attribution-lab", kind: "TrainingWorkload", annotations: map[string]string{"run.ai/submitted-by": "alice@example.test"}, want: "alice@example.test", status: Complete},
-		{name: "runai pod", namespace: "runai-attribution-lab", kind: "Pod", annotations: map[string]string{"user": "alice@example.test"}, want: "alice@example.test", status: Complete},
+		{name: "runai root", namespace: "runai-attribution-lab", kind: "TrainingWorkload", annotations: map[string]string{"run.ai/submitted-by": "alice@example.test"}, want: "alice@example.test", status: Partial},
+		{name: "runai pod needs workload inheritance", namespace: "runai-attribution-lab", kind: "Pod", annotations: map[string]string{"user": "alice@example.test"}, status: Unknown},
 		{name: "generic user outside scope", namespace: "other", kind: "Pod", annotations: map[string]string{"user": "alice@example.test"}, status: Unknown},
 		{name: "osmo short identity", namespace: "osmo-submitter-lab", kind: "Pod", labels: map[string]string{"osmo.workflow_id": "workflow-1", "osmo.submitted_by": "alice"}, want: "alice", status: Partial},
 		{name: "osmo missing identity", namespace: "osmo-submitter-lab", kind: "Pod", labels: map[string]string{"osmo.workflow_id": "workflow-1"}, status: Unknown},
 		{name: "nvcf account is not a submitter", namespace: "nvcf-backend", kind: "Pod", labels: map[string]string{"nca-id": "account", "function-id": "function"}, status: Unknown},
-		{name: "canonical precedes lossy osmo", namespace: "osmo-submitter-lab", kind: "Pod", labels: map[string]string{"osmo.workflow_id": "workflow-1", "osmo.submitted_by": "alice"}, annotations: map[string]string{"workload.dgxc.nvidia.com/submitter-id": "alice@example.test", "workload.dgxc.nvidia.com/identity-source": "tenant"}, want: "alice@example.test", status: Complete},
+		{name: "canonical precedes lossy osmo", namespace: "osmo-submitter-lab", kind: "Pod", labels: map[string]string{"osmo.workflow_id": "workflow-1", "osmo.submitted_by": "alice"}, annotations: map[string]string{"workload.dgxc.nvidia.com/submitter-id": "alice@example.test", "workload.dgxc.nvidia.com/identity-source": "tenant"}, want: "alice@example.test", status: Partial},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := e.Evaluate(t.Context(), &metav1.ObjectMeta{Namespace: tc.namespace, Labels: tc.labels, Annotations: tc.annotations}, schema.GroupVersionKind{Kind: tc.kind})
@@ -202,5 +202,56 @@ func TestFingerprintTracksOnlyCELInputs(t *testing.T) {
 	}
 	if Fingerprint(obj, schema.GroupVersionKind{Version: "v2", Kind: "Pod"}) == before {
 		t.Fatal("version input ignored")
+	}
+}
+
+func TestComplexExpressionFromChartExample(t *testing.T) {
+	data, err := os.ReadFile("../../examples/submitter-attribution/values-complex.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values struct {
+		Exporter struct {
+			Attribution Config `json:"attribution"`
+		} `json:"exporter"`
+	}
+	if err := yaml.Unmarshal(data, &values); err != nil {
+		t.Fatal(err)
+	}
+	e, err := New(values.Exporter.Attribution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := [][]string{
+		{"workload.dgxc.nvidia.com/submitter-id", "run.ai/submitted-by", "workflow.example.com/submitter", "platform.example.com/username", "platform.example.com/created-by"},
+		{"identity.example.com/submitted-by", "osmo.submitted_by", "workflow.example.com/submitter", "platform.example.com/username", "platform.example.com/created-by"},
+	}
+	for side, group := range keys {
+		for _, key := range group {
+			obj := &metav1.ObjectMeta{Labels: map[string]string{}, Annotations: map[string]string{}}
+			if side == 0 {
+				obj.Annotations[key] = "alice"
+			} else {
+				obj.Labels[key] = "alice"
+			}
+			if got := e.Evaluate(t.Context(), obj, schema.GroupVersionKind{}); got.Submitter != "alice" {
+				t.Fatalf("%d/%s: %+v", side, key, got)
+			}
+		}
+	}
+	for _, tc := range []struct {
+		annotations, labels map[string]string
+		want                string
+	}{
+		{want: ""},
+		{annotations: map[string]string{"run.ai/submitted-by": ""}, labels: map[string]string{"osmo.submitted_by": "alice"}, want: "alice"},
+		{annotations: map[string]string{"run.ai/submitted-by": "alice"}, labels: map[string]string{"osmo.submitted_by": "bob"}, want: "alice"},
+	} {
+		if got := e.Evaluate(t.Context(), &metav1.ObjectMeta{Annotations: tc.annotations, Labels: tc.labels}, schema.GroupVersionKind{}); got.Submitter != tc.want {
+			t.Fatalf("got %+v, want %q", got, tc.want)
+		}
+	}
+	if _, err := New(Config{SubmittedByExpression: "'alice'", Rules: []Rule{rule()}}); err == nil {
+		t.Fatal("accepted ambiguous configurations")
 	}
 }

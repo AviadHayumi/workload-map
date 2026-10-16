@@ -19,7 +19,7 @@ func TestSubmitterAdmission(t *testing.T) {
 		name, user, raw, wantType string
 		wantPatch                 bool
 	}{
-		{"original caller", "alice@example.test", `{"metadata":{"annotations":{"workload.dgxc.nvidia.com/submitter-id":"forged","other":"preserve"}}}`, "unknown", true},
+		{"original caller", "alice@example.test", `{"metadata":{"annotations":{"other":"preserve"}}}`, "unknown", true},
 		{"user-supplied owner", "alice@example.test", `{"metadata":{"ownerReferences":[{"apiVersion":"batch/v1","kind":"Job","name":"untrusted","uid":"untrusted"}]}}`, "unknown", true},
 		{"service account", "system:serviceaccount:test:submitter", `{"metadata":{}}`, "service", true},
 		{"controller child", "system:kube-controller-manager", `{"metadata":{"ownerReferences":[{"apiVersion":"apps/v1","kind":"ReplicaSet","name":"owner","uid":"owner"}]}}`, "", false},
@@ -55,6 +55,9 @@ func TestSubmitterAdmission(t *testing.T) {
 			if err := json.Unmarshal(updated, &obj); err != nil {
 				t.Fatal(err)
 			}
+			if tc.name == "original caller" && obj.Metadata.Annotations["other"] != "preserve" {
+				t.Fatal("unrelated metadata overwritten")
+			}
 			if obj.Metadata.Annotations[submitterPrefix+"submitter-id"] != tc.user || obj.Metadata.Annotations[submitterPrefix+"submitter-type"] != tc.wantType {
 				t.Fatal("incorrect principal")
 			}
@@ -70,5 +73,17 @@ func TestSubmitterAdmission(t *testing.T) {
 				t.Fatal("unchanged identity denied")
 			}
 		})
+	}
+}
+
+func TestSubmitterAdmissionDoesNotOverwriteExistingIdentity(t *testing.T) {
+	h := &SubmitterAdmission{Source: "kubernetes:test"}
+	for _, user := range []string{"alice@example.test", "bob@example.test"} {
+		raw := []byte(`{"metadata":{"annotations":{"workload.dgxc.nvidia.com/submitter-id":"alice@example.test","other":"preserve"}}}`)
+		req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{Operation: admissionv1.Create, UserInfo: authv1.UserInfo{Username: user}, Object: runtime.RawExtension{Raw: raw}}}
+		response := h.Handle(t.Context(), req)
+		if response.Allowed != (user == "alice@example.test") {
+			t.Fatalf("existing identity handling for %s: %+v", user, response)
+		}
 	}
 }

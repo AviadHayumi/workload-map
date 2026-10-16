@@ -153,6 +153,25 @@ exporter:
   # CEL is evaluated from cached metadata, once per observed update. Configuration
   # changes roll the exporter; invalid rules fail startup rather than run silently.
   attribution:
+    # A nonempty expression enables submitted_by on the existing Pod/workload metrics.
+    submittedByExpression: ""
+    admission:
+      enabled: false
+      identitySource: "kubernetes"
+      namespaceSelector:
+        matchLabels:
+          karta.run.ai/capture-submitter: "true"
+      resourceRules:
+        - apiGroups: ["apps"]
+          apiVersions: ["v1"]
+          resources: ["deployments"]
+        - apiGroups: ["batch"]
+          apiVersions: ["v1"]
+          resources: ["jobs"]
+        - apiGroups: [""]
+          apiVersions: ["v1"]
+          resources: ["pods"]
+    # Existing advanced configuration remains supported.
     enabled: false
     # Additional metadata-only watches; also grant their read RBAC explicitly.
     resourceKinds: []

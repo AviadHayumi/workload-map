@@ -23,8 +23,6 @@ type Collector struct {
 	podInfo            gauge
 	workloadStatus     gauge
 	observationHealthy gauge
-	resourceSubmitter  gauge
-	workloadSubmitter  gauge
 }
 
 type gauge struct {
@@ -60,9 +58,8 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 	}
 	gauges := []*gauge{&c.podInfo, &c.workloadStatus, &c.observationHealthy}
 	if options.Identity {
-		c.resourceSubmitter = gauge{name: "karta_resource_submitter_info", description: "Configured submitter metadata on an observed resource. Value is 1; status describes extraction, not authentication.", labels: []string{"namespace", "resource", "resource_uid", "group", "version", "kind", "submitter", "identity_source", "submitter_type", "rule", "status"}}
-		c.workloadSubmitter = gauge{name: "karta_workload_submitter_info", description: "Submitter from a confirmed workload and its currently attributed Pods. Conflicts have no submitter. Value is 1.", labels: []string{"namespace", "workload", "workload_uid", "workload_group", "workload_version", "workload_kind", "submitter", "identity_source", "submitter_type", "rule", "status"}}
-		gauges = append(gauges, &c.resourceSubmitter, &c.workloadSubmitter)
+		c.podInfo.labels = append(c.podInfo.labels, LabelSubmittedBy)
+		c.workloadStatus.labels = append(c.workloadStatus.labels, LabelSubmittedBy)
 	}
 	instruments := make([]metric.Observable, 0, len(gauges))
 	for _, g := range gauges {
@@ -81,8 +78,9 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 func (c *Collector) collect(ctx context.Context, observer metric.Observer) error {
 	snapshot := c.store.Snapshot()
 	now := time.Now()
+	var submitters map[types.UID]string
 	if c.options.Identity {
-		c.collectIdentities(observer, snapshot)
+		submitters = workloadSubmitters(snapshot, now)
 	}
 	active := make(map[types.UID]*store.WorkloadRecord, len(snapshot.Workloads))
 	seenHealth := make(map[types.UID]bool, len(snapshot.Workloads))
@@ -122,7 +120,11 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 			if slices.Contains(workload.Phases, phase) {
 				value = 1
 			}
-			c.workloadStatus.observe(observer, value, ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(workload.UID), string(phase), workload.OwnerResolution, workload.Karta, workload.KartaSource)
+			values := []string{ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(workload.UID), string(phase), workload.OwnerResolution, workload.Karta, workload.KartaSource}
+			if c.options.Identity {
+				values = append(values, submitters[workload.UID])
+			}
+			c.workloadStatus.observe(observer, value, values...)
 		}
 	}
 	for _, pod := range snapshot.Pods {
@@ -134,13 +136,17 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 			continue
 		}
 		ref := pod.Workload
-		c.podInfo.observe(observer, 1, ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(pod.WorkloadUID), pod.OwnerResolution, pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Replica)
+		values := []string{ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(pod.WorkloadUID), pod.OwnerResolution, pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Replica}
+		if c.options.Identity {
+			values = append(values, submitters[pod.WorkloadUID])
+		}
+		c.podInfo.observe(observer, 1, values...)
 	}
 	return nil
 }
 
 func (g gauge) observe(observer metric.Observer, value float64, values ...string) {
-	var attributes [12]attribute.KeyValue
+	var attributes [13]attribute.KeyValue
 	for i, name := range g.labels {
 		attributes[i] = attribute.String(name, values[i])
 	}
