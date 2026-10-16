@@ -168,7 +168,11 @@ func (r *podRESTReader) ListPods(ctx context.Context, namespace string) (*corev1
 			}
 			seenUIDs[pod.UID], seenCoordinates[coordinates] = true, true
 		}
-		result.Items = append(result.Items, page.Items...)
+		if len(result.Items) == 0 && len(page.Items) > 0 {
+			result.Items = page.Items
+		} else {
+			result.Items = append(result.Items, page.Items...)
+		}
 		next := page.Continue
 		if next == "" {
 			return result, nil

@@ -264,6 +264,51 @@ func TestPodRESTReaderDetachmentAndCapabilities(t *testing.T) {
 	}
 }
 
+func TestPodRESTReaderEmptyContinuedPage(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		pods []corev1.Pod
+	}{
+		{"followed by data", []corev1.Pod{podRESTControlPod("pod")}},
+		{"followed by empty page", []corev1.Pod{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			first := podRESTControlPage()
+			first.Items = []corev1.Pod{}
+			first.Continue = "next"
+			pages := []*corev1.PodList{first, podRESTControlPage(test.pods...)}
+			calls := 0
+			reader, base := podRESTControlReader(t, func(request *http.Request) (*http.Response, error) {
+				if calls >= len(pages) {
+					t.Fatal("unexpected request after final page")
+				}
+				token := ""
+				if calls == 1 {
+					token = "next"
+				}
+				podRESTControlRequest(t, request, "team", token)
+				body := podRESTControlJSON(t, pages[calls])
+				calls++
+				return podRESTControlResponse(request, http.StatusOK, body), nil
+			})
+			want := podRESTControlPage()
+			for _, pod := range test.pods {
+				pod.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"}
+				want.Items = append(want.Items, pod)
+			}
+			expectedJSON := podRESTControlJSON(t, want)
+			want = &corev1.PodList{}
+			if err := json.Unmarshal(expectedJSON, want); err != nil {
+				t.Fatal(err)
+			}
+			got, err := reader.(discovery.PodTransferReader).ListPodsForTransfer(context.Background(), "team")
+			if err != nil || !reflect.DeepEqual(got, want) || calls != 2 || base.lists != 0 {
+				t.Fatalf("empty continued page changed complete result: got=%#v err=%v calls=%d", got, err, calls)
+			}
+		})
+	}
+}
+
 func TestPodRESTReaderValidation(t *testing.T) {
 	mutated := func(change func(*corev1.PodList)) func() []*corev1.PodList {
 		return func() []*corev1.PodList {
