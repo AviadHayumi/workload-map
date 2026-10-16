@@ -37,6 +37,17 @@ observed, err := discoverer.WorkloadForPod(ctx, discovery.ObjectRef{
 if err != nil { return err }
 ```
 
+Choose the acquisition source at construction: pass `reader` for direct reads,
+or a populated `discovery.Index` for repeated queries from a cache:
+
+```go
+discoverer, err := karta.NewDiscoverer(index, discovery.Options{})
+if err != nil { return err }
+```
+
+The caller initializes and updates the index. Construction starts no watches;
+see [index initialization and updates](#reuse-an-index-for-repeated-queries).
+
 For a Pod owned by a Job inside a JobSet, `observed.Root()` identifies the JobSet
 and `observed.Pods()` contains all its descendant Pods, including siblings of the
 starting Pod. Completed, terminating and unscheduled Pods are included.
