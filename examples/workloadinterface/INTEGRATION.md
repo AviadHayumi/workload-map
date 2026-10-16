@@ -12,6 +12,139 @@ Keep the consumer's event loop, output format and writes.
 The examples below are integration paths; they do not claim a completed migration
 of another controller.
 
+## What changes in the three consumers
+
+These are different integration points. They do not all call `WorkloadForPod`.
+The ownership and extraction changes were exercised in local consumer prototypes.
+Those prototypes remain pinned to the earlier SDK revision `b841499553b7`;
+they do not yet use the new live definition provider and have not been deployed.
+The exporter adapters below are implemented in this SDK branch.
+
+| Consumer | Before | SDK replacement | Still owned by the consumer |
+| --- | --- | --- | --- |
+| k8s-workload-discovery | A local controller-owner walking loop. | `ownership.Trace`, using its existing metadata lookup. | Cache, filters, physical-tree projection and writes. |
+| External Workload Integrator (EWI) | An existing Karta component factory from the older module. | The component factory from this SDK, with definition-type conversion. | Component selection, native handlers, grouping, accounting and writes. |
+| Karta metrics exporter | Local ownership, instance traversal and Pod attribution. | `ownership.Index`, `attribution.InstanceIDs` and `attribution.AttributeLegacy`. | Watch controller, definition selection, metric store and scraping. |
+
+### k8s-workload-discovery: replace the owner walk
+
+Before:
+
+```text
+Pod event -> queue -> read current Pod
+  -> local loop: read owner, validate identity, repeat
+  -> convert the path -> merge the physical tree -> write the workload record
+```
+
+After:
+
+```text
+Pod event -> queue -> read current Pod
+  -> ownership.Trace(ctx, start, readOwner, maxHops)
+       -> readOwner uses the existing metadata cache
+  -> convert the path -> merge the physical tree -> write the workload record
+```
+
+The call inside the existing owner-walker adapter becomes:
+
+```go
+path, err := ownership.Trace(ctx, start, readOwner, maxHops)
+```
+
+`start` is an `ownership.Object` containing the Pod identity, owner references
+and namespace scope. `readOwner` is the caller's `ownership.Lookup` function.
+The returned path contains the Pod followed by its verified controller owners.
+
+For `Pod -> ReplicaSet -> Deployment`, the consumer reverses that path and
+merges it into its existing physical tree. No Karta definition is needed.
+The local compatibility adapter retains verified partial paths for missing owners
+and depth limits. Other structural errors fail. The higher-level `OwnershipPath`
+method does not return a successful partial result.
+
+If a new consumer wants the root and all its Pods instead of a physical tree,
+use the [Pod-watch example](OPERATORS.md#2-reconciliation-calls-karta):
+`WorkloadForPod(ctx, discovery.PodReference(pod))`.
+That is a different output contract from this owner-walk replacement.
+
+### EWI: reuse the SDK component reader
+
+EWI already used Karta. The implemented prototype upgrades that extraction
+boundary to this SDK; it does not replace all native handlers or grouping logic.
+
+```text
+Before: workload event -> select definition -> older Karta component factory
+          -> selected-component conversion -> workload spec and status
+
+After:  workload event -> select definition -> SDK component factory
+          -> selected-component conversion -> workload spec and status
+```
+
+After converting the existing definition to this SDK's Karta Go type, the
+shared extraction starts with:
+
+```go
+factory := resource.NewComponentFactoryFromObject(definition, object)
+rootComponent, err := factory.GetRootComponent()
+if err != nil { return err }
+childComponents, err := factory.GetChildComponents()
+if err != nil { return err }
+// Pass the selected components to the existing converter.
+```
+
+`definition` is a `*v1alpha1.Karta` from this SDK module.
+`object` is the workload object already read by the consumer.
+The prototype bridges the old and new definition types through their JSON schema.
+Its converter keeps the existing component selection, accounting and phase rules.
+
+Replacing native extraction with `Tree`, or replacing membership and grouping
+with `PodMemberships`, is broader work. It is not implemented by this prototype.
+See [selective extraction](#preserve-an-existing-parsers-selection-rules) for why
+an unconditional recursive-tree replacement can change output.
+
+The [live definition provider](OPERATORS.md#4-select-definitions-and-update-them-from-your-own-watch)
+is available for a later adapter. Publishing definitions does not start or
+synchronize the consumer's workload watches.
+
+### Karta metrics exporter: share algorithms during events
+
+Before:
+
+```text
+Pod event -> exporter-local owner index
+  -> exporter-local instance traversal and attribution -> metric store
+Prometheus scrape -> metric-store snapshot -> existing metric families
+```
+
+After, in this SDK branch:
+
+```text
+Pod event -> ownership.Index.Resolve
+  -> attribution.InstanceIDs + attribution.AttributeLegacy -> metric store
+Prometheus scrape -> metric-store snapshot -> existing metric families
+```
+
+The existing exporter entry points delegate to these calls:
+
+```go
+// Inside the existing Attribute adapter:
+return Result(attribution.AttributeLegacy(
+    ctx, pod, entry.Summary, entry.Definitions, instanceIDs,
+))
+
+// Inside the existing InstanceIDs adapter:
+return attribution.InstanceIDs(ctx, entry.Karta, workload, false)
+```
+
+The [owner adapter](../../exporter/pkg/owner/index.go) aliases the shared index.
+The [attribution adapter](../../exporter/pkg/attribute/attributor.go) contains both
+calls above. The [collector](../../exporter/pkg/collector/collector.go) still reads
+`Store.Snapshot()`; it does not discover workloads during a scrape.
+
+Metric names, labels and Helm values are unchanged by these adapters.
+This is not complete parity with the latest PoC branch: newer cluster-scope and
+other PoC changes still need integration. The [exporter comparison](COLLECTOR.md)
+records those differences and the inspected revisions.
+
 ## Read one ownership path
 
 An inventory service can replace its owner-walking loop with:

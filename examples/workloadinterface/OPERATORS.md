@@ -6,6 +6,9 @@
 Keep your operator's watches and client.
 Call Karta from reconciliation, then project the result into your existing output.
 
+For the exact replacement in k8s-workload-discovery, EWI and the Karta metrics
+exporter, start with the [three before/after flows](INTEGRATION.md#what-changes-in-the-three-consumers).
+
 | If your project needs... | Call Karta for... | Keep in your project |
 | --- | --- | --- |
 | A physical ownership inventory | `OwnershipPath` or `ownership.Trace` | Metadata cache, filters, merged resource tree and inventory writes |

@@ -13,6 +13,13 @@ Start with [Pod watch -> Karta call -> workload result](OPERATORS.md) to integra
 an operator. It includes selected catalog definitions, live definition updates,
 and direct or cached client adapters.
 
+See [what changes in the three consumers](INTEGRATION.md#what-changes-in-the-three-consumers)
+for the before/after flows and exact calls:
+
+- [k8s-workload-discovery: owner walking](INTEGRATION.md#k8s-workload-discovery-replace-the-owner-walk).
+- [EWI: component extraction](INTEGRATION.md#ewi-reuse-the-sdk-component-reader).
+- [Karta metrics exporter: event-time attribution](INTEGRATION.md#karta-metrics-exporter-share-algorithms-during-events).
+
 This guide uses a JobSet with training and evaluation Jobs.
 The same calls work with other definitions and with ordinary ownership discovery.
 These APIs are implemented in this checkout; they may not be in the published module yet.
