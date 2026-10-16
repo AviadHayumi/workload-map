@@ -242,21 +242,71 @@ See the [captured resource fields](https://github.com/AviadHayumi/workload-map/b
 
 ## OSMO
 
-Download the [single-task](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-single-request-template.json) and [group](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-group-request-template.json) request files into your working directory.
+Use a logged-in [OSMO CLI](https://nvidia.github.io/OSMO/main/user_guide/workflows/submission.html). Replace `YOUR_CPU_PLATFORM` and `YOUR_POOL` with your platform and pool. Each block creates and submits the complete workflow; no files to download.
 
-Set `OSMO_API` to the gateway and `OSMO_PLATFORM` to a configured platform with CPU capacity. This reproduces the development-auth test. Production authentication must use the installation's normal login; these headers are not a production identity check.
+Single task:
 
 ```sh
-for kind in single group; do
-  jq --arg platform "$OSMO_PLATFORM" \
-    '.file |= gsub("<audit-platform>"; $platform)' \
-    "osmo-$kind-request-template.json" |
-  curl -fsS "$OSMO_API/api/pool/default/workflow" \
-    -H 'Content-Type: application/json' \
-    -H 'x-osmo-user: alice@example.test' \
-    -H 'x-osmo-roles: osmo-user' --data-binary @-
-done
+cat > osmo-single.yaml <<'YAML'
+workflow:
+  name: cel-label-single
+  resources:
+    default:
+      cpu: 1
+      memory: 512Mi
+      storage: 1Gi
+      platform: YOUR_CPU_PLATFORM
+  tasks:
+  - name: worker
+    image: ubuntu:24.04
+    command: [/bin/sh, -c]
+    args:
+    - echo attribution-start; sleep 300; echo attribution-complete
+YAML
+osmo workflow submit osmo-single.yaml --pool YOUR_POOL
 ```
+
+Leader/worker group:
+
+```sh
+cat > osmo-group.yaml <<'YAML'
+workflow:
+  name: cel-label-group
+  resources:
+    default:
+      cpu: 1
+      memory: 512Mi
+      storage: 1Gi
+      platform: YOUR_CPU_PLATFORM
+  groups:
+  - name: pair
+    tasks:
+    - name: leader
+      image: ubuntu:24.04
+      command: [/bin/sh, -c]
+      args:
+      - echo attribution-start; sleep 300; echo attribution-complete
+      lead: true
+    - name: worker
+      image: ubuntu:24.04
+      command: [/bin/sh, -c]
+      args:
+      - echo attribution-start; sleep 300; echo attribution-complete
+YAML
+osmo workflow submit osmo-group.yaml --pool YOUR_POOL
+```
+
+Use the workflow ID returned by each command to check completion:
+
+```sh
+osmo workflow query YOUR_WORKFLOW_ID
+```
+
+These are the same workflow specifications used in the API test below. The CLI commands are the documented reproduction path; the saved results came from REST submissions.
+
+<!-- pagebreak -->
+
+## OSMO: result and gaps
 
 The requests submit one task and a leader/worker group. Each task uses Ubuntu 24.04, one CPU, 512Mi memory and a 300-second command. Both workflows completed; all three tasks in the repeated run exited with code 0.
 
@@ -284,7 +334,7 @@ karta_pod_workload_info{
 
 `karta_workload_status` carried the same `submitted_by="alice"`. Samples were captured while the tasks were running.
 
-Extra setup used: OSMO 6.3.1, development identity headers and a separate audit platform using the existing scheduler. Platform selection was explicit. No service copied submitter metadata or queried the workflow API for the exporter.
+The API test used OSMO 6.3.1 with development headers `x-osmo-user: alice@example.test` and `x-osmo-roles: osmo-user`. Those headers supplied the test identity; production login was not tested. The workflows ran on a separate platform using the existing scheduler. No external identity mapper was used.
 
 Current OSMO bugs: the label drops the email domain, and the one-character user `a` produced no submitter label. Different emails can become the same `alice`.
 
