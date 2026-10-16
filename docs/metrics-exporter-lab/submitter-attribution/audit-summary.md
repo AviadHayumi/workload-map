@@ -199,39 +199,45 @@ Current Karta/OSMO gap: there is no Kubernetes workflow root in this setup. Toda
 
 ## NVCF / NVCT
 
-Download the [function](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-function-request.json), [deployment](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-deploy-request.json) and [task](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvct-task-request.json) request files into your working directory.
+NVCF ran an HTTP service; NVCT ran a task that finishes. Both worked. Neither exposed the human submitter to Kubernetes, so `submitted_by` stayed empty.
 
-This used the self-managed NVCF stack and local service credentials issued through OpenBao. Set API URLs, a management token, and function/task API keys from your installation. Register a compute pool and edit `gpu`/`instanceType` in the deployment and task requests to match it.
+1. NVCF HTTP service: download the [function](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-function-request.json) and [deployment](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvcf-deploy-request.json) requests. Use your management API URL/token for `NVCF_API` and `NVCF_ADMIN_TOKEN`. Match the deployment's `gpu`/`instanceType` to your compute pool.
 
 ```sh
 curl -fsS "$NVCF_API/v2/nvcf/functions" \
   -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
   -H 'Content-Type: application/json' \
-  --data-binary @"nvcf-function-request.json" > "function.json"
-FID=$(jq -r '.function.id' "function.json")
-VID=$(jq -r '.function.versionId' "function.json")
+  --data-binary @nvcf-function-request.json > function.json
+FID=$(jq -r '.function.id' function.json)
+VID=$(jq -r '.function.versionId' function.json)
 DEPLOY="$NVCF_API/v2/nvcf/deployments/functions/$FID/versions/$VID"
 curl -fsS "$DEPLOY" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
-  -H 'Content-Type: application/json' \
-  --data-binary @"nvcf-deploy-request.json"
+  -H 'Content-Type: application/json' --data-binary @nvcf-deploy-request.json
 ```
 
-Wait for ACTIVE. For the local invocation gateway, set `NVCF_INVOKE_URL` to its base URL and `NVCF_INVOKE_DOMAIN` to its configured domain without the function ID:
+Once ACTIVE, call it with your gateway URL/domain and invocation key. The lab gateway routes by the function's Host header:
 
 ```sh
 curl -fsS "$NVCF_INVOKE_URL/" \
   -H "Host: $FID.$NVCF_INVOKE_DOMAIN" \
   -H "Authorization: Bearer $NVCF_API_KEY"
+```
 
+Observed: the Nginx service returned HTTP 200.
+
+2. NVCT finite task: download the [task request](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/nvct-task-request.json) and match its `gpu`/`instanceType` to the pool. Set your task API URL/key. Undeploy the function to free its allocation:
+
+```sh
 curl -fsS -X DELETE "$DEPLOY" \
   -H "Authorization: Bearer $NVCF_ADMIN_TOKEN"
 curl -fsS "$NVCT_API/v1/nvct/tasks" \
   -H "Authorization: Bearer $NVCT_API_KEY" \
-  -H 'Content-Type: application/json' \
-  --data-binary @"nvct-task-request.json"
+  -H 'Content-Type: application/json' --data-binary @nvct-task-request.json
 ```
 
-The Nginx function returned HTTP 200. After undeploying it, the finite task reached COMPLETED at 100%. The supplied task writes NVCT progress and disables result uploads. NGC was used only for image pulls.
+Observed: COMPLETED at 100%, with result uploads disabled.
+
+Karta saw Pods with account and function/task IDs, but no user for CEL to read. Both metric families had `submitted_by=""`. HTTP-service sample:
 
 ```prometheus
 karta_pod_workload_info{
@@ -240,15 +246,12 @@ karta_pod_workload_info{
 } 1
 ```
 
-Both paths had empty `submitted_by` on Pod and workload metrics. The Pod and ICMSRequest exposed account/workload IDs, but no human submitter. The owner link lacked `controller: true`, so Karta selected the Pod as the workload.
+Current gaps and suggested fixes:
 
-Extra setup used: helper overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4`; the tested chart's image references did not resolve. The two test containers were resized from 1 CPU to 100m to fit the lab. No external identity mapper ran. Hosted NVCF and optional telemetry were not validated.
+- NVCF identity: publish the authenticated submitter in workload/Pod annotations. Agree creator versus deployer for functions. Until then, leave the value empty; an audit lookup only helps if it records the original user. No lookup was implemented.
+- Karta/NVCF grouping: owner links lacked `controller: true`, so Karta used each Pod as a workload. Function/task-level mapping remains missing.
+- Platform bugs: NVCT helper image references did not resolve; the overrides below worked. NVCA, the cluster agent, left a request after malformed-task cancellation; manual cleanup was required. Suggest issues for both.
 
-Current gaps and suggested issues:
+Extra lab setup: self-managed NVCF with service credentials from OpenBao; helper images `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4`; test-container CPU reduced to 100m. Hosted NVCF and human login were not tested.
 
-- NVCF: keep `submitted_by` empty unless an external audit lookup can recover the original user. A service key alone is not enough. Suggested issue: pass that user into workload/Pod annotations and agree creator versus deployer.
-- Karta/NVCF: add a function-level workload mapping. Today, each Pod is a workload.
-- NVCT: fix helper image references. Today, use the overrides above.
-- NVCA: fix cancellation of malformed requests. One left an ICMSRequest behind and needed manual cleanup after checking its owned resources. The underlying bug still needs a fix.
-
-[Execution evidence](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) contains ACTIVE/COMPLETED results and raw metrics. The [NVCF issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md) describes the metadata request. No issues have been opened.
+See [execution evidence](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) and the [identity issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md). No issues have been opened.
