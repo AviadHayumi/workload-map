@@ -54,7 +54,23 @@ func compileWrites(definition v1alpha1.ComponentDefinition, component string, pa
 	if err != nil {
 		return nil, err
 	}
-	if len(fields) == 0 {
+	hasOperation := false
+	for _, field := range fields {
+		if !slices.Equal(field.fieldPath, []string{"spec", "containers"}) {
+			hasOperation = true
+			break
+		}
+		// Container names select existing entries; they do not change fields.
+		// Keep the original entries so mixed patches still validate selectors.
+		for _, entry := range field.value.([]any) {
+			for key := range entry.(map[string]any) {
+				if key != "name" {
+					hasOperation = true
+				}
+			}
+		}
+	}
+	if !hasOperation {
 		return nil, ErrEmptyPatch
 	}
 	writes, unsupported, err := routeFields(definition, fields)
