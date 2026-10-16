@@ -18,7 +18,19 @@
     "compiledExampleCasesPassed": 14,
     "shellBlocksSyntaxChecked": 11,
     "yamlBlocksParsed": 11,
-    "jsonBlocksParsed": 1
+    "jsonBlocksParsed": 1,
+    "rootMakeCheck": {
+      "result": "passed",
+      "commit": "26019d1c",
+      "checkout": "clean temporary clone",
+      "includes": [
+        "generated-file validation",
+        "root tests",
+        "CLI tests",
+        "CLI lint (0 issues)",
+        "CLI version verification"
+      ]
+    }
   },
   "priorFullChecks": "Full root/exporter/operator make check results retained in ../submitted-by/validation.json; implementation source unchanged.",
   "pdf": {
