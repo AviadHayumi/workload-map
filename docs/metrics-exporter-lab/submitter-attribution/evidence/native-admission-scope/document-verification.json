@@ -11,5 +11,13 @@
   "pdfBounds": "passed",
   "allPagesVisuallyInspected": true,
   "markdownSHA256": "b5148cb1f14794339754617befcdb2e4e16022a7ebc7a64b83838b11227bd23d",
-  "pdfSHA256": "5d04904476319cfae7e2f1026a5525294dab5f6152757dd02fa0522a34d0f77a"
+  "pdfSHA256": "5d04904476319cfae7e2f1026a5525294dab5f6152757dd02fa0522a34d0f77a",
+  "implementationCommit": "5bb0f5aa32b04a9d62136ffce50b7a87ace325f1",
+  "rootMakeCheck": "passed",
+  "rootMakeCheckTree": "6e473b0e46631c724676624d0f265bfd4aee085b",
+  "exporterMakeCheck": "passed",
+  "helmLintAndValidate": "passed",
+  "renderedWebhooksServerDryRun": "passed",
+  "liveScopeTests": "passed",
+  "temporaryResourcesRemoved": true
 }
