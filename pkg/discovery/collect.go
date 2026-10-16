@@ -33,7 +33,7 @@ type collection struct {
 	objects          map[objectKey]*unstructured.Unstructured
 	identities       map[types.UID]*unstructured.Unstructured
 	podRoots         []types.UID // Terminal UIDs in the collected Pod order.
-	pods             map[objectKey]*corev1.Pod
+	pods             map[types.NamespacedName]*corev1.Pod
 	podUIDs          map[types.UID]*corev1.Pod
 	metadata         map[*unstructured.Unstructured]*ownership.Object
 	lookups          map[ObjectRef]*ownership.Object
@@ -47,7 +47,7 @@ type ownerRecord struct {
 }
 
 func newCollection(reader Reader) *collection {
-	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), pods: make(map[objectKey]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]*ownership.Object), lookups: make(map[ObjectRef]*ownership.Object)}
+	return &collection{reader: reader, mappings: make(map[schema.GroupVersionKind]*meta.RESTMapping), objects: make(map[objectKey]*unstructured.Unstructured), identities: make(map[types.UID]*unstructured.Unstructured), pods: make(map[types.NamespacedName]*corev1.Pod), podUIDs: make(map[types.UID]*corev1.Pod), metadata: make(map[*unstructured.Unstructured]*ownership.Object), lookups: make(map[ObjectRef]*ownership.Object)}
 }
 
 func (c *collection) mapping(ctx context.Context, gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
@@ -96,7 +96,11 @@ func (c *collection) get(ctx context.Context, ref ObjectRef) (*unstructured.Unst
 	key := objectKey{ref.GVK, ref.Namespace, ref.Name}
 	object := c.objects[key]
 	if object == nil {
-		if pod := c.pods[key]; pod != nil {
+		var pod *corev1.Pod
+		if ref.GVK == podGVK {
+			pod = c.pods[types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}]
+		}
+		if pod != nil {
 			object, err = podObject(pod)
 		} else {
 			object, err = c.reader.Get(ctx, ref)
@@ -335,7 +339,7 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 	if len(list.Items) > 0 {
 		dataset.Pods = make([]*corev1.Pod, 0, len(list.Items))
 	}
-	c.pods = make(map[objectKey]*corev1.Pod, len(list.Items))
+	c.pods = make(map[types.NamespacedName]*corev1.Pod, len(list.Items))
 	c.podUIDs = make(map[types.UID]*corev1.Pod, len(list.Items))
 	c.podRoots = make([]types.UID, len(list.Items))
 	ownedPods := list.Items
@@ -360,13 +364,14 @@ func collect(ctx context.Context, c *collection, namespace string, depth int, ex
 			return Dataset{}, fmt.Errorf("%w: duplicate Pod UID %s", ErrInvalidInput, pod.UID)
 		}
 		key := objectKey{podGVK, pod.Namespace, pod.Name}
-		if c.pods[key] != nil {
+		podKey := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
+		if c.pods[podKey] != nil {
 			return Dataset{}, fmt.Errorf("%w: duplicate Pod coordinates", ErrInvalidInput)
 		}
 		if previous := c.objects[key]; previous != nil && (previous.GetUID() != pod.UID || previous.GetResourceVersion() != pod.ResourceVersion) {
 			return Dataset{}, fmt.Errorf("%w: Pod changed during collection", ErrStaleInput)
 		}
-		c.pods[key] = pod
+		c.pods[podKey] = pod
 		c.podUIDs[pod.UID] = pod
 		dataset.Pods = append(dataset.Pods, pod)
 	}

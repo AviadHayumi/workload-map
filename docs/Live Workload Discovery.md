@@ -438,13 +438,18 @@ errors, incomplete attribution and failed instance preparation are not admitted.
 Concurrent misses may compute independently; cancellation is not shared between
 callers. `DesiredTree` continues to evaluate on request.
 
-Generic workloads are eligible. For known definitions, every component must use
-an anonymous declared instance (`InstanceIdPath == nil`), and Pod selectors must
-be static field or constant-index paths. Named instance extraction, functions,
-variables, iteration, interpolation and computed paths bypass reuse. JobSet's
-named replicated-job instances therefore use normal evaluation. This conservative
-subset avoids changing the meaning of time-dependent or arbitrary jq expressions;
-enabling the option does not guarantee a hit for every workload type.
+Generic workloads are eligible. For known definitions, root instance extraction
+may use structural field/constant-index paths with unconditional `[]` iteration,
+such as JobSet's `.spec.replicatedJobs[].name`. Pod selectors must remain static
+field or constant-index paths. JobSet, RayCluster and RayService named instances
+fit this subset. Functions, variables, pipes, optional traversal, interpolation
+and computed paths bypass reuse. Other expressions in RayJob, Grove and Dynamo
+still require normal evaluation. Preparation errors, including invalid IDs and
+result limits, do not populate the cache, even for workloads with zero Pods.
+Successful named declarations retain ID strings; MaxPods bounds Pod membership
+records and does not bound declared IDs or bytes.
+This conservative subset avoids changing the meaning of time-dependent or
+arbitrary jq expressions; enabling the option does not guarantee a hit.
 
 ## Errors and validation
 

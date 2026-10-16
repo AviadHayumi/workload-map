@@ -157,7 +157,7 @@ func cacheableAttribution(definition *v1alpha1.Karta) bool {
 	}
 	components := append([]v1alpha1.ComponentDefinition{definition.Spec.StructureDefinition.RootComponent}, definition.Spec.StructureDefinition.ChildComponents...)
 	for _, component := range components {
-		if component.InstanceIdPath != nil {
+		if component.InstanceIdPath != nil && !structuralAttributionPath(*component.InstanceIdPath, true) {
 			return false
 		}
 		selector := component.PodSelector
@@ -178,6 +178,10 @@ func cacheableAttribution(definition *v1alpha1.Karta) bool {
 }
 
 func staticAttributionPath(expression string) bool {
+	return structuralAttributionPath(expression, false)
+}
+
+func structuralAttributionPath(expression string, allowIteration bool) bool {
 	query, err := gojq.Parse(expression)
 	if err != nil || query.Meta != nil || len(query.Imports) != 0 || len(query.FuncDefs) != 0 || len(query.Patterns) != 0 || query.Left != nil || query.Right != nil || query.Term == nil {
 		return false
@@ -187,7 +191,16 @@ func staticAttributionPath(expression string) bool {
 		return false
 	}
 	for _, suffix := range term.SuffixList {
-		if suffix.Iter || suffix.Optional || !staticAttributionIndex(suffix.Index) {
+		if suffix.Optional {
+			return false
+		}
+		if suffix.Iter {
+			if !allowIteration || suffix.Index != nil {
+				return false
+			}
+			continue
+		}
+		if !staticAttributionIndex(suffix.Index) {
 			return false
 		}
 	}

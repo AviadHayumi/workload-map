@@ -154,9 +154,9 @@ func TestAttributionCacheStaticPathEligibility(t *testing.T) {
 		t.Fatal("fixture not eligible")
 	}
 	definition := f.definition.DeepCopy()
-	definition.Spec.StructureDefinition.RootComponent.InstanceIdPath = ptr.To(".spec.ids")
+	definition.Spec.StructureDefinition.RootComponent.InstanceIdPath = ptr.To(".spec.ids | .[]")
 	if cacheableAttribution(definition) {
-		t.Fatal("instance declaration cached")
+		t.Fatal("unsupported instance declaration cached")
 	}
 }
 

@@ -222,9 +222,10 @@ index readiness still returns an error. `Cache: nil` disables this reuse.
 
 Both limits must be positive. They bound retained workloads and total Pod
 membership records, not bytes or the index itself. Least recently used entries
-are evicted. Generic workloads and definitions with anonymous instances and
-simple Pod field selectors are eligible. Other definitions, including named
-instance extraction such as JobSet, evaluate normally. This option requires a
+are evicted. Generic workloads and definitions with structural root instance
+paths and simple Pod field selectors are eligible. Root paths may include `[]`
+iteration, covering named instances in JobSet, RayCluster and RayService. Other
+expressions bypass reuse and evaluate normally. This option requires a
 `*discovery.Index`; it does not start watches or cache direct Kubernetes reads.
 
 See the [runnable update example](recipes_test.go) and

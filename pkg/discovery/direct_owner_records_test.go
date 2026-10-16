@@ -287,7 +287,7 @@ func TestDirectOwnerRecordsKeepExactPodBodyPath(t *testing.T) {
 	reader := newOwnerRecordReader(body, custom)
 	c := newCollection(reader)
 	c.metadataOnly = true
-	c.pods[objectKey{podGVK, pod.Namespace, pod.Name}] = pod
+	c.pods[types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}] = pod
 	c.podUIDs[pod.UID] = pod
 	for _, object := range []*unstructured.Unstructured{body, custom} {
 		ref := reference(object)

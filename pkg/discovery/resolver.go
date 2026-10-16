@@ -51,9 +51,10 @@ type CacheOptions struct {
 type Options struct {
 	Definitions []*v1alpha1.Karta
 	MaxDepth    int
-	// Cache nil disables attribution reuse. Initially only anonymous instance
-	// declarations and static field/constant-index Pod selectors are eligible,
-	// along with generic workloads. It does not manage watches or guarantee hits.
+	// Cache nil disables attribution reuse. Generic workloads, structural root
+	// instance paths (including iteration), and static field/constant-index Pod
+	// selectors are eligible. Other expressions bypass reuse. The cache does not
+	// manage watches or guarantee hits.
 	Cache *CacheOptions
 }
 
@@ -342,7 +343,7 @@ func (r *Resolver) fromCapture(ctx context.Context, seed ObjectRef, requireRoot 
 		if _, err := c.podIdentity(ctx, pod); err != nil {
 			return nil, err
 		}
-		key := objectKey{podGVK, pod.Namespace, pod.Name}
+		key := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
 		if c.pods[key] != nil || c.podUIDs[pod.UID] != nil {
 			return nil, fmt.Errorf("%w: duplicate captured Pod", ErrInvalidInput)
 		}
@@ -362,7 +363,7 @@ func (r *Resolver) fromCapture(ctx context.Context, seed ObjectRef, requireRoot 
 	var path []ownership.Object
 	var err error
 	if seed.GVK == podGVK {
-		pod := c.pods[objectKey{podGVK, seed.Namespace, seed.Name}]
+		pod := c.pods[types.NamespacedName{Namespace: seed.Namespace, Name: seed.Name}]
 		if pod == nil {
 			return nil, fmt.Errorf("%w: seed Pod absent", ErrIncompleteOwnership)
 		}

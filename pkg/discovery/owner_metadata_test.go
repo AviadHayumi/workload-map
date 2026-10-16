@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 	"github.com/dsx-ai-factory/workload-map/pkg/catalog/kartas"
@@ -295,7 +296,7 @@ func TestOwnerMetadataExcludesCorePodsAndRejectsPodUIDAliases(t *testing.T) {
 			c.metadataOnly = true
 			if listed {
 				c.podUIDs[pod.UID] = pod
-				c.pods[objectKey{podGVK, pod.Namespace, pod.Name}] = pod
+				c.pods[types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}] = pod
 			}
 			_, err = c.lookup(context.Background(), reference(object))
 			if listed && gvk != podGVK {

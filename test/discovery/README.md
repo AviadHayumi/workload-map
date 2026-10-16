@@ -177,3 +177,9 @@ kind delete cluster --name karta-sdk-discovery
 
 The ignored local kubeconfig and oracle may then be removed. The public SDK
 contract and examples are in [Live Workload Discovery](../../docs/Live%20Workload%20Discovery.md).
+
+The mutation suite also creates a dedicated suspended JobSet to verify repeated
+named-instance scopes, a published metadata update, and delete/recreate with a
+new UID and different instance name. JobSet makes replicatedJobs immutable;
+same-UID declaration edits and internal cache-hit reuse are unit-tested. The
+live control does not weaken admission or alter existing operator fixtures.
