@@ -7,7 +7,10 @@ Build a workload inventory, collect Pod counts, or investigate a failing Pod
 without writing a separate adapter for every workload type. Karta runs inside
 your Go process. You supply the Kubernetes client and decide when to read or write.
 
-![Karta SDK entry points and known or generic workload results](sdk-overview.png)
+![Ownership discovery returns a workload and Pods with or without a Karta definition](sdk-overview.png)
+
+Ownership discovery does not require a Karta definition. A definition adds
+semantic grouping and desired-state inspection to the discovered workload and Pods.
 
 Two entry points serve different inputs: `karta.New(definition, object)` inspects
 and edits an object you already hold. `karta.NewDiscoverer(reader, options)` finds
