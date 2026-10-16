@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-10-16T07:26:57.901366+00:00",
+  "binarySha256": "c34c6cb0c570b199aead1fa3ed542184db6b692ec7d36659bc00f7e03c7d2df1",
+  "workloadHealthReasonCounts": {
+    "before": {
+      "api_unavailable": 11,
+      "none": 152,
+      "unresolved_owner": 68,
+      "evaluation_failed": 2
+    },
+    "after": {
+      "api_unavailable": 21,
+      "none": 189,
+      "unresolved_owner": 4,
+      "evaluation_failed": 2
+    }
+  },
+  "sameUIDRecoveredFromUnresolvedOwnerByKind": {
+    "Pod": 4,
+    "Deployment": 30,
+    "StatefulSet": 1
+  },
+  "note": "Live observations, not a fixed denominator benchmark. No workload or node names published."
+}

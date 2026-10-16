@@ -6,6 +6,10 @@
 Target: isolated KIND test cluster. NGC was used for reads and pulls only.
 Original source repositories and the shared kubectl context were not changed.
 
+The [implementation report](IMPLEMENTATION.md) and [audit summary](audit-summary.md)
+include the resumed authenticated Run:AI and CEL-enabled OSMO tests. The initial
+OSMO identity-collision experiments below are retained as historical evidence.
+
 ## Verified findings
 
 | Product/path | What was tested | Submitter evidence |
@@ -13,7 +17,7 @@ Original source repositories and the shared kubectl context were not changed.
 | OSMO 6.3.1 | Four finite workflows completed | Workflow API preserves the full submitted_by; Pod and PodGroup labels may lose information |
 | NVCF self-managed | Function ACTIVE; GET invocation returned HTTP 200 | Pod has account/function/version IDs; correlated creation audit identifies client ncp |
 | NVCT self-managed | Finite task reached COMPLETED; Pod and ICMSRequest metadata captured | Pod/root object contain task/account IDs; audit identifies API-key owner svc@nvct-api.local |
-| Run:AI | Source inspection and read of existing cluster Pods | Inspected composer path writes job annotation run.ai/submitted-by and Pod annotation user; authenticated submission not tested |
+| Run:AI | Authenticated training completed; inference Ready and HTTP 200 | Complete principal observed on Job/Service roots and Pod metadata; namespace-scoped workload metrics verified |
 
 OSMO results:
 
@@ -63,7 +67,7 @@ USER for the service-style owner svc@nvcf-api.local.
   computation were not tested. This cluster uses fake GPUs.
 - Deprecated NVCF cluster-list endpoint returned 403 with this CLI auth setup;
   the documented ICMS cluster-management endpoint worked.
-- Run:AI needs an authenticated submission test before claiming live coverage.
+- Run:AI training/inference are now verified through authenticated submission. Broader composers and cluster-wide owner permissions remain outside this test scope.
 - One malformed task remained as an ICMSRequest after API cancellation. Its
   finalizer was removed only after verifying no owned workload/storage resources.
   This lab cleanup does not fix the underlying NVCA cancellation behavior.

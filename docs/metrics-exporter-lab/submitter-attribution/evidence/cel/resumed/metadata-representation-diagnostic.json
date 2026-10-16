@@ -1,0 +1,13 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "fullObjects": 9,
+  "metadataObjects": 9,
+  "sameResourceVersion": 9,
+  "matchingIdentityInputs": 0,
+  "differingAnnotationKeys": [
+    "deprecated.daemonset.template.generation"
+  ],
+  "difference": "Full-object response contains the annotation; PartialObjectMetadata omits it. No annotation values or infrastructure identifiers published.",
+  "consequence": "Health compared different representations and falsely marked the metadata cache stale."
+}

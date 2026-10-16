@@ -33,6 +33,6 @@ Unknown Pod identity alongside complete direct workload identity is expected:
 admission captures the root request, and the workload metric reuses that root.
 The Deployment's ReplicaSet inherits its annotations; the Pod does not.
 
-No authenticated Run:AI workload was submitted in this run. No new OSMO workflow
-passed capacity validation. Source-backed unit fixtures are not substitutes for
-those live tests. The initial research evidence is retained separately.
+The [resumed execution captures](resumed/README.md) add authenticated Run:AI
+training/inference and two completed CEL-enabled OSMO workflows. They also record
+the owner-resolution audit. The initial research evidence is retained separately.

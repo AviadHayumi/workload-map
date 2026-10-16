@@ -1,0 +1,6 @@
+{
+  "capturedAt": "2026-10-16T06:59:08.294675+00:00",
+  "status": 200,
+  "body": "attribution-inference\n",
+  "route": "loopback port-forward through Knative revision queue-proxy"
+}

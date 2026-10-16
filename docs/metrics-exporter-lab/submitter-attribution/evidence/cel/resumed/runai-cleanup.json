@@ -1,0 +1,14 @@
+[
+  {
+    "kind": "training",
+    "workloadId": "ec9b92d2-54b5-4560-a4c5-1b0d13f8a488",
+    "status": 202,
+    "deletedAt": "2026-10-16T07:28:24.678187+00:00"
+  },
+  {
+    "kind": "inference",
+    "workloadId": "eb781968-3882-41cd-a591-d9017a0c4d4c",
+    "status": 202,
+    "deletedAt": "2026-10-16T07:28:25.186535+00:00"
+  }
+]

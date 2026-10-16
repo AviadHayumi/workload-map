@@ -1,0 +1,55 @@
+{
+  "cel-metric-single-1": {
+    "name": "cel-metric-single-1",
+    "submitted_by": "alice@example.test",
+    "status": "COMPLETED",
+    "groups": [
+      {
+        "name": "worker-group",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+            "start_time": "2026-10-16T06:46:36.724194",
+            "end_time": "2026-10-16T06:49:44.383724",
+            "failure_message": null
+          }
+        ]
+      }
+    ]
+  },
+  "cel-metric-group-1": {
+    "name": "cel-metric-group-1",
+    "submitted_by": "alice@example.test",
+    "status": "COMPLETED",
+    "groups": [
+      {
+        "name": "pair",
+        "status": "COMPLETED",
+        "tasks": [
+          {
+            "name": "leader",
+            "status": "COMPLETED",
+            "exit_code": 0,
+            "pod_name": "77e449eedfdc4f90-69b5048077da47df",
+            "start_time": "2026-10-16T06:46:37.025239",
+            "end_time": "2026-10-16T06:49:46.466237",
+            "failure_message": null
+          },
+          {
+            "name": "worker",
+            "status": "COMPLETED",
+            "exit_code": null,
+            "pod_name": "77e449eedfdc4f90-a4750ab5d1b54549",
+            "start_time": "2026-10-16T06:46:37.326428",
+            "end_time": "2026-10-16T06:49:46.466237",
+            "failure_message": "Lead task finished"
+          }
+        ]
+      }
+    ]
+  }
+}

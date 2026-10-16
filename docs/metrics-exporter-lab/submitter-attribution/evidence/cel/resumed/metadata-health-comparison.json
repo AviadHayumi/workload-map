@@ -1,0 +1,21 @@
+{
+  "capturedAt": "2026-10-16T07:41:41.293467+00:00",
+  "binarySha256": "f6601030d80beb91e3c835e94b6d765bebf03a4ff660f64371eb8ce70dfab9ab",
+  "workloadHealthReasonsBefore": {
+    "api_unavailable": 21,
+    "none": 188
+  },
+  "workloadHealthReasonsAfter": {
+    "none": 210
+  },
+  "daemonSetKindHealthBefore": {
+    "reason": "api_unavailable",
+    "value": 0.0
+  },
+  "daemonSetKindHealthAfter": {
+    "reason": "none",
+    "value": 1.0
+  },
+  "sameUIDRecoveredFromAPIUnavailable": 21,
+  "runaiAuditRemainingPodsAndRunners": 0
+}

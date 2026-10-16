@@ -1,0 +1,16 @@
+{
+  "sourceCommits": [
+    "5e700636734f75a55a4ffab3e0b01611779314b6",
+    "e05d1f3e7e84fae322ac19797839d6b896a45848"
+  ],
+  "checks": {
+    "exporterMakeCheck": "passed; fmt, vet, lint, race and coverage suites",
+    "rootMakeCheck": "passed in clean local checkout of e05d1f3e; generated-file and license checks, library and CLI tests, CLI lint, version build",
+    "regressionBeforeFix": "owner scope/root key and metadata representation tests failed as recorded in report",
+    "controllerTestsAfterFix": "passed",
+    "uploadedBinarySHA256": "f6601030d80beb91e3c835e94b6d765bebf03a4ff660f64371eb8ce70dfab9ab",
+    "isolatedExporterRollouts": "both Ready",
+    "publicMetricAndHelmContracts": "unchanged by these two correction commits"
+  },
+  "caveat": "The root Makefile rejects any dirty or untracked file. Its first run in the working checkout stopped on that condition; a clean local checkout preserved existing user files and passed."
+}

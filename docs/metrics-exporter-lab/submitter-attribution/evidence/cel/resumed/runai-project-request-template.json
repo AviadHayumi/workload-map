@@ -1,0 +1,17 @@
+{
+  "name": "attribution-lab",
+  "clusterId": "<cluster-id>",
+  "parentId": "<department-id>",
+  "description": "Isolated finite submitter attribution audit",
+  "resources": [
+    {
+      "nodePool": {
+        "id": "<node-pool-id>"
+      },
+      "gpu": {
+        "deserved": 0,
+        "limit": 0
+      }
+    }
+  ]
+}

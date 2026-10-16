@@ -1,0 +1,256 @@
+{
+  "capturedAt": "2026-10-16T06:57:50.709521+00:00",
+  "resources": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-audit-inference-00001-deployment-699c745c96-hfstn",
+      "uid": "d041f286-ee54-4d29-bdb3-896320c06da7",
+      "namespace": "runai-attribution-lab",
+      "owners": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "cel-audit-inference-00001-deployment-699c745c96",
+          "uid": "1eab65fb-5145-47bd-b33c-2e1cad9cb823"
+        }
+      ],
+      "annotations": {},
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "type": "PodBound",
+          "status": "True",
+          "reason": "Bound",
+          "lastTransitionTime": "2026-10-16T06:54:19Z"
+        },
+        {
+          "type": "PodReadyToStartContainers",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:22Z"
+        },
+        {
+          "type": "Initialized",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:19Z"
+        },
+        {
+          "type": "Ready",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:22Z"
+        },
+        {
+          "type": "ContainersReady",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:22Z"
+        },
+        {
+          "type": "PodScheduled",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:19Z"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "name": "cel-audit-training-pw6bp",
+      "uid": "e0ee9337-2360-4f3b-9663-63aedaa2947c",
+      "namespace": "runai-attribution-lab",
+      "owners": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "Job",
+          "name": "cel-audit-training",
+          "uid": "8195f402-2bed-4c48-9636-296d95d0bf35"
+        }
+      ],
+      "annotations": {
+        "user": "test@run.ai"
+      },
+      "status": {
+        "phase": "Succeeded"
+      },
+      "conditions": [
+        {
+          "type": "PodBound",
+          "status": "True",
+          "reason": "Bound",
+          "lastTransitionTime": "2026-10-16T06:49:31Z"
+        },
+        {
+          "type": "PodReadyToStartContainers",
+          "status": "False",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:34Z"
+        },
+        {
+          "type": "Initialized",
+          "status": "True",
+          "reason": "PodCompleted",
+          "lastTransitionTime": "2026-10-16T06:49:31Z"
+        },
+        {
+          "type": "Ready",
+          "status": "False",
+          "reason": "PodCompleted",
+          "lastTransitionTime": "2026-10-16T06:54:33Z"
+        },
+        {
+          "type": "ContainersReady",
+          "status": "False",
+          "reason": "PodCompleted",
+          "lastTransitionTime": "2026-10-16T06:54:33Z"
+        },
+        {
+          "type": "PodScheduled",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:49:31Z"
+        }
+      ]
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "name": "cel-audit-training",
+      "uid": "8195f402-2bed-4c48-9636-296d95d0bf35",
+      "namespace": "runai-attribution-lab",
+      "owners": [
+        {
+          "apiVersion": "run.ai/v1alpha1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "WorkloadRunner",
+          "name": "cel-audit-training",
+          "uid": "26326f45-c57d-4e6a-b799-8ece2c0c56a2"
+        }
+      ],
+      "annotations": {
+        "run.ai/submitted-by": "test@run.ai"
+      },
+      "status": {
+        "completionTime": "2026-10-16T06:54:35Z",
+        "succeeded": 1
+      },
+      "conditions": [
+        {
+          "type": "SuccessCriteriaMet",
+          "status": "True",
+          "reason": "CompletionsReached",
+          "lastTransitionTime": "2026-10-16T06:54:35Z"
+        },
+        {
+          "type": "Complete",
+          "status": "True",
+          "reason": "CompletionsReached",
+          "lastTransitionTime": "2026-10-16T06:54:35Z"
+        }
+      ]
+    },
+    {
+      "apiVersion": "run.ai/v1alpha1",
+      "kind": "WorkloadRunner",
+      "name": "cel-audit-inference",
+      "uid": "a206b2ff-da61-4647-822b-46e4430a72d0",
+      "namespace": "runai-attribution-lab",
+      "owners": [],
+      "annotations": {},
+      "status": {
+        "phase": "Running"
+      },
+      "conditions": [
+        {
+          "type": "PrerequisitesPassed",
+          "status": "True",
+          "reason": "KartaReady",
+          "lastTransitionTime": "2026-10-16T06:54:18Z"
+        },
+        {
+          "type": "LastReconcileSucceeded",
+          "status": "True",
+          "reason": "Succeeded",
+          "lastTransitionTime": "2026-10-16T06:54:18Z"
+        }
+      ]
+    },
+    {
+      "apiVersion": "run.ai/v1alpha1",
+      "kind": "WorkloadRunner",
+      "name": "cel-audit-training",
+      "uid": "26326f45-c57d-4e6a-b799-8ece2c0c56a2",
+      "namespace": "runai-attribution-lab",
+      "owners": [],
+      "annotations": {},
+      "status": {
+        "phase": "Completed"
+      },
+      "conditions": [
+        {
+          "type": "PrerequisitesPassed",
+          "status": "True",
+          "reason": "KartaReady",
+          "lastTransitionTime": "2026-10-16T06:49:28Z"
+        },
+        {
+          "type": "LastReconcileSucceeded",
+          "status": "True",
+          "reason": "Succeeded",
+          "lastTransitionTime": "2026-10-16T06:49:29Z"
+        }
+      ]
+    },
+    {
+      "apiVersion": "serving.knative.dev/v1",
+      "kind": "Service",
+      "name": "cel-audit-inference",
+      "uid": "8c91ea94-88bc-4708-83f3-992e21812d24",
+      "namespace": "runai-attribution-lab",
+      "owners": [
+        {
+          "apiVersion": "run.ai/v1alpha1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "WorkloadRunner",
+          "name": "cel-audit-inference",
+          "uid": "a206b2ff-da61-4647-822b-46e4430a72d0"
+        }
+      ],
+      "annotations": {
+        "run.ai/submitted-by": "test@run.ai"
+      },
+      "status": {},
+      "conditions": [
+        {
+          "type": "ConfigurationsReady",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:22Z"
+        },
+        {
+          "type": "Ready",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:23Z"
+        },
+        {
+          "type": "RoutesReady",
+          "status": "True",
+          "reason": null,
+          "lastTransitionTime": "2026-10-16T06:54:23Z"
+        }
+      ]
+    }
+  ]
+}

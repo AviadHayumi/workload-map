@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-10-16T07:41:41.293467+00:00",
+  "runaiAuditRemainingPodsAndRunners": 0,
+  "workloadHealthReasonCounts": {
+    "none": 210
+  },
+  "deployments": [
+    {
+      "name": "karta-submitter-runai-audit",
+      "desired": 1,
+      "ready": 1,
+      "command": [
+        "/opt/karta/karta-exporter-metadata-audit"
+      ]
+    },
+    {
+      "name": "karta-submitter-test-exporter",
+      "desired": 1,
+      "ready": 1,
+      "command": [
+        "/opt/karta/karta-exporter-metadata-audit"
+      ]
+    }
+  ]
+}

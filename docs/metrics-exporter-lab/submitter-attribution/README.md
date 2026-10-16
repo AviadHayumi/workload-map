@@ -7,9 +7,10 @@ Verified lab findings, an integration contract, and an opt-in implementation.
 16 October 2026.
 
 The [CEL implementation report](IMPLEMENTATION.md) contains the latest code,
-workload submissions, metric samples, bugs and limitations. Four of the eight
-requested new workload cases executed. Run:AI authentication and new OSMO
-capacity tests remain pending approval.
+workload submissions, metric samples, bugs and limitations. All eight requested
+execution cases now have evidence across the original and resumed runs. The
+[short audit summary](audit-summary.md) explains the results and fixes; the
+[PDF](audit-summary.pdf) is the shareable version.
 
 ![Identity from submission to observability](./submitter-attribution.png)
 
@@ -52,7 +53,7 @@ the value. Cross-source equivalence requires an explicit verified mapping.
 | OSMO 6.3.1 | Four finite workflows completed | Full `submitted_by` in the workflow API; lossy or absent `osmo.submitted_by` on task Pods and PodGroups |
 | NVCF self-managed | Function ACTIVE; invocation HTTP 200 | Account, function and version IDs on resources; creation audit identifies the authenticated client |
 | NVCT self-managed | Finite task COMPLETED | Task/account IDs on Pod and parent; creation audit identifies the API-key owner |
-| Run:AI | Source inspected; no authenticated submission test | The inspected composer writes `run.ai/submitted-by` on workload annotations and `user` on Pod annotations |
+| Run:AI | Authenticated finite training completed; Knative inference Ready and HTTP 200 | Complete principal on the Job/Service and Pod annotations; both workload identity metrics verified |
 
 OSMO example: `alice@team-a.example` and `alice@team-b.example` both became
 `alice` in the Pod label. The workflow API retained both complete identities.
@@ -82,8 +83,8 @@ observation proves which human initiated a request through that service.
    insufficient for a metadata-only observer.
 3. Add a full-identity annotation to OSMO task resources; retain the existing
    label for compatibility. Fix the single-character label validation separately.
-4. Complete the blocked platform execution tests for the optional CEL extension.
-   Preserve provenance and conflict reporting when adapting rules.
+4. Extend the completed platform samples to additional submission modes and
+   production authentication. Preserve provenance and conflict reporting.
 5. Test updates, deletion/recreation, watch recovery and missing identities before
    claiming complete coverage. Keep the existing Karta metrics unchanged.
 

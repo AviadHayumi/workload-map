@@ -10,10 +10,11 @@ The operator can separately stamp the original Kubernetes request principal.
 The Karta CRD, SDK, and the names and labels of the three existing KEP metrics
 are unchanged. This is an implementation PoC, not proof of universal attribution.
 
-The requested eight-workload matrix is not complete. Direct Kubernetes and
-NVCF execution were tested. Authenticated Run:AI submission and the two new OSMO
-execution cases remain blocked as described below. Earlier OSMO execution
-results remain valid historical evidence; they are not tests of this new binary.
+The requested eight-workload execution matrix now has evidence across the original
+CEL run and the resumed audit. The continuation completed authenticated Run:AI
+training/inference and both OSMO workflows. The later owner-scope correction has
+its own regression and live-health evidence; this is not a claim that every
+platform was rerun against that final binary. See [the audit summary](audit-summary.md).
 
 ## Execution matrix
 
@@ -23,10 +24,10 @@ results remain valid historical evidence; they are not tests of this new binary.
 | Direct Kubernetes | Finite Job | Created through admission as the same test principal; Job Complete at 00:05:29 UTC | Root and workload metric contain the complete principal |
 | NVCF | Container function | Created and deployed through the local NVCF API; Running; GET invocation HTTP 200, 896 bytes | Pod metadata has account/function/version IDs but no submitting principal; `unknown` |
 | NVCT | Finite task | Submitted through the local task API; Running then COMPLETED; result uploads disabled | Pod and ICMSRequest parent both report `unknown` |
-| OSMO | Single-task workflow | New request rejected before execution: no whole CPU available; fractional CPU request also rejected by the schema | No new Pod, so no new CEL execution result |
-| OSMO | Two-task group | Prepared with a leader and worker; execution pending capacity approval | Not yet verified with the new exporter |
-| Run:AI | Training | Authenticated submission pending playground credential approval | Not yet verified live |
-| Run:AI | Inference | Authenticated submission pending playground credential approval | Not yet verified live |
+| OSMO | Single-task workflow | Submitted through the workflow API on an explicit audit platform; COMPLETED | Resource and Pod-root workload metrics report `alice`, `partial` |
+| OSMO | Two-task group | Leader/worker group COMPLETED; three task Pods captured across both fixtures | Both group Pods report partial identity; no workflow-wide Kubernetes root is invented |
+| Run:AI | Training | Authenticated API submission; finite Job completed | Job and Pod agree; workload metric is complete, principal type unknown |
+| Run:AI | Inference | Authenticated API submission; Knative Service Ready; HTTP 200 through revision proxy | Knative Service workload metric is complete, principal type unknown |
 
 The direct test uses Kubernetes impersonation of a namespace-scoped fixture
 principal. It proves which `request.userInfo.username` the admission handler
@@ -136,6 +137,10 @@ a workload hierarchy or promote the resource into a Karta workload.
 The direct Deployment and Job use one `busybox:1.37.0` container. It prints a
 marker and sleeps for 120 seconds. The Job has `restartPolicy: Never`, zero
 retries, and a one-hour TTL. The Deployment restarts its container normally.
+A later audit found that the finite command repeatedly exits successfully under
+the Deployment restart policy and eventually enters restart backoff. This is a
+fixture lifecycle mistake, not an exporter crash. The Deployment fixture was
+subsequently stopped after recording its successful identity result.
 Both creation requests deliberately supplied a forged submitter annotation.
 Admission overwrote it with the authenticated/impersonated request principal.
 
@@ -143,7 +148,17 @@ The OSMO fixtures use `ubuntu:24.04`, a 180-second finite shell command, 512 MiB
 memory and 1 GiB storage per task. The group has an explicit leader and worker.
 The first single-task request failed CPU availability validation. A retry with
 `cpu: 0.1` failed because this workflow field accepts integers. The final prepared
-requests use one CPU. They have not passed the capacity gate in this run.
+requests use one CPU. The continuation added a separately named platform with
+explicit test placement; existing platform/template defaults were unchanged.
+Both fixtures passed the capacity gate and completed. The replay worker was
+terminated after its leader finished, as reported by OSMO; that is not proof of
+an independent zero exit code.
+
+The authenticated Run:AI training fixture uses `busybox:1.37.0`, prints two
+markers around a 300-second sleep and completes. Inference serves a fixed HTTP
+response on port 8080 through Knative. Each requests 50 millicores and 64 MiB,
+with limits of 200 millicores and 128 MiB. These are control-path tests, not model
+training or model inference. The new project has zero GPU quota.
 
 The NVCF function uses `nvcr.io/nvidia/omniverse/simple-nginx:1.0.2`, an HTTP
 health check and one fake GPU instance. Its function ID is
@@ -233,8 +248,13 @@ namespace instead of replacing it with the exporter's namespace.
 | Test ServiceMonitor was outside Prometheus discovery scope | Place it in the monitored namespace and target only the new service |
 | Prometheus can overwrite exported namespace labels | Enable `honorLabels`, as the chart's existing ServiceMonitor already does |
 | NVCF fixture initially lacked CPU capacity | Temporarily reduce the lab OpenBao request and new test Pod requests; restore OpenBao after task completion |
-| New OSMO workloads need whole CPU capacity | Pending approval for temporary lab service CPU adjustments; not claimed fixed |
-| Run:AI login was unavailable for this cluster | Pending explicit approval to use its bootstrap credential; no authenticated submission claim |
+| New OSMO workloads need whole CPU capacity | Explicit audit platform uses available test capacity; both finite workflows completed |
+| Run:AI login was unavailable for this cluster | Existing playground login used; both authenticated workload submissions verified |
+| Run:AI rejected inference while Knative was installed | Enable the required scheduler-name and affinity integration features; Service became Ready and returned HTTP 200 |
+| Run:AI owner observation lacked permission | Separate exporter restricted to the test namespace with a namespaced WorkloadRunner read role; no cluster-wide grant |
+| Valid cluster-scoped owner references were rejected | Follow Kubernetes scope rules in the index and verifier; retain UID validation and reject invalid cross-namespace links |
+| Cluster root cache keys also affected attribution, retries and deletion fences | Use standard Kubernetes cache keys throughout those lifecycle paths; regression tests reproduced failures before the correction |
+| DaemonSet full-object conversion adds an annotation absent from metadata-only responses | Verify metadata watches through the metadata API; preserve real-change freshness checks. All nine live DaemonSets reproduced this mismatch at identical resource versions |
 
 ## Limits that remain
 
@@ -299,20 +319,22 @@ namespace instead of replacing it with the exporter's namespace.
     scrape, memory, update fan-out and recovery still need measurement.
 15. This run does not prove all Run:AI composers, OSMO submission modes, hosted
     NVCF, Helm-based functions, external delegation, real GPU execution, or
-    production authentication. The requested eight-workload execution matrix
-    remains incomplete until its blocked entries are run.
+    production authentication across all platforms. The eight requested execution
+    cases now have evidence, with the per-build and authentication scope stated above.
 16. Identity records are keyed by resource UID. Avoid configuring several served
     API versions of the same group/kind: version-dependent rules can replace one
     another and verification can remain stale. Select the version used by the
     chosen Karta definition. Multi-version identity observation has not been
     validated as a supported mode.
-17. Existing owner verification still assumes a namespace match when following
-    some controller references to cluster-scoped parents. The lab reports
-    unresolved ownership for several infrastructure Pods with Node/KAI parents.
-    The metadata cache-key fix makes those parent observations visible; it does
-    not repair the separate owner-resolution assumption. The direct test
-    Deployment/Job paths verified healthy. Cluster-scoped parent hierarchies
-    need a separate resolver change and regression tests before claiming coverage.
+17. Cluster-scoped ownership and cache-key defects are corrected in the resumed
+    audit. Regression tests cover valid scope transitions, invalid cross-namespace
+    links, UID replacement, root publication, Pod attribution, descendant refresh,
+    retries and deletion fences. A namespace-restricted exporter still needs
+    explicit read permission for cluster-scoped owner kinds it encounters.
+18. Run:AI workload-level verification uses a namespace-restricted test exporter.
+    The original cluster-wide lab exporter was not granted cluster-wide
+    WorkloadRunner access. Its permission failures remain visible. The scoped
+    result does not establish fleet-wide Run:AI coverage.
 
 ## Validation and reproducibility
 
@@ -341,3 +363,47 @@ base image. No unpublished binary was published to a registry. Chart rendering
 supplies the feature flags, ConfigMap, TLS and selectors; a local rendering step
 adds the binary volume and isolates RBAC. A production image/release pipeline
 and immutable image provenance still need their normal release verification.
+
+## Resumed audit evidence
+
+The continuation captures are indexed under [evidence/cel/resumed](evidence/cel/resumed/README.md).
+The current audit summary records corrected owner traversal and metadata health
+verification, exact test scope and deployment verification. Existing public metric names, labels and Helm values
+were not changed by these corrections.
+
+The scope correction recovered 35 workload observations with the same UID from
+unresolved-owner to healthy: 30 Deployments, four Pods and one StatefulSet. The
+remaining DaemonSet health failures exposed a second verification defect: the
+full API response adds `deprecated.daemonset.template.generation`, while its
+metadata-only response omits that annotation. All nine inspected DaemonSets had
+identical resource versions but different input fingerprints. Fresh verification
+now reads the same representation as the informer, including for cluster-scoped
+owners. A regression test also verifies that real unseen metadata edits still
+invalidate health and recover after the event is processed. No annotation is
+special-cased or silently discarded by CEL.
+
+Operational corrections: an attempted rollout preceded completion of the binary
+copy, so commands were restored before a verified upload and rollout. Temporary
+upload Pods expired as designed and were replaced; final uploaded hashes were
+compared with local builds before deployment. An expired Run:AI API token was
+renewed through the same login for cleanup. These are lab execution corrections,
+not claims of changes to the exporter contract.
+
+The direct Deployment is scaled to zero. Both Run:AI fixtures were deleted through
+their API after capture, and their asynchronous Kubernetes cleanup was verified.
+The test project and namespace-scoped exporter remain available. Knative's two
+required integration settings remain enabled. The separate OSMO audit platform
+remains explicitly selectable; the default platform was not changed.
+
+Final metadata-fix capture: all 21 previously stale Pod observations recovered
+with the same UID. DaemonSet resource-kind health changed from zero to one.
+The resulting snapshot contains 210 healthy workload observations and no
+workload-level failures. This is a point-in-time lab result, not a guarantee
+about all resource types or future cluster state. Both isolated exporters are
+Ready and the Run:AI audit namespace contains no remaining Pods or WorkloadRunners.
+
+Final source checks passed: exporter `make check` (format, vet, lint and race
+tests) and root `make check` on commit `e05d1f3e` in a clean local checkout. The
+root check first stopped because the working tree contained changes and two
+pre-existing untracked documents; those files were preserved. No generated-file
+or license drift remained in the clean validation checkout.

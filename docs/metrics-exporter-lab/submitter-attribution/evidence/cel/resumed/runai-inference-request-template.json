@@ -1,0 +1,26 @@
+{
+  "name": "cel-audit-inference",
+  "projectId": "<project-id>",
+  "clusterId": "<cluster-id>",
+  "spec": {
+    "image": "busybox:1.37.0",
+    "command": "sh",
+    "args": "-c \"mkdir -p /tmp/www; echo attribution-inference > /tmp/www/index.html; httpd -f -p 8080 -h /tmp/www\"",
+    "compute": {
+      "cpuCoreRequest": 0.05,
+      "cpuCoreLimit": 0.2,
+      "cpuMemoryRequest": "64Mi",
+      "cpuMemoryLimit": "128Mi",
+      "gpuDevicesRequest": 0
+    },
+    "autoscaling": {
+      "minReplicas": 1,
+      "maxReplicas": 1
+    },
+    "servingPort": {
+      "container": 8080,
+      "protocol": "http",
+      "clusterLocalAccessOnly": true
+    }
+  }
+}
