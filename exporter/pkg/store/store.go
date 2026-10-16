@@ -4,6 +4,7 @@
 package store
 
 import (
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -85,6 +86,7 @@ type HealthRecord struct {
 
 // Snapshot is a consistent view of the store, safe to read without locks.
 type Snapshot struct {
+	Identities  map[types.UID]IdentityRecord
 	Workloads   []WorkloadRecord
 	Pods        []PodRecord
 	Health      []HealthRecord
@@ -94,6 +96,7 @@ type Snapshot struct {
 // Store holds workload and pod records keyed by UID, with a reverse
 // workload-to-pods index so workload events can re-attribute only their pods.
 type Store struct {
+	identities             map[types.UID]IdentityRecord
 	mu                     sync.RWMutex
 	health                 []HealthRecord
 	healthEpoch            uint64
@@ -271,6 +274,7 @@ func (s *Store) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snapshot := Snapshot{
+		Identities:  maps.Clone(s.identities),
 		Workloads:   make([]WorkloadRecord, 0, len(s.workloads)),
 		Health:      append([]HealthRecord(nil), s.health...),
 		HealthEpoch: s.healthEpoch,

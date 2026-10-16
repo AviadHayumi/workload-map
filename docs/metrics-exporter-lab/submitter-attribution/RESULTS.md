@@ -138,3 +138,11 @@ EVIDENCE.md for the observations whose complete resource snapshots were not reta
 The first five NVCT attempts were canceled or errored while correcting image
 packaging and fixture setup. Only the final task is claimed as a successful
 execution. Setup workarounds are not claimed as upstream product fixes.
+
+## CEL implementation follow-up
+
+The subsequent [implementation report](IMPLEMENTATION.md) records two direct
+Kubernetes submissions and two additional NVCF/NVCT executions with the new
+exporter. Direct admission captured the request principal. NVCF metadata remained
+unknown. New OSMO execution and authenticated Run:AI tests are blocked. Earlier
+OSMO results above must not be presented as tests of the new CEL binary.

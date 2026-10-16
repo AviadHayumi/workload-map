@@ -1,0 +1,25 @@
+{
+  "workflow": {
+    "name": "cel-finite-single",
+    "resources": {
+      "default": {
+        "cpu": 1,
+        "memory": "512Mi",
+        "storage": "1Gi"
+      }
+    },
+    "tasks": [
+      {
+        "name": "worker",
+        "image": "ubuntu:24.04",
+        "command": [
+          "/bin/sh",
+          "-c"
+        ],
+        "args": [
+          "echo attribution-start; sleep 180; echo attribution-complete"
+        ]
+      }
+    ]
+  }
+}

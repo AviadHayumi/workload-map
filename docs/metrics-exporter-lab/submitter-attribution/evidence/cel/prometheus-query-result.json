@@ -1,0 +1,43 @@
+{
+  "query": "max by (namespace,workload,workload_uid,submitter,identity_source,submitter_type,status,rule) (karta_workload_submitter_info{namespace=\"karta-direct-test\"})",
+  "response": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {
+            "identity_source": "kubernetes:attribution-lab",
+            "namespace": "karta-direct-test",
+            "rule": "canonical",
+            "status": "complete",
+            "submitter": "alice@example.test",
+            "submitter_type": "unknown",
+            "workload": "direct-deployment",
+            "workload_uid": "d9fd7c53-d259-41df-ae6a-099ff317e630"
+          },
+          "value": [
+            1792110603.726,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "identity_source": "kubernetes:attribution-lab",
+            "namespace": "karta-direct-test",
+            "rule": "canonical",
+            "status": "complete",
+            "submitter": "alice@example.test",
+            "submitter_type": "unknown",
+            "workload": "direct-job",
+            "workload_uid": "d765817f-e679-4c29-9cee-aa33866891ea"
+          },
+          "value": [
+            1792110603.726,
+            "1"
+          ]
+        }
+      ]
+    }
+  }
+}

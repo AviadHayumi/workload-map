@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+{{- if .Values.submitterAdmission.enabled }}
+{{- if not (and .Values.operator.enabled .Values.webhook.enabled) }}
+{{- fail "submitterAdmission requires operator.enabled and webhook.enabled" }}
+{{- end }}
+{{- if not (or .Values.submitterAdmission.namespaceSelector.matchLabels .Values.submitterAdmission.namespaceSelector.matchExpressions) }}
+{{- fail "submitterAdmission requires an explicit namespaceSelector" }}
+{{- end }}
+{{- if not .Values.submitterAdmission.resourceRules }}
+{{- fail "submitterAdmission requires explicit resourceRules" }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.operator.webhookOnly (not .Values.submitterAdmission.enabled) }}
+{{- fail "operator.webhookOnly requires submitterAdmission.enabled" }}
+{{- end }}

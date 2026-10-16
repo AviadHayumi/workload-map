@@ -12,6 +12,7 @@ import (
 )
 
 type Options struct {
+	Identity bool
 	// Nil selects all phases; an empty non-nil slice disables status output.
 	WorkloadPhases []v1alpha1.ResourceStatus
 }

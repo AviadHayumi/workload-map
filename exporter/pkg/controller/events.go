@@ -20,6 +20,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/attribute"
+	"github.com/dsx-ai-factory/workload-map/exporter/pkg/identity"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/owner"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/state"
@@ -201,6 +202,9 @@ func (c *Controller) processWorkload(obj any, forceReattribute bool) {
 		if evaluationErr != nil {
 			c.logger.Warn("workload state evaluation failed", "workload", ref.Namespace+"/"+ref.Name, "kind", ref.Kind, "error", evaluationErr)
 		}
+		if gvk != podGVK {
+			c.recordIdentity(u, gvk)
+		}
 		c.store.UpsertWorkload(record)
 		if result.Outcome == owner.OutcomeMissing || result.Outcome == owner.OutcomeDepthExceeded {
 			c.store.InvalidateWorkload(record.UID, store.ReasonUnresolvedOwner)
@@ -257,6 +261,7 @@ func (c *Controller) onWorkloadDelete(obj any) {
 	lock.Lock()
 	c.rememberOwnerDeletion(owner.Ref{UID: u.GetUID(), Namespace: u.GetNamespace(), Name: u.GetName(), GVK: u.GroupVersionKind()})
 	c.store.DeleteWorkload(u.GetUID())
+	c.store.DeleteIdentity(u.GetUID())
 	c.pendingWorkloads.Delete(u.GetUID())
 	c.index.DeleteObject(u.GetUID())
 	lock.Unlock()
@@ -286,7 +291,12 @@ func (c *Controller) onChildEvent(obj any, watchedKinds ...schema.GroupVersionKi
 		lock.Unlock()
 		return
 	}
-	item, exists, err := watched.informer.GetStore().GetByKey(objectMeta.Namespace + "/" + objectMeta.Name)
+	key, err := cache.MetaNamespaceKeyFunc(objectMeta)
+	if err != nil {
+		lock.Unlock()
+		return
+	}
+	item, exists, err := watched.informer.GetStore().GetByKey(key)
 	current, valid := item.(*metav1.PartialObjectMetadata)
 	if err != nil || !exists || !valid || current.UID != objectMeta.UID {
 		lock.Unlock()
@@ -298,7 +308,7 @@ func (c *Controller) onChildEvent(obj any, watchedKinds ...schema.GroupVersionKi
 		lock.Unlock()
 		return
 	}
-	item, exists, err = watched.informer.GetStore().GetByKey(objectMeta.Namespace + "/" + objectMeta.Name)
+	item, exists, err = watched.informer.GetStore().GetByKey(key)
 	current, valid = item.(*metav1.PartialObjectMetadata)
 	if err != nil || !exists || !valid || current.UID != objectMeta.UID {
 		c.mu.Unlock()
@@ -306,6 +316,7 @@ func (c *Controller) onChildEvent(obj any, watchedKinds ...schema.GroupVersionKi
 		return
 	}
 	objectMeta = current
+	c.recordIdentity(objectMeta, gvk)
 	changed, drained := c.index.UpsertTrackedObject(objectMeta, gvk)
 	c.mu.Unlock()
 	lock.Unlock()
@@ -344,6 +355,7 @@ func (c *Controller) onChildDelete(obj any, watchedKinds ...schema.GroupVersionK
 	lock.Lock()
 	c.rememberOwnerDeletion(owner.Ref{UID: objectMeta.UID, Namespace: objectMeta.Namespace, Name: objectMeta.Name, GVK: gvk})
 	c.store.DeleteWorkload(objectMeta.UID)
+	c.store.DeleteIdentity(objectMeta.UID)
 	c.pendingWorkloads.Delete(objectMeta.UID)
 	c.index.DeleteObject(objectMeta.UID)
 	lock.Unlock()
@@ -408,6 +420,7 @@ func (c *Controller) onPodDelete(obj any) {
 	c.rememberOwnerDeletion(owner.Ref{UID: pod.UID, Namespace: pod.Namespace, Name: pod.Name, GVK: podGVK})
 	c.store.DeletePod(pod.UID)
 	c.store.DeleteWorkload(pod.UID)
+	c.store.DeleteIdentity(pod.UID)
 	c.pendingWorkloads.Delete(pod.UID)
 	c.index.DeleteObject(pod.UID)
 	item, exists, _ := c.podInformer.GetStore().GetByKey(podKey)
@@ -461,6 +474,7 @@ func (c *Controller) attributePod(pod *corev1.Pod) {
 			return false, nil
 		}
 		pod = current
+		c.recordIdentity(pod, podGVK)
 		c.index.ForgetPending(podKey)
 		changed, waiting := c.index.UpsertTrackedObject(pod, podGVK)
 		c.attributeTrackedPod(pod, podKey)
@@ -717,4 +731,19 @@ func (c *Controller) publicationLock(gvk schema.GroupVersionKind, namespace, nam
 	}
 	key := gvk.GroupKind().String() + "/" + namespace + "/" + name
 	return &c.workloadLocks[crc32.ChecksumIEEE([]byte(key))%uint32(len(c.workloadLocks))]
+}
+
+func (c *Controller) recordIdentity(obj metav1.Object, gvk schema.GroupVersionKind) {
+	if c.options.Identity == nil {
+		return
+	}
+	fingerprint := identity.Fingerprint(obj, gvk)
+	if previous, ok := c.store.Identity(obj.GetUID()); ok && previous.InputHash == fingerprint {
+		return
+	}
+	c.store.UpsertIdentity(store.IdentityRecord{
+		InputHash: fingerprint,
+		UID:       obj.GetUID(), Ref: store.WorkloadRef{Namespace: obj.GetNamespace(), Name: obj.GetName(), Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind},
+		Result: c.options.Identity.Evaluate(context.Background(), obj, gvk),
+	})
 }

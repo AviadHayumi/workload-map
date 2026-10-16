@@ -29,6 +29,7 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/collector"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/controller"
+	"github.com/dsx-ai-factory/workload-map/exporter/pkg/identity"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/owner"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/server"
@@ -38,6 +39,8 @@ import (
 
 func main() {
 	var (
+		identityConfig    string
+		identityKinds     string
 		metricsAddr       string
 		metricsExporter   string
 		kubeconfig        string
@@ -63,6 +66,8 @@ func main() {
 	flag.StringVar(&requiredKinds, "required-kinds", "", "Required kinds even before discovery: comma-separated group/version/Kind (core: v1/Pod).")
 	flag.DurationVar(&healthInterval, "health-check-interval", 30*time.Second, "Interval between fresh API and attribution verification passes.")
 	flag.DurationVar(&healthMaxAge, "health-max-age", 2*time.Minute, "Maximum age of a successful verification; must exceed twice the check interval.")
+	flag.StringVar(&identityKinds, "identity-kinds", "", "Additional metadata-only kinds for CEL, including resources without a Karta or controller owner link.")
+	flag.StringVar(&identityConfig, "identity-config", "", "Optional JSON CEL rules file; compiled once at startup. Empty disables submitter metrics.")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -78,6 +83,30 @@ func main() {
 	}
 	logger.Info("metric delivery configured", "exporter", metricsExporter)
 	controllerOptions := controller.Options{FullPodCache: fullPodCache, Resync: resync, Namespace: namespace, HealthInterval: healthInterval, HealthMaxAge: healthMaxAge}
+	if identityConfig != "" {
+		data, readErr := os.ReadFile(identityConfig)
+		if readErr != nil {
+			logger.Error("read identity configuration", "error", readErr)
+			os.Exit(1)
+		}
+		controllerOptions.Identity, err = identity.Parse(data)
+		if err != nil {
+			logger.Error("invalid identity configuration", "error", err)
+			os.Exit(1)
+		}
+		metricOptions.Identity = true
+	}
+	if identityKinds != "" {
+		if controllerOptions.Identity == nil {
+			logger.Error("identity kinds require identity-config")
+			os.Exit(1)
+		}
+		controllerOptions.IdentityKinds, err = parseKinds(identityKinds)
+		if err != nil {
+			logger.Error("invalid identity kinds", "error", err)
+			os.Exit(1)
+		}
+	}
 	controllerOptions.RequiredKinds, err = parseKinds(requiredKinds)
 	if err != nil {
 		logger.Error("invalid required kinds", "error", err)

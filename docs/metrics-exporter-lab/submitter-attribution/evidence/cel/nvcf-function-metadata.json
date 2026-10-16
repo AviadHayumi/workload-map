@@ -1,0 +1,75 @@
+[
+  {
+    "kind": "Pod",
+    "name": "0-sr-d00cc248-e80b-4bba-8831-7fac1b9f6b1d",
+    "namespace": "nvcf-backend",
+    "uid": "00786062-c19e-4511-9831-a47a88f2ee00",
+    "phase": "Running",
+    "label_keys": [
+      "ENVIRONMENT",
+      "FUNCTION_ID",
+      "FUNCTION_VERSION_ID",
+      "GPU_COUNT",
+      "NCA_ID",
+      "environment",
+      "function-id",
+      "function-version-id",
+      "gpu-name",
+      "icms-request-id",
+      "nca-id",
+      "nvcf.nvidia.io/deployment-id",
+      "nvcf.nvidia.io/gpu-specification-id",
+      "nvcf.nvidia.io/message-batch-id",
+      "performance_class"
+    ],
+    "annotation_keys": [
+      "FUNCTION_NAME",
+      "function-name",
+      "icms-cluster-group",
+      "icms-request-id",
+      "instance-count",
+      "nca-id",
+      "nvcf.nvidia.io/backend",
+      "nvcf.nvidia.io/environment",
+      "nvcf.nvidia.io/instance-type-name",
+      "nvcf.nvidia.io/instance-type-value",
+      "nvcf.nvidia.io/region"
+    ],
+    "platform_ids": {
+      "function-id": "abb682e4-172b-4129-b5ac-90659cf3b6df",
+      "function-version-id": "5cc50881-723c-470e-b1dc-184cb4f64f73"
+    },
+    "owners": [
+      {
+        "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+        "kind": "ICMSRequest",
+        "name": "sr-d00cc248-e80b-4bba-8831-7fac1b9f6b1d",
+        "uid": "5f072e9b-e38d-4950-8fde-91ba7620393d"
+      }
+    ]
+  },
+  {
+    "kind": "ICMSRequest",
+    "name": "sr-d00cc248-e80b-4bba-8831-7fac1b9f6b1d",
+    "namespace": "nvcf-backend",
+    "uid": "5f072e9b-e38d-4950-8fde-91ba7620393d",
+    "phase": null,
+    "label_keys": [
+      "SQSMessageID",
+      "gpu-name",
+      "icms-request-id",
+      "nca-id",
+      "nvca.nvcf.nvidia.io/function-id",
+      "nvca.nvcf.nvidia.io/function-version-id",
+      "nvcf.nvidia.io/message-batch-id"
+    ],
+    "annotation_keys": [
+      "storage.nvcf.nvidia.io/model-cache-selection"
+    ],
+    "platform_ids": {
+      "nvca.nvcf.nvidia.io/function-id": "abb682e4-172b-4129-b5ac-90659cf3b6df",
+      "nvca.nvcf.nvidia.io/function-version-id": "5cc50881-723c-470e-b1dc-184cb4f64f73"
+    },
+    "owners": []
+  }
+]

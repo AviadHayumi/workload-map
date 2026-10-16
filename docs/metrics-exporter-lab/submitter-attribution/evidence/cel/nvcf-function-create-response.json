@@ -1,0 +1,10 @@
+{
+  "id": "abb682e4-172b-4129-b5ac-90659cf3b6df",
+  "versionId": "5cc50881-723c-470e-b1dc-184cb4f64f73",
+  "name": "cel-attribution-function",
+  "status": "INACTIVE",
+  "inferenceUrl": "/",
+  "inferencePort": 80,
+  "containerImage": "nvcr.io/nvidia/omniverse/simple-nginx:1.0.2",
+  "creationTime": ""
+}

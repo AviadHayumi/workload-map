@@ -477,3 +477,17 @@ preflight Pod and malformed NVCA request were cleaned up.
 Evidence is linked from RESULTS.md. No original repository was changed and no
 NGC write or push was performed. Helm/CLI/kubeconfig state remains isolated.
 The installed services are left available for further testing.
+
+## CEL implementation follow-up, 16 October 2026
+
+The opt-in implementation, adversarial cases, and new execution matrix are in
+[IMPLEMENTATION.md](IMPLEMENTATION.md). The isolated release uses TLS admission,
+explicit read RBAC and temporary-volume binaries. No binary was published to NGC
+or a public image registry. Existing demo resources remain separate.
+
+The new run found invalid bare CEL namespace syntax, missing metadata watches
+for non-controller NVCA parents, a namespace collision in monitoring labels, and
+a potential stale identity verification gap. Each has a documented correction
+and applicable automated or live evidence. The eight requested workload cases
+are not all complete: OSMO needs approved lab capacity changes and Run:AI needs
+approved access to its playground login.

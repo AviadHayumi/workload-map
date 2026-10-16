@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+# Opt-in example. Adapt trusted namespaces and identity authorities to the cluster.
+exporter:
+  enabled: true
+  useCatalog: true
+  attribution:
+    enabled: true
+    rules:
+      - name: canonical
+        matchExpression: "'workload.dgxc.nvidia.com/submitter-id' in annotations"
+        submittedByExpression: "annotations['workload.dgxc.nvidia.com/submitter-id']"
+        identitySourceExpression: "'workload.dgxc.nvidia.com/identity-source' in annotations ? annotations['workload.dgxc.nvidia.com/identity-source'] : ''"
+        submitterTypeExpression: "'workload.dgxc.nvidia.com/submitter-type' in annotations ? annotations['workload.dgxc.nvidia.com/submitter-type'] : 'unknown'"
+      - name: runai-workload
+        matchExpression: "resource['namespace'] == 'runai-attribution-lab' && 'run.ai/submitted-by' in annotations && !('workload.dgxc.nvidia.com/submitter-id' in annotations)"
+        submittedByExpression: "annotations['run.ai/submitted-by']"
+        identitySourceExpression: "'runai:lab-tenant'"
+        submitterTypeExpression: "'unknown'"
+      - name: runai-pod
+        matchExpression: "resource['namespace'] == 'runai-attribution-lab' && resource['kind'] == 'Pod' && 'user' in annotations && !('workload.dgxc.nvidia.com/submitter-id' in annotations)"
+        submittedByExpression: "annotations['user']"
+        identitySourceExpression: "'runai:lab-tenant'"
+        submitterTypeExpression: "'unknown'"
+      - name: osmo-task
+        matchExpression: "resource['namespace'] == 'osmo-submitter-lab' && 'osmo.workflow_id' in labels && 'osmo.submitted_by' in labels && !('workload.dgxc.nvidia.com/submitter-id' in annotations)"
+        submittedByExpression: "labels['osmo.submitted_by']"
+        identitySourceExpression: "'osmo:lab-tenant'"
+        submitterTypeExpression: "'unknown'"
+        partial: true
+
+submitterAdmission:
+  enabled: true
+  identitySource: "kubernetes:attribution-lab"
+  namespaceSelector:
+    matchLabels:
+      karta.run.ai/capture-submitter: "true"

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/attribute"
+	"github.com/dsx-ai-factory/workload-map/exporter/pkg/identity"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/state"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
@@ -60,7 +61,7 @@ func (c *Controller) kindHealth(gvk schema.GroupVersionKind) store.HealthRecord 
 
 func (c *Controller) initializeHealth() {
 	rows := []store.HealthRecord{c.kindHealth(podGVK), c.kindHealth(kartaGVK)}
-	for _, gvk := range c.options.RequiredKinds {
+	for _, gvk := range append(append([]schema.GroupVersionKind(nil), c.options.RequiredKinds...), c.options.IdentityKinds...) {
 		if gvk != podGVK && gvk != kartaGVK {
 			rows = append(rows, c.kindHealth(gvk))
 		}
@@ -172,7 +173,7 @@ func (c *Controller) verifyHealth(parent context.Context) {
 	snapshot := c.store.Snapshot()
 	required := map[schema.GroupVersionKind]bool{podGVK: true, kartaGVK: true}
 	explicit := map[schema.GroupVersionKind]bool{}
-	for _, gvk := range c.options.RequiredKinds {
+	for _, gvk := range append(append([]schema.GroupVersionKind(nil), c.options.RequiredKinds...), c.options.IdentityKinds...) {
 		required[gvk] = true
 		explicit[gvk] = true
 	}
@@ -265,6 +266,13 @@ func (c *Controller) verifyHealth(parent context.Context) {
 						}
 						markDefinitionMismatch(definition)
 					}
+				}
+			}
+			if c.options.Identity != nil && gvk != kartaGVK {
+				identityRecord, observed := snapshot.Identities[obj.GetUID()]
+				if !observed || identityRecord.InputHash != identity.Fingerprint(obj, gvk) {
+					matched = false
+					verifier.cacheMismatches[obj.GetUID()] = true
 				}
 			}
 			delete(cachedObjects, obj.GetUID())

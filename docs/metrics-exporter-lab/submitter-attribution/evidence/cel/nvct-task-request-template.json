@@ -1,0 +1,26 @@
+{
+  "name": "cel-attribution-task",
+  "description": "Finite identity metadata test, no result upload",
+  "gpuSpecification": {
+    "gpu": "TESLA",
+    "instanceType": "NCP.GPU.TESLA_1x",
+    "clusters": [
+      "<lab-cluster>"
+    ]
+  },
+  "containerImage": "nvcr.io/nvidia/cuda:12.6.3-base-ubuntu22.04",
+  "containerArgs": "bash -c 'printf %s \"$ATTRIBUTION_SCRIPT\" | base64 -d | bash'",
+  "tags": [
+    "attribution-lab"
+  ],
+  "maxRuntimeDuration": "PT5M",
+  "maxQueuedDuration": "PT10M",
+  "terminationGracePeriodDuration": "PT15S",
+  "resultHandlingStrategy": "NONE",
+  "containerEnvironment": [
+    {
+      "key": "ATTRIBUTION_SCRIPT",
+      "value": "<base64 of nvct-task.sh>"
+    }
+  ]
+}

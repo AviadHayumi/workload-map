@@ -3,7 +3,13 @@
 
 # Workload submitter attribution
 
-Verified lab findings and a proposed integration contract. 16 October 2026.
+Verified lab findings, an integration contract, and an opt-in implementation.
+16 October 2026.
+
+The [CEL implementation report](IMPLEMENTATION.md) contains the latest code,
+workload submissions, metric samples, bugs and limitations. Four of the eight
+requested new workload cases executed. Run:AI authentication and new OSMO
+capacity tests remain pending approval.
 
 ![Identity from submission to observability](./submitter-attribution.png)
 
@@ -18,8 +24,10 @@ resources do not contain a human submitter.
 
 The recommended direction is a common metadata contract populated by submission
 platforms, plus optional CEL extraction for older metadata. Karta continues to
-provide workload structure. CEL submitter extraction, the proposed chart values,
-and the proposed companion output are not implemented or deployed.
+provide workload structure. CEL extraction and two companion metrics are now
+implemented and deployed in an isolated lab release. Optional submitter admission
+runs in the operator. The [implementation report](IMPLEMENTATION.md) distinguishes
+this tested subset from the broader original proposal.
 
 The proposed principal key is `(identity-source, submitter-id)`. The source names
 an agreed identity authority and tenant scope, not merely the platform carrying
@@ -27,7 +35,8 @@ the value. Cross-source equivalence requires an explicit verified mapping.
 
 | Read this | Purpose |
 | --- | --- |
-| [Shareable PDF](submitter-attribution.pdf) | Findings, examples, design decisions and next actions |
+| [CEL implementation and execution evidence](IMPLEMENTATION.md) | Current configuration, exact tests, metrics and remaining limits |
+| [Initial research PDF](submitter-attribution.pdf) | Earlier findings and design proposal; predates the CEL implementation |
 | [Design and examples](DESIGN.md) | How to consume identity with or without a Karta definition |
 | [Operator contract](OPERATOR-CONTRACT.md) | What a platform should attach, and how to handle missing values |
 | [NVCF feature request](NVCF-FEATURE-REQUEST.md) | Ready-to-review issue draft; no issue has been opened |
@@ -73,8 +82,8 @@ observation proves which human initiated a request through that service.
    insufficient for a metadata-only observer.
 3. Add a full-identity annotation to OSMO task resources; retain the existing
    label for compatibility. Fix the single-character label validation separately.
-4. Implement CEL as an optional consumer/exporter extension. Evaluate workload
-   and Pod metadata independently, retain provenance, and report conflicts.
+4. Complete the blocked platform execution tests for the optional CEL extension.
+   Preserve provenance and conflict reporting when adapting rules.
 5. Test updates, deletion/recreation, watch recovery and missing identities before
    claiming complete coverage. Keep the existing Karta metrics unchanged.
 

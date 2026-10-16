@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/dsx-ai-factory/workload-map/exporter/pkg/identity"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/owner"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
@@ -35,6 +36,8 @@ var podGroupKind = schema.GroupKind{Group: "", Kind: "Pod"}
 
 // Options configures the controller.
 type Options struct {
+	Identity      *identity.Evaluator
+	IdentityKinds []schema.GroupVersionKind
 	// FullPodCache disables the pod cache trim, for custom Kartas whose pod
 	// selectors read fields outside metadata, spec.nodeName, and status.phase.
 	FullPodCache      bool
@@ -319,6 +322,11 @@ func (c *Controller) reconcileWatchers() {
 			c.discoveredOwners[gvk] = struct{}{}
 		}
 	}
+	for _, gvk := range c.options.IdentityKinds {
+		if gvk != podGVK {
+			desiredChildren[gvk] = struct{}{}
+		}
+	}
 	for gvk := range desiredRoots {
 		delete(desiredChildren, gvk)
 	}
@@ -331,6 +339,9 @@ func (c *Controller) reconcileWatchers() {
 		}
 		close(w.stop)
 		delete(c.watchers, gvk)
+		if gvk != podGVK {
+			c.store.DeleteIdentitiesForKind(gvk)
+		}
 		if gvk != podGVK {
 			for _, ref := range c.index.ForgetKind(gvk) {
 				if _, deleted := c.deletedWorkloads.Load(ref.UID); deleted {
@@ -359,6 +370,7 @@ func (c *Controller) reconcileWatchers() {
 					// Add for this UID. Reuse its cache before retiring the last node.
 					_, drained := c.index.UpsertTrackedObject(current, aliasGVK)
 					pendingPods = append(pendingPods, drained...)
+					c.recordIdentity(current, aliasGVK)
 					restoredOwners = append(restoredOwners, ref)
 					break
 				}
@@ -435,6 +447,9 @@ func (c *Controller) stopAllWatchers() {
 	for gvk, w := range c.watchers {
 		close(w.stop)
 		delete(c.watchers, gvk)
+		if gvk != podGVK {
+			c.store.DeleteIdentitiesForKind(gvk)
+		}
 	}
 }
 

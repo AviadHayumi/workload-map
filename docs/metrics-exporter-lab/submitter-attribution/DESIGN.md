@@ -5,6 +5,10 @@
 
 Workload Map | Lab evidence and integration proposal | 16 October 2026
 
+This document preserves the initial proposal. For executable chart values and
+the current tested subset, see [IMPLEMENTATION.md](IMPLEMENTATION.md). Illustrative
+settings and pseudocode below are not the implementation API.
+
 ## 1. Start with a fact that survives the platform
 
 ![Proposed identity flow](./submitter-attribution.png)

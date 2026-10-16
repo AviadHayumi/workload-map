@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "Deployment",
+    "metadata": {
+      "name": "direct-deployment",
+      "namespace": "karta-direct-test",
+      "uid": "d9fd7c53-d259-41df-ae6a-099ff317e630",
+      "creationTimestamp": "2026-10-16T00:03:26Z"
+    },
+    "captured_annotations": {
+      "workload.dgxc.nvidia.com/identity-source": "kubernetes:attribution-lab",
+      "workload.dgxc.nvidia.com/submitter-id": "alice@example.test",
+      "workload.dgxc.nvidia.com/submitter-type": "unknown"
+    }
+  },
+  {
+    "kind": "Job",
+    "metadata": {
+      "name": "direct-job",
+      "namespace": "karta-direct-test",
+      "uid": "d765817f-e679-4c29-9cee-aa33866891ea",
+      "creationTimestamp": "2026-10-16T00:03:26Z"
+    },
+    "captured_annotations": {
+      "workload.dgxc.nvidia.com/identity-source": "kubernetes:attribution-lab",
+      "workload.dgxc.nvidia.com/submitter-id": "alice@example.test",
+      "workload.dgxc.nvidia.com/submitter-type": "unknown"
+    }
+  }
+]

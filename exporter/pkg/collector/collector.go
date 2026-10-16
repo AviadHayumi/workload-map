@@ -23,6 +23,8 @@ type Collector struct {
 	podInfo            gauge
 	workloadStatus     gauge
 	observationHealthy gauge
+	resourceSubmitter  gauge
+	workloadSubmitter  gauge
 }
 
 type gauge struct {
@@ -57,6 +59,11 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 		},
 	}
 	gauges := []*gauge{&c.podInfo, &c.workloadStatus, &c.observationHealthy}
+	if options.Identity {
+		c.resourceSubmitter = gauge{name: "karta_resource_submitter_info", description: "Configured submitter metadata on an observed resource. Value is 1; status describes extraction, not authentication.", labels: []string{"namespace", "resource", "resource_uid", "group", "version", "kind", "submitter", "identity_source", "submitter_type", "rule", "status"}}
+		c.workloadSubmitter = gauge{name: "karta_workload_submitter_info", description: "Submitter from a confirmed workload and its currently attributed Pods. Conflicts have no submitter. Value is 1.", labels: []string{"namespace", "workload", "workload_uid", "workload_group", "workload_version", "workload_kind", "submitter", "identity_source", "submitter_type", "rule", "status"}}
+		gauges = append(gauges, &c.resourceSubmitter, &c.workloadSubmitter)
+	}
 	instruments := make([]metric.Observable, 0, len(gauges))
 	for _, g := range gauges {
 		instrument, err := meter.Float64ObservableGauge(g.name, metric.WithDescription(g.description))
@@ -74,6 +81,9 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 func (c *Collector) collect(ctx context.Context, observer metric.Observer) error {
 	snapshot := c.store.Snapshot()
 	now := time.Now()
+	if c.options.Identity {
+		c.collectIdentities(observer, snapshot)
+	}
 	active := make(map[types.UID]*store.WorkloadRecord, len(snapshot.Workloads))
 	seenHealth := make(map[types.UID]bool, len(snapshot.Workloads))
 	for i := range snapshot.Workloads {

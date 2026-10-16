@@ -1,0 +1,49 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "direct-deployment",
+    "namespace": "karta-direct-test",
+    "annotations": {
+      "workload.dgxc.nvidia.com/submitter-id": "forged-value"
+    }
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "direct-deployment"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "name": "work",
+            "image": "busybox:1.37.0",
+            "command": [
+              "sh",
+              "-c",
+              "echo identity-check; sleep 120"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "5m",
+                "memory": "8Mi"
+              },
+              "limits": {
+                "memory": "32Mi"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app": "direct-deployment"
+      }
+    }
+  }
+}

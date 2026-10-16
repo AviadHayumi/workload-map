@@ -1,0 +1,19 @@
+[
+  {
+    "test": "root identity edit",
+    "exit": 1,
+    "denied": true
+  },
+  {
+    "test": "root Pod conflict",
+    "rows": [
+      "karta_workload_submitter_info{identity_source=\"\",namespace=\"karta-direct-test\",rule=\"\",status=\"conflict\",submitter=\"\",submitter_type=\"unknown\",workload=\"direct-deployment\",workload_group=\"apps\",workload_kind=\"Deployment\",workload_uid=\"d9fd7c53-d259-41df-ae6a-099ff317e630\",workload_version=\"v1\"} 1"
+    ]
+  },
+  {
+    "test": "conflict recovery",
+    "rows": [
+      "karta_workload_submitter_info{identity_source=\"kubernetes:attribution-lab\",namespace=\"karta-direct-test\",rule=\"canonical\",status=\"complete\",submitter=\"alice@example.test\",submitter_type=\"unknown\",workload=\"direct-deployment\",workload_group=\"apps\",workload_kind=\"Deployment\",workload_uid=\"d9fd7c53-d259-41df-ae6a-099ff317e630\",workload_version=\"v1\"} 1"
+    ]
+  }
+]

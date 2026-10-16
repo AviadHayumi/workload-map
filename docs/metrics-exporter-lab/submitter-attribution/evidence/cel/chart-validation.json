@@ -1,0 +1,37 @@
+[
+  {
+    "case": "defaults",
+    "expected_render_success": true,
+    "passed": true
+  },
+  {
+    "case": "feature",
+    "expected_render_success": true,
+    "passed": true
+  },
+  {
+    "case": "webhook-only",
+    "expected_render_success": true,
+    "passed": true
+  },
+  {
+    "case": "empty-selector",
+    "expected_render_success": false,
+    "passed": true
+  },
+  {
+    "case": "without-tls",
+    "expected_render_success": false,
+    "passed": true
+  },
+  {
+    "case": "empty-rules",
+    "expected_render_success": false,
+    "passed": true
+  },
+  {
+    "case": "webhook-only-without-capture",
+    "expected_render_success": false,
+    "passed": true
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "workflow": {
+    "name": "cel-finite-group",
+    "resources": {
+      "default": {
+        "cpu": 1,
+        "memory": "512Mi",
+        "storage": "1Gi"
+      }
+    },
+    "groups": [
+      {
+        "name": "pair",
+        "tasks": [
+          {
+            "name": "leader",
+            "image": "ubuntu:24.04",
+            "command": [
+              "/bin/sh",
+              "-c"
+            ],
+            "args": [
+              "echo attribution-start; sleep 180; echo attribution-complete"
+            ],
+            "lead": true
+          },
+          {
+            "name": "worker",
+            "image": "ubuntu:24.04",
+            "command": [
+              "/bin/sh",
+              "-c"
+            ],
+            "args": [
+              "echo attribution-start; sleep 180; echo attribution-complete"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

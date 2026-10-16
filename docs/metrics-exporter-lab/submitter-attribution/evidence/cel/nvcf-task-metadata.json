@@ -1,0 +1,70 @@
+[
+  {
+    "kind": "Pod",
+    "name": "0-sr-4ef386b4-ef2f-4a53-adfa-9a156894c3ce-task",
+    "namespace": "nvcf-backend",
+    "uid": "86150c98-5c70-4446-905b-5c9739eb1c49",
+    "phase": "Running",
+    "label_keys": [
+      "ENVIRONMENT",
+      "GPU_COUNT",
+      "NCA_ID",
+      "TASK_ID",
+      "environment",
+      "gpu-name",
+      "icms-request-id",
+      "nca-id",
+      "nvcf.nvidia.io/deployment-id",
+      "nvcf.nvidia.io/gpu-specification-id",
+      "nvcf.nvidia.io/message-batch-id",
+      "performance_class",
+      "task-id"
+    ],
+    "annotation_keys": [
+      "TASK_NAME",
+      "icms-cluster-group",
+      "icms-request-id",
+      "instance-count",
+      "nca-id",
+      "nvcf.nvidia.io/backend",
+      "nvcf.nvidia.io/environment",
+      "nvcf.nvidia.io/instance-type-name",
+      "nvcf.nvidia.io/instance-type-value",
+      "nvcf.nvidia.io/region",
+      "task-name"
+    ],
+    "platform_ids": {
+      "task-id": "0d8660f6-e558-48eb-a4f1-ead2779067af"
+    },
+    "owners": [
+      {
+        "apiVersion": "nvca.nvcf.nvidia.io/v2beta1",
+        "kind": "ICMSRequest",
+        "name": "sr-4ef386b4-ef2f-4a53-adfa-9a156894c3ce",
+        "uid": "9a4123a9-1ac7-442e-ae89-30685b08f61b"
+      }
+    ]
+  },
+  {
+    "kind": "ICMSRequest",
+    "name": "sr-4ef386b4-ef2f-4a53-adfa-9a156894c3ce",
+    "namespace": "nvcf-backend",
+    "uid": "9a4123a9-1ac7-442e-ae89-30685b08f61b",
+    "phase": null,
+    "label_keys": [
+      "SQSMessageID",
+      "gpu-name",
+      "icms-request-id",
+      "nca-id",
+      "nvca.nvcf.nvidia.io/task-id",
+      "nvcf.nvidia.io/message-batch-id"
+    ],
+    "annotation_keys": [
+      "storage.nvcf.nvidia.io/model-cache-selection"
+    ],
+    "platform_ids": {
+      "nvca.nvcf.nvidia.io/task-id": "0d8660f6-e558-48eb-a4f1-ead2779067af"
+    },
+    "owners": []
+  }
+]

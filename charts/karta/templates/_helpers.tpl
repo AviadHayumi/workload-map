@@ -75,7 +75,11 @@ Exporter resource names and labels. The exporter is a separate workload with
 its own ServiceAccount; it never shares the operator's RBAC.
 */}}
 {{- define "karta.exporter.fullname" -}}
+{{- if .Values.exporter.fullnameOverride -}}
+{{- .Values.exporter.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
 {{- printf "%s-exporter" .Chart.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "karta.exporter.labels" -}}

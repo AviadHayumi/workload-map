@@ -4,6 +4,8 @@
 # Set false to install only the CRD, without deploying the operator workload.
 operator:
   enabled: true
+  # Serve only the optional submitter webhook; useful alongside another operator.
+  webhookOnly: false
 
 # Overrides for resource names. Rarely needed.
 fullnameOverride: ""
@@ -120,6 +122,7 @@ crdUpgrader:
 # and observation health. Platform teams own measurement queries and rules.
 exporter:
   enabled: false
+  fullnameOverride: ""
   replicaCount: 1
 
   image:
@@ -146,6 +149,14 @@ exporter:
   # Use the built-in catalog definitions for workload kinds that have no
   # Karta CR on the cluster. A Karta CR always overrides the catalog.
   useCatalog: false
+
+  # CEL is evaluated from cached metadata, once per observed update. Configuration
+  # changes roll the exporter; invalid rules fail startup rather than run silently.
+  attribution:
+    enabled: false
+    # Additional metadata-only watches; also grant their read RBAC explicitly.
+    resourceKinds: []
+    rules: []
 
   metrics:
     # all, none, or an explicit list. Selected states retain 0/1 samples.
@@ -229,3 +240,22 @@ exporter:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# Original Kubernetes request principal; independent of exporter extraction.
+# Select only namespaces whose top-level submissions this admission owns.
+submitterAdmission:
+  enabled: false
+  identitySource: ""
+  namespaceSelector:
+    matchLabels:
+      karta.run.ai/capture-submitter: "true"
+  resourceRules:
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      resources: ["deployments"]
+    - apiGroups: ["batch"]
+      apiVersions: ["v1"]
+      resources: ["jobs"]
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      resources: ["pods"]

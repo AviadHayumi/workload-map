@@ -18,9 +18,14 @@ spec:
     metadata:
       labels:
         {{- include "karta.exporter.selectorLabels" . | nindent 8 }}
-      {{- with .Values.exporter.podAnnotations }}
+      {{- if or .Values.exporter.podAnnotations .Values.exporter.attribution.enabled }}
       annotations:
+        {{- if .Values.exporter.attribution.enabled }}
+        checksum/identity: {{ toJson .Values.exporter.attribution.rules | sha256sum }}
+        {{- end }}
+        {{- with .Values.exporter.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "karta.exporter.serviceAccountName" . }}
@@ -36,6 +41,12 @@ spec:
           imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
           args:
             - --metrics-bind-address=:{{ .Values.exporter.ports.metrics }}
+            {{- if .Values.exporter.attribution.enabled }}
+            - --identity-config=/etc/karta/identity/rules.json
+            {{- with .Values.exporter.attribution.resourceKinds }}
+            - {{ printf "--identity-kinds=%s" (join "," .) | quote }}
+            {{- end }}
+            {{- end }}
             - --metrics-exporter={{ .Values.exporter.metricsExporter }}
             {{- with .Values.exporter.namespace }}
             - {{ printf "--namespace=%s" . | quote }}
@@ -50,6 +61,12 @@ spec:
             - --use-catalog
             {{- end }}
             - --workload-phases={{ .Values.exporter.metrics.workloadPhases | join "," }}
+          {{- if .Values.exporter.attribution.enabled }}
+          volumeMounts:
+            - name: identity
+              mountPath: /etc/karta/identity
+              readOnly: true
+          {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.exporter.ports.metrics }}
@@ -70,6 +87,12 @@ spec:
             {{- toYaml .Values.exporter.securityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.exporter.resources | nindent 12 }}
+      {{- if .Values.exporter.attribution.enabled }}
+      volumes:
+        - name: identity
+          configMap:
+            name: {{ include "karta.exporter.fullname" . }}-identity
+      {{- end }}
       {{- with .Values.exporter.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

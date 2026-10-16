@@ -35,6 +35,9 @@ spec:
           image: "{{ required "image.repository is required" .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            {{- if .Values.operator.webhookOnly }}
+            - --webhook-only
+            {{- end }}
             {{- if .Values.leaderElection.enabled }}
             - --leader-elect
             - --leader-election-id={{ .Values.leaderElection.id }}
@@ -52,6 +55,9 @@ spec:
             - --webhook-service-name={{ include "karta.webhook.serviceName" . }}
             - --mutating-webhook-name={{ include "karta.webhook.configName" . }}
             - --validating-webhook-name={{ include "karta.webhook.validatingConfigName" . }}
+            {{- end }}
+            {{- if .Values.submitterAdmission.enabled }}
+            - {{ printf "--submitter-identity-source=%s" (required "submitterAdmission.identitySource is required" .Values.submitterAdmission.identitySource) | quote }}
             {{- end }}
             {{- with .Values.extraArgs }}
             {{- toYaml . | nindent 12 }}
