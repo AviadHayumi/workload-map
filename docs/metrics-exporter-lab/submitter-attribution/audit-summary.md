@@ -43,6 +43,8 @@ exporter:
 
 Admission records the authenticated Kubernetes caller before a selected workload is saved. Karta's operator serves this webhook over HTTPS (TLS). Within the selected scope, it also rejects changes to the recorded identity. Keep `operator.enabled` and `webhook.enabled` true. Setting `exporter.attribution.admission.enabled: false` stops capture; CEL can still read existing platform metadata.
 
+Proposed platform label: `workload.dgxc.nvidia.com/user` for the agreed NVIDIA username. The tested CEL above does not read that key yet; add it to the label fallbacks when adopted. Organization attribution is outside this PoC.
+
 <!-- pagebreak -->
 
 ## Choose namespaces and workload types
@@ -336,11 +338,13 @@ karta_pod_workload_info{
 
 The API test used OSMO 6.3.1 with development headers `x-osmo-user: alice@example.test` and `x-osmo-roles: osmo-user`. Those headers supplied the test identity; production login was not tested. The workflows ran on a separate platform using the existing scheduler. No external identity mapper was used.
 
-Current OSMO bugs: the label drops the email domain, and the one-character user `a` produced no submitter label. Different emails can become the same `alice`.
+Observed OSMO limitation: the Pod label contains the name before the email domain. A short name can be valid if it matches the agreed NVIDIA username, but that mapping was not verified. Different emails can produce the same `alice`.
 
-For now, treat `alice` as a shortened name, not a unique user. Recovering the full identity requires a workflow API lookup, which this PoC does not implement. Suggested OSMO issue: preserve the full principal in an annotation and fix the one-character case.
+Suggested OSMO feature request: document and expose a stable submitter identity on task Pods. Preserve the full principal in an annotation when needed. Today the full value requires a workflow API lookup; this PoC has no such adapter.
 
-Current Karta/OSMO gap: there is no Kubernetes workflow root in this setup. Today the metric represents each task Pod. Suggested integration issue: provide a workload-root mapping so one workflow can contain all its tasks.
+Separate potential bug: the one-character user `a` produced no submitter label. Report it with the OSMO 6.3.1 development-auth reproduction and confirm the expected behavior with maintainers.
+
+Separate Karta/OSMO grouping gap: there is no Kubernetes workflow root in this setup. Today the metric represents each task Pod. Suggested integration issue: provide a workload-root mapping so one workflow can contain all its tasks.
 
 [OSMO outcomes](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-outcomes.json) show completion and task exit codes. The original [identity edge tests](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/osmo-identity-results.json) cover the shortened and missing values.
 
@@ -415,7 +419,9 @@ karta_pod_workload_info{
 } 1
 ```
 
-To expose the human submitter, NVCF needs to capture a verified caller at submission and pass it to NVCA, the cluster agent. NVCA would write it onto the ICMSRequest and its Pods. For functions, first agree whether this means creator or deployer; the caller invoking a running function is a different identity.
+Feature request: carry the authenticated submitting principal from the NVCF API to NVCA, the cluster agent. A launch-spec environment variable could transport it. NVCA would also need to write it onto the ICMSRequest and its Pods: the current CEL extractor reads metadata, not container environment variables.
+
+For functions, first agree whether the submitter means creator or deployer. The caller invoking a running function is a different identity. This requests a new identity capability; it is not a failed propagation path in the tested version.
 
 Proposed metadata on both objects, not present in the captures:
 
@@ -427,7 +433,7 @@ metadata:
 
 The CEL expression on page 1 already reads this key. Stamping only the CR would not cover this test: Pod owner links lacked `controller: true`, so Karta treated each Pod as the workload. Function/task-level grouping also needs a Karta/NVCF integration fix.
 
-For now, leave the value empty. An external lookup could correlate account and function/version/task IDs with an audit record, but only if it contains the original user. No lookup was implemented. A service credential alone cannot identify a human. Suggested NVCF issue: propagate the authenticated submitter to Kubernetes metadata.
+For now, leave the value empty. An external lookup could correlate account and function/version/task IDs with an audit record, but only if it contains the original user. No lookup was implemented. A service credential alone cannot identify a human. Suggested NVCF feature request: expose the authenticated submitter in Kubernetes metadata for functions and finite tasks, including service-key paths.
 
 Other current platform gaps: NVCT helper image references did not resolve; overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4` worked. NVCA left an ICMSRequest after malformed-task cancellation; manual cleanup was required. Suggest issues for both.
 
