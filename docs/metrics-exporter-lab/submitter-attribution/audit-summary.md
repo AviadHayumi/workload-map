@@ -1,128 +1,78 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Who submitted this workload?
+# Submitter attribution PoC
 
-Karta exporter PoC | Verified 16 October 2026 | Eight fresh execution cases
+How to reproduce the tests and what is still missing | 16 October 2026
 
-## What is implemented and proved
+## Enable it in the exporter
 
-A configurable CEL expression reads submitter metadata from the workload and its Pods. The exporter resolves those values and adds `submitted_by` to its existing Pod mapping and workload status metrics. Optional admission captures the authenticated Kubernetes principal for direct submissions. Karta's CRD and SDK are unchanged.
-
-| Submission | What ran | Observed submitted_by |
-| --- | --- | --- |
-| Direct Kubernetes | Deployment; finite Job | alice@example.test |
-| Run:AI API | Finite training; HTTP inference fixture | test@run.ai |
-| OSMO API | Single task; leader/worker group | alice, with the email domain lost |
-| NVCF / NVCT APIs | HTTP function; finite task | Empty: no human identity in inspected metadata |
-
-All eight cases were freshly submitted against the updated exporter. The direct and training Jobs completed, both OSMO workflows completed, both HTTP fixtures returned 200, and NVCT reached COMPLETED at 100%. These are execution and attribution tests in a fake-GPU lab. The commands do not perform model training, model inference or GPU computation.
-
-## What the metrics look like
-
-An observed sample, with structural labels omitted for readability:
-
-```prometheus
-karta_workload_status{
-  workload="cel-label-training", phase="Completed",
-  submitted_by="test@run.ai"
-} 1
-```
-
-The value is a phase indicator, not a user count. The same submitter is present on the workload's `karta_pod_workload_info` samples. Full labels and resource UIDs are retained in the linked evidence.
-
-| Contract | Behavior |
-| --- | --- |
-| Attribution disabled | Existing three metric families and labels unchanged |
-| Attribution enabled | Only submitted_by added to karta_pod_workload_info and karta_workload_status |
-| Health | karta_exporter_observation_healthy unchanged |
-| Earlier companion metrics | Removed; no new submitter metric families |
-| Nonempty submitted_by | Raw configured identifier; may be shortened, unverified or a service |
-| Empty submitted_by | Missing, conflicting, invalid or unhealthy attribution; never a guessed user |
-
-The test user authenticated with a real short-lived Kubernetes client certificate, without impersonation. Run:AI used its login API. OSMO used development identity headers. NVCF/NVCT used local service credentials. These different authentication scopes must not be presented as equivalent proof of a human identity.
-
-<!-- pagebreak -->
-
-## The configuration and who owns it
-
-The cluster administrator selects trusted metadata keys. The platform supplies their values. CEL selects a candidate from each observed object; the exporter combines the selected workload root and its currently attributed Pods. Nothing calls a platform API or identity directory during a scrape.
-
-This is the complex expression deployed in the audit. The first annotation matches the optional admission handler. The simple ternary version is also implemented and tested.
+This adds `submitted_by` to `karta_pod_workload_info` and `karta_workload_status`. Karta's CRD and SDK stay unchanged. Admission captures direct Kubernetes submissions. CEL reads the metadata supplied by each platform.
 
 ```yaml
 exporter:
   enabled: true
+  useCatalog: true
   attribution:
     admission:
       enabled: true
     submittedByExpression: |
-      (
-        [
-          "workload.dgxc.nvidia.com/submitter-id",
-          "run.ai/submitted-by",
-          "workflow.example.com/submitter",
-          "platform.example.com/username",
-          "platform.example.com/created-by"
-        ]
-        .filter(key, key in annotations && annotations[key] != "")
-        .map(key, annotations[key])
-        +
-        [
-          "identity.example.com/submitted-by",
-          "osmo.submitted_by",
-          "workflow.example.com/submitter",
-          "platform.example.com/username",
-          "platform.example.com/created-by"
-        ]
-        .filter(key, key in labels && labels[key] != "")
-        .map(key, labels[key])
-        + [""]
-      )[0]
+      ("workload.dgxc.nvidia.com/submitter-id" in annotations &&
+       annotations["workload.dgxc.nvidia.com/submitter-id"] != "")
+        ? annotations["workload.dgxc.nvidia.com/submitter-id"]
+        : ("run.ai/submitted-by" in annotations &&
+           annotations["run.ai/submitted-by"] != "")
+          ? annotations["run.ai/submitted-by"]
+          : ("osmo.submitted_by" in labels
+              ? labels["osmo.submitted_by"] : "")
 ```
 
-The lists define precedence: the first nonempty annotation wins before any label. Dots in literal map keys need no backslash. Conflicting keys inside one object can therefore be hidden by this expression. Different nonempty values across the selected root and Pods clear the resolved label.
+This is the short configuration. The [deployed expression](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/rules.json) adds other fallback keys. CEL runs on the workload and its Pods. A workload value also appears on the Pod metric. Conflicting values clear `submitted_by`; empty means unknown. Cross-platform username mapping still needs agreement.
 
-Admission defaults to namespaces labeled `karta.run.ai/capture-submitter=true` and explicitly selected Deployments, Jobs and Pods. It uses the operator's TLS webhook; the tested cluster does not expose native MutatingAdmissionPolicy. Existing metadata is preserved. Conflicting captured fields are rejected, and captured fields cannot be edited afterward within that scope.
+Admission uses the Karta operator's TLS webhook. Keep the operator and webhook enabled. Label only the direct-submission test namespace; the default capture scope is Deployments, Jobs and Pods. Set `admission.enabled: false` for extraction only.
 
-[Simple example](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/exporter/examples/submitter-attribution/values.yaml) and [complex example](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/exporter/examples/submitter-attribution/values-complex.yaml). Merge these options into existing installation values. Both legacy configuration forms remain supported; ambiguous old/new combinations are rejected.
+## Use the saved requests
+
+[PoC branch and chart](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl) contain the implementation. Use operator/exporter images built from this branch. The lab loaded compiled binaries through a volume; no release image was published.
+
+From that checkout, keep the current installation values and image settings:
+
+```sh
+helm upgrade --install "$RELEASE" ./charts/karta \
+  -n "$KARTA_NS" --create-namespace -f current-values.yaml \
+  -f exporter/examples/submitter-attribution/values.yaml
+
+export CASES="$PWD/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by"
+export OUT="$(mktemp -d)"
+```
+
+[Request files and observed results](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) are used below. Set the API URLs and credentials for your installation. The commands use `kubectl`, `curl` and `jq`. Platform installation and login are prerequisites.
+
+The tests ran finite shell commands and HTTP servers. Fake GPUs supplied allocation only. Metrics below show selected labels; the linked captures keep every label. Existing lab workloads were removed after capture, so submit new ones to repeat the checks.
 
 <!-- pagebreak -->
 
-## Direct kubectl: authenticated identity without overwriting
+## Direct Kubernetes submission
 
-A one-hour client certificate was issued for `alice@example.test`. A test Role permitted namespaced Deployment and Job submissions. `kubectl auth whoami` confirmed that principal; the submission did not use `--as`.
+Create and label the test namespace as an administrator:
 
 ```sh
-kubectl --kubeconfig "$DEMO_KUBECONFIG" auth whoami
-kubectl --kubeconfig "$DEMO_KUBECONFIG" \
-  -n karta-label-direct apply -f direct-deployment.json
-kubectl --kubeconfig "$DEMO_KUBECONFIG" \
-  -n karta-label-direct apply -f direct-job.json
+kubectl create namespace karta-label-direct
+kubectl label namespace karta-label-direct \
+  karta.run.ai/capture-submitter=true
 ```
 
-Both requests used `busybox:1.37.0`. The Deployment ran a 3,600-second sleep and was removed after capture. The Job slept for 300 seconds, used `restartPolicy: Never`, and completed at 08:26:40 UTC. The requests included a team label and a note to verify preservation.
+Use a user's kubeconfig with permission to create/patch Jobs and Deployments in that namespace. The test used a one-hour client certificate for `alice@example.test`, without impersonation.
 
-The resulting root metadata, shortened to the relevant fields:
-
-```yaml
-kind: Job
-metadata:
-  name: cel-label-job
-  labels: {team: demo}
-  annotations:
-    review.example.com/note: keep-me
-    workload.dgxc.nvidia.com/submitter-id: alice@example.test
-    workload.dgxc.nvidia.com/identity-source: kubernetes:attribution-lab
-    workload.dgxc.nvidia.com/submitter-type: unknown
+```sh
+kubectl --kubeconfig "$USER_KUBECONFIG" auth whoami
+kubectl --kubeconfig "$USER_KUBECONFIG" apply \
+  -f "$CASES/direct-job-request.json"
+kubectl --kubeconfig "$USER_KUBECONFIG" apply \
+  -f "$CASES/direct-deployment-request.json"
 ```
 
-```text
-Deployment cel-label-deployment -> ReplicaSet -> Pod
-Job cel-label-job -> Pod
-```
-
-Admission records the root's request principal. The controller-created Pods have no copied identity annotation. CEL reads the canonical root annotation; the resolved root value is inherited onto the Pod metric.
+The Deployment ran. The Job completed after 300 seconds. Its annotation was `workload.dgxc.nvidia.com/submitter-id: alice@example.test`. The Pod inherited the value in the metric without copying the annotation.
 
 ```prometheus
 karta_workload_status{
@@ -130,53 +80,57 @@ karta_workload_status{
   submitted_by="alice@example.test"
 } 1
 karta_pod_workload_info{
-  workload="cel-label-job", pod="cel-label-job-t6bmq",
-  submitted_by="alice@example.test"
+  workload="cel-label-job", submitted_by="alice@example.test"
 } 1
 ```
 
-A create request supplying `bob@example.test` was rejected rather than overwritten. The authenticated user was also blocked from changing the captured root identity. A separate live test added a conflicting Pod annotation: both metrics changed from Alice to empty, then recovered Alice when it was removed. Observation health remained 1 throughout that conflict test.
+Try supplying another identity at creation, then changing the recorded identity:
 
-Gap: admission knows the Kubernetes principal, which can be a service or an impersonated identity in other requests. It does not prove a human, resolve a directory username, backfill existing objects, or recover the user behind a platform service account.
+```sh
+KEY=workload.dgxc.nvidia.com/submitter-id
+jq --arg key "$KEY" '
+  .metadata.name="cel-label-forged" |
+  .metadata.annotations[$key]="bob@example.test"
+' "$CASES/direct-job-request.json" |
+  kubectl --kubeconfig "$USER_KUBECONFIG" create -f -
+
+kubectl --kubeconfig "$USER_KUBECONFIG" -n karta-label-direct \
+  annotate job cel-label-job "$KEY=bob@example.test" --overwrite
+```
+
+Both were rejected: creation conflicted with the authenticated caller; the update changed an immutable field. Prefilling the caller's own matching identity is allowed. Unrelated labels and annotations are preserved.
+
+This protection covers the selected resources and namespaces. It does not authenticate arbitrary platform metadata. System-created owned children are skipped, and a Kubernetes service account does not reveal the human behind it.
+
+[Direct submission and rejection evidence](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/README.md) includes the original requests and both rejection results.
 
 <!-- pagebreak -->
 
-## Run:AI: submit through the API, inherit from the workload
+## Run:AI
 
-Login through `/api/v1/token` was followed by authenticated POSTs to `/api/v1/workloads/trainings` and `/api/v1/workloads/inferences`. The saved request templates retain the actual specification and replace only environment-specific project and cluster IDs.
+Set `RUNAI_API`, `RUNAI_TOKEN`, `PROJECT_ID` and `CLUSTER_ID`. The test logged in through `/api/v1/token` using a password grant. Use a token with permission to submit into your project.
 
-```json
-{
-  "name": "cel-label-training",
-  "projectId": "<project-id>", "clusterId": "<cluster-id>",
-  "spec": {
-    "image": "busybox:1.37.0", "command": "sh",
-    "args": "-c \"echo attribution-start; sleep 300; echo attribution-complete\"",
-    "backoffLimit": 0, "restartPolicy": "Never",
-    "compute": {"cpuCoreRequest": 0.05, "cpuCoreLimit": 0.2,
-      "cpuMemoryRequest": "64Mi", "cpuMemoryLimit": "128Mi",
-      "gpuDevicesRequest": 0}
-  }
-}
+```sh
+for kind in training inference; do
+  jq --arg p "$PROJECT_ID" --arg c "$CLUSTER_ID" \
+    '.projectId=$p | .clusterId=$c' \
+    "$CASES/runai-$kind-request-template.json" > "$OUT/$kind.json"
+done
+
+curl -fsS "$RUNAI_API/api/v1/workloads/trainings" \
+  -H "Authorization: Bearer $RUNAI_TOKEN" \
+  -H 'Content-Type: application/json' --data-binary @"$OUT/training.json"
+curl -fsS "$RUNAI_API/api/v1/workloads/inferences" \
+  -H "Authorization: Bearer $RUNAI_TOKEN" \
+  -H 'Content-Type: application/json' --data-binary @"$OUT/inference.json"
 ```
 
-Inference used the same bounded CPU/memory settings, BusyBox HTTP on port 8080, and one minimum/maximum replica. It returned HTTP 200 through the Knative revision proxy. The test project has zero GPU quota.
+Both requests use BusyBox, 50m CPU and 64Mi memory, with no GPU request. Training sleeps for 300 seconds. Inference serves HTTP on port 8080 with one replica.
 
-```text
-Training:  Job cel-label-training -> Pod
-Inference: Knative Service cel-label-inference
-           -> Configuration -> Revision -> Deployment -> ReplicaSet -> Pod
-WorkloadRunner objects also existed; they had no submitter metadata.
-```
-
-| Resulting object | Identity metadata | Outcome |
+| Submitted | Result | Metadata used by CEL |
 | --- | --- | --- |
-| Training Job | run.ai/submitted-by: test@run.ai | Completed at 08:25:44 UTC |
-| Training Pod | user: test@run.ai | Succeeded |
-| Knative Service | run.ai/submitted-by: test@run.ai | Ready |
-| Inference Pod | No submitter annotation | Running; HTTP 200 |
-
-The deployed expression selects `annotations["run.ai/submitted-by"]` from the root. It deliberately does not select the generic Pod `user` key. Both Pod metrics inherit the root result, including inference whose Pod has no identity metadata.
+| cel-label-training | Job -> Pod; Job completed | Job annotation run.ai/submitted-by=test@run.ai |
+| cel-label-inference | Knative Service -> controllers -> Pod; Ready and HTTP 200 | Service has the same annotation; Pod has no submitter key |
 
 ```prometheus
 karta_workload_status{
@@ -184,180 +138,116 @@ karta_workload_status{
   submitted_by="test@run.ai"
 } 1
 karta_pod_workload_info{
-  workload="cel-label-inference", workload_kind="Service",
-  submitted_by="test@run.ai"
+  workload="cel-label-inference", submitted_by="test@run.ai"
 } 1
 ```
 
-Gaps: this verifies the lab account, not normalization to an agreed NVIDIA username. HTTP serving is not model inference, and external ingress was not tested. Metrics were verified with the namespace-scoped audit exporter and an exact WorkloadRunner read role. Fleet-wide permission coverage and every Run:AI submission mode remain unproven.
+Extra setup used: Knative had `kubernetes.podspec-schedulername` and `kubernetes.podspec-affinity` enabled. A separate exporter watched the test namespace. Its Role grants `get/list/watch` on `run.ai/workloadrunners`. These are required setup in this lab, not an external identity mapper.
+
+The HTTP check used the Knative revision proxy through a port-forward. External ingress and real model inference were not tested.
+
+Current gap: the value has not been checked against the agreed NVIDIA username. No submitter propagation bug was found in these two Run:AI paths. Root inheritance already covers the missing inference Pod annotation. Suggested follow-up: agree the identity format with Run:AI and document the exporter RBAC/Knative prerequisites in Karta.
+
+[Run:AI metric capture](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/converged-runai.prom) contains both workload results.
 
 <!-- pagebreak -->
 
-## OSMO: execution succeeds, but the identity is shortened
+## OSMO
 
-POST `/api/pool/default/workflow` received the workflow YAML in its `file` field. Development headers supplied `alice@example.test`. Both requests selected the existing audit platform explicitly; no default platform was changed.
+Set `OSMO_API` to the gateway and `OSMO_PLATFORM` to a configured platform with CPU capacity. This reproduces the development-auth test. Production authentication must use the installation's normal login; these headers are not a production identity check.
 
-```yaml
-workflow:
-  name: cel-label-single
-  resources:
-    default:
-      cpu: 1
-      memory: 512Mi
-      storage: 1Gi
-      platform: <audit-platform>
-  tasks:
-  - name: worker
-    image: ubuntu:24.04
-    command: [/bin/sh, -c]
-    args: ["echo attribution-start; sleep 300; echo attribution-complete"]
+```sh
+for kind in single group; do
+  jq --arg platform "$OSMO_PLATFORM" \
+    '.file |= gsub("<audit-platform>"; $platform)' \
+    "$CASES/osmo-$kind-request-template.json" |
+  curl -fsS "$OSMO_API/api/pool/default/workflow" \
+    -H 'Content-Type: application/json' \
+    -H 'x-osmo-user: alice@example.test' \
+    -H 'x-osmo-roles: osmo-user' --data-binary @-
+done
 ```
 
-The group request contained a leader and worker with the same command and resources. The first pair completed; a repeated pair confirmed metrics after observation converged. In the repeated pair all three tasks had exit code 0.
+The requests submit one task and a leader/worker group. Each task uses Ubuntu 24.04, one CPU, 512Mi memory and a 300-second command. Both workflows completed; all three tasks in the repeated run exited with code 0.
 
 ```text
-OSMO workflow API: cel-label-group-2, submitted_by=alice@example.test
-  leader Pod c47243997abb4ec9-fb47d19472b34eb6
-  worker Pod c47243997abb4ec9-96a05d548f4f4ff9
-Each Pod label: osmo.submitted_by=alice
-Karta selection: each task Pod is its own workload root.
+Workflow API: submitted_by=alice@example.test
+Task Pod:     osmo.submitted_by=alice
+CEL reads:    labels["osmo.submitted_by"]
+Karta root:   each task Pod, not the whole OSMO workflow
 ```
-
-| Repeated workflow | API outcome | Completed UTC |
-| --- | --- | --- |
-| cel-label-single-2 | COMPLETED; worker exit 0 | 08:41:17 |
-| cel-label-group-2 | COMPLETED; leader and worker exit 0 | 08:41:20 |
-
-CEL falls through to `labels["osmo.submitted_by"]`. An observed single-task sample is:
 
 ```prometheus
 karta_pod_workload_info{
   workload="e5d1abe4ce374717-e923b371aa294f01",
   workload_kind="Pod", submitted_by="alice"
 } 1
-karta_workload_status{
-  workload="e5d1abe4ce374717-e923b371aa294f01",
-  phase="Running", submitted_by="alice"
-} 1
 ```
 
-These samples were captured while running, before completion and Pod cleanup. Both group Pods also emitted `alice`. An earlier capture had empty labels while observation failed; the repeated capture had healthy observations and populated labels. No persistent OSMO exporter defect was established by that transient result.
+`karta_workload_status` carried the same `submitted_by="alice"`. Samples were captured while the tasks were running.
 
-Gaps: the API retained the full email, but the Pod label lost its domain. Earlier edge tests showed different email domains collapsing to the same `alice`, and a one-character user producing no label. CEL cannot restore lost information. A platform-controlled full-identity annotation is needed. No Kubernetes workflow root existed in this installation, so these metrics do not yet represent one combined OSMO workflow. Production OIDC was not exercised.
+Extra setup used: OSMO 6.3.1, development identity headers and a separate audit platform using the existing scheduler. Platform selection was explicit. No service copied submitter metadata or queried the workflow API for the exporter.
+
+Current OSMO bugs: the label drops the email domain, and the one-character user `a` produced no submitter label. Different emails can become the same `alice`.
+
+For now, treat `alice` as a shortened name, not a unique user. Recovering the full identity requires a workflow API lookup, which this PoC does not implement. Suggested OSMO issue: preserve the full principal in an annotation and fix the one-character case.
+
+Current Karta/OSMO gap: there is no Kubernetes workflow root in this setup. Today the metric represents each task Pod. Suggested integration issue: provide a workload-root mapping so one workflow can contain all its tasks.
+
+[OSMO outcomes](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by/osmo-outcomes.json) show completion and task exit codes. The original [identity edge tests](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/osmo-identity-results.json) cover the shortened and missing values.
 
 <!-- pagebreak -->
 
-## NVCF and NVCT: workload IDs are not a human submitter
+## NVCF / NVCT
 
-The local APIs received a container function and a finite task. NGC was used only for image pulls. No image or result was uploaded.
+This used the self-managed NVCF stack and local service credentials issued through OpenBao. Set API URLs, a management token, and function/task API keys from your installation. Register a compute pool and edit `gpu`/`instanceType` in both request files to match it.
 
-```text
-POST /v2/nvcf/functions
-  name: cel-label-function
-  image: nvcr.io/nvidia/omniverse/simple-nginx:1.0.2
-  inference: HTTP port 80, path /
-  health: HTTP /, expected status 200
-POST /v2/nvcf/deployments/functions/{id}/versions/{version}
-  gpu: TESLA, instanceType: NCP.GPU.TESLA_1x
-  minInstances: 1, maxInstances: 1
-
-POST /v1/nvct/tasks
-  name: cel-label-task
-  image: nvcr.io/nvidia/cuda:12.6.3-base-ubuntu22.04
-  maxRuntimeDuration: PT5M, resultHandlingStrategy: NONE
-  command: write progress, sleep 180, write 100%, exit
+```sh
+curl -fsS "$NVCF_API/v2/nvcf/functions" \
+  -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary @"$CASES/nvcf-function-request.json" > "$OUT/function.json"
+FID=$(jq -r '.function.id' "$OUT/function.json")
+VID=$(jq -r '.function.versionId' "$OUT/function.json")
+DEPLOY="$NVCF_API/v2/nvcf/deployments/functions/$FID/versions/$VID"
+curl -fsS "$DEPLOY" -H "Authorization: Bearer $NVCF_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary @"$CASES/nvcf-deploy-request.json"
 ```
 
-| Execution | Result |
-| --- | --- |
-| Function | ACTIVE; GET invocation returned HTTP 200 and 896 bytes |
-| Task | RUNNING then COMPLETED, 100%, at 08:49:06 UTC |
+Wait for ACTIVE. For the local invocation gateway, set `NVCF_INVOKE_URL` to its base URL and `NVCF_INVOKE_DOMAIN` to its configured domain without the function ID:
 
-Both new Pods initially lacked CPU capacity. Only their primary container CPU request and limit were resized from 1 CPU to 100m. Keeping both equal preserved Guaranteed QoS; the first request-only resize had been rejected. Shared platform resources and settings were unchanged.
+```sh
+curl -fsS "$NVCF_INVOKE_URL/" \
+  -H "Host: $FID.$NVCF_INVOKE_DOMAIN" \
+  -H "Authorization: Bearer $NVCF_API_KEY"
 
-```text
-Function/task API record -> ICMSRequest -> Pod
-The Pod's owner reference has no controller: true.
-Karta therefore selects the Pod itself as the workload root.
-Metadata exposes workload/account identifiers, not a human submitter.
+curl -fsS -X DELETE "$DEPLOY" \
+  -H "Authorization: Bearer $NVCF_ADMIN_TOKEN"
+curl -fsS "$NVCT_API/v1/nvct/tasks" \
+  -H "Authorization: Bearer $NVCT_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @"$CASES/nvct-task-request.json"
 ```
 
-None of the configured submitter keys existed on the inspected Pod or ICMSRequest. CEL returned empty. The observation was healthy, so this case proves missing metadata rather than a stale scrape.
+The Nginx function returned HTTP 200. After undeploying it, the finite task reached COMPLETED at 100%. The supplied task writes NVCT progress and disables result uploads. NGC was used only for image pulls.
 
 ```prometheus
 karta_pod_workload_info{
   workload="0-sr-df24444a-8807-4fc9-89c6-534c7a701643",
   workload_kind="Pod", submitted_by=""
 } 1
-karta_workload_status{
-  workload="0-sr-a7121b89-f78c-4a0a-84b1-6cecdf0ab202-task",
-  phase="Running", submitted_by=""
-} 1
 ```
 
-Gaps: CEL cannot turn an account/function/task ID into the original person. The platform must pass a trusted original principal to Kubernetes. Local service credentials prove the service account path, not the human behind it. The non-controller link also prevents a function-wide root across replicas. Hosted NVCF, Helm-based functions, delegation and actual GPU compute were not tested. A prior malformed-request cancellation issue remains an upstream/platform gap; it did not recur in these successful fixtures.
+Both paths had empty `submitted_by` on Pod and workload metrics. The Pod and ICMSRequest exposed account/workload IDs, but no human submitter. The owner link lacked `controller: true`, so Karta selected the Pod as the workload.
 
-<!-- pagebreak -->
+Extra setup used: helper overrides `nvcf-worker-init-oss:1.2.1` and `nvcf-worker-task-oss:1.1.4`; the tested chart's image references did not resolve. The two test containers were resized from 1 CPU to 100m to fit the lab. No external identity mapper ran. Hosted NVCF and optional telemetry were not validated.
 
-## Bugs, corrections and verification
+Current gaps and suggested issues:
 
-The first three corrections predate this label-only change. The new eight-case rerun includes all of them. They are exporter/owner-observation fixes, not changes to the Karta CRD.
+- NVCF: keep `submitted_by` empty unless an external audit lookup can recover the original user. A service key alone is not enough. Suggested issue: pass that user into workload/Pod annotations and agree creator versus deployer.
+- Karta/NVCF: add a function-level workload mapping. Today, each Pod is a workload.
+- NVCT: fix helper image references. Today, use the overrides above.
+- NVCA: fix cancellation of malformed requests. One left an ICMSRequest behind and needed manual cleanup after checking its owned resources. The underlying bug still needs a fix.
 
-| Finding | Fix and evidence |
-| --- | --- |
-| Valid cluster-scoped owner links rejected | Follow Kubernetes scope rules; keep UID checks and reject invalid cross-namespace links. Earlier same-UID capture recovered 35 workloads. |
-| Cluster roots used an incorrect cache key | Use Kubernetes cache keys for publication, attribution, retries and deletion fences. Regression tests reproduce the old failures. |
-| Full and metadata-only DaemonSet responses differed | Verify through the same API representation as the informer. Earlier same-UID capture recovered 21 stale Pod observations. |
-| Prototype emitted two extra submitter families | Remove them; add only submitted_by to the two existing families. Contract tests verify the exact label delta and unchanged defaults. |
-| Captured input could be overwritten at admission | Reject conflicting supplied values; preserve unrelated metadata. Live spoof and update requests were denied. |
-| Root/Pod disagreement could misattribute usage | Clear the resolved label on conflict. Live Alice -> empty -> Alice recovery passed with health 1. |
-| Expression and legacy settings could be ambiguous | Reject simultaneous forms; render and test both supported forms, scoped TLS webhooks and rollout checksum. |
-
-## What passed
-
-Exporter `make check` passed, including race tests, identity lifecycle tests and chart tests. Operator `make check` passed, including envtest integration on Kubernetes 1.31.0. Root `make check` passed against the clean implementation commit. Helm lint/render validation and the existing Prometheus rule tests passed. Fifteen explicit chart combinations were checked; fourteen are retained as Go regression cases.
-
-Tests cover missing keys, invalid types, evaluation budgets, metadata changes, deletion/recreation by UID, stale associations, unhealthy output, conflicting roots/Pods and admission preservation. Both supplied CEL examples are evaluated against platform-shaped fixtures. Those unit fixtures supplement the live submissions; they do not replace them.
-
-The isolated operator and both audit exporters were Ready after cleanup. The direct certificate Role/RoleBinding and CSR were removed. Run:AI fixtures, the function, completed task and temporary local API keys were deleted through their APIs. Existing platform installs, OSMO platform defaults and the public demo were preserved. New audit binaries and a separately named CEL ConfigMap remain deployed; previous binaries/configuration were retained.
-
-The label-only implementation is commit `49ff26cc`. The lab ran compiled Linux binaries on a temporary volume, not a published release image. No 100,000-workload identity benchmark or production release acceptance is implied.
-
-[Implementation and test sources](https://github.com/AviadHayumi/workload-map/commit/49ff26cccd65a64fd69f74ebc2547d7b2de51459) and [sanitized execution evidence](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) include the full requests, metadata, metric labels, timestamps and binary hashes. Earlier recovery snapshots are retained separately with their original build scope.
-
-<!-- pagebreak -->
-
-## Read the results without hiding the gaps
-
-In Prometheus or Grafana Explore, show the raw mapping and active phases:
-
-```promql
-karta_pod_workload_info{namespace="runai-attribution-lab"}
-
-karta_workload_status{namespace="runai-attribution-lab"} == 1
-```
-
-Count current workloads by the configured identifier, deduplicating phase samples:
-
-```promql
-count by (submitted_by) (
-  max by (namespace, workload_uid, submitted_by) (karta_workload_status)
-)
-```
-
-Keep the empty identifier visible and inspect `karta_exporter_observation_healthy` alongside it. This query counts observed workload roots, including Pod roots. Equal raw usernames from different identity authorities are not proof of the same person. Add the same cluster label to every grouping key when combining clusters.
-
-## Remaining gaps across all platforms
-
-| Area | Limit or required decision |
-| --- | --- |
-| Identity agreement | Agree the NVIDIA username and authority/tenant mapping. No directory validation, normalization or human/service distinction is exposed by this single label. |
-| Empty versus partial | Empty conflates missing, conflict and evaluator failure. Nonempty can be lossy. The old status/source/type companion labels are intentionally absent. |
-| Trust and precedence | Metadata outside protected scopes can be forged. The first-key CEL expression can hide same-object conflicts. Metrics are not an authorization mechanism. |
-| Observation coverage | Only watched kinds with read RBAC are visible. Resolution combines the selected root and Pods, not intermediate owners or platform databases. Extra watches do not create a workload hierarchy. |
-| Admission coverage | Defaults omit other controllers/CRDs; existing objects are not backfilled. System-created owned children are skipped. Fail-closed admission affects availability in its selected scope. |
-| Freshness and history | Watch/verification delay is possible. Metadata edits change current labels; removed resources disappear. Never join historical GPU samples to today's mapping. |
-| Configuration | Rules compile at startup; Helm changes roll the exporter. Editing a mounted ConfigMap does not hot-reload it. Multiple served versions of one kind remain unvalidated. |
-| Scale and release | No 100,000-workload attribution load test, fleet-wide RBAC proof, production authentication matrix or immutable release-image acceptance was performed. |
-
-A new label does not add another series per current sample, but identity changes create historical series churn. CEL has bounded configuration, output and evaluation cost; those limits are not a fleet-scale benchmark.
+[Execution evidence](https://github.com/AviadHayumi/workload-map/tree/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/evidence/submitted-by) contains ACTIVE/COMPLETED results and raw metrics. The [NVCF issue draft](https://github.com/AviadHayumi/workload-map/blob/karta-metrics-exporter-poc-impl/docs/metrics-exporter-lab/submitter-attribution/NVCF-FEATURE-REQUEST.md) describes the metadata request. No issues have been opened.
