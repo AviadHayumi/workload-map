@@ -3,6 +3,22 @@
 
 # Performance and reuse
 
+## Before and after in real consumer adapters
+
+The [consumer comparison](benchmarks/consumer-comparison/README.md) measures
+latency, CPU, allocated bytes, retained heap, peak RSS and GC across WLD, EWI and
+the exporter. Five alternating pairs per profile completed on 2026-10-16.
+
+- WLD: most paths are 8-17% slower; deep warm-chain allocation traffic rises 34%.
+- EWI: small parses are 15-20% slower while allocating 13-15% fewer bytes.
+- Exporter: Pod events, workload updates and scrapes stay within 2.3% in these samples.
+- Retained memory is close in these fixtures. The 100k ownership-index test is not
+  a full-service capacity test.
+
+These results do not establish universal performance parity.
+
+## Choose the operation
+
 Reuse one discoverer for repeated queries. Choose the smallest operation that
 returns the data the consumer needs.
 

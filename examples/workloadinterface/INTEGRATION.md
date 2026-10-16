@@ -16,8 +16,10 @@ of another controller.
 
 These are different integration points. They do not all call `WorkloadForPod`.
 The ownership and extraction changes were exercised in local consumer prototypes.
-Those prototypes remain pinned to the earlier SDK revision `b841499553b7`;
-they do not yet use the new live definition provider and have not been deployed.
+Those prototypes now use SDK revision `c6cad432ab56`.
+Focused parity and race checks plus the [before/after performance comparison](benchmarks/consumer-comparison/README.md)
+exercise that revision. They do not yet use the new live definition provider
+and have not been deployed.
 The exporter adapters below are implemented in this SDK branch.
 
 | Consumer | Before | SDK replacement | Still owned by the consumer |
