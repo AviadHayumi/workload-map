@@ -141,10 +141,18 @@ func (c *Controller) visitFresh(ctx context.Context, gvk schema.GroupVersionKind
 	}
 }
 
-// Pods need only owner metadata in the first pass unless they are selected roots.
-// Full Pod objects are independently read and evaluated in the second pass.
-func (c *Controller) visitPodMetadata(ctx context.Context, visit func(metav1.Object)) error {
-	resource := c.metadataClient.Resource(schema.GroupVersionResource{Version: "v1", Resource: "pods"}).Namespace(c.options.Namespace)
+// Verification uses the informer's representation: full-object API conversion
+// can add metadata that PartialObjectMetadata responses do not contain.
+func (c *Controller) visitMetadata(ctx context.Context, gvk schema.GroupVersionKind, visit func(metav1.Object)) error {
+	mapping, err := c.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return err
+	}
+	namespace := c.options.Namespace
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		namespace = ""
+	}
+	resource := c.metadataClient.Resource(mapping.Resource).Namespace(namespace)
 	continuation := ""
 	for {
 		list, err := resource.List(ctx, metav1.ListOptions{Limit: verificationPageSize, Continue: continuation})
@@ -152,7 +160,7 @@ func (c *Controller) visitPodMetadata(ctx context.Context, visit func(metav1.Obj
 			return err
 		}
 		for n := range list.Items {
-			list.Items[n].SetGroupVersionKind(podGVK)
+			list.Items[n].SetGroupVersionKind(gvk)
 			visit(&list.Items[n])
 		}
 		if list.GetContinue() == "" {
@@ -289,8 +297,9 @@ func (c *Controller) verifyHealth(parent context.Context) {
 			}
 		}
 		var err error
-		if gvk == podGVK && entries[podGVK.GroupKind()] == nil {
-			err = c.visitPodMetadata(ctx, visit)
+		entry := entries[gvk.GroupKind()]
+		if gvk != kartaGVK && (entry == nil || entry.RootGVK != gvk) {
+			err = c.visitMetadata(ctx, gvk, visit)
 		} else {
 			err = c.visitFresh(ctx, gvk, func(obj *unstructured.Unstructured) { visit(obj) })
 		}

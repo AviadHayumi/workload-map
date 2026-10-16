@@ -10,7 +10,10 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/registry"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	metadatafake "k8s.io/client-go/metadata/fake"
+	ktesting "k8s.io/client-go/testing"
 )
 
 func TestIdentityMetadataUpdateAndPodReplacement(t *testing.T) {
@@ -127,5 +130,57 @@ func TestMetadataOnlyIdentityDoesNotInventWorkload(t *testing.T) {
 				t.Fatal("metadata-only deletion retained identity")
 			}
 		})
+	}
+}
+
+func TestMetadataVerificationUsesInformerRepresentation(t *testing.T) {
+	c, client, job := fixture(t)
+	e, err := identity.New(identity.Config{Rules: []identity.Rule{{Name: "test", MatchExpression: "true", SubmittedByExpression: "'user' in annotations ? annotations['user'] : ''", IdentitySourceExpression: "'tenant'", SubmitterTypeExpression: "'unknown'"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.options.Identity = e
+	c.registry = registry.New()
+	c.store.DeleteWorkload(job.GetUID())
+	gvk := job.GroupVersionKind()
+	c.options.IdentityKinds = []schema.GroupVersionKind{gvk}
+	c.watchers[gvk].isRoot = false
+	job.SetAnnotations(map[string]string{"conversion.example.test/annotation": "converted"})
+	if _, err := client.Resource(schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}).Namespace("test").Update(t.Context(), job, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	fresh := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: job.GetName(), Namespace: job.GetNamespace(), UID: job.GetUID(), ResourceVersion: job.GetResourceVersion()}}
+	c.metadataClient.(*metadatafake.FakeMetadataClient).PrependReactor("list", "jobs", func(action ktesting.Action) (bool, runtime.Object, error) {
+		return true, &metav1.List{Items: []runtime.RawExtension{{Object: fresh.DeepCopy()}}}, nil
+	})
+	if err := c.watchers[gvk].informer.GetStore().Update(fresh.DeepCopy()); err != nil {
+		t.Fatal(err)
+	}
+	c.onChildEvent(fresh, gvk)
+	c.verifyHealth(t.Context())
+	healthy := func() bool {
+		for _, h := range c.store.Snapshot().Health {
+			if h.Scope == "resource_type" && h.Ref.Kind == gvk.Kind {
+				return h.Healthy
+			}
+		}
+		return false
+	}
+	if !healthy() {
+		t.Fatal("identical metadata must be healthy even when the full API view adds a conversion annotation")
+	}
+	fresh.SetAnnotations(map[string]string{"user": "bob"})
+	fresh.SetResourceVersion("2")
+	c.verifyHealth(t.Context())
+	if healthy() {
+		t.Fatal("metadata comparison hid a real unseen update")
+	}
+	if err := c.watchers[gvk].informer.GetStore().Update(fresh.DeepCopy()); err != nil {
+		t.Fatal(err)
+	}
+	c.onChildEvent(fresh, gvk)
+	c.verifyHealth(t.Context())
+	if !healthy() || c.store.Snapshot().Identities[fresh.UID].Result.Submitter != "bob" {
+		t.Fatal("fresh metadata failed to recover health and identity")
 	}
 }
