@@ -1,0 +1,30 @@
+{
+  "namespaceSelector": {
+    "matchExpressions": [
+      {
+        "key": "karta.run.ai/native-scope-test",
+        "operator": "In",
+        "values": [
+          "scope-test"
+        ]
+      },
+      {
+        "key": "kubernetes.io/metadata.name",
+        "operator": "NotIn",
+        "values": [
+          "scope-excluded"
+        ]
+      }
+    ]
+  },
+  "matchConditions": [
+    {
+      "name": "include-gvks",
+      "expression": "request.kind.version == 'v1' && ((request.kind.group == 'batch' && request.kind.kind in ['Job','CronJob']) || (request.kind.group == 'apps' && request.kind.kind == 'Deployment'))"
+    },
+    {
+      "name": "exclude-cronjobs",
+      "expression": "!(request.kind.group == 'batch' && request.kind.kind == 'CronJob')"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "shellBlocks": 10,
+  "yamlBlocks": 7,
+  "jsonHeredocs": 2,
+  "yamlHeredocs": 2,
+  "fullExpressionMatchesPreviouslyTested": true,
+  "helmValuesMatchLiveTest": true,
+  "renderedMatchingWebhooks": 2,
+  "pdfPages": 8,
+  "pdfLinkAnnotations": 3,
+  "pdfBounds": "passed",
+  "allPagesVisuallyInspected": true,
+  "markdownSHA256": "b5148cb1f14794339754617befcdb2e4e16022a7ebc7a64b83838b11227bd23d",
+  "pdfSHA256": "5d04904476319cfae7e2f1026a5525294dab5f6152757dd02fa0522a34d0f77a"
+}

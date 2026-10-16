@@ -11,6 +11,49 @@
 {{- if not $submitterAdmission.resourceRules }}
 {{- fail "submitter admission requires explicit resourceRules" }}
 {{- end }}
+{{- if hasKey $submitterAdmission "matchConditions" }}
+{{- $conditions := $submitterAdmission.matchConditions }}
+{{- if not (kindIs "slice" $conditions) }}
+{{- fail "submitter admission matchConditions must be a list" }}
+{{- end }}
+{{- if gt (len $conditions) 64 }}
+{{- fail "submitter admission matchConditions must contain at most 64 entries" }}
+{{- end }}
+{{- if and $conditions (not (semverCompare ">=1.30.0-0" .Capabilities.KubeVersion.Version)) }}
+{{- fail "submitter admission matchConditions requires Kubernetes 1.30 or newer" }}
+{{- end }}
+{{- $names := dict }}
+{{- range $index, $condition := $conditions }}
+{{- $path := printf "submitter admission matchConditions[%d]" $index }}
+{{- if not (kindIs "map" $condition) }}
+{{- fail (printf "%s must be an object with name and expression" $path) }}
+{{- end }}
+{{- if not (kindIs "string" $condition.name) }}
+{{- fail (printf "%s.name must be a nonempty qualified name string" $path) }}
+{{- end }}
+{{- $parts := splitList "/" $condition.name }}
+{{- $name := last $parts }}
+{{- if or (gt (len $parts) 2) (gt (len $name) 63) (not (regexMatch "^([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]$" $name)) }}
+{{- fail (printf "%s.name must be a nonempty qualified name string" $path) }}
+{{- end }}
+{{- if eq (len $parts) 2 }}
+{{- $prefix := first $parts }}
+{{- if or (gt (len $prefix) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $prefix)) }}
+{{- fail (printf "%s.name must be a nonempty qualified name string" $path) }}
+{{- end }}
+{{- end }}
+{{- if hasKey $names $condition.name }}
+{{- fail (printf "%s.name must be unique: %s" $path $condition.name) }}
+{{- end }}
+{{- $_ := set $names $condition.name true }}
+{{- if not (kindIs "string" $condition.expression) }}
+{{- fail (printf "%s.expression must be a nonempty string" $path) }}
+{{- end }}
+{{- if eq (trim $condition.expression) "" }}
+{{- fail (printf "%s.expression must be a nonempty string" $path) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- if and .Values.operator.webhookOnly (not $submitterAdmission.enabled) }}

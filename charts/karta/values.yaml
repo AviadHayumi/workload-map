@@ -158,6 +158,17 @@ exporter:
     admission:
       enabled: false
       identitySource: "kubernetes"
+      # Native API-server CEL, mirrored on CREATE capture and UPDATE protection.
+      # Nonempty conditions require Kubernetes 1.30+. All conditions must be true;
+      # any false skips that webhook, even if another condition errors. Otherwise
+      # an evaluation error rejects the request under the existing failurePolicy.
+      # CEL syntax/type validation is performed by the API server at installation.
+      # Conditions are evaluated independently on each request; oldObject is null
+      # on CREATE. Filtering only new-object labels/annotations, request.operation,
+      # or the current caller can bypass protection on later UPDATE requests.
+      # Prefer stable resource scope, and ensure every update of a captured object
+      # still matches. This list does not change exporter watches or RBAC.
+      matchConditions: []
       namespaceSelector:
         matchLabels:
           karta.run.ai/capture-submitter: "true"
@@ -265,6 +276,8 @@ exporter:
 submitterAdmission:
   enabled: false
   identitySource: ""
+  # Same native conditions and restrictions as exporter.attribution.admission.
+  matchConditions: []
   namespaceSelector:
     matchLabels:
       karta.run.ai/capture-submitter: "true"

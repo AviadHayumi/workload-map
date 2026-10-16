@@ -5,22 +5,24 @@
 
 Current label-only PoC and fresh execution evidence, 16 October 2026.
 
-Start with the [shareable PDF](audit-summary.pdf) or its [editable Markdown](audit-summary.md).
-Each platform shows the submitted request, resulting workload structure, CEL
-mapping, actual metric output and remaining gaps. The final page collects
-verification queries and open gaps. Admission scope, CEL matching and proposed
-watch filtering are distinguished explicitly.
+Start with the eight-page [shareable PDF](who-submitted-the-workload.pdf) or its
+[editable Markdown](who-submitted-the-workload.md). It covers configuration,
+submissions, resulting metadata, metrics, required platform settings and current
+gaps. Native admission conditions are implemented and tested; exporter watches
+use the existing namespace setting.
 
-The PDF renderer uses [its layout settings](audit-summary-layout.json). The
-[final verification record](evidence/platform-source-audit/report-verification.json)
-separates fresh document checks from earlier live platform captures.
+The [scope verification](evidence/native-admission-scope/README.md) records the
+fresh live tests, the 10,000-excluded-workload API fixture, and document checks.
+The longer [audit PDF](audit-summary.pdf) and [audit Markdown](audit-summary.md)
+retain earlier details. Their proposed matchConditions section is superseded by
+the tested short report.
 
 | Path | Verification | Result |
 | --- | --- | --- |
 | Direct Kubernetes | Authenticated client certificate; Deployment and finite Job | alice@example.test; spoof and update attempts rejected |
 | Run:AI API | Finite training and Knative HTTP inference | test@run.ai inherited from the root; inference Pod has no submitter key |
 | OSMO API | Single tasks, leader/worker groups and administrator mapping | Completed; mapping supplies the configured full principal; missing identity stays empty; task Pods remain individual workloads |
-| NVCF / NVCT | Live container function/task; local Helm render and source review | HTTP 200 and COMPLETED; human metadata absent; live Helm creation blocked by registry prerequisites |
+| NVCF / NVCT | Live container function/task and Helm function | HTTP 200 and COMPLETED; Helm supplied identity reached both Karta metrics; authenticated human metadata remains absent |
 
 The exporter adds only `submitted_by` to existing `karta_pod_workload_info` and
 `karta_workload_status` when enabled. Karta's CRD/SDK and the health metric remain
@@ -34,6 +36,7 @@ unchanged. The earlier two companion submitter metrics are removed.
 | [Implementation history](IMPLEMENTATION-HISTORY.md) | Earlier companion-metric prototype, fixes and original build scopes |
 | [Historical results](RESULTS.md) | Earlier installation and platform issues |
 | [Operator metadata proposal](OPERATOR-CONTRACT.md) | Broader platform contract; not a claim that all fields are metric labels |
+| [Native matching and watch scope](evidence/native-admission-scope/README.md) | Native conditions, finite Jobs, anti-spoof tests and namespace LIST/WATCH verification |
 | [Platform source audit](evidence/platform-source-audit/README.md) | Existing configuration options, new live captures, prerequisites and remaining limits |
 | [OSMO feature request draft](OSMO-FEATURE-REQUEST.md) | Lossless principal access in administrator templates; no issue opened |
 | [NVCF feature request draft](NVCF-FEATURE-REQUEST.md) | Authenticated creator/deployer capture and metadata; no issue opened |

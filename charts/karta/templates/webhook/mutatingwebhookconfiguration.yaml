@@ -45,6 +45,10 @@ webhooks:
     timeoutSeconds: 5
     namespaceSelector:
       {{- toYaml $submitterAdmission.namespaceSelector | nindent 6 }}
+    {{- with $submitterAdmission.matchConditions }}
+    matchConditions:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     rules:
       {{- range $submitterAdmission.resourceRules }}
       - apiGroups: {{ toJson .apiGroups }}
