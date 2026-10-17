@@ -45,11 +45,12 @@ type component struct {
 
 func main() {
 	var kartaPath, workloadPath, predictPath, dumpPath string
-	var strict bool
+	var strict, write bool
 	flag.StringVar(&kartaPath, "karta", "", "path to the Karta definition (required)")
 	flag.StringVar(&workloadPath, "workload", "", "path to a real workload manifest; without it, validation only")
 	flag.StringVar(&predictPath, "predict", "", "path to a predictions file to check the extraction against")
 	flag.StringVar(&dumpPath, "dump", "", "write the observed extraction to this path, in predictions format")
+	flag.BoolVar(&write, "write", false, "round-trip every write path in memory and report what each write changed")
 	flag.BoolVar(&strict, "strict", false, "exit non-zero when the extraction reports warnings")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage:\n"+
@@ -66,7 +67,7 @@ func main() {
 
 	// Refused rather than ignored, so a dropped --workload cannot exit 0.
 	if workloadPath == "" {
-		for flagName, set := range map[string]bool{"--predict": predictPath != "", "--dump": dumpPath != "", "--strict": strict} {
+		for flagName, set := range map[string]bool{"--predict": predictPath != "", "--dump": dumpPath != "", "--write": write, "--strict": strict} {
 			if set {
 				fmt.Fprintf(os.Stderr, "error: %s requires --workload\n", flagName)
 				os.Exit(1)
@@ -74,14 +75,14 @@ func main() {
 		}
 	}
 
-	code, err := run(context.Background(), kartaPath, workloadPath, predictPath, dumpPath, strict)
+	code, err := run(context.Background(), kartaPath, workloadPath, predictPath, dumpPath, write, strict)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nerror: %v\n", err)
 	}
 	os.Exit(code)
 }
 
-func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath string, strict bool) (int, error) {
+func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath string, write, strict bool) (int, error) {
 	kartaYAML, err := os.ReadFile(kartaPath)
 	if err != nil {
 		return 1, fmt.Errorf("read Karta definition: %w", err)
@@ -193,9 +194,38 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 	}
 	fmt.Println()
 
+	var probes []writeProbe
+	if write {
+		probes = probeWrites(ctx, karta, obj)
+		fmt.Println("=== Write round trip ===")
+		for _, p := range probes {
+			switch {
+			case p.warning != "":
+				fmt.Printf("  %s %s: %d path(s) changed\n", p.component, p.name, len(p.changes))
+			case len(p.changes) == 0:
+				fmt.Printf("  %s %s: no change\n", p.component, p.name)
+			default:
+				fmt.Printf("  %s %s: %d path(s) changed\n", p.component, p.name, len(p.changes))
+			}
+			for i, c := range p.changes {
+				if i == 8 {
+					fmt.Printf("      ... %d more\n", len(p.changes)-i)
+					break
+				}
+				fmt.Printf("      %s: %s -> %s\n", c.path, formatLeaf(c.before), formatLeaf(c.after))
+			}
+		}
+		fmt.Println()
+	}
+
 	var warnings []string
 	if unresolved {
 		warnings = append(warnings, "status is unresolved: no rule in statusDefinition matched this object")
+	}
+	for _, p := range probes {
+		if p.warning != "" {
+			warnings = append(warnings, p.warning)
+		}
 	}
 	for _, c := range observed.Components {
 		if c.PodSpec != nil && !*c.PodSpec {
