@@ -5,17 +5,25 @@
 
 - Status: proposed integration; selected adapters have local validation
 - Authors: @AviadHayumi
-- Updated: 2026-10-16
+- Updated: 2026-10-18
 - Scope: consumer integration, with no CRD, metric or Helm contract change
 
 ## Summary
 
 ![Existing consumer logic, the proposed SDK replacement, and each consumer's output](images/consumer-integration.png)
 
-Move reusable workload logic into Karta and call it from existing controllers.
-Each project keeps its watches, Kubernetes client, output model and writes.
-The first integration replaces a specific operation in each consumer.
-Broader membership and grouping changes require separate compatibility checks.
+Keep each application's watches, caches and output writes. Replace one function
+inside its existing event-processing flow with a shared Karta implementation.
+Karta is a library called by that application; it starts no watches or controllers.
+
+For a JobSet update, EWI still reads its cached JobSet and writes an
+`ExternalWorkload`. The SDK reads the components between those two steps.
+For a Pod update, workload-discovery still gathers its eligible Pods and writes
+its physical `Workload` tree. The SDK validates owner chains during that work.
+
+These first adapters do not call `NewDiscoverer` or `WorkloadForPod` and do not
+enable the SDK's optional attribution cache. Broader discovery and grouping
+integration is a separate phase below.
 
 This proposal covers three consumers:
 
@@ -73,92 +81,186 @@ the different outputs and policies around them.
 | EWI | Older Karta component reader | SDK `resource.ComponentFactory` | Handler selection, accounting, phases, grouping, IDs and writes |
 | Karta metrics exporter | Local owner index, instance extraction and Pod attribution | `ownership.Index`, `attribution.InstanceIDs`, `attribution.AttributeLegacy` | Watch controller, root policy, definition selection, metric store and scraping |
 
-"Today" means the consumer logic before these adapters.
-The first replacements have been exercised locally; they are not deployed consumer migrations.
+"Today" means the consumer logic before these adapters. "After" below means the
+first integration phase, not a replacement of the entire controller.
+WLD and EWI adapters are tested local changes, not deployed consumer migrations.
 The exporter adapters are implemented in this repository.
 [Measured revisions and comparison scope](benchmarks/consumer-comparison/README.md#what-was-replaced)
 are recorded separately from the proposal.
 
+### Integration phase 1: watches, SDK calls, caches and writes
+
+The existing applications own every watch and write in this table.
+Adding the SDK does not add another Kubernetes watcher or cache to these paths.
+
+| Consumer | Existing event sources retained | Shared call inside the handler | Application output |
+| --- | --- | --- | --- |
+| WLD | Pods, its Workload records, and selected metadata changes on discovered root kinds; ResourceClaims when DRA filtering is enabled | `ownership.TraceRoot` with WLD's owner lookup | Physical `Workload` tree and status |
+| EWI | Supported workload kinds and Pods; Karta definitions configure additional supported kinds | `resource.NewComponentFactoryFromObject` and component reads | `ExternalWorkload` spec and observed status |
+| Exporter | Pods, Karta definitions, selected workload kinds and required owner kinds | `ownership.Index`, `InstanceIDs`, `AttributeLegacy` | In-memory metric records, exposed on scrape |
+
+The word "cache" refers to different data:
+
+| Data reused | Who maintains it in phase 1? | What it avoids |
+| --- | --- | --- |
+| Kubernetes objects from list/watch | Each application's existing informer cache | Repeated API reads for watched objects |
+| WLD owner metadata | WLD's existing bounded LRU with expiry | Repeated Job/JobSet metadata reads during owner walks |
+| Exporter ownership and metric records | Exporter event handlers update the shared ownership index and existing metric store | Rebuilding ownership and classification on every scrape |
+| SDK derived attribution (`discovery.Options.Cache`) | Not enabled by these adapters | Available separately for higher-level indexed discovery |
+
 ### k8s-workload-discovery: replace the owner walk
 
-Today, the Pod controller runs this flow:
+#### Today: WLD watches and assembles the physical tree
+
+The inspected WLD binary selects `WorkloadTreeReconciler`:
+
+1. An eligible Pod event maps to a Workload key through the existing Pod index.
+   For a new Pod without an indexed workload, the mapper walks its owners.
+2. The worker reads the Workload and current Pods through WLD's existing
+   controller-runtime client/cache.
+3. For an existing Workload, it rebuilds the tree from eligible Pods.
+   For a missing Workload, it finds a representative Pod and builds the new tree.
+4. WLD reverses and merges owner paths, writes the physical tree and lets its
+   separate status controller update status.
 
 ```text
-Pod event -> queue -> read current Pod
-  -> local owner-walking loop -> reverse and merge owner paths
-  -> write the physical Workload tree and reconcile its status
+Pod event -> map Workload key (owner walk if needed) -> WLD queue
+  -> read Workload and current Pods -> WLD's owner-walking loop
+  -> merge physical paths -> write Workload tree -> update status separately
 ```
 
-The walker reads owner metadata through its existing cache.
-The consumer retains the labels, annotations and physical nodes it needs.
-A Karta definition is not required to follow an unknown custom resource's owners.
+WLD also handles Workload rebuild requests and registers root-kind watches for
+relevant label/annotation changes. DRA filtering adds ResourceClaim events.
+Its alternative Pod-keyed controller also uses the same `OwnerWalker`.
+These event sources and controller choices stay with WLD after integration.
 
-Replace the walking loop inside `OwnerWalker.WalkPod` with:
+A Karta definition is not required to follow the owners of an unknown kind.
+For `training-0-pod`, the chain is `Pod -> Job -> JobSet`.
+WLD retains labels and annotations while building the tree.
+
+#### After phase 1: call the SDK from the existing walker
+
+Inside `OwnerWalker.WalkPod`, replace the traversal with:
 
 ```go
 _, err := ownership.TraceRoot(ctx, start, readOwner, maxHops)
 ```
 
-- `start` is an `ownership.Object`: Pod identity, complete owner references and scope.
-- `readOwner` implements `ownership.Lookup` using the existing metadata cache.
-  It also retains each fetched object for the physical tree.
-- `maxHops` is the consumer's configured owner-depth limit.
-- `TraceRoot` validates every owner hop without returning a second path slice.
-- The retained metadata supplies the complete physical path, including labels and annotations.
-
-The adapter handles `err` before publishing a result.
-For success, it converts the retained metadata into the same consumer nodes and merges it.
-For a missing owner or depth limit, the local prototype preserves the verified
-partial path under the consumer's existing policy. The typed error identifies the
-verified prefix; fetched but rejected objects are excluded. Other structural errors fail.
-
-The proposed flow becomes:
+- `start` supplies the Pod identity, owner references and namespace scope.
+- `readOwner` is a function WLD supplies. The SDK calls it for each needed owner.
+- `maxHops` preserves WLD's configured depth limit.
+- The lookup retains each fetched object's metadata for WLD's tree builder.
+- WLD handles the error, reverses the verified path and merges it with other Pods.
 
 ```text
-Pod event -> queue -> read current Pod
-  -> ownership.TraceRoot + retain metadata -> path conversion and merge
-  -> write the same physical Workload tree and reconcile its status
+Pod event -> same Workload-key mapping and WLD queue
+  -> read Workload and Pods -> SDK TraceRoot whenever WLD walks owners
+  -> WLD readOwner callback -> WLD owner cache / API reader
+  -> WLD converts and merges verified paths -> same Workload output
 ```
 
-For `training-0-pod`, the retained path is `Pod -> Job -> JobSet`.
-The consumer reverses that path for its displayed tree.
-It still merges the other Pods' paths; one trace does not list sibling Pods.
-References alone do not contain the consumer's labels and annotations.
+`TraceRoot` does not list sibling Pods or build WLD's output tree.
+WLD still collects its eligible Pods and merges their paths.
+Its existing filtering can exclude Pods that full SDK discovery would include,
+including unscheduled or terminating Pods.
+
+#### How WLD uses its existing cache
+
+For each requested Job or JobSet, `readOwner` calls WLD's `fetchPartial`:
+
+1. Look up metadata by GVK, namespace and name.
+2. Return a valid cached entry when its UID matches the owner reference.
+3. On a miss, expiry or UID mismatch, read metadata through the API reader.
+4. Cache the successful read; SDK traversal validates the returned identity.
+
+The current production-path default is 1,024 entries with a 30-second TTL.
+Those are WLD settings, not SDK defaults. The benchmark uses its separately
+recorded cache sizes and TTL.
+For two Pods sharing a JobSet, the second walk can reuse that JobSet metadata.
+No second owner cache or SDK attribution cache is introduced.
+
+A root-label or annotation event only queues reconciliation; it does not refresh
+or invalidate this LRU. For an existing Workload, reconciliation reads root
+metadata separately through `fetchOwnerMeta` and the API reader. When that read
+succeeds, it updates the persisted root labels and annotations. This direct read
+leaves the LRU alone.
+Owner walks can still reuse older cached metadata. Expiry is checked on the next
+lookup; it does not schedule a refresh or reconciliation. Another event or a
+consumer-requested rebuild must cause the next walk. The 30-second TTL is not a
+promise that every tree node refreshes within 30 seconds. Phase 1 preserves this
+existing distinction between root-metadata refresh and owner-walk caching.
 
 The SDK adds stricter UID, scope, cycle and controller-owner validation.
-Those intentional differences need explicit acceptance; normal-fixture output
-parity does not make every error case identical.
+These are intentional differences from WLD's original walker.
 
-#### Reuse an existing metadata cache
+<details>
+<summary>Partial paths, errors and the alternative path API</summary>
 
-Keep cache population, UID-aware refresh and eviction in `readOwner`.
-This integration introduces no second owner cache.
+For a missing owner or depth limit, the adapter preserves the verified prefix
+under WLD's existing partial-result policy. Fetched but rejected objects are
+excluded. Other structural errors fail instead of publishing an accepted path.
+References alone do not contain the labels and annotations needed by WLD.
+
 At this lower level, `maxHops=0` permits no owner hops.
+WLD resolves its own default before making the call.
+A separate reader-based integration can call `sdk.OwnershipPath` instead.
+That query lists no sibling Pods and returns no successful path on error;
+its typed error can retain a diagnostic prefix.
 
-For a new reader-based integration, `sdk.OwnershipPath` supplies the simpler path
-query and lists no sibling Pods. It returns no successful path on error, although
-its typed error may retain a diagnostic prefix.
 [Traversal implementation](../../pkg/ownership/trace.go) and
 [reader-based path tests](../../pkg/discovery/ownership_path_test.go).
 
+</details>
+
 ### EWI: reuse the SDK component reader
 
-EWI has two separate jobs: parse the workload and maintain its Pod grouping.
-The first replacement covers parsing. Grouping needs a later adapter.
+#### Today: EWI watches workload objects and selects a parser
 
-Today, parsing follows this flow:
+EWI watches its built-in supported kinds plus eligible root/child kinds supplied
+by Karta definitions. A kind must exist and have the required read permissions.
+It also watches Pods and Karta definitions through its existing controllers.
+Native handlers keep precedence: a type with a native handler does not
+necessarily pass through the generic Karta reader.
+
+Use JobSet as the generic-Karta example:
 
 ```text
-Workload event -> choose handler and Karta definition
-  -> older Karta component factory -> selected-component conversion
-  -> ExternalWorkload spec and observed status
+JobSet Add/Update -> EWI informer updates its object cache -> EWI task queue
+  -> worker reads current JobSet and matching Karta definition
+  -> older Karta component reader -> EWI converter
+  -> EWI writes ExternalWorkload spec and observed status
 ```
 
-The existing converter chooses which components to read.
-It calculates resource totals and applies its phase precedence and product defaults.
-EWI already uses Karta here; this proposal consolidates the reader version.
+EWI waits for its caches to synchronize before starting workers.
+On Add, it can fall back to the copied event object if the fresh read fails;
+updates follow its existing retry/missing-object handling.
+Root selection, Pod grouping and resource accounting are separate EWI logic.
 
-After converting the selected definition to the SDK's `*v1alpha1.Karta`, use:
+#### What happens when a Pod changes
+
+This existing EWI path is separate from the JobSet parse above:
+
+- Eligible Pod events enter EWI's queue. Add/Update reads the current cached Pod;
+  Delete uses the event object. Scheduler and namespace filters still apply.
+- A standalone Pod uses EWI's native Pod parser for requested resources and
+  observed status. It does not call the SDK component factory.
+- A Pod owned by a generic JobSet follows EWI's owner chain to that JobSet's
+  `ExternalWorkload` and receives missing top-owner labels. This ordinary path
+  does not call `KartaTopOwnerHandler.Parse`; the JobSet's own reconciliation does.
+- Pod Add/Delete can enqueue the separate `StructureUpdater`. It maintains
+  persistent element IDs, writes `ExternalWorkload.Status.StructureElements`
+  and labels newly processed Pods with their element paths.
+- Pod Update does not trigger that grouping hook. Label edits or reparenting do
+  not gain a guarantee of regrouping both old and new workloads. Existing nonempty
+  ownership labels are not repaired by this SDK adapter.
+
+Some consumer-specific handlers can separately request root/status refreshes.
+Phase 1 preserves these routes; it does not turn every Pod event into an SDK parse.
+
+#### After phase 1: use the shared component reader in Parse
+
+Keep that event flow. Inside `KartaTopOwnerHandler.Parse`, convert the selected
+definition to SDK types and call:
 
 ```go
 factory := resource.NewComponentFactoryFromObject(definition, object)
@@ -166,22 +268,65 @@ rootComponent, err := factory.GetRootComponent()
 if err != nil { return err }
 childComponents, err := factory.GetChildComponents()
 if err != nil { return err }
-// The existing converter consumes rootComponent and childComponents.
+// EWI's existing converter consumes these components.
 ```
 
-`object` is the workload already read by EWI.
-The optimized prototype deep-copies the older definition and converts its fields
-to SDK types on each parse. This replaces the first prototype's JSON round-trip.
-No converted definition survives the parse, so definition edits need no cache invalidation.
-Tests compare the complete serialized result with the old conversion and check
-mutation isolation. Conversion remains part of the performance measurement.
-The existing converter still produces the ExternalWorkload output.
+The converter reads `GetExtractedInstances(ctx)` for Pod-bearing components
+and `GetStatus(ctx)` for the root. EWI then calculates requested resources,
+requested Pods and its product-specific status before writing `ExternalWorkload`.
+The SDK component reader does not write Kubernetes objects.
+
+```text
+Same JobSet watch -> same EWI cache and queue -> same handler selection
+  -> SDK component reader -> same EWI selection and accounting
+  -> same tested ExternalWorkload output
+```
+
+#### How EWI uses its existing cache
+
+- Supported-type `Get` and `List` read EWI's existing informer cache.
+- The matching Karta definition is selected through that cached client.
+- Unknown-type `Get` can use EWI's existing direct-API fallback.
+- The SDK receives the already-read object and definition, not a Kubernetes client.
+- Component extraction makes no Kubernetes reads. EWI's surrounding conversion
+  can still read related objects through its existing client.
+
+Every parse makes a private typed copy of the definition and constructs a new
+component factory. This replaces the first prototype's JSON round trip.
+There is no retained conversion/result cache and no SDK discovery index.
+Definition edits become visible on a later parse; this adapter does not add a
+workload-wide requeue when a definition changes.
+
+EWI does not call `NewDiscoverer`, `WorkloadForPod`, `DefinitionRegistry.Replace`
+or enable `discovery.Options.Cache` in this phase.
+Its Pod cache is scheduler-filtered, so it cannot claim complete workload Pod
+coverage for the higher-level discovery API.
 [Component-factory implementation](../../pkg/resource/component_factory.go).
+
+<details>
+<summary>Existing definition-watch lifecycle and conversion validation</summary>
+
+EWI's Karta controller maintains definition readiness and read permissions.
+In the inspected consumer, a newly eligible kind without an existing registered
+handler can trigger a process restart to register its informer.
+The live-provider recipe later in this document does not replace this lifecycle
+in phase 1. No automatic reclassification guarantee is added for ordinary edits.
+
+The typed-copy tests compare the complete serialized definition with the old
+conversion and check input isolation. Conversion remains part of the measured
+parse cost. No converted definition survives a parse.
+
+</details>
 
 #### Preserve an existing parser's selection rules
 
-A recursive `Tree` is useful when the consumer wants the complete declared structure.
-It is not a drop-in replacement for selective parsing:
+The first phase retains EWI's component selection and accounting.
+A recursive `Tree` is not a drop-in replacement for that selection.
+
+<details>
+<summary>Why the first adapter retains selective parsing</summary>
+
+A recursive `Tree` reads the complete declared structure:
 
 - An ignored descendant may now fail an expression.
 - Scale on a structural component may fail even if only its children are needed.
@@ -190,6 +335,8 @@ It is not a drop-in replacement for selective parsing:
 
 Keep current selection and accounting in the first migration.
 Native handler precedence and workload-boundary selection remain with EWI.
+
+</details>
 
 #### Later: share classification without replacing persistent grouping
 
@@ -233,7 +380,12 @@ A scheduler-filtered Pod cache is insufficient for full SDK workload discovery.
 
 ### Karta metrics exporter: share algorithms during events
 
-Today, the exporter has two paths:
+Today, the exporter owns Pod and Karta informers. Selected workload kinds use
+full-object informers; child and required owner kinds use metadata informers.
+Missing intermediate owner kinds can cause another metadata watch to be registered.
+Its callbacks process events directly; the SDK does not add a work queue.
+
+The exporter has two paths before integration:
 
 ```text
 Object event -> local owner index -> local instance extraction / Pod attribution
@@ -272,14 +424,53 @@ The [collector](../../exporter/pkg/collector/collector.go) still reads `Store.Sn
 Scraping does not discover workloads or reevaluate their definitions.
 Root-status evaluation stays separate from template and scale extraction.
 
+The same three data layers remain after integration:
+
+| Layer | Event-time use | Scrape-time use |
+| --- | --- | --- |
+| Exporter informer stores | Supply current Pods, roots and owner metadata | None |
+| Shared `ownership.Index` | `UpsertTrackedObject`, `Resolve` and `DeleteObject` maintain ownership | None |
+| Existing metric store | Handlers publish derived workload and Pod records, including `UpsertPod` | `Snapshot` supplies metric values |
+
+Instance IDs are reused from stored workload state when available; extraction is
+not repeated for every Pod unnecessarily. The optional higher-level SDK
+attribution cache is not part of these stores.
+
+Existing Karta-change handling also stays with the exporter: update definition
+selection, reconcile required watches, rebuild cached workload records and force
+Pod attribution. Sharing the algorithms does not move this lifecycle into the SDK.
+
+#### When existing Pod metrics change
+
+- An accepted workload event rebuilds its stored workload state and instance IDs.
+  Existing Pod records are reevaluated when owner resolution or the component/
+  instance set changes, or when a definition rebuild forces attribution.
+- A changed owner edge reprocesses cached descendants. An owner that arrives late
+  also retries Pods waiting for it. A root label or template edit alone does not
+  universally trigger Pod re-attribution.
+- Relevant Pod updates, including labels and owner references, reattribute that
+  Pod from the current informer object. Replacing its record moves its workload
+  association; Pod deletion removes its record.
+- Workload/owner deletion removes the indexed object and reprocesses descendants.
+  Affected Pods can become unresolved or attach to another accepted root under
+  the existing ownership policy.
+- A scrape reflects the records published by completed event handling. It does
+  not wait for every informer event or refresh stale inputs itself.
+
+The [event handlers](../../exporter/pkg/controller/events.go) retain this lifecycle
+before and after replacing the shared algorithms.
+
 The [exporter comparison](COLLECTOR.md) shows a complete Pod metric and remaining
 PoC differences, including newer cluster-scope behavior.
 Sharing these algorithms does not mean every newer PoC change is integrated.
 
 ### Use the classification discovery already computed
 
-For a new consumer that needs the complete workload, use the higher-level API.
-This is broader than the compatibility replacements above:
+This is a separate, broader integration phase. The SDK functions exist and have
+their own tests, but the WLD/EWI/exporter adapters above do not use this route.
+EWI grouping migration and acceptance of different membership policies remain open.
+
+For a new consumer that needs the complete workload, use the higher-level API:
 
 ```go
 observed, err := sdk.WorkloadForPod(ctx, discovery.PodReference(pod))
@@ -315,6 +506,9 @@ show traversal and the exact Pods returned at each scope.
 
 ### Keep clients, caches and definition watches with the consumer
 
+This section describes the higher-level integration just introduced.
+It is not additional setup required by phase 1, and it does not describe EWI's
+current definition controller.
 Construct the SDK using a caller-supplied `discovery.Reader` and selected definitions:
 
 ```go
@@ -346,10 +540,19 @@ that every dependency combination compiles unchanged.
 
 `MaxDepth` limits owner hops; its high-level zero value selects 32.
 Optional `CacheOptions` reuses derived attribution only with a concrete
-`*discovery.Index`. Its workload/Pod limits are cardinality limits, not byte limits.
-It does not populate a Kubernetes cache or synchronize watches.
+`*discovery.Index`. Omitting `Cache` disables this reuse. When enabled,
+`MaxWorkloads` and `MaxPods` must both be positive; zero does not mean unlimited.
+These bound retained attribution entries and Pod membership records, not index
+bytes, informer objects or total process memory.
 
-Definition updates follow the same consumer-owned lifecycle:
+The consumer initializes the index with complete coverage and publishes ordered
+object changes. A changed indexed root, Pod record, membership or compiled
+definition prevents reuse of the prior attribution on the next query.
+Unsupported expressions and failed attribution bypass reuse. Previously returned observations remain unchanged.
+No cache flush is needed for a correctly published change; missed watch events
+still require consumer recovery. The SDK cache cannot repair a stale input index.
+
+In this broader integration, definition updates follow this consumer-owned flow:
 
 ```text
 Karta event -> definition queue -> read complete current selection
@@ -494,6 +697,10 @@ covers reading external workload objects; it does not implement a root cutoff.
 - 2026-10-16: local ownership and component-reader adapters, shared exporter
   algorithms and consumer comparisons are available. EWI grouping migration and
   high-level parent boundaries remain proposal-only; consumer deployment is pending.
+- 2026-10-18: documented the retained watches, exact SDK calls, cache ownership
+  and output writes for phase 1. This clarification changes no implementation or
+  deployment state; the higher-level discovery/provider/cache route remains a
+  separate integration choice.
 
 Diagram sources: [consumer integration](images/consumer-integration.excalidraw) and
 [workload boundary](images/workload-boundary.excalidraw). Open them at excalidraw.com to edit.
