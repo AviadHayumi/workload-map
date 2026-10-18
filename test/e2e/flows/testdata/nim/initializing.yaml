@@ -3,8 +3,8 @@
 #
 # A NIMService pointing at a nonexistent image, so the operator's Deployment pods stay in
 # ImagePullBackOff and the service never becomes ready. The k8s-nim-operator holds
-# status.state=NotReady, which the definition reads as Initializing - a service still coming
-# up (here, permanently). Karta must read it as Initializing, not Ready.
+# status.state=NotReady, which the definition reads as Pending - a service still coming
+# up (here, permanently). Karta must read it as Pending, not Ready.
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMService
 metadata:

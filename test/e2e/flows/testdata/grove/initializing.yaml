@@ -3,8 +3,8 @@
 #
 # A Grove PodCliqueSet whose clique references a nonexistent image tag, so its pods stay in
 # ImagePullBackOff and never become available. The operator keeps status.availableReplicas
-# below spec.replicas, which the definition reads as Initializing - a workload still coming
-# up (here, permanently). Karta must read it as Initializing, not Running.
+# below spec.replicas, which the definition reads as Pending - a workload still coming
+# up (here, permanently). Karta must read it as Pending, not Running.
 apiVersion: grove.io/v1alpha1
 kind: PodCliqueSet
 metadata:
