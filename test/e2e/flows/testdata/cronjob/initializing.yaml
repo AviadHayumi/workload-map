@@ -3,7 +3,7 @@
 #
 # A built-in batch/v1 CronJob pinned to Feb 31 - a date that never exists, so it can
 # never fire and status.lastScheduleTime stays unset on any day. The Karta library
-# reads an enabled, never-scheduled CronJob as Initializing.
+# reads an enabled, never-scheduled CronJob as Pending.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

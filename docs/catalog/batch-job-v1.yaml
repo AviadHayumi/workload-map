@@ -24,13 +24,24 @@ spec:
           messageFieldName: message
           reasonFieldName: reason
         statusMappings:
-          initializing:
+          pending:
             - byExpression:
-                expression: (.status.active // 0) > 0 and (.status.ready // 0) == 0
+                expression: |-
+                  .metadata.deletionTimestamp == null and .spec.suspend != true
+                      and (.spec.parallelism // 1) > 0
+                      and (any(.status.conditions[]?; .status == "True"
+                          and (.type == "Complete" or .type == "SuccessCriteriaMet" or .type == "Failed"
+                              or .type == "FailureTarget" or .type == "Suspended")) | not) and (.status.active // 0) > 0
+                      and .status.ready != null and .status.ready < .status.active
                 expectedResult: "true"
           running:
             - byExpression:
-                expression: (.status.active // 0) > 0 and (.status.ready // 0) > 0
+                expression: |-
+                  .metadata.deletionTimestamp == null and .spec.suspend != true
+                      and (.spec.parallelism // 1) > 0
+                      and (any(.status.conditions[]?; .status == "True"
+                          and (.type == "Complete" or .type == "SuccessCriteriaMet" or .type == "Failed"
+                              or .type == "FailureTarget" or .type == "Suspended")) | not) and (.status.active // 0) > 0 and (.status.ready // 0) > 0
                 expectedResult: "true"
           completed:
             - byConditions:
@@ -48,7 +59,14 @@ spec:
                   status: "True"
           degraded:
             - byExpression:
-                expression: .spec.parallelism > 1 and (.status.ready // 0) < .spec.parallelism and ((.status.succeeded // 0) > 0 or (.status.failed // 0) > 0)
+                expression: |-
+                  .metadata.deletionTimestamp == null and .spec.suspend != true
+                      and (.spec.parallelism // 1) > 0
+                      and (any(.status.conditions[]?; .status == "True"
+                          and (.type == "Complete" or .type == "SuccessCriteriaMet" or .type == "Failed"
+                              or .type == "FailureTarget" or .type == "Suspended")) | not) and .spec.parallelism > 1
+                      and (.status.ready // 0) < .spec.parallelism
+                      and ((.status.succeeded // 0) > 0 or (.status.failed // 0) > 0)
                 expectedResult: "true"
           suspended:
             - byConditions:

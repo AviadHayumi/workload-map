@@ -20,12 +20,16 @@ spec:
           messageFieldName: message
           reasonFieldName: reason
         statusMappings:
-          initializing:
+          pending:
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "Unknown") and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False") | not)
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and any(.status.conditions[]?; .type == "Ready" and .status == "Unknown") and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False") | not)
                 expectedResult: "true"
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "False" and (.reason | IN("Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady")))
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and any(.status.conditions[]?; .type == "Ready" and .status == "False" and (.reason | IN("Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady"))) and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False") | not)
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and any(.status.conditions[]?; .type == "Ready" and .status == "False" and .reason == "Progressing") and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False") | not)
                 expectedResult: "true"
           running:
             - byConditions:

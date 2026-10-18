@@ -16,9 +16,21 @@ spec:
         phaseDefinition:
           path: .status.state
         statusMappings:
-          initializing:
-            - byPhase: initializing
-            - byPhase: pending
+          pending:
+            - byExpression:
+                expression: |-
+                  .status.state == "pending" and
+                                                      (.metadata.generation == null or .status.observedGeneration == null or
+                                                       .status.observedGeneration >= .metadata.generation)
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: |-
+                  .status.state != "failed" and
+                                                      (.status.rollingUpdate.phase == "Pending" or .status.rollingUpdate.phase == "InProgress") and
+                                                      (.metadata.generation == null or .status.observedGeneration == null or
+                                                       .status.observedGeneration >= .metadata.generation)
+                expectedResult: "true"
           running:
             - byPhase: successful
           failed:

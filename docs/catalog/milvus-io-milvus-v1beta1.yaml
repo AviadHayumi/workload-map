@@ -20,8 +20,26 @@ spec:
           typeFieldName: type
           statusFieldName: status
         statusMappings:
-          initializing:
+          pending:
             - byPhase: Pending
+              byExpression:
+                expression: |-
+                  .status.status != "Stopped" and
+                      (.metadata.generation == null or .status.observedGeneration == null or
+                       .status.observedGeneration >= .metadata.generation) and
+                      (any(.status.conditions[]?; .reason == "MilvusStopped" or .reason == "MilvusStopping") | not)
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: |-
+                  .status.status != "Stopped" and
+                      (.metadata.generation == null or .status.observedGeneration == null or
+                       .status.observedGeneration >= .metadata.generation) and
+                      (any(.status.conditions[]?; .reason == "MilvusStopped" or .reason == "MilvusStopping") | not) and
+                                                      any(.status.conditions[]?; .type == "MilvusUpdated" and .status == "False" and
+                                                          (.reason == "MilvusUpgradingImage" or .reason == "MilvusDowngradingImage" or
+                                                           .reason == "MilvusComponentsUpdating"))
+                expectedResult: "true"
           running:
             - byPhase: Healthy
           degraded:

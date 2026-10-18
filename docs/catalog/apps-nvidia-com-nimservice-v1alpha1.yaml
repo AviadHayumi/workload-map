@@ -31,9 +31,14 @@ spec:
           statusFieldName: status
           messageFieldName: message
         statusMappings:
-          initializing:
-            - byPhase: NotReady
-            - byPhase: Pending
+          pending:
+            - byExpression:
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (.spec.replicas // 1) > 0 and (.status.state | IN("Pending", "NotReady", "PVC-Created"))
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (.spec.replicas // 1) > 0 and .status.state == "PVC-Created"
+                expectedResult: "true"
           running:
             - byPhase: Ready
           failed:

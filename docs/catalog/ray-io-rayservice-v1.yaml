@@ -20,11 +20,36 @@ spec:
           messageFieldName: message
           reasonFieldName: reason
         statusMappings:
-          initializing:
+          pending:
             - byConditions:
                 - type: Ready
                   status: "False"
                   reason: Initializing
+              byExpression:
+                expression: |-
+                  .spec.suspend != true and
+                      (.metadata.generation == null or .status.observedGeneration == null or
+                       .status.observedGeneration >= .metadata.generation) and
+                      (any(.status.conditions[]?;
+                          (.status == "True" and (.type == "Suspending" or .type == "Suspended")) or
+                          (.type == "Ready" and .status == "False" and
+                           (.reason == "InitializingTimeout" or .reason == "ValidationFailed"))) | not)
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: |-
+                  .spec.suspend != true and
+                      (.metadata.generation == null or .status.observedGeneration == null or
+                       .status.observedGeneration >= .metadata.generation) and
+                      (any(.status.conditions[]?;
+                          (.status == "True" and (.type == "Suspending" or .type == "Suspended")) or
+                          (.type == "Ready" and .status == "False" and
+                           (.reason == "InitializingTimeout" or .reason == "ValidationFailed"))) | not) and
+                                                      (any(.status.conditions[]?; .status == "True" and
+                                                          (.type == "UpgradeInProgress" or .type == "RollbackInProgress")) or
+                                                       ((.status.pendingServiceStatus.rayClusterName // "") != "" and
+                                                        any(.status.conditions[]?; .type == "Ready" and .status == "False" and .reason == "Initializing")))
+                expectedResult: "true"
           running:
             - byConditions:
                 - type: Ready

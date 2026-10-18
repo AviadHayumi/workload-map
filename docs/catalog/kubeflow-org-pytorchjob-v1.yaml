@@ -19,10 +19,27 @@ spec:
           statusFieldName: status
           messageFieldName: message
         statusMappings:
-          initializing:
+          pending:
             - byConditions:
                 - type: Created
                   status: "True"
+              byExpression:
+                expression: |-
+                  .spec.runPolicy.suspend != true and
+                                                          (any(.status.conditions[]?; .status == "True" and
+                                                              (.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not)
+                expectedResult: "true"
+          progressing:
+            - byConditions:
+                - type: Created
+                  status: "True"
+              byExpression:
+                expression: |-
+                  .spec.runPolicy.suspend != true and
+                                                          (any(.status.conditions[]?; .status == "True" and
+                                                              (.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not) and
+                                                          any(.status.replicaStatuses[]?; (.active // 0) > 0)
+                expectedResult: "true"
           running:
             - byConditions:
                 - type: Running

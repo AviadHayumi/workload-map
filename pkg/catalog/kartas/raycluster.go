@@ -10,6 +10,15 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 )
 
+// The legacy ready state and provisioned condition remain true after startup.
+// Only explicit initial readiness waits supply new startup classifications.
+const rayClusterStartingExpression = `.spec.suspend != true and
+    .status.state != "failed" and .status.state != "suspended" and
+    (any(.status.conditions[]?; .status == "True" and
+        (.type == "RayClusterSuspending" or .type == "RayClusterSuspended")) | not) and
+    any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and
+    any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False")`
+
 // Raycluster returns the built-in Karta for the RayCluster workload
 // (ray.io/v1).
 func Raycluster() *v1alpha1.Karta {
@@ -30,6 +39,17 @@ func Raycluster() *v1alpha1.Karta {
 							Path: ".status.state",
 						},
 						StatusMappings: v1alpha1.StatusMappings{
+							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression:     rayClusterStartingExpression,
+								ExpectedResult: "true",
+							}}},
+							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: rayClusterStartingExpression + ` and
+                                    any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False" and
+                                        (.reason == "ContainerCreating" or .reason == "ContainersNotReady" or
+                                         .reason == "ErrImagePull" or .reason == "ImagePullBackOff" or .reason == "CrashLoopBackOff"))`,
+								ExpectedResult: "true",
+							}}},
 							Running: []v1alpha1.StatusMatcher{{ByPhase: "ready"}},
 							Failed:  []v1alpha1.StatusMatcher{{ByPhase: "failed"}},
 							Suspended: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{

@@ -16,6 +16,29 @@ spec:
         phaseDefinition:
           path: .status.state
         statusMappings:
+          pending:
+            - byExpression:
+                expression: |-
+                  .spec.suspend != true and
+                      .status.state != "failed" and .status.state != "suspended" and
+                      (any(.status.conditions[]?; .status == "True" and
+                          (.type == "RayClusterSuspending" or .type == "RayClusterSuspended")) | not) and
+                      any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and
+                      any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False")
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: |-
+                  .spec.suspend != true and
+                      .status.state != "failed" and .status.state != "suspended" and
+                      (any(.status.conditions[]?; .status == "True" and
+                          (.type == "RayClusterSuspending" or .type == "RayClusterSuspended")) | not) and
+                      any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and
+                      any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False") and
+                                                      any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False" and
+                                                          (.reason == "ContainerCreating" or .reason == "ContainersNotReady" or
+                                                           .reason == "ErrImagePull" or .reason == "ImagePullBackOff" or .reason == "CrashLoopBackOff"))
+                expectedResult: "true"
           running:
             - byPhase: ready
           failed:

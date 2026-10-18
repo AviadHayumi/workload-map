@@ -10,6 +10,15 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 )
 
+// Deployment status tracks infrastructure and submission, independently of jobStatus.
+// Cleanup, retry and suspension can retain the previous application's status.
+const rayJobStartingExpression = `.spec.suspend != true and
+    .status.jobStatus != "RUNNING" and .status.jobStatus != "SUCCEEDED" and
+    .status.jobStatus != "FAILED" and .status.jobStatus != "STOPPED" and
+    (.status.jobDeploymentStatus == null or .status.jobDeploymentStatus == "" or
+     .status.jobDeploymentStatus == "Initializing" or .status.jobDeploymentStatus == "Running" or
+     .status.jobDeploymentStatus == "Waiting")`
+
 // Rayjob returns the built-in Karta for the RayJob workload
 // (ray.io/v1).
 func Rayjob() *v1alpha1.Karta {
@@ -36,16 +45,16 @@ func Rayjob() *v1alpha1.Karta {
 							MessageFieldName: ptr.To("message"),
 						},
 						StatusMappings: v1alpha1.StatusMappings{
-							Initializing: []v1alpha1.StatusMatcher{
-								{ByPhase: "PENDING"},
-								// Before the job is submitted the operator reports the cluster bring-up
-								// through jobDeploymentStatus Initializing - a deliberate enum value,
-								// matched the same way the Suspended mapping below reads this field.
-								{ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.status.jobDeploymentStatus == "Initializing"`,
-									ExpectedResult: "true",
-								}},
-							},
+							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: rayJobStartingExpression + ` and
+                                    (.status.jobStatus == "PENDING" or .status.jobDeploymentStatus == "Initializing" or
+                                     .status.jobDeploymentStatus == "Waiting")`,
+								ExpectedResult: "true",
+							}}},
+							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression:     rayJobStartingExpression + ` and .status.jobDeploymentStatus == "Initializing"`,
+								ExpectedResult: "true",
+							}}},
 							Running:   []v1alpha1.StatusMatcher{{ByPhase: "RUNNING"}},
 							Completed: []v1alpha1.StatusMatcher{{ByPhase: "SUCCEEDED"}},
 							Failed:    []v1alpha1.StatusMatcher{{ByPhase: "FAILED"}},

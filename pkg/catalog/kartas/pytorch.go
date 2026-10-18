@@ -33,11 +33,30 @@ func Pytorch() *v1alpha1.Karta {
 							MessageFieldName: ptr.To("message"),
 						},
 						StatusMappings: v1alpha1.StatusMappings{
-							Initializing: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Created", Status: ptr.To("True")}}}},
-							Running:      []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Running", Status: ptr.To("True")}}}},
-							Completed:    []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Succeeded", Status: ptr.To("True")}}}},
-							Failed:       []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Failed", Status: ptr.To("True")}}}},
-							Suspended:    []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Suspended", Status: ptr.To("True")}}}},
+							Pending: []v1alpha1.StatusMatcher{{
+								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Created", Status: ptr.To("True")}},
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression: `.spec.runPolicy.suspend != true and
+                                        (any(.status.conditions[]?; .status == "True" and
+                                            (.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not)`,
+									ExpectedResult: "true",
+								},
+							}},
+							// Created remains true after startup; active replicas only establish partial startup.
+							Progressing: []v1alpha1.StatusMatcher{{
+								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Created", Status: ptr.To("True")}},
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression: `.spec.runPolicy.suspend != true and
+                                        (any(.status.conditions[]?; .status == "True" and
+                                            (.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not) and
+                                        any(.status.replicaStatuses[]?; (.active // 0) > 0)`,
+									ExpectedResult: "true",
+								},
+							}},
+							Running:   []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Running", Status: ptr.To("True")}}}},
+							Completed: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Succeeded", Status: ptr.To("True")}}}},
+							Failed:    []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Failed", Status: ptr.To("True")}}}},
+							Suspended: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Suspended", Status: ptr.To("True")}}}},
 						},
 					},
 				},
