@@ -3,9 +3,9 @@
 #
 # A DynamoGraphDeployment whose containers reference a nonexistent image tag, so the pods
 # stay in ImagePullBackOff and never register. The dynamo-operator holds status.state=pending,
-# which the definition reads as Initializing - a graph still coming up (here, permanently).
+# which the definition reads as Pending - a graph still coming up (here, permanently).
 # Same Frontend + decode shape as running.yaml so the extraction matches; Karta must read it as
-# Initializing, not Running.
+# Pending, not Running.
 apiVersion: nvidia.com/v1alpha1
 kind: DynamoGraphDeployment
 metadata:
