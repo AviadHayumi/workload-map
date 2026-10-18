@@ -47,7 +47,10 @@ func GrovePodCliqueSet() *v1alpha1.Karta {
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `(.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))`,
+								// Grove advances observedGeneration after an update converges. Its
+								// condition reports unfinished work, without identifying the latest
+								// desired generation; a superseded update can still be reported.
+								Expression:     `.metadata.deletionTimestamp == null and (.spec.updateStrategy.type // "RollingRecreate") != "OnDelete" and .status.updateProgress.updateEndedAt == null and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))`,
 								ExpectedResult: "true",
 							}}},
 						},

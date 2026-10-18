@@ -206,21 +206,28 @@ func desiredReplicas(u *unstructured.Unstructured) int64 {
 func DeploymentPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
 		available, _, _ := unstructured.NestedInt64(u.Object, "status", "availableReplicas")
-		return currentGeneration(u) && !BoolTrue("spec", "paused")(u) && desiredReplicas(u) > 0 && available < desiredReplicas(u)
+		return currentGeneration(u) && desiredReplicas(u) > 0 && available < desiredReplicas(u)
 	}
 }
 
 // DeploymentProgressing distinguishes an unfinished rollout from sticky success.
 func DeploymentProgressing() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		if !currentGeneration(u) || BoolTrue("spec", "paused")(u) {
+		if !currentGeneration(u) {
 			return false
 		}
 		desired := desiredReplicas(u)
 		actual, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
 		updated, _, _ := unstructured.NestedInt64(u.Object, "status", "updatedReplicas")
 		available, _, _ := unstructured.NestedInt64(u.Object, "status", "availableReplicas")
-		if actual != desired || updated < desired {
+		if actual != desired {
+			return true
+		}
+		// Pausing holds template updates, not replica-count reconciliation.
+		if BoolTrue("spec", "paused")(u) {
+			return false
+		}
+		if updated < desired {
 			return true
 		}
 		if available >= desired {

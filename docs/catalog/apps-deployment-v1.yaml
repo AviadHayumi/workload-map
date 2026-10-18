@@ -29,8 +29,7 @@ spec:
                 expression: |-
                   .metadata.deletionTimestamp == null
                       and .status.observedGeneration != null
-                      and .status.observedGeneration == .metadata.generation and .spec.paused != true
-                      and (.spec.replicas // 1) > 0
+                      and .status.observedGeneration == .metadata.generation and (.spec.replicas // 1) > 0
                       and (.status.availableReplicas // 0) < (.spec.replicas // 1)
                 expectedResult: "true"
           progressing:
@@ -38,13 +37,14 @@ spec:
                 expression: |-
                   .metadata.deletionTimestamp == null
                       and .status.observedGeneration != null
-                      and .status.observedGeneration == .metadata.generation and .spec.paused != true
-                      and ((.status.replicas // 0) != (.spec.replicas // 1)
-                          or (.status.updatedReplicas // 0) < (.spec.replicas // 1)
+                      and .status.observedGeneration == .metadata.generation and (
+                      (.status.replicas // 0) != (.spec.replicas // 1)
+                      or (.spec.paused != true and (
+                          (.status.updatedReplicas // 0) < (.spec.replicas // 1)
                           or ((.status.availableReplicas // 0) < (.spec.replicas // 1)
                               and any(.status.conditions[]?; .type == "Progressing"
                                   and ((.status == "True" and .reason != "NewReplicaSetAvailable")
-                                      or (.status == "False" and .reason == "ProgressDeadlineExceeded")))))
+                                      or (.status == "False" and .reason == "ProgressDeadlineExceeded")))))))
                 expectedResult: "true"
           running:
             - byConditions:

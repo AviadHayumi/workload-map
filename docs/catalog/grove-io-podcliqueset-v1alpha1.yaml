@@ -26,7 +26,7 @@ spec:
                 expectedResult: "true"
           progressing:
             - byExpression:
-                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))
+                expression: .metadata.deletionTimestamp == null and (.spec.updateStrategy.type // "RollingRecreate") != "OnDelete" and .status.updateProgress.updateEndedAt == null and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))
                 expectedResult: "true"
           running:
             - byExpression:

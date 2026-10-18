@@ -40,21 +40,22 @@ func Deployment() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: deploymentCurrentStatus + ` and .spec.paused != true
-    and (.spec.replicas // 1) > 0
+								Expression: deploymentCurrentStatus + ` and (.spec.replicas // 1) > 0
     and (.status.availableReplicas // 0) < (.spec.replicas // 1)`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								// Pausing prevents template rollouts, but scaling still reconciles.
 								// NewReplicaSetAvailable remains true after success. A readiness loss alone
 								// does not establish a new rollout while that historical reason remains.
-								Expression: deploymentCurrentStatus + ` and .spec.paused != true
-    and ((.status.replicas // 0) != (.spec.replicas // 1)
-        or (.status.updatedReplicas // 0) < (.spec.replicas // 1)
+								Expression: deploymentCurrentStatus + ` and (
+    (.status.replicas // 0) != (.spec.replicas // 1)
+    or (.spec.paused != true and (
+        (.status.updatedReplicas // 0) < (.spec.replicas // 1)
         or ((.status.availableReplicas // 0) < (.spec.replicas // 1)
             and any(.status.conditions[]?; .type == "Progressing"
                 and ((.status == "True" and .reason != "NewReplicaSetAvailable")
-                    or (.status == "False" and .reason == "ProgressDeadlineExceeded")))))`,
+                    or (.status == "False" and .reason == "ProgressDeadlineExceeded")))))))`,
 								ExpectedResult: "true",
 							}}},
 							Running: []v1alpha1.StatusMatcher{{

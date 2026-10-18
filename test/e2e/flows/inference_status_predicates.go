@@ -27,7 +27,10 @@ func grovePending(u *unstructured.Unstructured) bool {
 }
 
 func groveProgressing(u *unstructured.Unstructured) bool {
-	return inferenceObservationCurrent(u) && !CondTrue("TopologyLevelsUnavailable")(u) &&
+	strategy, _, _ := unstructured.NestedString(u.Object, "spec", "updateStrategy", "type")
+	ended, _, _ := unstructured.NestedFieldNoCopy(u.Object, "status", "updateProgress", "updateEndedAt")
+	// observedGeneration advances after convergence, so an unfinished update can lag it.
+	return notDeleting(u) && strategy != "OnDelete" && ended == nil && !CondTrue("TopologyLevelsUnavailable")(u) &&
 		(CondTrue("UpdateInProgress")(u) || operatorConditionReason("UpdateInProgress", "Unknown", "ProgressDeadlineExceeded")(u))
 }
 
