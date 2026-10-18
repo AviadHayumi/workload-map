@@ -10,6 +10,12 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
+const batchJobActiveStatus = `.metadata.deletionTimestamp == null and .spec.suspend != true
+    and (.spec.parallelism // 1) > 0
+    and (any(.status.conditions[]?; .status == "True"
+        and (.type == "Complete" or .type == "SuccessCriteriaMet" or .type == "Failed"
+            or .type == "FailureTarget" or .type == "Suspended")) | not)`
+
 // BatchJob returns the built-in Karta for the batch/v1 Job workload.
 func BatchJob() *v1alpha1.Karta {
 	return &v1alpha1.Karta{
@@ -35,12 +41,14 @@ func BatchJob() *v1alpha1.Karta {
 							ReasonFieldName:  ptr.To("reason"),
 						},
 						StatusMappings: v1alpha1.StatusMappings{
-							Initializing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     "(.status.active // 0) > 0 and (.status.ready // 0) == 0",
+							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								// Active counts include Pending Pods. They do not establish startup progress.
+								Expression: batchJobActiveStatus + ` and (.status.active // 0) > 0
+    and .status.ready != null and .status.ready < .status.active`,
 								ExpectedResult: "true",
 							}}},
 							Running: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     "(.status.active // 0) > 0 and (.status.ready // 0) > 0",
+								Expression:     batchJobActiveStatus + " and (.status.active // 0) > 0 and (.status.ready // 0) > 0",
 								ExpectedResult: "true",
 							}}},
 							Completed: []v1alpha1.StatusMatcher{
@@ -52,7 +60,9 @@ func BatchJob() *v1alpha1.Karta {
 								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "FailureTarget", Status: ptr.To("True")}}},
 							},
 							Degraded: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     ".spec.parallelism > 1 and (.status.ready // 0) < .spec.parallelism and ((.status.succeeded // 0) > 0 or (.status.failed // 0) > 0)",
+								Expression: batchJobActiveStatus + ` and .spec.parallelism > 1
+    and (.status.ready // 0) < .spec.parallelism
+    and ((.status.succeeded // 0) > 0 or (.status.failed // 0) > 0)`,
 								ExpectedResult: "true",
 							}}},
 							Suspended: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Suspended", Status: ptr.To("True")}}}},

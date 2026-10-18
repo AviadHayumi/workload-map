@@ -20,13 +20,17 @@ spec:
           messageFieldName: message
           reasonFieldName: reason
         statusMappings:
-          initializing:
+          pending:
             - byExpression:
-                expression: (.spec.replicas // 0) > 0 and (.status.availableReplicas // 0) < (.spec.replicas // 0)
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and (.status.availableReplicas != null or .status.observedGeneration != null) and (.spec.replicas // 0) > 0 and (.status.availableReplicas // 0) < .spec.replicas
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))
                 expectedResult: "true"
           running:
             - byExpression:
-                expression: (.status.availableReplicas // 0) >= (.spec.replicas // 0)
+                expression: (.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and .status != null and (.status.availableReplicas // 0) >= (.spec.replicas // 0)
                 expectedResult: "true"
           failed:
             - byConditions:

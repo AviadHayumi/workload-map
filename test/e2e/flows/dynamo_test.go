@@ -25,13 +25,14 @@ var _ = Describe("DynamoGraphDeployment", Ordered, Label("dynamo"), func() {
 		fx = recorder.Fixture{Operator: "dynamo", Version: operatorVersion("dynamo"), KartaName: "nvidia-com-dynamographdeployment-v1alpha1", KartaFile: "docs/catalog/nvidia-com-dynamographdeployment-v1alpha1.yaml"}
 		rec = recorder.New(cfg).
 			SetTimeout(8*time.Minute).
-			AddState(kartav1alpha1.InitializingStatus, PhaseAny([]string{"initializing", "pending"}, "status", "state")).
+			AddState(kartav1alpha1.ProgressingStatus, DynamoProgressing()).
+			AddState(kartav1alpha1.PendingStatus, DynamoPending()).
 			AddState(kartav1alpha1.RunningStatus, PhaseEq("successful", "status", "state"))
 	})
 
 	It("running", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "running", "testdata/dynamo/running.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus),
+			recorder.Reaches(kartav1alpha1.PendingStatus),
 			recorder.Reaches(kartav1alpha1.RunningStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
@@ -40,7 +41,7 @@ var _ = Describe("DynamoGraphDeployment", Ordered, Label("dynamo"), func() {
 
 	It("initializing", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "initializing", "testdata/dynamo/initializing.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus)).Run(ctx)
+			recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
 	})

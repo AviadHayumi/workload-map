@@ -87,8 +87,8 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 		// False the controller stops reconciling and Ready stays Unknown, which is a failure unless the
 		// service is stopped.
 		presetsFalse := CondStatus("PresetsCombined", "False")
-		initializing := func(u *unstructured.Unstructured) bool {
-			return (CondStatus("Ready", "Unknown")(u) && !presetsFalse(u)) || readyFalseReason(true, llmStartupReasons...)(u)
+		pending := func(u *unstructured.Unstructured) bool {
+			return inferenceObservationCurrent(u) && !presetsFalse(u) && (CondStatus("Ready", "Unknown")(u) || readyFalseReason(true, llmStartupReasons...)(u))
 		}
 		suspended := func(u *unstructured.Unstructured) bool {
 			return condWithReason("Ready", "False", llmStopReason, true)(u) ||
@@ -100,7 +100,8 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 		}
 		rec = recorder.New(cfg).
 			SetTimeout(6*time.Minute).
-			AddState(kartav1alpha1.InitializingStatus, initializing).
+			AddState(kartav1alpha1.ProgressingStatus, AllOf(pending, condWithReason("Ready", "False", "Progressing", true))).
+			AddState(kartav1alpha1.PendingStatus, pending).
 			AddState(kartav1alpha1.RunningStatus, CondTrue("Ready")).
 			AddState(kartav1alpha1.SuspendedStatus, suspended).
 			AddState(kartav1alpha1.FailedStatus, failed)
@@ -108,7 +109,7 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 
 	It("running", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "running", "testdata/llmisvc/running.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
@@ -117,7 +118,7 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 
 	It("failed", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "failed", "testdata/llmisvc/failed.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.FailedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
@@ -126,7 +127,7 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 
 	It("stopped", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "stopped", "testdata/llmisvc/stopped.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus).Do(KServeStop()),
 			recorder.Reaches(kartav1alpha1.SuspendedStatus),
 		).Run(ctx)
@@ -136,7 +137,7 @@ var _ = Describe("LLMInferenceService", Ordered, Label("kserve", "llmisvc"), fun
 
 	It("missing-preset", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "missing-preset", "testdata/llmisvc/missing-preset.yaml").Through(
-			recorder.Reaches(kartav1alpha1.InitializingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.FailedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())

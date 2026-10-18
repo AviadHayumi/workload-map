@@ -3,8 +3,8 @@
 #
 # A Deployment referencing a nonexistent image tag, so its pod stays in ImagePullBackOff and never
 # becomes ready. With no progressDeadlineSeconds the controller keeps Progressing True while Available
-# stays False, which the Karta library reads as Initializing - a workload still rolling out (here,
-# permanently). Karta must read it as Initializing, not Running or Failed.
+# stays False, which the Karta library reads as Pending - a workload still rolling out (here,
+# permanently). Karta must read it as Pending, not Running or Failed.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

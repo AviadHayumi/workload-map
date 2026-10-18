@@ -21,10 +21,27 @@ spec:
           statusFieldName: status
           messageFieldName: message
         statusMappings:
-          initializing:
-            - byPhase: PENDING
+          pending:
             - byExpression:
-                expression: .status.jobDeploymentStatus == "Initializing"
+                expression: |-
+                  .spec.suspend != true and
+                      .status.jobStatus != "RUNNING" and .status.jobStatus != "SUCCEEDED" and
+                      .status.jobStatus != "FAILED" and .status.jobStatus != "STOPPED" and
+                      (.status.jobDeploymentStatus == null or .status.jobDeploymentStatus == "" or
+                       .status.jobDeploymentStatus == "Initializing" or .status.jobDeploymentStatus == "Running" or
+                       .status.jobDeploymentStatus == "Waiting") and
+                                                      (.status.jobStatus == "PENDING" or .status.jobDeploymentStatus == "Initializing" or
+                                                       .status.jobDeploymentStatus == "Waiting")
+                expectedResult: "true"
+          progressing:
+            - byExpression:
+                expression: |-
+                  .spec.suspend != true and
+                      .status.jobStatus != "RUNNING" and .status.jobStatus != "SUCCEEDED" and
+                      .status.jobStatus != "FAILED" and .status.jobStatus != "STOPPED" and
+                      (.status.jobDeploymentStatus == null or .status.jobDeploymentStatus == "" or
+                       .status.jobDeploymentStatus == "Initializing" or .status.jobDeploymentStatus == "Running" or
+                       .status.jobDeploymentStatus == "Waiting") and .status.jobDeploymentStatus == "Initializing"
                 expectedResult: "true"
           running:
             - byPhase: RUNNING

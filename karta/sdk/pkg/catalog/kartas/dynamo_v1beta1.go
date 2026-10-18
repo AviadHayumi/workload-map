@@ -24,10 +24,20 @@ func DynamoV1beta1() *v1alpha1.Karta {
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						PhaseDefinition: &v1alpha1.PhaseDefinition{Path: ".status.state"},
 						StatusMappings: v1alpha1.StatusMappings{
-							Initializing: []v1alpha1.StatusMatcher{
-								{ByPhase: "initializing"},
-								{ByPhase: "pending"},
-							},
+							// The initializing schema default alone does not establish a controller observation.
+							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: `.status.state == "pending" and
+                                    (.metadata.generation == null or .status.observedGeneration == null or
+                                     .status.observedGeneration >= .metadata.generation)`,
+								ExpectedResult: "true",
+							}}},
+							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: `.status.state != "failed" and
+                                    (.status.rollingUpdate.phase == "Pending" or .status.rollingUpdate.phase == "InProgress") and
+                                    (.metadata.generation == null or .status.observedGeneration == null or
+                                     .status.observedGeneration >= .metadata.generation)`,
+								ExpectedResult: "true",
+							}}},
 							Running: []v1alpha1.StatusMatcher{{ByPhase: "successful"}},
 							Failed:  []v1alpha1.StatusMatcher{{ByPhase: "failed"}},
 						},
