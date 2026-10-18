@@ -5,3 +5,4 @@
 bin/
 operator/bin/
 operator/cover-*.out
+**/node_modules/

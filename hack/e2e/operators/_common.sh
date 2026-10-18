@@ -129,7 +129,11 @@ preload_image() {
   local src="$1" tag="$2"
   docker pull "${src}"
   docker tag "${src}" "${tag}"
-  kind load docker-image "${tag}" --name "${CLUSTER_NAME}"
+  local load_args=(docker-image "${tag}" --name "${CLUSTER_NAME}")
+  if [ -n "${KIND_WORKLOAD_IMAGE_NODES}" ]; then
+    load_args+=(--nodes "${KIND_WORKLOAD_IMAGE_NODES}")
+  fi
+  kind load "${load_args[@]}"
 }
 
 # build_and_load_image <context-dir> <local-tag>
@@ -139,7 +143,11 @@ build_and_load_image() {
   # An image that builds Go takes the version its go.mod asks for.
   [ -f "${ctx}/go.mod" ] && go_version=$(awk '/^go /{print $2; exit}' "${ctx}/go.mod")
   docker build ${go_version:+--build-arg "GO_VERSION=${go_version}"} -t "${tag}" "${ctx}"
-  kind load docker-image "${tag}" --name "${CLUSTER_NAME}"
+  local load_args=(docker-image "${tag}" --name "${CLUSTER_NAME}")
+  if [ -n "${KIND_WORKLOAD_IMAGE_NODES}" ]; then
+    load_args+=(--nodes "${KIND_WORKLOAD_IMAGE_NODES}")
+  fi
+  kind load "${load_args[@]}"
 }
 
 # ensure_secret <namespace> <name> <literal k=v> [more k=v...]

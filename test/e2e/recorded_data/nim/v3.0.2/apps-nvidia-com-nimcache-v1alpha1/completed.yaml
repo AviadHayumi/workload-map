@@ -1,0 +1,614 @@
+events:
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+  phases:
+  - Undefined
+  resourceVersion: "1817"
+  state: Undefined
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      state: Started
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "1825"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in pending state
+        reason: JobPending
+        status: "True"
+        type: NIM_CACHE_JOB_PENDING
+      state: Pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "1829"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in progress
+        reason: JobRunning
+        status: "False"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: 'Operation cannot be fulfilled on nimcaches.apps.nvidia.com "karta-e2e-nimcache-completed":
+          the object has been modified; please apply your changes to the latest version
+          and try again'
+        reason: ReconcileFailed
+        status: "True"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: NotReady
+  phases:
+  - Undefined
+  resourceVersion: "1836"
+  state: Undefined
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in progress
+        reason: JobRunning
+        status: "False"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: InProgress
+  phases:
+  - Running
+  resourceVersion: "1839"
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in progress
+        reason: JobRunning
+        status: "False"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:54:50Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: InProgress
+  phases:
+  - Running
+  resourceVersion: "1875"
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in progress
+        reason: JobRunning
+        status: "False"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:54:53Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: InProgress
+  phases:
+  - Running
+  resourceVersion: "1895"
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM is in progress
+        reason: JobRunning
+        status: "False"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:55:08Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: InProgress
+  phases:
+  - Running
+  resourceVersion: "1931"
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:55:09Z"
+        message: The Job to cache NIM is in pending state
+        reason: JobPending
+        status: "True"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:55:09Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: Pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "1936"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: apps.nvidia.com/v1alpha1
+    kind: NIMCache
+    metadata:
+      creationTimestamp: "2026-10-18T17:54:47Z"
+      finalizers:
+      - finalizer.nimcache.apps.nvidia.com
+      generation: 1
+      name: karta-e2e-nimcache-completed
+      namespace: test-68ns8
+      uid: f8fcb360-399f-4da1-933f-0f2ffa7b0645
+    spec:
+      env:
+      - name: NIM_CACHE_TEST_DELAY
+        value: 15s
+      - name: NIM_CACHE_TEST_FAIL
+        value: "false"
+      nodeSelector:
+        kubernetes.io/os: linux
+      resources:
+        cpu: 100m
+        memory: 64Mi
+      source:
+        ngc:
+          authSecret: nimcache-auth
+          modelEndpoint: https://example.com/models/fictive
+          modelPuller: nim-cpu:e2e
+          pullSecret: nimcache-pull
+      storage:
+        pvc:
+          create: true
+          size: 64Mi
+          volumeAccessMode: ReadWriteOnce
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The PVC has been created for caching NIM model
+        reason: PVCCreated
+        status: "True"
+        type: NIM_CACHE_PVC_CREATED
+      - lastTransitionTime: "2026-10-18T17:54:47Z"
+        message: The Job to cache NIM has been created
+        reason: JobCreated
+        status: "True"
+        type: NIM_CACHE_JOB_CREATED
+      - lastTransitionTime: "2026-10-18T17:55:09Z"
+        message: The Job to cache NIM is in pending state
+        reason: JobPending
+        status: "True"
+        type: NIM_CACHE_JOB_PENDING
+      - lastTransitionTime: "2026-10-18T17:55:09Z"
+        message: ""
+        reason: Reconciled
+        status: "False"
+        type: NIM_CACHE_RECONCILE_FAILED
+      - lastTransitionTime: "2026-10-18T17:55:09Z"
+        message: The Job to cache NIM has successfully completed
+        reason: JobCompleted
+        status: "True"
+        type: NIM_CACHE_JOB_COMPLETED
+      pvc: karta-e2e-nimcache-completed-pvc
+      state: Ready
+  phases:
+  - Completed
+  resourceVersion: "1940"
+  state: Completed
+flow: completed
+kartaFile: docs/catalog/apps-nvidia-com-nimcache-v1alpha1.yaml
+kartaName: apps-nvidia-com-nimcache-v1alpha1
+operator: nim
+result:
+  succeeded: true
+schemaVersion: 1
+summary:
+- amount: 1
+  phases:
+  - Undefined
+- amount: 2
+  phases:
+  - Progressing
+  - Pending
+- amount: 1
+  phases:
+  - Undefined
+- amount: 4
+  phases:
+  - Running
+- amount: 1
+  phases:
+  - Progressing
+  - Pending
+- amount: 1
+  phases:
+  - Completed
+version: v3.0.2
+want: Completed

@@ -6,11 +6,11 @@ events:
     metadata:
       annotations:
         deployment.kubernetes.io/revision: "1"
-      creationTimestamp: "2026-09-16T11:02:19Z"
+      creationTimestamp: "2026-10-18T16:35:58Z"
       generation: 1
       name: karta-e2e-deploy-initializing
-      namespace: test-n7hmp
-      uid: 1bb16a98-5f37-4f8c-9dfd-a31a7a3bd38a
+      namespace: test-f7hxq
+      uid: b47e8d21-2dcd-4d37-8fb4-97bfa8015302
     spec:
       progressDeadlineSeconds: 600
       replicas: 1
@@ -28,6 +28,7 @@ events:
           labels:
             app: karta-e2e-deploy-initializing
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - sh
@@ -52,16 +53,16 @@ events:
           terminationGracePeriodSeconds: 30
     status:
       conditions:
-      - lastTransitionTime: "2026-09-16T11:02:19Z"
-        lastUpdateTime: "2026-09-16T11:02:19Z"
-        message: Created new replica set "karta-e2e-deploy-initializing-6c4bbc86fc"
+      - lastTransitionTime: "2026-10-18T16:35:58Z"
+        lastUpdateTime: "2026-10-18T16:35:58Z"
+        message: Created new replica set "karta-e2e-deploy-initializing-79466684f7"
         reason: NewReplicaSetCreated
         status: "True"
         type: Progressing
   phases:
-  - Initializing
-  resourceVersion: "625144"
-  state: Initializing
+  - Undefined
+  resourceVersion: "6363"
+  state: Undefined
 - kind: STATE
   object:
     apiVersion: apps/v1
@@ -69,11 +70,11 @@ events:
     metadata:
       annotations:
         deployment.kubernetes.io/revision: "1"
-      creationTimestamp: "2026-09-16T11:02:19Z"
+      creationTimestamp: "2026-10-18T16:35:58Z"
       generation: 1
       name: karta-e2e-deploy-initializing
-      namespace: test-n7hmp
-      uid: 1bb16a98-5f37-4f8c-9dfd-a31a7a3bd38a
+      namespace: test-f7hxq
+      uid: b47e8d21-2dcd-4d37-8fb4-97bfa8015302
     spec:
       progressDeadlineSeconds: 600
       replicas: 1
@@ -91,6 +92,7 @@ events:
           labels:
             app: karta-e2e-deploy-initializing
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - sh
@@ -115,14 +117,14 @@ events:
           terminationGracePeriodSeconds: 30
     status:
       conditions:
-      - lastTransitionTime: "2026-09-16T11:02:19Z"
-        lastUpdateTime: "2026-09-16T11:02:19Z"
-        message: Created new replica set "karta-e2e-deploy-initializing-6c4bbc86fc"
+      - lastTransitionTime: "2026-10-18T16:35:58Z"
+        lastUpdateTime: "2026-10-18T16:35:58Z"
+        message: Created new replica set "karta-e2e-deploy-initializing-79466684f7"
         reason: NewReplicaSetCreated
         status: "True"
         type: Progressing
-      - lastTransitionTime: "2026-09-16T11:02:19Z"
-        lastUpdateTime: "2026-09-16T11:02:19Z"
+      - lastTransitionTime: "2026-10-18T16:35:58Z"
+        lastUpdateTime: "2026-10-18T16:35:58Z"
         message: Deployment does not have minimum availability.
         reason: MinimumReplicasUnavailable
         status: "False"
@@ -130,9 +132,10 @@ events:
       observedGeneration: 1
       unavailableReplicas: 1
   phases:
-  - Initializing
-  resourceVersion: "625150"
-  state: Initializing
+  - Progressing
+  - Pending
+  resourceVersion: "6368"
+  state: Pending
 flow: initializing
 kartaFile: docs/catalog/apps-deployment-v1.yaml
 kartaName: apps-deployment-v1
@@ -141,8 +144,12 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 2
+- amount: 1
   phases:
-  - Initializing
+  - Undefined
+- amount: 1
+  phases:
+  - Progressing
+  - Pending
 version: v1.34.0
-want: Initializing
+want: Pending

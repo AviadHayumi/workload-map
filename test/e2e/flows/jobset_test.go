@@ -44,6 +44,8 @@ var _ = Describe("JobSet", Ordered, Label("jobset"), func() {
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus),
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			// Readiness can return before the controller publishes Completed.
+			recorder.Reaches(kartav1alpha1.RunningStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.CompletedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())

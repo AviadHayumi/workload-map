@@ -1,0 +1,391 @@
+events:
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      replicatedJobsStatus:
+      - active: 0
+        failed: 0
+        name: workers
+        ready: 0
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+  phases:
+  - Pending
+  resourceVersion: "6686"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      replicatedJobsStatus:
+      - active: 1
+        failed: 0
+        name: workers
+        ready: 0
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+  phases:
+  - Pending
+  resourceVersion: "6692"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      replicatedJobsStatus:
+      - active: 1
+        failed: 0
+        name: workers
+        ready: 1
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+  phases:
+  - Running
+  resourceVersion: "6712"
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      replicatedJobsStatus:
+      - active: 1
+        failed: 0
+        name: workers
+        ready: 0
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+  phases:
+  - Pending
+  resourceVersion: "6738"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      replicatedJobsStatus:
+      - active: 0
+        failed: 0
+        name: workers
+        ready: 0
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+  phases:
+  - Pending
+  resourceVersion: "6745"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: jobset.x-k8s.io/v1alpha2
+    kind: JobSet
+    metadata:
+      creationTimestamp: "2026-10-18T16:36:44Z"
+      generation: 1
+      name: karta-e2e-jobset-failed
+      namespace: test-f7hxq
+      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+    spec:
+      network:
+        enableDNSHostnames: true
+        publishNotReadyAddresses: true
+      replicatedJobs:
+      - groupName: default
+        name: workers
+        replicas: 1
+        template:
+          metadata: {}
+          spec:
+            backoffLimit: 0
+            completionMode: Indexed
+            completions: 1
+            parallelism: 1
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - sh
+                  - -c
+                  - sleep 5; exit 1
+                  image: busybox:1.36
+                  name: worker
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 32Mi
+                    requests:
+                      cpu: 50m
+                      memory: 32Mi
+                restartPolicy: Never
+      startupPolicy:
+        startupPolicyOrder: AnyOrder
+      successPolicy:
+        operator: All
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T16:36:53Z"
+        message: 'jobset failed due to one or more job failures (first failed job:
+          karta-e2e-jobset-failed-workers-0)'
+        reason: FailedJobs
+        status: "True"
+        type: Failed
+      replicatedJobsStatus:
+      - active: 0
+        failed: 1
+        name: workers
+        ready: 0
+        succeeded: 0
+        suspended: 0
+      restarts: 0
+      terminalState: Failed
+  phases:
+  - Failed
+  resourceVersion: "6748"
+  state: Failed
+flow: failed
+kartaFile: docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml
+kartaName: jobset-x-k8s-io-jobset-v1alpha2
+operator: jobset
+result:
+  succeeded: true
+schemaVersion: 1
+summary:
+- amount: 2
+  phases:
+  - Pending
+- amount: 1
+  phases:
+  - Running
+- amount: 2
+  phases:
+  - Pending
+- amount: 1
+  phases:
+  - Failed
+version: v0.10.1
+want: Failed

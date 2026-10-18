@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,8 +34,7 @@ type migrationExpectation struct {
 }
 
 // Each recording is a real flow the recorder captured. Walk it step by step through the recording reader:
-// Karta must parse every CR, and the statuses it reads must include the state the recorder observed from
-// the CR's own fields.
+// Karta must parse every CR and match every phase the recorder observed from the CR's own fields.
 var _ = Describe("Karta reads the recorded state", func() {
 	recordings, globErr := filepath.Glob(recordedGlob)
 	var migration struct {
@@ -71,6 +71,7 @@ var _ = Describe("Karta reads the recorded state", func() {
 			}
 			r, err := recorder.OpenRecording(path)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(validateRecordingRun(r.Recording())).To(Succeed())
 
 			name := filepath.Base(r.Recording().KartaFile)
 			Expect(name).To(MatchRegexp(`^[a-zA-Z0-9._-]+\.yaml$`),
@@ -94,8 +95,8 @@ var _ = Describe("Karta reads the recorded state", func() {
 					Expect(status.MatchedStatuses).To(ConsistOf(expected.Statuses[frame]),
 						"frame %d: Karta read %v; historical recorded label was %q", frame, status.MatchedStatuses, state)
 				} else {
-					Expect(status.MatchedStatuses).To(ContainElement(kartav1alpha1.ResourceStatus(state)),
-						"Karta read %v, recorded state was %q", status.MatchedStatuses, state)
+					Expect(validateRecordedPhases(status.MatchedStatuses, r.Phases())).To(Succeed(),
+						"frame %d: recorded checkpoint was %q", frame, state)
 				}
 				frame++
 			}
@@ -105,3 +106,32 @@ var _ = Describe("Karta reads the recorded state", func() {
 		})
 	}
 })
+
+func validateRecordingRun(recording recorder.Recording) error {
+	if !recording.Result.Succeeded || len(recording.Result.Failures) > 0 {
+		return fmt.Errorf("recording did not succeed: %v", recording.Result.Failures)
+	}
+	if !slices.ContainsFunc(recording.Events, func(event recorder.Event) bool {
+		return event.Kind == recorder.EventState
+	}) {
+		return fmt.Errorf("recording has no STATE observations")
+	}
+	return nil
+}
+
+func validateRecordedPhases(actual []kartav1alpha1.ResourceStatus, phases []string) error {
+	if len(phases) == 0 {
+		return fmt.Errorf("recorded frame has no phases")
+	}
+	want := make([]kartav1alpha1.ResourceStatus, len(phases))
+	for i, phase := range phases {
+		want[i] = kartav1alpha1.ResourceStatus(phase)
+	}
+	got := slices.Clone(actual)
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		return fmt.Errorf("Karta read %v; recorded phases were %v", actual, phases)
+	}
+	return nil
+}

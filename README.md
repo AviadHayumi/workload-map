@@ -268,6 +268,16 @@ to a node, and a Deployment's native `Progressing=True` can survive a completed
 rollout. The mappings therefore use native reasons, counts, generation checks,
 and per-kind terminal guards rather than renaming every condition.
 
+Pausing a Deployment pauses template rollouts, but it can still scale. A paused
+Deployment keeps `Pending` when required availability is missing and
+`Progressing` while its observed replica count differs from the desired count,
+even if scaling is blocked. A settled paused Deployment does not claim an
+active template rollout.
+
+Grove's Progressing condition reports an unfinished operation observed by its
+controller. Its generation watermark advances after convergence, so the
+condition does not establish progress for the latest desired generation.
+
 ### Can this tell whether a workload is scheduled?
 
 For individual Pods, inspect `PodScheduled`: True confirms assignment, False
@@ -295,8 +305,13 @@ a legacy predicate might describe an unscheduled Pod and contain no progress
 evidence. Migrate each predicate according to the observations it actually reads.
 No removal version is set in this change.
 
-See [the per-kind mapping and recorded before/after comparison](docs/Status%20Mapping%20Migration.md)
-for the exact coverage, behavior changes, and verification limits.
+Fresh live validation on 2026-10-18 covered 83 successful flows and 454 STATE
+frames across all 23 catalog definitions, with exact-set SDK replay. The run
+used real controllers with CPU applications and stand-ins; it did not validate
+real model inference or GPU execution.
+
+See [the per-kind mapping, fresh coverage, and historical comparison](docs/Status%20Mapping%20Migration.md)
+for tested operator versions, behavior changes, and verification limits.
 
 ## Pre-built Karta Definitions
 

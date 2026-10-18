@@ -1,0 +1,1649 @@
+events:
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      state: ""
+  phases:
+  - Undefined
+  resourceVersion: "4156"
+  state: Undefined
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      state: ""
+  phases:
+  - Undefined
+  resourceVersion: "4159"
+  state: Undefined
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:07Z"
+        message: 'Resources not ready: karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "4195"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        frontend:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 0
+          replicas: 0
+          updatedReplicas: 0
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:07Z"
+        message: 'Resources not ready: karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "4228"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 0
+          replicas: 0
+          updatedReplicas: 0
+        frontend:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 0
+          replicas: 0
+          updatedReplicas: 0
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:07Z"
+        message: 'Resources not ready: karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "4256"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 0
+          replicas: 1
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 0
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:07Z"
+        message: 'Resources not ready: karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "4270"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 0
+          replicas: 1
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:07Z"
+        message: 'Resources not ready: karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "4372"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 1
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: All resources are ready
+        reason: all_resources_are_ready
+        status: "True"
+        type: Ready
+      observedGeneration: 1
+      state: successful
+  phases:
+  - Running
+  resourceVersion: "4411"
+  state: Running
+- action:
+    name: Update
+    operation:
+      patchType: application/merge-patch+json
+      payload:
+        spec:
+          components:
+          - name: frontend
+            podTemplate:
+              spec:
+                containers:
+                - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+                  imagePullPolicy: IfNotPresent
+                  name: main
+                  resources:
+                    limits:
+                      cpu: 500m
+                      memory: 512Mi
+                    requests:
+                      cpu: 500m
+                      memory: 512Mi
+            replicas: 1
+            type: frontend
+          - name: decode
+            podTemplate:
+              spec:
+                containers:
+                - args:
+                  - --model-path
+                  - nvidia/Llama-3.1-8B-Instruct-FP8
+                  - --model-name
+                  - nvidia/Llama-3.1-8B-Instruct-FP8
+                  - --speedup-ratio
+                  - "1.0"
+                  - --planner-profile-data
+                  - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+                  command:
+                  - python3
+                  - -m
+                  - dynamo.mocker
+                  env:
+                  - name: KARTA_E2E_UPDATE
+                    value: updated
+                  envFrom:
+                  - secretRef:
+                      name: hf-token-secret-v1beta1
+                  image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+                  imagePullPolicy: IfNotPresent
+                  name: main
+                  resources:
+                    limits:
+                      cpu: 500m
+                      memory: 512Mi
+                    requests:
+                      cpu: 500m
+                      memory: 512Mi
+                  workingDir: /workspace
+            replicas: 1
+            type: decode
+      verb: PATCH
+  kind: ACTION
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: All resources are ready
+        reason: all_resources_are_ready
+        status: "True"
+        type: Ready
+      observedGeneration: 1
+      state: successful
+  phases:
+  - Running
+  resourceVersion: "4415"
+  staleObservedGeneration: true
+  state: Running
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: Pending
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4423"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: InProgress
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4430"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-3031d0fc
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 0
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: InProgress
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4461"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-3031d0fc
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 1
+          replicas: 2
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: InProgress
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4479"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: f964e919
+        nvidia.com/current-worker-hash-v2: f5e64599
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 2
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-3031d0fc
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 2
+          replicas: 2
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: InProgress
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4588"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: 3031d0fc
+        nvidia.com/current-worker-hash-v2: a7489261
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 2
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-3031d0fc
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-f964e919
+          readyReplicas: 2
+          replicas: 2
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:27Z"
+        message: Rolling update in progress
+        reason: rolling_update_in_progress
+        status: "False"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        phase: InProgress
+        startTime: "2026-10-18T17:29:27Z"
+      state: pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "4632"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1beta1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: 3031d0fc
+        nvidia.com/current-worker-hash-v2: a7489261
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-18T17:29:07Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-v1beta1-updated-
+      generation: 2
+      name: karta-e2e-dynamo-v1beta1-updated-dzwcv
+      namespace: test-mrbln
+      uid: b19fb8ae-0fc7-4173-86b2-89e624496dd2
+    spec:
+      components:
+      - name: frontend
+        podTemplate:
+          spec:
+            containers:
+            - image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+        replicas: 1
+        type: frontend
+      - name: decode
+        podTemplate:
+          spec:
+            containers:
+            - args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              env:
+              - name: KARTA_E2E_UPDATE
+                value: updated
+              envFrom:
+              - secretRef:
+                  name: hf-token-secret-v1beta1
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+        replicas: 1
+        type: decode
+    status:
+      components:
+        decode:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-decode-3031d0fc
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+        frontend:
+          availableReplicas: 1
+          componentKind: Deployment
+          componentNames:
+          - karta-e2e-dynamo-v1beta1-updated-dzwcv-frontend
+          readyReplicas: 1
+          replicas: 1
+          updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-18T17:29:48Z"
+        message: All resources are ready
+        reason: all_resources_are_ready
+        status: "True"
+        type: Ready
+      observedGeneration: 2
+      rollingUpdate:
+        endTime: "2026-10-18T17:29:48Z"
+        phase: Completed
+        startTime: "2026-10-18T17:29:27Z"
+        updatedComponents:
+        - decode
+      state: successful
+  phases:
+  - Running
+  resourceVersion: "4640"
+  state: Running
+flow: updated
+kartaFile: docs/catalog/nvidia-com-dynamographdeployment-v1beta1.yaml
+kartaName: nvidia-com-dynamographdeployment-v1beta1
+operator: dynamo
+result:
+  succeeded: true
+schemaVersion: 1
+summary:
+- amount: 2
+  phases:
+  - Undefined
+- amount: 5
+  phases:
+  - Pending
+- amount: 2
+  phases:
+  - Running
+- amount: 6
+  phases:
+  - Progressing
+  - Pending
+- amount: 1
+  phases:
+  - Running
+version: 1.2.1
+want: Running

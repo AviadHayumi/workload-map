@@ -27,10 +27,38 @@ var _ = Describe("Deployment (built-in)", Ordered, Label("deployment", "builtin"
 
 	It("scaled", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "scaled", "testdata/deployment/running.yaml").Through(
-			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(), // startup, before the first Running (Deployment stays Running while scaling)
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus).With(ReplicasReady(1)).Do(ScaleReplicas(3)),
+			// Scaling can lose minimum availability before the new replicas are ready.
+			recorder.Reaches(kartav1alpha1.ProgressingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus).With(ReplicasReady(3)).Do(ScaleReplicas(1)),
+			recorder.Reaches(kartav1alpha1.ProgressingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus).With(ReplicasReady(1)),
+		).Run(ctx)
+		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
+		Expect(err).To(Succeed())
+	})
+
+	// Pausing stops template rollouts, but the Deployment must still scale.
+	It("paused-scaled", func(ctx SpecContext) {
+		out, err := recorder.NewFlow(rec, "paused-scaled", "testdata/deployment/running.yaml").Through(
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.RunningStatus).With(AllOf(
+				ReplicasReady(1), IntEq(1, "status", "availableReplicas"),
+			)).Do(&recorder.Action{Type: "Pause", Patch: []byte(`{"spec":{"paused":true}}`)}),
+			recorder.Reaches(kartav1alpha1.RunningStatus).With(AllOf(
+				BoolTrue("spec", "paused"), IntEq(1, "spec", "replicas"),
+				ReplicasReady(1), IntEq(1, "status", "availableReplicas"),
+			)).Do(ScaleReplicas(3)),
+			// Watch snapshots can skip the scaling and readiness gaps.
+			recorder.Reaches(kartav1alpha1.ProgressingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.RunningStatus).With(AllOf(
+				BoolTrue("spec", "paused"), IntEq(3, "spec", "replicas"),
+				ReplicasReady(3), IntEq(3, "status", "availableReplicas"),
+			)),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
