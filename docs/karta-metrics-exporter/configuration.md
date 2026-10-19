@@ -27,6 +27,17 @@ exporter:
       clientKeySecretRef: {name: karta-otlp-tls, key: tls.key}
   http:
     port: 8080 # /healthz and /readyz; also /metrics in Prometheus mode.
+  rbac:
+    # Read workload roots and intermediate owners; the chart adds get/list/watch.
+    # This list replaces the defaults. Include every selected workload type and its owners.
+    workloadRules:
+      - apiGroups: ["apps"]
+        resources: ["deployments", "replicasets", "statefulsets"]
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+      - apiGroups: ["jobset.x-k8s.io"]
+        resources: ["jobsets"]
+  # Definitions describe each workload type. Include/exclude lists use definition names.
   kartaDefinitionSource:
     catalog:
       enabled: true # Built-in definitions; default false.
@@ -36,32 +47,38 @@ exporter:
       enabled: true # Cluster-installed Karta definitions; default true.
       include: []
       exclude: []
-      labelSelector: {}
+      labelSelector: {} # Select cluster Karta definitions by their labels.
+  # Watch Pods and workload objects only in matching namespaces.
   namespaceSelector: # Default null or {}: all namespaces.
     matchExpressions:
-      - key: example.com/tenant
+      - key: example.com/tenant # Include namespaces carrying this label.
         operator: Exists
       - key: kubernetes.io/metadata.name
         operator: NotIn
-        values: [kube-system, karta-system]
+        values: [kube-system, karta-system] # Skip these system namespaces.
+  # Match the workload root's metadata.labels; keep owner dependencies watched.
   objectSelector: # Default null or {}: all resolved workload roots.
     matchExpressions:
       - key: example.com/purpose
         operator: NotIn
         values: [reservation]
+  # Match each Pod's metadata.labels to select its exported row.
+  # All Pods in selected namespaces stay watched.
   podSelector: # Default null or {}: all Pod attribution rows.
     matchExpressions:
       - key: example.com/purpose
         operator: NotIn
         values: [reservation]
-  resourceRules: [] # Empty: no root API-type restriction.
+  resourceRules: [] # Limit root API types; empty means no restriction.
   excludeResourceRules: [] # Exclusions take precedence.
-  ignoredOwnerKinds: # Stop the owner walk before these exact GVKs; default [].
+  # Stop before these GVKs; the last verified object below becomes the workload root.
+  ignoredOwnerKinds: # Default [].
     - example.com/v1/PlatformWrapper
   requiredKinds: [] # Optional expected APIs; failed checks mark dependent observations unhealthy.
     # Example: ["jobset.x-k8s.io/v1alpha2/JobSet"]
   metrics:
     workloadPhases: ["all"] # Emit every workload phase as a 0/1 series.
+  # Let Prometheus Operator discover and scrape the exporter.
   serviceMonitor:
     enabled: true # Create the optional ServiceMonitor; default false.
     interval: 30s # How often Prometheus scrapes metrics.
@@ -76,33 +93,27 @@ catalog. `http.port` serves `/healthz` and `/readyz` in both delivery modes, plu
 
 | Setting under `exporter` | Selects |
 | --- | --- |
-| `namespaceSelector` | Namespaces by labels; `kubernetes.io/metadata.name` selects names. |
+| `namespaceSelector` | Namespace labels; use the built-in `kubernetes.io/metadata.name` label with `In` to include names or `NotIn` to exclude them. |
 | `objectSelector` | Resolved workload roots by their labels. |
 | `podSelector` | Pods whose attribution rows are exported, using each Pod's labels. |
 | `resourceRules` / `excludeResourceRules` | Root API types, using group, version and plural resource name. Exclusions win. |
 | `kartaDefinitionSource.cluster.labelSelector` | Cluster Karta definitions by their labels. |
 | Definition-source `include` / `exclude` | Definition names. Empty includes mean all; exclusions win. |
 
-Label selectors use Kubernetes `matchLabels` and `matchExpressions`. Requirements
-are ANDed. `In`, `NotIn`, `Exists` and `DoesNotExist` are supported; `NotIn` also
-matches missing labels. Omitted, null or `{}` selectors impose no restriction.
-A nonempty selector with no matches selects nothing. Labels are not inherited.
-See [Kubernetes label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors).
+Use [Kubernetes label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors)
+to match each object's own labels. All conditions must match; `NotIn` also matches
+missing labels.
 
-All Pods remain watched in selected namespaces for ownership and submitter checks.
-`objectSelector` filters whole workloads; `podSelector` filters their exported Pod
-rows. Both must match for a Pod row to appear. Workload status describes the full
-workload, while usage joined through filtered Pod rows covers only those Pods.
+Namespace selection limits watches. All Pods and required owners in those
+namespaces stay watched, including Jobs owned by a JobSet.
 
-Namespace scoping reduces LIST/WATCH traffic. Pod filtering reduces output, not
-watch traffic. Root filters do not remove owner dependencies: a selected JobSet
-still needs its Jobs. An excluded root emits no workload metrics or Pod
-attribution; its children do not become replacement roots. Scope changes update
-the selected set and remove observations that leave it. A failed scope refresh
-does not widen selection.
+`objectSelector` selects workload roots. `podSelector` selects Pod rows; both must
+match for a Pod row to appear. Workload status covers the full workload; joined
+usage covers only included Pods. Excluding a root excludes its Pods too, without
+treating its children as new roots.
 
-The legacy `exporter.namespace` selects one namespace when `namespaceSelector`
-is omitted or null. Combining it with a non-null selector, including `{}`, is invalid.
+Scope changes remove rows outside the selection. A failed refresh never expands
+the scope.
 
 ### Workload API types
 
@@ -270,23 +281,56 @@ freshness.
 | `nodeSelector`, `tolerations`, `affinity` | Pod placement. |
 | `networkPolicy` | Access to the metrics endpoint. |
 
-Example read permissions for JobSet and its intermediate Jobs:
+The main Helm example includes `rbac.workloadRules`. These rules use API groups
+and plural resource names, as in Kubernetes RBAC. The chart supplies `get`, `list`
+and `watch`: read one owner, list existing objects and receive updates. API versions
+are selected by `resourceRules`, not RBAC.
+
+Include the root and every intermediate owner needed for attribution:
+
+| Workload | Workload rules | Why |
+| --- | --- | --- |
+| Deployment | `apps`: `deployments`, `replicasets` | Pods belong to ReplicaSets, which belong to the Deployment. |
+| JobSet | `jobset.x-k8s.io`: `jobsets`; `batch`: `jobs` | Jobs connect the Pods to the JobSet. |
+| LeaderWorkerSet | `leaderworkerset.x-k8s.io`: `leaderworkersets`; `apps`: `statefulsets` | StatefulSets connect the Pods to the LeaderWorkerSet. |
+| RayJob | `ray.io`: `rayjobs`, `rayclusters`; `batch`: `jobs` | Read the RayCluster and any submitter Job created by the RayJob. |
+
+The main example covers Deployments, StatefulSets, Jobs, CronJobs and JobSets.
+Keep permissions aligned with the selected definitions and API types, including
+intermediate owners. The list replaces the default workload rules. Pod, Namespace
+and enabled definition-source reads are
+separate built-in rules. Namespace reads are needed to evaluate namespace labels.
+Using an existing ServiceAccount does not disable the chart's role binding.
+
+To add a workload type without replacing the Helm list, an administrator can
+create a separate ClusterRole:
 
 ```yaml
-exporter:
-  rbac:
-    workloadRules:
-      - apiGroups: ["jobset.x-k8s.io"]
-        resources: ["jobsets"]
-      - apiGroups: ["batch"]
-        resources: ["jobs"]
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: karta-exporter-trainingruns
+  labels:
+    karta.run.ai/exporter-rbac: "true"
+rules:
+  - apiGroups: ["example.com"]
+    resources: ["trainingruns"]
+    verbs: ["get", "list", "watch"]
 ```
 
-The chart adds `get`, `list` and `watch`; Pod and Karta-definition reads are
-separate built-in rules. This list replaces the defaults. A separately managed
-ClusterRole labeled `karta.run.ai/exporter-rbac: "true"` can extend the aggregated role.
-The chart binds that read-only role even for an existing service account.
-Namespace filtering does not narrow authorization; that requires custom RBAC.
+Replace the example group and resource with the workload API. Kubernetes merges
+this rule into every exporter role selecting that label. The label is not specific
+to one Helm release. Keep extension rules read-only; aggregation itself does not
+restrict their verbs.
+
+Namespace selection reduces watches, not authorization. Restricting access to named
+namespaces requires Roles/RoleBindings in place of a cluster-wide workload binding;
+adding a narrow binding does not remove existing grants. Namespace objects still
+need cluster-scoped read access.
+
+This follows [Kubernetes RBAC aggregation](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#aggregated-clusterroles).
+The [kube-state-metrics chart](https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-state-metrics/values.yaml)
+also supports extra resource rules, namespace-scoped roles and aggregation.
 
 Platforms can deploy exporters with disjoint namespace scopes. More replicas
 watch the same scope rather than divide it. Karta does not manage that deployment.
