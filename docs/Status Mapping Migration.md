@@ -198,13 +198,11 @@ they are not the recorder's independently assigned state labels. Consecutive
 identical sets are collapsed. Undefined frames remain visible, including stale
 observations captured between a spec change and the controller's next update.
 
-The table links to immutable historical inputs. Recordings that have not been
-overwritten by a live run retain exact migration expectations in
-[test/e2e/replay_tests/testdata/status_migration.json](../test/e2e/replay_tests/testdata/status_migration.json),
-with a SHA-256 for each original recording. The replay test rejects changed
-historical inputs. Fresh recordings have no historical override: their complete
-recorded phase sets must match the SDK, including any simultaneous statuses.
-The historical comparison below is not fresh live evidence.
+The table links to immutable historical inputs. The active replay suite uses
+83 fresh recordings and compares each complete recorded phase set directly
+with the SDK, including simultaneous statuses. Superseded historical recordings
+are available through these links and Git history. The historical comparison
+below is not fresh live evidence.
 
 Current waiting-flow files use `pending.yaml`. Historical links and captured
 recording metadata retain their original names.

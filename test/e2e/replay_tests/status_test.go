@@ -4,8 +4,6 @@
 package replay
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,49 +24,18 @@ const (
 	recordedGlob = "../recorded_data/*/*/*/*.yaml"
 )
 
-// Historical recordings retain their original labels. Migration expectations pin
-// those exact inputs and assert every status in the new catalog's output.
-type migrationExpectation struct {
-	SHA256   string                           `json:"sha256"`
-	Statuses [][]kartav1alpha1.ResourceStatus `json:"statuses"`
-}
-
 // Each recording is a real flow the recorder captured. Walk it step by step through the recording reader:
 // Karta must parse every CR and match every phase the recorder observed from the CR's own fields.
 var _ = Describe("Karta reads the recorded state", func() {
 	recordings, globErr := filepath.Glob(recordedGlob)
-	var migration struct {
-		Recordings map[string]migrationExpectation `json:"recordings"`
-	}
-	migrationData, readErr := os.ReadFile("testdata/status_migration.json")
-	decodeErr := json.Unmarshal(migrationData, &migration)
-	It("has valid historical migration expectations", func() {
+	It("has recordings to replay", func() {
 		Expect(globErr).NotTo(HaveOccurred())
-		Expect(readErr).NotTo(HaveOccurred())
-		Expect(decodeErr).NotTo(HaveOccurred())
-		for name := range migration.Recordings {
-			Expect(recordings).To(ContainElement(filepath.Join("../recorded_data", name)), "orphan migration entry %s", name)
-		}
+		Expect(recordings).NotTo(BeEmpty(), "no recordings under test/e2e/recorded_data; run make record-e2e")
 	})
-	if len(recordings) == 0 {
-		It("has recordings to replay", func() {
-			Fail("no recordings under test/e2e/recorded_data; run make record-e2e")
-		})
-		return
-	}
 
 	for _, path := range recordings {
 		path := path
 		It(strings.TrimPrefix(path, "../recorded_data/"), func(ctx SpecContext) {
-			Expect(readErr).NotTo(HaveOccurred())
-			Expect(decodeErr).NotTo(HaveOccurred())
-			expected, migrated := migration.Recordings[strings.TrimPrefix(path, "../recorded_data/")]
-			if migrated {
-				data, err := os.ReadFile(path)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(fmt.Sprintf("%x", sha256.Sum256(data))).To(Equal(expected.SHA256),
-					"historical input changed; remove its migration entry after a live re-recording")
-			}
 			r, err := recorder.OpenRecording(path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(validateRecordingRun(r.Recording())).To(Succeed())
@@ -89,19 +56,9 @@ var _ = Describe("Karta reads the recorded state", func() {
 				status, err := root.GetStatus(ctx)
 				Expect(err).NotTo(HaveOccurred(), "Karta could not read the %q CR", state)
 				Expect(status).NotTo(BeNil(), "Karta read no status from the %q CR", state)
-				if migrated {
-					Expect(frame).To(BeNumerically("<", len(expected.Statuses)), "missing migration expectation for frame %d", frame)
-					Expect(expected.Statuses[frame]).NotTo(BeEmpty())
-					Expect(status.MatchedStatuses).To(ConsistOf(expected.Statuses[frame]),
-						"frame %d: Karta read %v; historical recorded label was %q", frame, status.MatchedStatuses, state)
-				} else {
-					Expect(validateRecordedPhases(status.MatchedStatuses, r.Phases())).To(Succeed(),
-						"frame %d: recorded checkpoint was %q", frame, state)
-				}
+				Expect(validateRecordedPhases(status.MatchedStatuses, r.Phases())).To(Succeed(),
+					"frame %d: recorded checkpoint was %q", frame, state)
 				frame++
-			}
-			if migrated {
-				Expect(frame).To(Equal(len(expected.Statuses)), "unused migration expectations")
 			}
 		})
 	}
