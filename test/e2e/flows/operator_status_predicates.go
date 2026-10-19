@@ -37,9 +37,18 @@ func operatorConditionReason(condType, status string, reasons ...string) recorde
 
 func RayClusterPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		if BoolTrue("spec", "suspend")(u) || PhaseAny([]string{"failed", "suspended"}, "status", "state")(u) ||
+		if BoolTrue("spec", "suspend")(u) || PhaseEq("failed", "status", "state")(u) ||
 			CondTrue("RayClusterSuspending", "RayClusterSuspended")(u) {
 			return false
+		}
+		if PhaseEq("suspended", "status", "state")(u) {
+			suspend, hasSuspend, _ := unstructured.NestedBool(u.Object, "spec", "suspend")
+			generation, hasGeneration, _ := unstructured.NestedInt64(u.Object, "metadata", "generation")
+			observed, hasObserved, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+			if !hasSuspend || suspend || !hasGeneration || !hasObserved || observed != generation ||
+				!CondFalse("RayClusterSuspending")(u) || !CondFalse("RayClusterSuspended")(u) {
+				return false
+			}
 		}
 		return CondFalse("RayClusterProvisioned")(u) && CondFalse("HeadPodReady")(u)
 	}
@@ -65,8 +74,10 @@ func rayJobCanStart(u *unstructured.Unstructured) bool {
 
 func RayJobPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
+		jobStatus, _, _ := unstructured.NestedFieldNoCopy(u.Object, "status", "jobStatus")
 		return rayJobCanStart(u) && (PhaseEq("PENDING", "status", "jobStatus")(u) ||
-			PhaseAny([]string{"Initializing", "Waiting"}, "status", "jobDeploymentStatus")(u))
+			PhaseAny([]string{"Initializing", "Waiting"}, "status", "jobDeploymentStatus")(u) ||
+			(PhaseEq("Running", "status", "jobDeploymentStatus")(u) && (jobStatus == nil || jobStatus == "")))
 	}
 }
 

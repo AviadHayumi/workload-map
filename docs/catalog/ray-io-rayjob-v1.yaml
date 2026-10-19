@@ -31,7 +31,9 @@ spec:
                        .status.jobDeploymentStatus == "Initializing" or .status.jobDeploymentStatus == "Running" or
                        .status.jobDeploymentStatus == "Waiting") and
                                                       (.status.jobStatus == "PENDING" or .status.jobDeploymentStatus == "Initializing" or
-                                                       .status.jobDeploymentStatus == "Waiting")
+                                                       .status.jobDeploymentStatus == "Waiting" or
+                                                       (.status.jobDeploymentStatus == "Running" and
+                                                        (.status.jobStatus == null or .status.jobStatus == "")))
                 expectedResult: "true"
           progressing:
             - byExpression:

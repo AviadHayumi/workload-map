@@ -11,9 +11,15 @@ import (
 )
 
 // The legacy ready state and provisioned condition remain true after startup.
-// Only explicit initial readiness waits supply new startup classifications.
+// The suspended state also remains until resumed Pods are ready. Current startup
+// conditions can supersede it once both suspension conditions have cleared.
 const rayClusterStartingExpression = `.spec.suspend != true and
-    .status.state != "failed" and .status.state != "suspended" and
+    .status.state != "failed" and
+    (.status.state != "suspended" or
+     (.spec.suspend == false and .metadata.generation != null and
+      .status.observedGeneration == .metadata.generation and
+      any(.status.conditions[]?; .type == "RayClusterSuspending" and .status == "False") and
+      any(.status.conditions[]?; .type == "RayClusterSuspended" and .status == "False"))) and
     (any(.status.conditions[]?; .status == "True" and
         (.type == "RayClusterSuspending" or .type == "RayClusterSuspended")) | not) and
     any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and

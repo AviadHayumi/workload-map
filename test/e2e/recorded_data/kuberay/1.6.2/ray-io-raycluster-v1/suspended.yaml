@@ -4,11 +4,11 @@ events:
     apiVersion: ray.io/v1
     kind: RayCluster
     metadata:
-      creationTimestamp: "2026-10-18T16:57:01Z"
+      creationTimestamp: "2026-10-19T06:00:40Z"
       generation: 1
       name: karta-e2e-ray-suspended
-      namespace: test-p2wm6
-      uid: 0a828dba-4df2-48e9-abd8-68ff937a6df3
+      namespace: test-zwzsb
+      uid: 7d4b9cea-9294-4a37-85e3-c336e434cc16
     spec:
       headGroupSpec:
         rayStartParams: {}
@@ -61,7 +61,7 @@ events:
                   memory: 512Mi
   phases:
   - Suspended
-  resourceVersion: "1427"
+  resourceVersion: "884"
   state: Suspended
 flow: suspended
 kartaFile: docs/catalog/ray-io-raycluster-v1.yaml

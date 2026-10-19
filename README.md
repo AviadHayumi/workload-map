@@ -310,6 +310,15 @@ frames across all 23 catalog definitions, with exact-set SDK replay. The run
 used real controllers with CPU applications and stand-ins; it did not validate
 real model inference or GPU execution.
 
+A 2026-10-19 follow-up fixes RayJob's gap while awaiting its first application
+status and RayCluster's startup gap during an observed resume. All eight Ray
+flows were re-recorded on real kind with KubeRay 1.6.2; the active corpus now has
+83 successful flows and 455 STATE frames. On identical prior observations,
+eight Undefined frames across five recordings gain evidence-based labels.
+Initial missing status and stale observations remain Undefined. Job, JobSet,
+and NIMCache return-to-waiting transitions still need child or richer native
+status evidence; this change does not hide them.
+
 See [the per-kind mapping, fresh coverage, and historical comparison](docs/Status%20Mapping%20Migration.md)
 for tested operator versions, behavior changes, and verification limits.
 

@@ -48,7 +48,9 @@ func Rayjob() *v1alpha1.Karta {
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression: rayJobStartingExpression + ` and
                                     (.status.jobStatus == "PENDING" or .status.jobDeploymentStatus == "Initializing" or
-                                     .status.jobDeploymentStatus == "Waiting")`,
+                                     .status.jobDeploymentStatus == "Waiting" or
+                                     (.status.jobDeploymentStatus == "Running" and
+                                      (.status.jobStatus == null or .status.jobStatus == "")))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
