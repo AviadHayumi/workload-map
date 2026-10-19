@@ -40,10 +40,12 @@ func Jobset() *v1alpha1.Karta {
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression: jobSetActiveStatus + ` and (
-    .spec.replicatedJobs as $desired |
-    any(.status.replicatedJobsStatus[]?; . as $observed |
-        any($desired[]?; .name == $observed.name
-            and (.replicas // 1) > (($observed.ready // 0) + ($observed.succeeded // 0)))))`,
+    . as $jobset | any(.spec.replicatedJobs[]?; . as $desired |
+        ($jobset.status.replicatedJobsStatus // [] | map(select(.name == $desired.name)) | .[0]) as $observed |
+        ($desired.replicas // 1) > 0 and (
+            ($observed != null and ($desired.replicas // 1) >
+                (([$observed.ready // 0, $observed.active // 0] | min) + ($observed.succeeded // 0))) or
+            ($observed == null and ($jobset.metadata.generation // 0) > 0))))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
@@ -54,9 +56,10 @@ func Jobset() *v1alpha1.Karta {
 								ExpectedResult: "true",
 							}}},
 							Running: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								// Ready is the operator's Job readiness threshold; active includes Pending Pods.
+								// Ready includes successful Pods. Require active work as well, without
+								// treating active Jobs alone as proof that their Pods are ready.
 								Expression: jobSetActiveStatus + ` and ((.status.replicatedJobsStatus // []) |
-    any((.ready // 0) > 0) and all((.failed // 0) == 0))`,
+    any((.ready // 0) > 0 and (.active // 0) > 0) and all((.failed // 0) == 0))`,
 								ExpectedResult: "true",
 							}}},
 							Completed: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Completed", Status: ptr.To("True")}}}},

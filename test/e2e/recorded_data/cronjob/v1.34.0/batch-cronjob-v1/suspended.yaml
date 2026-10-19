@@ -4,11 +4,11 @@ events:
     apiVersion: batch/v1
     kind: CronJob
     metadata:
-      creationTimestamp: "2026-10-18T16:30:00Z"
+      creationTimestamp: "2026-10-19T06:30:00Z"
       generation: 1
       name: karta-e2e-cronjob-suspended
-      namespace: test-6dlx2
-      uid: dadbf380-6b55-4ed7-8c87-0607f7285ae2
+      namespace: test-pb5h5
+      uid: 230eed35-bdab-48bb-bdc1-be90238dd0fa
     spec:
       concurrencyPolicy: Allow
       failedJobsHistoryLimit: 1
@@ -47,14 +47,14 @@ events:
       active:
       - apiVersion: batch/v1
         kind: Job
-        name: karta-e2e-cronjob-suspended-29872351
-        namespace: test-6dlx2
-        resourceVersion: "4038"
-        uid: e81a6750-528c-4403-945d-681109181c2b
-      lastScheduleTime: "2026-10-18T16:31:00Z"
+        name: karta-e2e-cronjob-suspended-29873191
+        namespace: test-pb5h5
+        resourceVersion: "2589"
+        uid: 8138f7c5-0fd2-4c8d-bccb-b42ff39124c5
+      lastScheduleTime: "2026-10-19T06:31:00Z"
   phases:
   - Running
-  resourceVersion: "4040"
+  resourceVersion: "2590"
   state: Running
 - action:
     name: Suspend
@@ -70,11 +70,11 @@ events:
     apiVersion: batch/v1
     kind: CronJob
     metadata:
-      creationTimestamp: "2026-10-18T16:30:00Z"
+      creationTimestamp: "2026-10-19T06:30:00Z"
       generation: 2
       name: karta-e2e-cronjob-suspended
-      namespace: test-6dlx2
-      uid: dadbf380-6b55-4ed7-8c87-0607f7285ae2
+      namespace: test-pb5h5
+      uid: 230eed35-bdab-48bb-bdc1-be90238dd0fa
     spec:
       concurrencyPolicy: Allow
       failedJobsHistoryLimit: 1
@@ -113,14 +113,14 @@ events:
       active:
       - apiVersion: batch/v1
         kind: Job
-        name: karta-e2e-cronjob-suspended-29872351
-        namespace: test-6dlx2
-        resourceVersion: "4038"
-        uid: e81a6750-528c-4403-945d-681109181c2b
-      lastScheduleTime: "2026-10-18T16:31:00Z"
+        name: karta-e2e-cronjob-suspended-29873191
+        namespace: test-pb5h5
+        resourceVersion: "2589"
+        uid: 8138f7c5-0fd2-4c8d-bccb-b42ff39124c5
+      lastScheduleTime: "2026-10-19T06:31:00Z"
   phases:
   - Suspended
-  resourceVersion: "4042"
+  resourceVersion: "2593"
   state: Suspended
 flow: suspended
 kartaFile: docs/catalog/batch-cronjob-v1.yaml

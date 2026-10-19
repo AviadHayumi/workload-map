@@ -4,11 +4,11 @@ events:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -57,18 +57,18 @@ events:
       restarts: 0
   phases:
   - Pending
-  resourceVersion: "6686"
+  resourceVersion: "2794"
   state: Pending
 - kind: STATE
   object:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -117,18 +117,18 @@ events:
       restarts: 0
   phases:
   - Pending
-  resourceVersion: "6692"
+  resourceVersion: "2800"
   state: Pending
 - kind: STATE
   object:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -177,18 +177,18 @@ events:
       restarts: 0
   phases:
   - Running
-  resourceVersion: "6712"
+  resourceVersion: "2817"
   state: Running
 - kind: STATE
   object:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -237,18 +237,18 @@ events:
       restarts: 0
   phases:
   - Pending
-  resourceVersion: "6738"
+  resourceVersion: "2840"
   state: Pending
 - kind: STATE
   object:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -297,18 +297,18 @@ events:
       restarts: 0
   phases:
   - Pending
-  resourceVersion: "6745"
+  resourceVersion: "2846"
   state: Pending
 - kind: STATE
   object:
     apiVersion: jobset.x-k8s.io/v1alpha2
     kind: JobSet
     metadata:
-      creationTimestamp: "2026-10-18T16:36:44Z"
+      creationTimestamp: "2026-10-19T06:31:35Z"
       generation: 1
       name: karta-e2e-jobset-failed
-      namespace: test-f7hxq
-      uid: 3306899e-eeae-4199-8504-6a1b2df9b9ed
+      namespace: test-pb5h5
+      uid: 463da3cb-cfd9-423a-b346-b5cbaadf9578
     spec:
       network:
         enableDNSHostnames: true
@@ -348,7 +348,7 @@ events:
         operator: All
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:36:53Z"
+      - lastTransitionTime: "2026-10-19T06:31:44Z"
         message: 'jobset failed due to one or more job failures (first failed job:
           karta-e2e-jobset-failed-workers-0)'
         reason: FailedJobs
@@ -365,7 +365,7 @@ events:
       terminalState: Failed
   phases:
   - Failed
-  resourceVersion: "6748"
+  resourceVersion: "2849"
   state: Failed
 flow: failed
 kartaFile: docs/catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml

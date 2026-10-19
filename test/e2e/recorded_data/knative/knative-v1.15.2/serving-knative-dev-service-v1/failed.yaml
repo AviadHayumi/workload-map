@@ -7,11 +7,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-10-18T17:08:50Z"
+      creationTimestamp: "2026-10-19T07:08:55Z"
       generation: 1
       name: karta-e2e-knative-failed
-      namespace: test-mxbzw
-      uid: 71e35b07-2234-40fc-816d-50c36496fc34
+      namespace: test-qbks7
+      uid: e88e603b-5a07-44e4-bac7-858103146d80
     spec:
       template:
         metadata:
@@ -44,18 +44,18 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: The Configuration is still working to reflect the latest desired
           specification.
         reason: OutOfDate
         status: Unknown
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: The Route is still working to reflect the latest desired specification.
         reason: OutOfDate
         status: Unknown
@@ -64,7 +64,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3639"
+  resourceVersion: "2883"
   state: Pending
 - kind: STATE
   object:
@@ -74,11 +74,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-10-18T17:08:50Z"
+      creationTimestamp: "2026-10-19T07:08:55Z"
       generation: 1
       name: karta-e2e-knative-failed
-      namespace: test-mxbzw
-      uid: 71e35b07-2234-40fc-816d-50c36496fc34
+      namespace: test-qbks7
+      uid: e88e603b-5a07-44e4-bac7-858103146d80
     spec:
       template:
         metadata:
@@ -111,97 +111,30 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: The Configuration is still working to reflect the latest desired
           specification.
         reason: OutOfDate
         status: Unknown
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
           to become ready.
         reason: RevisionMissing
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
           to become ready.
         reason: RevisionMissing
         status: Unknown
         type: RoutesReady
       observedGeneration: 1
-      url: http://karta-e2e-knative-failed.test-mxbzw.127.0.0.1.sslip.io
-  phases:
-  - Pending
-  resourceVersion: "3648"
-  state: Pending
-- kind: STATE
-  object:
-    apiVersion: serving.knative.dev/v1
-    kind: Service
-    metadata:
-      annotations:
-        serving.knative.dev/creator: kubernetes-admin
-        serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-10-18T17:08:50Z"
-      generation: 1
-      name: karta-e2e-knative-failed
-      namespace: test-mxbzw
-      uid: 71e35b07-2234-40fc-816d-50c36496fc34
-    spec:
-      template:
-        metadata:
-          annotations:
-            serving.knative.dev/progress-deadline: 30s
-          creationTimestamp: null
-        spec:
-          containerConcurrency: 0
-          containers:
-          - image: karta-e2e-no-such-registry.invalid/nope:v1
-            name: user-container
-            ports:
-            - containerPort: 8080
-              protocol: TCP
-            readinessProbe:
-              successThreshold: 1
-              tcpSocket:
-                port: 0
-            resources:
-              limits:
-                cpu: 50m
-                memory: 64Mi
-              requests:
-                cpu: 50m
-                memory: 64Mi
-          enableServiceLinks: false
-          timeoutSeconds: 300
-      traffic:
-      - latestRevision: true
-        percent: 100
-    status:
-      conditions:
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
-        status: Unknown
-        type: ConfigurationsReady
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
-        message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
-          to become ready.
-        reason: RevisionMissing
-        status: Unknown
-        type: Ready
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
-        message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
-          to become ready.
-        reason: RevisionMissing
-        status: Unknown
-        type: RoutesReady
-      latestCreatedRevisionName: karta-e2e-knative-failed-00001
-      observedGeneration: 1
-      url: http://karta-e2e-knative-failed.test-mxbzw.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative-failed.test-qbks7.127.0.0.1.sslip.io
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3652"
+  resourceVersion: "2893"
   state: Pending
 - kind: STATE
   object:
@@ -211,11 +144,11 @@ events:
       annotations:
         serving.knative.dev/creator: kubernetes-admin
         serving.knative.dev/lastModifier: kubernetes-admin
-      creationTimestamp: "2026-10-18T17:08:50Z"
+      creationTimestamp: "2026-10-19T07:08:55Z"
       generation: 1
       name: karta-e2e-knative-failed
-      namespace: test-mxbzw
-      uid: 71e35b07-2234-40fc-816d-50c36496fc34
+      namespace: test-qbks7
+      uid: e88e603b-5a07-44e4-bac7-858103146d80
     spec:
       template:
         metadata:
@@ -248,7 +181,75 @@ events:
         percent: 100
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
+        status: Unknown
+        type: ConfigurationsReady
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
+        message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
+          to become ready.
+        reason: RevisionMissing
+        status: Unknown
+        type: Ready
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
+        message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
+          to become ready.
+        reason: RevisionMissing
+        status: Unknown
+        type: RoutesReady
+      latestCreatedRevisionName: karta-e2e-knative-failed-00001
+      observedGeneration: 1
+      url: http://karta-e2e-knative-failed.test-qbks7.127.0.0.1.sslip.io
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "2897"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: serving.knative.dev/v1
+    kind: Service
+    metadata:
+      annotations:
+        serving.knative.dev/creator: kubernetes-admin
+        serving.knative.dev/lastModifier: kubernetes-admin
+      creationTimestamp: "2026-10-19T07:08:55Z"
+      generation: 1
+      name: karta-e2e-knative-failed
+      namespace: test-qbks7
+      uid: e88e603b-5a07-44e4-bac7-858103146d80
+    spec:
+      template:
+        metadata:
+          annotations:
+            serving.knative.dev/progress-deadline: 30s
+          creationTimestamp: null
+        spec:
+          containerConcurrency: 0
+          containers:
+          - image: karta-e2e-no-such-registry.invalid/nope:v1
+            name: user-container
+            ports:
+            - containerPort: 8080
+              protocol: TCP
+            readinessProbe:
+              successThreshold: 1
+              tcpSocket:
+                port: 0
+            resources:
+              limits:
+                cpu: 50m
+                memory: 64Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+          enableServiceLinks: false
+          timeoutSeconds: 300
+      traffic:
+      - latestRevision: true
+        percent: 100
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: 'Revision "karta-e2e-knative-failed-00001" failed with message: Unable
           to fetch image "karta-e2e-no-such-registry.invalid/nope:v1": failed to resolve
           image to digest: Get "https://karta-e2e-no-such-registry.invalid/v2/": dial
@@ -257,7 +258,7 @@ events:
         reason: RevisionFailed
         status: "False"
         type: ConfigurationsReady
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: 'Revision "karta-e2e-knative-failed-00001" failed with message: Unable
           to fetch image "karta-e2e-no-such-registry.invalid/nope:v1": failed to resolve
           image to digest: Get "https://karta-e2e-no-such-registry.invalid/v2/": dial
@@ -266,7 +267,7 @@ events:
         reason: RevisionFailed
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-10-18T17:08:50Z"
+      - lastTransitionTime: "2026-10-19T07:08:55Z"
         message: Configuration "karta-e2e-knative-failed" is waiting for a Revision
           to become ready.
         reason: RevisionMissing
@@ -274,10 +275,10 @@ events:
         type: RoutesReady
       latestCreatedRevisionName: karta-e2e-knative-failed-00001
       observedGeneration: 1
-      url: http://karta-e2e-knative-failed.test-mxbzw.127.0.0.1.sslip.io
+      url: http://karta-e2e-knative-failed.test-qbks7.127.0.0.1.sslip.io
   phases:
   - Failed
-  resourceVersion: "3660"
+  resourceVersion: "2908"
   state: Failed
 flow: failed
 kartaFile: docs/catalog/serving-knative-dev-service-v1.yaml
@@ -287,14 +288,7 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 1
-  phases:
-  - Progressing
-  - Pending
-- amount: 1
-  phases:
-  - Pending
-- amount: 1
+- amount: 3
   phases:
   - Progressing
   - Pending

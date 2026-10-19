@@ -41,7 +41,7 @@ var _ = Describe("NIMService", Ordered, Label("nim"), func() {
 
 	It("pending", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "pending", "testdata/nim/pending.yaml").Through(
-			recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
+			recorder.Reaches(kartav1alpha1.PendingStatus).With(AllOf(inferenceObservationCurrent, PhaseAny([]string{"Pending", "NotReady", "PVC-Created"}, "status", "state")))).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
 	})

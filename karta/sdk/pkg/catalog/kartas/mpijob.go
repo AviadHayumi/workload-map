@@ -54,6 +54,18 @@ func Mpijob() *v1alpha1.Karta {
 									ExpectedResult: "true",
 								},
 							}},
+							// With no retries allowed, a failed launcher attempt is degraded before terminal acknowledgment.
+							Degraded: []v1alpha1.StatusMatcher{{
+								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Running", Status: ptr.To("True")}},
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression: `.metadata.deletionTimestamp == null and .spec.runPolicy.suspend != true and
+                                        .spec.runPolicy.backoffLimit == 0 and (.status.replicaStatuses.Launcher.failed // 0) > 0 and
+                                        any(.status.replicaStatuses[]?; (.active // 0) > 0) and
+                                        (any(.status.conditions[]?; .status == "True" and
+                                            (.type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not)`,
+									ExpectedResult: "true",
+								},
+							}},
 							Running:   []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Running", Status: ptr.To("True")}}}},
 							Completed: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Succeeded", Status: ptr.To("True")}}}},
 							Failed:    []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Failed", Status: ptr.To("True")}}}},

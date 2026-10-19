@@ -12,7 +12,7 @@ import (
 
 // An active service can remain ready throughout a replacement or rollback.
 // Pending cluster names alone do not describe traffic or readiness.
-const rayServiceTransitionExpression = `.spec.suspend != true and
+const rayServiceTransitionExpression = `.metadata.deletionTimestamp == null and .spec.suspend != true and
     (.metadata.generation == null or .status.observedGeneration == null or
      .status.observedGeneration >= .metadata.generation) and
     (any(.status.conditions[]?;
@@ -44,12 +44,18 @@ func RayService() *v1alpha1.Karta {
 							Pending: []v1alpha1.StatusMatcher{{
 								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Ready", Status: ptr.To("False"), Reason: ptr.To("Initializing")}},
 								ByExpression: &v1alpha1.ExpressionMatcher{Expression: rayServiceTransitionExpression, ExpectedResult: "true"},
-							}},
+							}, {ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: `.metadata.deletionTimestamp == null and (.metadata.generation // 0) > 0 and
+                                    .spec.suspend != true and .spec.rayClusterConfig != null and
+                                    (.spec.serveConfigV2 // "") != "" and (.status == null or .status == {})`,
+								ExpectedResult: "true",
+							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression: rayServiceTransitionExpression + ` and
                                     (any(.status.conditions[]?; .status == "True" and
                                         (.type == "UpgradeInProgress" or .type == "RollbackInProgress")) or
-                                     ((.status.pendingServiceStatus.rayClusterName // "") != "" and
+                                     (((.status.pendingServiceStatus.rayClusterName // "") != "" or
+                                       (.status.activeServiceStatus.rayClusterName // "") != "") and
                                       any(.status.conditions[]?; .type == "Ready" and .status == "False" and .reason == "Initializing")))`,
 								ExpectedResult: "true",
 							}}},

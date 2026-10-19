@@ -22,11 +22,18 @@ spec:
           pending:
             - byExpression:
                 expression: |-
-                  .metadata.deletionTimestamp == null
+                  .metadata.deletionTimestamp == null and (.spec.replicas // 1) > 0
+                      and ((any(.status.conditions[]?; .type == "Available" and .status == "False") and
+                            any(.status.conditions[]?; .type == "Progressing" and .status == "False") and
+                            any(.status.conditions[]?; .type == "UpdateInProgress" and .status == "False")) | not)
+                      and ((.metadata.deletionTimestamp == null
                       and (.status.observedGeneration == null or .metadata.generation == null
-                          or .status.observedGeneration == .metadata.generation) and (.spec.replicas // 1) > 0
-                      and (.status.readyReplicas // 0) == 0
-                      and any(.status.conditions[]?; (.type == "Progressing" or .type == "UpdateInProgress") and .status == "True")
+                          or .status.observedGeneration == .metadata.generation) and (.status.readyReplicas // 0) < (.spec.replicas // 1)
+                          and (.status.readyReplicas != null or any(.status.conditions[]?;
+                              (.type == "Progressing" or .type == "UpdateInProgress") and .status == "True")))
+                          or ((.metadata.generation // 0) > 0 and
+                              ((.status == null or .status == {}) or
+                               (.status.observedGeneration != null and .status.observedGeneration < .metadata.generation))))
                 expectedResult: "true"
           progressing:
             - byExpression:
@@ -45,6 +52,8 @@ spec:
                   .metadata.deletionTimestamp == null
                       and (.status.observedGeneration == null or .metadata.generation == null
                           or .status.observedGeneration == .metadata.generation) and (.spec.replicas // 1) > 0
+                      and (.status.replicas // 0) >= (.spec.replicas // 1)
+                      and (.status.readyReplicas // 0) >= (.spec.replicas // 1)
                 expectedResult: "true"
             - byExpression:
                 expression: |-

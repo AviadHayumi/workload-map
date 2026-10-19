@@ -39,7 +39,7 @@ var _ = Describe("Milvus", Ordered, Label("milvus"), func() {
 
 	It("pending", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "pending", "testdata/milvus/pending.yaml").Through(
-			recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
+			recorder.Reaches(kartav1alpha1.PendingStatus).With(AllOf(operatorCurrentObservation, PhaseEq("Pending", "status", "status")))).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
 	})

@@ -106,6 +106,11 @@ func llmInferenceService(version string) *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{
+								{ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     inferenceEmptyStatusExpression + ` and (.spec.replicas // 1) > 0 and ((.metadata.annotations["serving.kserve.io/stop"] // "") | ascii_downcase) != "true"`,
+									ExpectedResult: "true",
+								}},
+
 								// A fresh object whose preset merge failed keeps
 								// Ready at Unknown forever; that one is Failed below.
 								{ByExpression: &v1alpha1.ExpressionMatcher{

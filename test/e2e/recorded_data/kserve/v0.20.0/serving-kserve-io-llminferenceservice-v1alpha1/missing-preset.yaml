@@ -4,13 +4,13 @@ events:
     apiVersion: serving.kserve.io/v1alpha1
     kind: LLMInferenceService
     metadata:
-      creationTimestamp: "2026-10-18T17:11:33Z"
+      creationTimestamp: "2026-10-19T07:11:49Z"
       finalizers:
       - serving.kserve.io/llmisvc-finalizer
       generation: 1
       name: karta-e2e-llmisvc-missing-preset-v1alpha1
-      namespace: test-mxbzw
-      uid: 18519de5-78c1-4047-932d-5410c8874329
+      namespace: test-qbks7
+      uid: 1c02a8be-9e62-44b5-be4b-e8c9384e35a2
     spec:
       baseRefs:
       - name: karta-e2e-llmisvc-absent-preset
@@ -38,21 +38,21 @@ events:
             runAsUser: 65532
     status: {}
   phases:
-  - Undefined
-  resourceVersion: "5007"
-  state: Undefined
+  - Pending
+  resourceVersion: "4466"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: serving.kserve.io/v1alpha1
     kind: LLMInferenceService
     metadata:
-      creationTimestamp: "2026-10-18T17:11:33Z"
+      creationTimestamp: "2026-10-19T07:11:49Z"
       finalizers:
       - serving.kserve.io/llmisvc-finalizer
       generation: 1
       name: karta-e2e-llmisvc-missing-preset-v1alpha1
-      namespace: test-mxbzw
-      uid: 18519de5-78c1-4047-932d-5410c8874329
+      namespace: test-qbks7
+      uid: 1c02a8be-9e62-44b5-be4b-e8c9384e35a2
     spec:
       baseRefs:
       - name: karta-e2e-llmisvc-absent-preset
@@ -91,28 +91,28 @@ events:
         serving.kserve.io/config-llm-tracing: kserve-config-llm-tracing
         serving.kserve.io/config-llm-worker-data-parallel: kserve-config-llm-worker-data-parallel
       conditions:
-      - lastTransitionTime: "2026-10-18T17:11:39Z"
+      - lastTransitionTime: "2026-10-19T07:11:59Z"
         message: LLMInferenceServiceConfig "karta-e2e-llmisvc-absent-preset" not found
-          in namespaces [test-mxbzw kserve]
+          in namespaces [test-qbks7 kserve]
         reason: ConfigNotFound
         severity: Info
         status: "False"
         type: PresetsCombined
-      - lastTransitionTime: "2026-10-18T17:11:39Z"
+      - lastTransitionTime: "2026-10-19T07:11:59Z"
         message: unsuccessfully observed a new generation
         reason: NewObservedGenFailure
         status: Unknown
         type: Ready
-      - lastTransitionTime: "2026-10-18T17:11:39Z"
+      - lastTransitionTime: "2026-10-19T07:11:59Z"
         status: Unknown
         type: RouterReady
-      - lastTransitionTime: "2026-10-18T17:11:39Z"
+      - lastTransitionTime: "2026-10-19T07:11:59Z"
         status: Unknown
         type: WorkloadsReady
       observedGeneration: 1
   phases:
   - Failed
-  resourceVersion: "5008"
+  resourceVersion: "4467"
   state: Failed
 flow: missing-preset
 kartaFile: docs/catalog/serving-kserve-io-llminferenceservice-v1alpha1.yaml
@@ -124,7 +124,7 @@ schemaVersion: 1
 summary:
 - amount: 1
   phases:
-  - Undefined
+  - Pending
 - amount: 1
   phases:
   - Failed

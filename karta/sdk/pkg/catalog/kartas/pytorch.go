@@ -41,6 +41,20 @@ func Pytorch() *v1alpha1.Karta {
                                             (.type == "Running" or .type == "Succeeded" or .type == "Failed" or .type == "Suspended")) | not)`,
 									ExpectedResult: "true",
 								},
+							}, {
+								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Running", Status: ptr.To("True")}},
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression: `.metadata.deletionTimestamp == null and .spec.runPolicy.suspend != true and
+                                        .spec.elasticPolicy == null and .spec.pytorchReplicaSpecs.Worker != null and
+                                        .status.replicaStatuses.Worker != null and
+                                        (.status.replicaStatuses.Master.active // 0) > 0 and
+                                        (.status.replicaStatuses.Worker.failed // 0) == 0 and
+                                        ((.status.replicaStatuses.Worker.active // 0) + (.status.replicaStatuses.Worker.succeeded // 0)) <
+                                            (.spec.pytorchReplicaSpecs.Worker.replicas // 1) and
+                                        (any(.status.conditions[]?; .status == "True" and
+                                            (.type == "Succeeded" or .type == "Failed" or .type == "Suspended" or .type == "Restarting")) | not)`,
+									ExpectedResult: "true",
+								},
 							}},
 							// Created remains true after startup; active replicas only establish partial startup.
 							Progressing: []v1alpha1.StatusMatcher{{

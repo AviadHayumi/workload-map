@@ -34,9 +34,16 @@ func LWS() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: lwsCurrentStatus + ` and (.spec.replicas // 1) > 0
-    and (.status.readyReplicas // 0) == 0
-    and any(.status.conditions[]?; (.type == "Progressing" or .type == "UpdateInProgress") and .status == "True")`,
+								Expression: `.metadata.deletionTimestamp == null and (.spec.replicas // 1) > 0
+    and ((any(.status.conditions[]?; .type == "Available" and .status == "False") and
+          any(.status.conditions[]?; .type == "Progressing" and .status == "False") and
+          any(.status.conditions[]?; .type == "UpdateInProgress" and .status == "False")) | not)
+    and ((` + lwsCurrentStatus + ` and (.status.readyReplicas // 0) < (.spec.replicas // 1)
+        and (.status.readyReplicas != null or any(.status.conditions[]?;
+            (.type == "Progressing" or .type == "UpdateInProgress") and .status == "True")))
+        or ((.metadata.generation // 0) > 0 and
+            ((.status == null or .status == {}) or
+             (.status.observedGeneration != null and .status.observedGeneration < .metadata.generation))))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
@@ -47,7 +54,9 @@ func LWS() *v1alpha1.Karta {
 							Running: []v1alpha1.StatusMatcher{
 								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Available", Status: ptr.To("True")}},
 									ByExpression: &v1alpha1.ExpressionMatcher{
-										Expression:     lwsCurrentStatus + " and (.spec.replicas // 1) > 0",
+										Expression: lwsCurrentStatus + ` and (.spec.replicas // 1) > 0
+    and (.status.replicas // 0) >= (.spec.replicas // 1)
+    and (.status.readyReplicas // 0) >= (.spec.replicas // 1)`,
 										ExpectedResult: "true",
 									},
 								},

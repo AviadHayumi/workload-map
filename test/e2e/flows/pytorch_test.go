@@ -23,7 +23,7 @@ var _ = Describe("PyTorchJob", Ordered, Label("kubeflow", "pytorch"), func() {
 		rec = recorder.New(cfg).
 			SetTimeout(4*time.Minute).
 			AddState(kartav1alpha1.ProgressingStatus, TrainingProgressing()).
-			AddState(kartav1alpha1.PendingStatus, TrainingPending()).
+			AddState(kartav1alpha1.PendingStatus, PyTorchPending()).
 			AddState(kartav1alpha1.RunningStatus, CondTrue("Running")).
 			AddState(kartav1alpha1.CompletedStatus, CondTrue("Succeeded")).
 			AddState(kartav1alpha1.FailedStatus, CondTrue("Failed")).
@@ -33,7 +33,7 @@ var _ = Describe("PyTorchJob", Ordered, Label("kubeflow", "pytorch"), func() {
 	It("running", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "running", "testdata/pytorch/running.yaml").Through(
 			recorder.Reaches(kartav1alpha1.PendingStatus),
-			recorder.Reaches(kartav1alpha1.RunningStatus),
+			recorder.Reaches(kartav1alpha1.RunningStatus).With(AllOf(IntEq(1, "status", "replicaStatuses", "Master", "active"), IntEq(1, "status", "replicaStatuses", "Worker", "active"))),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
@@ -72,7 +72,7 @@ var _ = Describe("PyTorchJob", Ordered, Label("kubeflow", "pytorch"), func() {
 		out, err := recorder.NewFlow(rec, "resumed", "testdata/pytorch/resumed.yaml").Through(
 			recorder.Reaches(kartav1alpha1.SuspendedStatus).Do(ResumeRunPolicy()),
 			recorder.Reaches(kartav1alpha1.PendingStatus),
-			recorder.Reaches(kartav1alpha1.RunningStatus),
+			recorder.Reaches(kartav1alpha1.RunningStatus).With(IntEq(1, "status", "replicaStatuses", "Master", "active")),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())

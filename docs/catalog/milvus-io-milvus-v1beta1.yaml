@@ -21,6 +21,11 @@ spec:
           statusFieldName: status
         statusMappings:
           pending:
+            - byExpression:
+                expression: |-
+                  .metadata.deletionTimestamp == null and
+                      (.metadata.generation // 0) > 0 and (.status == null or .status == {}) and .spec.mode == "standalone" and (.spec.components.standalone.replicas // 1) > 0 and .spec.components.enableManualMode != true
+                expectedResult: "true"
             - byPhase: Pending
               byExpression:
                 expression: |-

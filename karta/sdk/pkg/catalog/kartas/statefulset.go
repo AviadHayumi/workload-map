@@ -33,8 +33,12 @@ func StatefulSet() *v1alpha1.Karta {
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: statefulSetCurrentStatus + ` and (.spec.replicas // 1) > 0
-    and (.status.readyReplicas // 0) < (.spec.replicas // 1)`,
+								Expression: `(` + statefulSetCurrentStatus + ` and (.spec.replicas // 1) > 0
+    and (.status.readyReplicas // 0) < (.spec.replicas // 1)) or (
+    .metadata.deletionTimestamp == null and (.spec.replicas // 1) > 0
+    and (.metadata.generation // 0) > 0
+    and (.status.observedGeneration == null or .status.observedGeneration < .metadata.generation)
+    and ((.status.conditions // []) | length == 0))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{

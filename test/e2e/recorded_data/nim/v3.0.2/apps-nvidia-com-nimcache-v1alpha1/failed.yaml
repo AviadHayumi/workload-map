@@ -4,13 +4,13 @@ events:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -34,21 +34,21 @@ events:
           size: 64Mi
           volumeAccessMode: ReadWriteOnce
   phases:
-  - Undefined
-  resourceVersion: "1951"
-  state: Undefined
+  - Pending
+  resourceVersion: "6741"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -73,12 +73,12 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The PVC has been created for caching NIM model
         reason: PVCCreated
         status: "True"
         type: NIM_CACHE_PVC_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM has been created
         reason: JobCreated
         status: "True"
@@ -87,20 +87,20 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1957"
+  resourceVersion: "6748"
   state: Pending
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -125,39 +125,35 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
-        message: The PVC has been created for caching NIM model
-        reason: PVCCreated
-        status: "True"
-        type: NIM_CACHE_PVC_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
-        message: The Job to cache NIM has been created
-        reason: JobCreated
-        status: "True"
-        type: NIM_CACHE_JOB_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM is in pending state
         reason: JobPending
         status: "True"
         type: NIM_CACHE_JOB_PENDING
-      state: Pending
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
+        message: 'Operation cannot be fulfilled on nimcaches.apps.nvidia.com "karta-e2e-nimcache-failed":
+          the object has been modified; please apply your changes to the latest version
+          and try again'
+        reason: ReconcileFailed
+        status: "True"
+        type: NIM_CACHE_RECONCILE_FAILED
+      state: NotReady
   phases:
-  - Progressing
-  - Pending
-  resourceVersion: "1962"
-  state: Pending
+  - Undefined
+  resourceVersion: "6755"
+  state: Undefined
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -182,17 +178,17 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The PVC has been created for caching NIM model
         reason: PVCCreated
         status: "True"
         type: NIM_CACHE_PVC_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM has been created
         reason: JobCreated
         status: "True"
         type: NIM_CACHE_JOB_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM is in progress
         reason: JobRunning
         status: "False"
@@ -200,20 +196,20 @@ events:
       state: InProgress
   phases:
   - Running
-  resourceVersion: "1965"
+  resourceVersion: "6759"
   state: Running
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -238,17 +234,17 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The PVC has been created for caching NIM model
         reason: PVCCreated
         status: "True"
         type: NIM_CACHE_PVC_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM has been created
         reason: JobCreated
         status: "True"
         type: NIM_CACHE_JOB_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:30Z"
+      - lastTransitionTime: "2026-10-19T06:41:03Z"
         message: The Job to cache NIM is in pending state
         reason: JobPending
         status: "True"
@@ -257,20 +253,20 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "2050"
+  resourceVersion: "6887"
   state: Pending
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMCache
     metadata:
-      creationTimestamp: "2026-10-18T17:55:09Z"
+      creationTimestamp: "2026-10-19T06:40:41Z"
       finalizers:
       - finalizer.nimcache.apps.nvidia.com
       generation: 1
       name: karta-e2e-nimcache-failed
-      namespace: test-68ns8
-      uid: 969b221d-91c1-459d-a055-0576c966c5f3
+      namespace: test-qc5gn
+      uid: 2a25bfe0-f149-4b2d-9bd1-8b4b3b8b2b5e
     spec:
       env:
       - name: NIM_CACHE_TEST_DELAY
@@ -295,22 +291,22 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The PVC has been created for caching NIM model
         reason: PVCCreated
         status: "True"
         type: NIM_CACHE_PVC_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:09Z"
+      - lastTransitionTime: "2026-10-19T06:40:41Z"
         message: The Job to cache NIM has been created
         reason: JobCreated
         status: "True"
         type: NIM_CACHE_JOB_CREATED
-      - lastTransitionTime: "2026-10-18T17:55:30Z"
+      - lastTransitionTime: "2026-10-19T06:41:03Z"
         message: The Job to cache NIM is in pending state
         reason: JobPending
         status: "True"
         type: NIM_CACHE_JOB_PENDING
-      - lastTransitionTime: "2026-10-18T17:55:30Z"
+      - lastTransitionTime: "2026-10-19T06:41:03Z"
         message: The Job to cache NIM has failed
         reason: JobFailed
         status: "False"
@@ -318,7 +314,7 @@ events:
       state: Failed
   phases:
   - Failed
-  resourceVersion: "2053"
+  resourceVersion: "6891"
   state: Failed
 flow: failed
 kartaFile: docs/catalog/apps-nvidia-com-nimcache-v1alpha1.yaml
@@ -330,11 +326,14 @@ schemaVersion: 1
 summary:
 - amount: 1
   phases:
-  - Undefined
-- amount: 2
+  - Pending
+- amount: 1
   phases:
   - Progressing
   - Pending
+- amount: 1
+  phases:
+  - Undefined
 - amount: 1
   phases:
   - Running

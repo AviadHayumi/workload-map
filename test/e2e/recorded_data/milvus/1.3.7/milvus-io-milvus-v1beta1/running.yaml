@@ -4,13 +4,13 @@ events:
     apiVersion: milvus.io/v1beta1
     kind: Milvus
     metadata:
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 2
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -80,9 +80,9 @@ events:
       hookConfig: null
       mode: standalone
   phases:
-  - Undefined
-  resourceVersion: "1618"
-  state: Undefined
+  - Pending
+  resourceVersion: "7461"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: milvus.io/v1beta1
@@ -91,15 +91,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -139,7 +139,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -200,7 +200,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -269,9 +269,9 @@ events:
       hookConfig: null
       mode: standalone
   phases:
-  - Undefined
-  resourceVersion: "1619"
-  state: Undefined
+  - Pending
+  resourceVersion: "7462"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: milvus.io/v1beta1
@@ -280,15 +280,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -328,7 +328,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -389,7 +389,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -465,7 +465,7 @@ events:
       status: Pending
   phases:
   - Pending
-  resourceVersion: "1620"
+  resourceVersion: "7463"
   state: Pending
 - kind: STATE
   object:
@@ -475,15 +475,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -523,7 +523,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -584,7 +584,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -654,244 +654,19 @@ events:
       mode: standalone
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
+      - lastTransitionTime: "2026-10-19T06:41:59Z"
         message: '[standalone] not ready, detail: component[standalone]: deployment
           not created'
         reason: MilvusComponentNotHealthy
         status: "False"
         type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
+      - lastTransitionTime: "2026-10-19T06:41:59Z"
         message: Milvus is performing rolling upgrade pending components[standalone]
         reason: MilvusUpgradingImage
         status: "False"
         type: MilvusUpdated
       currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
-      ingress:
-        loadBalancer: {}
-      observedGeneration: 3
-      rollingModeVersion: 2
-      status: Pending
-  phases:
-  - Progressing
-  - Pending
-  resourceVersion: "1668"
-  state: Pending
-- kind: STATE
-  object:
-    apiVersion: milvus.io/v1beta1
-    kind: Milvus
-    metadata:
-      annotations:
-        milvus.io/dependency-values-merged: "true"
-        milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
-      finalizers:
-      - milvus.milvus.io/finalizer
-      generation: 3
-      labels:
-        milvus.io/operator-version: 1.3.7
-      name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
-    spec:
-      components:
-        disableMetric: false
-        enableRollingUpdate: true
-        image: milvusdb/milvus:v2.6.11
-        imageUpdateMode: rollingUpgrade
-        metricInterval: ""
-        paused: false
-        probes: null
-        rollingMode: 2
-        securityContext: null
-        standalone:
-          paused: false
-          probes: null
-          replicas: 1
-          resources:
-            limits:
-              cpu: 250m
-              memory: 1Gi
-            requests:
-              cpu: 250m
-              memory: 1Gi
-          securityContext: null
-          serviceType: ClusterIP
-        targetPortType: string
-        updateConfigMapOnly: true
-      config:
-        dataCoord:
-          enableActiveStandby: true
-        indexCoord:
-          enableActiveStandby: true
-        queryCoord:
-          enableActiveStandby: true
-        rootCoord:
-          enableActiveStandby: true
-      dependencies:
-        customMsgStream: null
-        etcd:
-          endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
-          external: false
-          inCluster:
-            chartVersion: etcd-v8
-            deletionPolicy: Retain
-            values:
-              auth:
-                rbac:
-                  create: false
-                  enabled: false
-                token:
-                  enabled: false
-              autoCompactionMode: revision
-              autoCompactionRetention: "1000"
-              enabled: true
-              extraEnvVars:
-              - name: ETCD_QUOTA_BACKEND_BYTES
-                value: "4294967296"
-              - name: ETCD_HEARTBEAT_INTERVAL
-                value: "500"
-              - name: ETCD_ELECTION_TIMEOUT
-                value: "2500"
-              image:
-                pullPolicy: IfNotPresent
-                repository: milvusdb/etcd
-                tag: 3.5.25-r1
-              livenessProbe:
-                enabled: true
-                timeoutSeconds: 10
-              name: etcd
-              pdb:
-                create: false
-              persistence:
-                accessMode: ReadWriteOnce
-                enabled: true
-                size: 10Gi
-                storageClass: null
-              readinessProbe:
-                enabled: true
-                periodSeconds: 20
-                timeoutSeconds: 10
-              replicaCount: 1
-              service:
-                peerPort: 2380
-                port: 2379
-                type: ClusterIP
-        kafka:
-          external: false
-        msgStreamType: woodpecker
-        natsmq:
-          persistence:
-            persistentVolumeClaim:
-              spec: null
-        pulsar:
-          endpoint: ""
-          external: false
-        rocksmq:
-          persistence:
-            persistentVolumeClaim:
-              spec: null
-        storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
-          external: false
-          inCluster:
-            deletionPolicy: Retain
-            values:
-              accessKey: minioadmin
-              bucketName: milvus-bucket
-              enabled: true
-              existingSecret: ""
-              iamEndpoint: ""
-              image:
-                pullPolicy: IfNotPresent
-                repository: docker.io/milvusdb/minio
-                tag: RELEASE.2024-12-18T13-15-44Z
-              livenessProbe:
-                enabled: true
-                failureThreshold: 5
-                initialDelaySeconds: 5
-                periodSeconds: 5
-                successThreshold: 1
-                timeoutSeconds: 5
-              mode: standalone
-              name: minio
-              persistence:
-                accessMode: ReadWriteOnce
-                enabled: true
-                existingClaim: ""
-                size: 500Gi
-                storageClass: null
-              podDisruptionBudget:
-                enabled: false
-              readinessProbe:
-                enabled: true
-                failureThreshold: 5
-                initialDelaySeconds: 5
-                periodSeconds: 5
-                successThreshold: 1
-                timeoutSeconds: 1
-              region: ""
-              resources:
-                limits:
-                  memory: 256Mi
-                requests:
-                  memory: 256Mi
-              rootPath: file
-              secretKey: minioadmin
-              service:
-                port: 9000
-                type: ClusterIP
-              startupProbe:
-                enabled: true
-                failureThreshold: 60
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                successThreshold: 1
-                timeoutSeconds: 5
-              useIAM: false
-              useVirtualHost: false
-          secretRef: karta-e2e-milvus-minio
-          type: MinIO
-        tei:
-          enabled: false
-        woodpecker:
-          persistence:
-            persistentVolumeClaim:
-              spec: null
-      hookConfig: null
-      mode: standalone
-    status:
-      conditions:
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
-        message: '[standalone] not ready, detail: component[standalone]: deployment
-          not created'
-        reason: MilvusComponentNotHealthy
-        status: "False"
-        type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
-        message: Milvus is performing rolling upgrade pending components[standalone]
-        reason: MilvusUpgradingImage
-        status: "False"
-        type: MilvusUpdated
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
-        message: Etcd endpoints is healthy
-        reason: EtcdReady
-        status: "True"
-        type: EtcdReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
-        message: 'dowithbackoff[checkMinIO] failed after 3 retries: Get "http://karta-e2e-milvus-minio.test-cxtgv:9000/minio/admin/v3/info":
-          dial tcp 10.96.135.227:9000: connect: connection refused'
-        reason: ClientError
-        status: "False"
-        type: StorageReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
-        reason: MsgStreamReady
-        status: "True"
-        type: MsgStreamReady
-      currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
       ingress:
         loadBalancer: {}
       observedGeneration: 3
@@ -900,7 +675,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1749"
+  resourceVersion: "7514"
   state: Pending
 - kind: STATE
   object:
@@ -910,15 +685,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -958,7 +733,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -1019,7 +794,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -1089,32 +864,32 @@ events:
       mode: standalone
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
+      - lastTransitionTime: "2026-10-19T06:41:59Z"
         message: '[standalone] not ready, detail: component[standalone]: deployment
           not created'
         reason: MilvusComponentNotHealthy
         status: "False"
         type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:17:43Z"
+      - lastTransitionTime: "2026-10-19T06:41:59Z"
         message: Milvus is performing rolling upgrade pending components[standalone]
         reason: MilvusUpgradingImage
         status: "False"
         type: MilvusUpdated
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Etcd endpoints is healthy
         reason: EtcdReady
         status: "True"
         type: EtcdReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: StorageReady
         status: "True"
         type: StorageReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: MsgStreamReady
         status: "True"
         type: MsgStreamReady
       currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
       ingress:
         loadBalancer: {}
       observedGeneration: 3
@@ -1123,7 +898,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1811"
+  resourceVersion: "7698"
   state: Pending
 - kind: STATE
   object:
@@ -1133,15 +908,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -1181,7 +956,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -1242,7 +1017,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -1317,14 +1092,14 @@ events:
           image: milvusdb/milvus:v2.6.11
           status:
             conditions:
-            - lastTransitionTime: "2026-10-18T17:18:25Z"
-              lastUpdateTime: "2026-10-18T17:18:25Z"
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:42:29Z"
               message: Deployment does not have minimum availability.
               reason: MinimumReplicasUnavailable
               status: "False"
               type: Available
-            - lastTransitionTime: "2026-10-18T17:18:25Z"
-              lastUpdateTime: "2026-10-18T17:18:25Z"
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:42:29Z"
               message: ReplicaSet "karta-e2e-milvus-milvus-standalone-77b6ddd5f6"
                 is progressing.
               reason: ReplicaSetUpdated
@@ -1335,32 +1110,32 @@ events:
             unavailableReplicas: 1
             updatedReplicas: 1
       conditions:
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
-        message: '[standalone] not ready, detail: component[standalone]: pod[karta-e2e-milvus-milvus-standalone-77b6ddd5f6-ppl8j]:
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
+        message: '[standalone] not ready, detail: component[standalone]: pod[karta-e2e-milvus-milvus-standalone-77b6ddd5f6-4bqtv]:
           container[standalone]: currentState[waiting] reason[PodInitializing]'
         reason: MilvusComponentNotHealthy
         status: "False"
         type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Milvus components[standalone] are updating
         reason: MilvusComponentsUpdating
         status: "False"
         type: MilvusUpdated
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Etcd endpoints is healthy
         reason: EtcdReady
         status: "True"
         type: EtcdReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: StorageReady
         status: "True"
         type: StorageReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: MsgStreamReady
         status: "True"
         type: MsgStreamReady
       currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
       ingress:
         loadBalancer: {}
       observedGeneration: 3
@@ -1369,7 +1144,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1831"
+  resourceVersion: "7717"
   state: Pending
 - kind: STATE
   object:
@@ -1379,15 +1154,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -1427,7 +1202,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -1488,7 +1263,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -1563,14 +1338,260 @@ events:
           image: milvusdb/milvus:v2.6.11
           status:
             conditions:
-            - lastTransitionTime: "2026-10-18T17:18:25Z"
-              lastUpdateTime: "2026-10-18T17:18:25Z"
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:42:29Z"
               message: Deployment does not have minimum availability.
               reason: MinimumReplicasUnavailable
               status: "False"
               type: Available
-            - lastTransitionTime: "2026-10-18T17:18:25Z"
-              lastUpdateTime: "2026-10-18T17:18:36Z"
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:42:29Z"
+              message: ReplicaSet "karta-e2e-milvus-milvus-standalone-77b6ddd5f6"
+                is progressing.
+              reason: ReplicaSetUpdated
+              status: "True"
+              type: Progressing
+            observedGeneration: 1
+            replicas: 1
+            unavailableReplicas: 1
+            updatedReplicas: 1
+      conditions:
+      - lastTransitionTime: "2026-10-19T06:43:59Z"
+        message: '[standalone] not ready, detail: component[standalone]: pod[karta-e2e-milvus-milvus-standalone-77b6ddd5f6-4bqtv]:
+          container[standalone]: currentState[running]'
+        reason: MilvusComponentNotHealthy
+        status: "False"
+        type: MilvusReady
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
+        message: Milvus components[standalone] are updating
+        reason: MilvusComponentsUpdating
+        status: "False"
+        type: MilvusUpdated
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
+        message: Etcd endpoints is healthy
+        reason: EtcdReady
+        status: "True"
+        type: EtcdReady
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
+        reason: StorageReady
+        status: "True"
+        type: StorageReady
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
+        reason: MsgStreamReady
+        status: "True"
+        type: MsgStreamReady
+      currentImage: milvusdb/milvus:v2.6.11
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
+      ingress:
+        loadBalancer: {}
+      observedGeneration: 3
+      rollingModeVersion: 2
+      status: Pending
+  phases:
+  - Progressing
+  - Pending
+  resourceVersion: "8019"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: milvus.io/v1beta1
+    kind: Milvus
+    metadata:
+      annotations:
+        milvus.io/dependency-values-merged: "true"
+        milvus.io/pod-service-label-added: "true"
+      creationTimestamp: "2026-10-19T06:41:59Z"
+      finalizers:
+      - milvus.milvus.io/finalizer
+      generation: 3
+      labels:
+        milvus.io/operator-version: 1.3.7
+      name: karta-e2e-milvus
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
+    spec:
+      components:
+        disableMetric: false
+        enableRollingUpdate: true
+        image: milvusdb/milvus:v2.6.11
+        imageUpdateMode: rollingUpgrade
+        metricInterval: ""
+        paused: false
+        probes: null
+        rollingMode: 2
+        securityContext: null
+        standalone:
+          paused: false
+          probes: null
+          replicas: 1
+          resources:
+            limits:
+              cpu: 250m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 1Gi
+          securityContext: null
+          serviceType: ClusterIP
+        targetPortType: string
+        updateConfigMapOnly: true
+      config:
+        dataCoord:
+          enableActiveStandby: true
+        indexCoord:
+          enableActiveStandby: true
+        queryCoord:
+          enableActiveStandby: true
+        rootCoord:
+          enableActiveStandby: true
+      dependencies:
+        customMsgStream: null
+        etcd:
+          endpoints:
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
+          external: false
+          inCluster:
+            chartVersion: etcd-v8
+            deletionPolicy: Retain
+            values:
+              auth:
+                rbac:
+                  create: false
+                  enabled: false
+                token:
+                  enabled: false
+              autoCompactionMode: revision
+              autoCompactionRetention: "1000"
+              enabled: true
+              extraEnvVars:
+              - name: ETCD_QUOTA_BACKEND_BYTES
+                value: "4294967296"
+              - name: ETCD_HEARTBEAT_INTERVAL
+                value: "500"
+              - name: ETCD_ELECTION_TIMEOUT
+                value: "2500"
+              image:
+                pullPolicy: IfNotPresent
+                repository: milvusdb/etcd
+                tag: 3.5.25-r1
+              livenessProbe:
+                enabled: true
+                timeoutSeconds: 10
+              name: etcd
+              pdb:
+                create: false
+              persistence:
+                accessMode: ReadWriteOnce
+                enabled: true
+                size: 10Gi
+                storageClass: null
+              readinessProbe:
+                enabled: true
+                periodSeconds: 20
+                timeoutSeconds: 10
+              replicaCount: 1
+              service:
+                peerPort: 2380
+                port: 2379
+                type: ClusterIP
+        kafka:
+          external: false
+        msgStreamType: woodpecker
+        natsmq:
+          persistence:
+            persistentVolumeClaim:
+              spec: null
+        pulsar:
+          endpoint: ""
+          external: false
+        rocksmq:
+          persistence:
+            persistentVolumeClaim:
+              spec: null
+        storage:
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
+          external: false
+          inCluster:
+            deletionPolicy: Retain
+            values:
+              accessKey: minioadmin
+              bucketName: milvus-bucket
+              enabled: true
+              existingSecret: ""
+              iamEndpoint: ""
+              image:
+                pullPolicy: IfNotPresent
+                repository: docker.io/milvusdb/minio
+                tag: RELEASE.2024-12-18T13-15-44Z
+              livenessProbe:
+                enabled: true
+                failureThreshold: 5
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                successThreshold: 1
+                timeoutSeconds: 5
+              mode: standalone
+              name: minio
+              persistence:
+                accessMode: ReadWriteOnce
+                enabled: true
+                existingClaim: ""
+                size: 500Gi
+                storageClass: null
+              podDisruptionBudget:
+                enabled: false
+              readinessProbe:
+                enabled: true
+                failureThreshold: 5
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                successThreshold: 1
+                timeoutSeconds: 1
+              region: ""
+              resources:
+                limits:
+                  memory: 256Mi
+                requests:
+                  memory: 256Mi
+              rootPath: file
+              secretKey: minioadmin
+              service:
+                port: 9000
+                type: ClusterIP
+              startupProbe:
+                enabled: true
+                failureThreshold: 60
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 5
+              useIAM: false
+              useVirtualHost: false
+          secretRef: karta-e2e-milvus-minio
+          type: MinIO
+        tei:
+          enabled: false
+        woodpecker:
+          persistence:
+            persistentVolumeClaim:
+              spec: null
+      hookConfig: null
+      mode: standalone
+    status:
+      componentsDeployStatus:
+        standalone:
+          generation: 1
+          image: milvusdb/milvus:v2.6.11
+          status:
+            conditions:
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:42:29Z"
+              message: Deployment does not have minimum availability.
+              reason: MinimumReplicasUnavailable
+              status: "False"
+              type: Available
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:44:05Z"
               message: ReplicaSet "karta-e2e-milvus-milvus-standalone-77b6ddd5f6"
                 is progressing.
               reason: ReplicaSetUpdated
@@ -1582,33 +1603,33 @@ events:
             unavailableReplicas: 1
             updatedReplicas: 1
       conditions:
-      - lastTransitionTime: "2026-10-18T17:18:55Z"
+      - lastTransitionTime: "2026-10-19T06:44:29Z"
         message: '[standalone] not ready, detail: component[standalone]: deployment
           status[Available:False]: reason[MinimumReplicasUnavailable]: Deployment
           does not have minimum availability.'
         reason: MilvusComponentNotHealthy
         status: "False"
         type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Milvus components[standalone] are updating
         reason: MilvusComponentsUpdating
         status: "False"
         type: MilvusUpdated
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Etcd endpoints is healthy
         reason: EtcdReady
         status: "True"
         type: EtcdReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: StorageReady
         status: "True"
         type: StorageReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: MsgStreamReady
         status: "True"
         type: MsgStreamReady
       currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
       ingress:
         loadBalancer: {}
       observedGeneration: 3
@@ -1617,7 +1638,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1910"
+  resourceVersion: "8129"
   state: Pending
 - kind: STATE
   object:
@@ -1627,15 +1648,15 @@ events:
       annotations:
         milvus.io/dependency-values-merged: "true"
         milvus.io/pod-service-label-added: "true"
-      creationTimestamp: "2026-10-18T17:17:43Z"
+      creationTimestamp: "2026-10-19T06:41:59Z"
       finalizers:
       - milvus.milvus.io/finalizer
       generation: 3
       labels:
         milvus.io/operator-version: 1.3.7
       name: karta-e2e-milvus
-      namespace: test-cxtgv
-      uid: 04029b31-e4a0-4879-854b-2fc3921965e4
+      namespace: test-hgzkt
+      uid: 09a19597-7e14-45b6-8cb2-5cc2081b30ed
     spec:
       components:
         disableMetric: false
@@ -1675,7 +1696,7 @@ events:
         customMsgStream: null
         etcd:
           endpoints:
-          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-cxtgv:2379
+          - karta-e2e-milvus-etcd-0.karta-e2e-milvus-etcd-headless.test-hgzkt:2379
           external: false
           inCluster:
             chartVersion: etcd-v8
@@ -1736,7 +1757,7 @@ events:
             persistentVolumeClaim:
               spec: null
         storage:
-          endpoint: karta-e2e-milvus-minio.test-cxtgv:9000
+          endpoint: karta-e2e-milvus-minio.test-hgzkt:9000
           external: false
           inCluster:
             deletionPolicy: Retain
@@ -1812,14 +1833,14 @@ events:
           status:
             availableReplicas: 1
             conditions:
-            - lastTransitionTime: "2026-10-18T17:19:06Z"
-              lastUpdateTime: "2026-10-18T17:19:06Z"
+            - lastTransitionTime: "2026-10-19T06:44:35Z"
+              lastUpdateTime: "2026-10-19T06:44:35Z"
               message: Deployment has minimum availability.
               reason: MinimumReplicasAvailable
               status: "True"
               type: Available
-            - lastTransitionTime: "2026-10-18T17:18:25Z"
-              lastUpdateTime: "2026-10-18T17:19:06Z"
+            - lastTransitionTime: "2026-10-19T06:42:29Z"
+              lastUpdateTime: "2026-10-19T06:44:35Z"
               message: ReplicaSet "karta-e2e-milvus-milvus-standalone-77b6ddd5f6"
                 has successfully progressed.
               reason: NewReplicaSetAvailable
@@ -1830,31 +1851,31 @@ events:
             replicas: 1
             updatedReplicas: 1
       conditions:
-      - lastTransitionTime: "2026-10-18T17:19:25Z"
+      - lastTransitionTime: "2026-10-19T06:44:59Z"
         message: All Milvus components are healthy
         reason: ReasonMilvusHealthy
         status: "True"
         type: MilvusReady
-      - lastTransitionTime: "2026-10-18T17:19:25Z"
+      - lastTransitionTime: "2026-10-19T06:44:59Z"
         message: Milvus components are all updated
         reason: MilvusComponentsUpdated
         status: "True"
         type: MilvusUpdated
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         message: Etcd endpoints is healthy
         reason: EtcdReady
         status: "True"
         type: EtcdReady
-      - lastTransitionTime: "2026-10-18T17:18:25Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: StorageReady
         status: "True"
         type: StorageReady
-      - lastTransitionTime: "2026-10-18T17:17:58Z"
+      - lastTransitionTime: "2026-10-19T06:42:29Z"
         reason: MsgStreamReady
         status: "True"
         type: MsgStreamReady
       currentImage: milvusdb/milvus:v2.6.11
-      endpoint: karta-e2e-milvus-milvus.test-cxtgv:19530
+      endpoint: karta-e2e-milvus-milvus.test-hgzkt:19530
       ingress:
         loadBalancer: {}
       observedGeneration: 3
@@ -1862,7 +1883,7 @@ events:
       status: Healthy
   phases:
   - Running
-  resourceVersion: "1976"
+  resourceVersion: "8230"
   state: Running
 flow: running
 kartaFile: docs/catalog/milvus-io-milvus-v1beta1.yaml
@@ -1872,10 +1893,7 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 2
-  phases:
-  - Undefined
-- amount: 1
+- amount: 3
   phases:
   - Pending
 - amount: 5

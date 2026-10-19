@@ -6,13 +6,13 @@ events:
     metadata:
       annotations:
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-10-18T17:29:48Z"
+      creationTimestamp: "2026-10-19T06:54:52Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing-v1beta1
-      namespace: test-mrbln
-      uid: a9f99f4c-a56f-4342-b6e9-d8ed21b7680e
+      namespace: test-n4d9l
+      uid: 671530db-965f-4565-a562-7db34359840a
     spec:
       components:
       - name: frontend
@@ -63,9 +63,9 @@ events:
     status:
       state: ""
   phases:
-  - Undefined
-  resourceVersion: "4661"
-  state: Undefined
+  - Pending
+  resourceVersion: "3202"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: nvidia.com/v1beta1
@@ -73,15 +73,15 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2dc7d03a
-        nvidia.com/current-worker-hash-v2: 1a720423
+        nvidia.com/current-worker-hash-v2: e4f5990d
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-10-18T17:29:48Z"
+      creationTimestamp: "2026-10-19T06:54:52Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing-v1beta1
-      namespace: test-mrbln
-      uid: a9f99f4c-a56f-4342-b6e9-d8ed21b7680e
+      namespace: test-n4d9l
+      uid: 671530db-965f-4565-a562-7db34359840a
     spec:
       components:
       - name: frontend
@@ -132,9 +132,9 @@ events:
     status:
       state: ""
   phases:
-  - Undefined
-  resourceVersion: "4668"
-  state: Undefined
+  - Pending
+  resourceVersion: "3209"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: nvidia.com/v1beta1
@@ -142,15 +142,15 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2dc7d03a
-        nvidia.com/current-worker-hash-v2: 1a720423
+        nvidia.com/current-worker-hash-v2: e4f5990d
         nvidia.com/dynamo-operator-origin-version: 1.2.1
-      creationTimestamp: "2026-10-18T17:29:48Z"
+      creationTimestamp: "2026-10-19T06:54:52Z"
       finalizers:
       - nvidia.com/finalizer
       generation: 1
       name: karta-e2e-dynamo-initializing-v1beta1
-      namespace: test-mrbln
-      uid: a9f99f4c-a56f-4342-b6e9-d8ed21b7680e
+      namespace: test-n4d9l
+      uid: 671530db-965f-4565-a562-7db34359840a
     spec:
       components:
       - name: frontend
@@ -200,7 +200,7 @@ events:
         type: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:29:48Z"
+      - lastTransitionTime: "2026-10-19T06:54:52Z"
         message: 'Resources not ready: karta-e2e-dynamo-initializing-v1beta1-decode-2dc7d03a:
           Component deployment not ready - Available condition not true; karta-e2e-dynamo-initializing-v1beta1-frontend:
           Component deployment not ready - Available condition not true'
@@ -211,9 +211,9 @@ events:
       state: pending
   phases:
   - Pending
-  resourceVersion: "4698"
+  resourceVersion: "3245"
   state: Pending
-flow: initializing
+flow: pending
 kartaFile: docs/catalog/nvidia-com-dynamographdeployment-v1beta1.yaml
 kartaName: nvidia-com-dynamographdeployment-v1beta1
 operator: dynamo
@@ -221,10 +221,7 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 2
-  phases:
-  - Undefined
-- amount: 1
+- amount: 3
   phases:
   - Pending
 version: 1.2.1

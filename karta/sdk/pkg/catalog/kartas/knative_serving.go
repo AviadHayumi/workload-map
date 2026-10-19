@@ -41,8 +41,8 @@ func KnativeServing() *v1alpha1.Karta {
 							Progressing: []v1alpha1.StatusMatcher{{
 								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Ready", Status: ptr.To("Unknown")}},
 								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression: knativeCurrentStatusExpression + ` and
-                                        (any(.status.conditions[]?; .type == "Ready" and .status == "Unknown" and
+									Expression: `.metadata.deletionTimestamp == null and ` + knativeCurrentStatusExpression + ` and
+                                        (any(.status.conditions[]?; (.type | IN("Ready", "ConfigurationsReady", "RoutesReady")) and .status == "Unknown" and
                                             (.reason == "OutOfDate" or .reason == "TrafficNotMigrated")) or
                                          ((.status.latestCreatedRevisionName // "") != "" and
                                           .status.latestCreatedRevisionName != .status.latestReadyRevisionName))`,

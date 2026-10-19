@@ -7,14 +7,14 @@ events:
       annotations:
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -65,162 +65,9 @@ events:
           subComponentType: decode
     status:
       state: ""
-  phases:
-  - Undefined
-  resourceVersion: "3236"
-  state: Undefined
-- kind: STATE
-  object:
-    apiVersion: nvidia.com/v1alpha1
-    kind: DynamoGraphDeployment
-    metadata:
-      annotations:
-        nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
-        nvidia.com/dynamo-operator-origin-version: 1.2.1
-        nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
-      finalizers:
-      - nvidia.com/finalizer
-      generateName: karta-e2e-dynamo-updated-
-      generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
-    spec:
-      services:
-        Frontend:
-          componentType: frontend
-          extraPodSpec:
-            mainContainer:
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-          replicas: 1
-        decode:
-          componentType: worker
-          envFromSecret: hf-token-secret
-          extraPodSpec:
-            mainContainer:
-              args:
-              - --model-path
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --model-name
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --speedup-ratio
-              - "1.0"
-              - --planner-profile-data
-              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
-              command:
-              - python3
-              - -m
-              - dynamo.mocker
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-              workingDir: /workspace
-          replicas: 1
-          subComponentType: decode
-    status:
-      state: ""
-  phases:
-  - Undefined
-  resourceVersion: "3238"
-  state: Undefined
-- kind: STATE
-  object:
-    apiVersion: nvidia.com/v1alpha1
-    kind: DynamoGraphDeployment
-    metadata:
-      annotations:
-        nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
-        nvidia.com/dynamo-operator-origin-version: 1.2.1
-        nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
-      finalizers:
-      - nvidia.com/finalizer
-      generateName: karta-e2e-dynamo-updated-
-      generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
-    spec:
-      services:
-        Frontend:
-          componentType: frontend
-          extraPodSpec:
-            mainContainer:
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-          replicas: 1
-        decode:
-          componentType: worker
-          envFromSecret: hf-token-secret
-          extraPodSpec:
-            mainContainer:
-              args:
-              - --model-path
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --model-name
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --speedup-ratio
-              - "1.0"
-              - --planner-profile-data
-              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
-              command:
-              - python3
-              - -m
-              - dynamo.mocker
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-              workingDir: /workspace
-          replicas: 1
-          subComponentType: decode
-    status:
-      conditions:
-      - lastTransitionTime: "2026-10-18T17:28:03Z"
-        message: 'Resources not ready: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb:
-          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-4hb8z-frontend:
-          Component deployment not ready - Available condition not true'
-        reason: some_resources_are_not_ready
-        status: "False"
-        type: Ready
-      observedGeneration: 1
-      state: pending
   phases:
   - Pending
-  resourceVersion: "3274"
+  resourceVersion: "3599"
   state: Pending
 - kind: STATE
   object:
@@ -229,17 +76,89 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
+    spec:
+      services:
+        Frontend:
+          componentType: frontend
+          extraPodSpec:
+            mainContainer:
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: ""
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+          replicas: 1
+        decode:
+          componentType: worker
+          envFromSecret: hf-token-secret
+          extraPodSpec:
+            mainContainer:
+              args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: ""
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+          replicas: 1
+          subComponentType: decode
+    status:
+      state: ""
+  phases:
+  - Pending
+  resourceVersion: "3601"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1alpha1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: 2b25b2fb
+        nvidia.com/current-worker-hash-v2: 7d3702e8
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-19T06:55:14Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-updated-
+      generation: 1
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -290,28 +209,109 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:03Z"
-        message: 'Resources not ready: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb:
-          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-4hb8z-frontend:
+      - lastTransitionTime: "2026-10-19T06:55:15Z"
+        message: 'Resources not ready: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-fxzr2-frontend:
+          Component deployment not ready - Available condition not true'
+        reason: some_resources_are_not_ready
+        status: "False"
+        type: Ready
+      observedGeneration: 1
+      state: pending
+  phases:
+  - Pending
+  resourceVersion: "3637"
+  state: Pending
+- kind: STATE
+  object:
+    apiVersion: nvidia.com/v1alpha1
+    kind: DynamoGraphDeployment
+    metadata:
+      annotations:
+        nvidia.com/current-worker-hash: 2b25b2fb
+        nvidia.com/current-worker-hash-v2: 7d3702e8
+        nvidia.com/dynamo-operator-origin-version: 1.2.1
+        nvidia.com/enable-grove: "false"
+      creationTimestamp: "2026-10-19T06:55:14Z"
+      finalizers:
+      - nvidia.com/finalizer
+      generateName: karta-e2e-dynamo-updated-
+      generation: 1
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
+    spec:
+      services:
+        Frontend:
+          componentType: frontend
+          extraPodSpec:
+            mainContainer:
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: ""
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+          replicas: 1
+        decode:
+          componentType: worker
+          envFromSecret: hf-token-secret
+          extraPodSpec:
+            mainContainer:
+              args:
+              - --model-path
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --model-name
+              - nvidia/Llama-3.1-8B-Instruct-FP8
+              - --speedup-ratio
+              - "1.0"
+              - --planner-profile-data
+              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
+              command:
+              - python3
+              - -m
+              - dynamo.mocker
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
+              imagePullPolicy: IfNotPresent
+              name: ""
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+              workingDir: /workspace
+          replicas: 1
+          subComponentType: decode
+    status:
+      conditions:
+      - lastTransitionTime: "2026-10-19T06:55:15Z"
+        message: 'Resources not ready: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-fxzr2-frontend:
           Component deployment not ready - Available condition not true'
         reason: some_resources_are_not_ready
         status: "False"
         type: Ready
       observedGeneration: 1
       services:
-        Frontend:
+        decode:
           availableReplicas: 0
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 0
           replicas: 0
           updatedReplicas: 0
       state: pending
   phases:
   - Pending
-  resourceVersion: "3305"
+  resourceVersion: "3706"
   state: Pending
 - kind: STATE
   object:
@@ -320,17 +320,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -381,9 +381,9 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:03Z"
-        message: 'Resources not ready: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb:
-          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-4hb8z-frontend:
+      - lastTransitionTime: "2026-10-19T06:55:15Z"
+        message: 'Resources not ready: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb:
+          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-fxzr2-frontend:
           Component deployment not ready - Available condition not true'
         reason: some_resources_are_not_ready
         status: "False"
@@ -393,16 +393,25 @@ events:
         Frontend:
           availableReplicas: 0
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
+          readyReplicas: 0
+          replicas: 1
+          updatedReplicas: 1
+        decode:
+          availableReplicas: 0
+          componentKind: Deployment
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
+          componentNames:
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 0
           replicas: 1
           updatedReplicas: 1
       state: pending
   phases:
   - Pending
-  resourceVersion: "3358"
+  resourceVersion: "3717"
   state: Pending
 - kind: STATE
   object:
@@ -411,17 +420,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -472,108 +481,8 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:03Z"
-        message: 'Resources not ready: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb:
-          Component deployment not ready - Available condition not true; karta-e2e-dynamo-updated-4hb8z-frontend:
-          Component deployment not ready - Available condition not true'
-        reason: some_resources_are_not_ready
-        status: "False"
-        type: Ready
-      observedGeneration: 1
-      services:
-        Frontend:
-          availableReplicas: 0
-          componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
-          componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
-          readyReplicas: 0
-          replicas: 1
-          updatedReplicas: 1
-        decode:
-          availableReplicas: 0
-          componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
-          componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
-          readyReplicas: 0
-          replicas: 1
-          updatedReplicas: 1
-      state: pending
-  phases:
-  - Pending
-  resourceVersion: "3378"
-  state: Pending
-- kind: STATE
-  object:
-    apiVersion: nvidia.com/v1alpha1
-    kind: DynamoGraphDeployment
-    metadata:
-      annotations:
-        nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
-        nvidia.com/dynamo-operator-origin-version: 1.2.1
-        nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
-      finalizers:
-      - nvidia.com/finalizer
-      generateName: karta-e2e-dynamo-updated-
-      generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
-    spec:
-      services:
-        Frontend:
-          componentType: frontend
-          extraPodSpec:
-            mainContainer:
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-          replicas: 1
-        decode:
-          componentType: worker
-          envFromSecret: hf-token-secret
-          extraPodSpec:
-            mainContainer:
-              args:
-              - --model-path
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --model-name
-              - nvidia/Llama-3.1-8B-Instruct-FP8
-              - --speedup-ratio
-              - "1.0"
-              - --planner-profile-data
-              - /workspace/components/src/dynamo/planner/tests/data/profiling_results/H200_TP1P_TP1D
-              command:
-              - python3
-              - -m
-              - dynamo.mocker
-              image: nvcr.io/nvidia/ai-dynamo/dynamo-planner:1.2.1
-              imagePullPolicy: IfNotPresent
-              name: ""
-              resources:
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                requests:
-                  cpu: 500m
-                  memory: 512Mi
-              workingDir: /workspace
-          replicas: 1
-          subComponentType: decode
-    status:
-      conditions:
-      - lastTransitionTime: "2026-10-18T17:28:03Z"
-        message: 'Resources not ready: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb:
+      - lastTransitionTime: "2026-10-19T06:55:15Z"
+        message: 'Resources not ready: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb:
           Component deployment not ready - Available condition not true'
         reason: some_resources_are_not_ready
         status: "False"
@@ -583,25 +492,25 @@ events:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 0
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 0
           replicas: 1
           updatedReplicas: 1
       state: pending
   phases:
   - Pending
-  resourceVersion: "3467"
+  resourceVersion: "3814"
   state: Pending
 - kind: STATE
   object:
@@ -610,17 +519,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 1
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -671,7 +580,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: All resources are ready
         reason: all_resources_are_ready
         status: "True"
@@ -681,25 +590,25 @@ events:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
       state: successful
   phases:
   - Running
-  resourceVersion: "3509"
+  resourceVersion: "3853"
   state: Running
 - action:
     name: Update
@@ -764,17 +673,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -828,7 +737,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: All resources are ready
         reason: all_resources_are_ready
         status: "True"
@@ -838,27 +747,27 @@ events:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
       state: successful
   phases:
-  - Running
-  resourceVersion: "3511"
+  - Pending
+  resourceVersion: "3855"
   staleObservedGeneration: true
-  state: Running
+  state: Pending
 - kind: STATE
   object:
     apiVersion: nvidia.com/v1alpha1
@@ -866,17 +775,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -930,7 +839,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -938,14 +847,14 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: Pending
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
@@ -953,7 +862,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3521"
+  resourceVersion: "3864"
   state: Pending
 - kind: STATE
   object:
@@ -962,17 +871,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1026,7 +935,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -1034,14 +943,14 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: InProgress
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
@@ -1049,7 +958,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3533"
+  resourceVersion: "3870"
   state: Pending
 - kind: STATE
   object:
@@ -1058,17 +967,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1122,7 +1031,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -1130,24 +1039,24 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: InProgress
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 0
@@ -1155,7 +1064,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3566"
+  resourceVersion: "3903"
   state: Pending
 - kind: STATE
   object:
@@ -1164,17 +1073,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1228,7 +1137,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -1236,24 +1145,24 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: InProgress
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 1
           replicas: 2
           updatedReplicas: 1
@@ -1261,7 +1170,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3579"
+  resourceVersion: "3924"
   state: Pending
 - kind: STATE
   object:
@@ -1270,17 +1179,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 2b25b2fb
-        nvidia.com/current-worker-hash-v2: 993ff316
+        nvidia.com/current-worker-hash-v2: 7d3702e8
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1334,7 +1243,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -1342,24 +1251,24 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: InProgress
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 2
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 2
           replicas: 2
           updatedReplicas: 1
@@ -1367,7 +1276,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3690"
+  resourceVersion: "4028"
   state: Pending
 - kind: STATE
   object:
@@ -1376,17 +1285,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 0a67c599
-        nvidia.com/current-worker-hash-v2: fd2f4dfa
+        nvidia.com/current-worker-hash-v2: c68337d9
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1440,7 +1349,7 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:23Z"
+      - lastTransitionTime: "2026-10-19T06:55:35Z"
         message: Rolling update in progress
         reason: rolling_update_in_progress
         status: "False"
@@ -1448,24 +1357,24 @@ events:
       observedGeneration: 2
       rollingUpdate:
         phase: InProgress
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 2
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
-          - karta-e2e-dynamo-updated-4hb8z-decode-2b25b2fb
+          - karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
+          - karta-e2e-dynamo-updated-fxzr2-decode-2b25b2fb
           readyReplicas: 2
           replicas: 2
           updatedReplicas: 1
@@ -1473,7 +1382,7 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "3739"
+  resourceVersion: "4069"
   state: Pending
 - kind: STATE
   object:
@@ -1482,17 +1391,17 @@ events:
     metadata:
       annotations:
         nvidia.com/current-worker-hash: 0a67c599
-        nvidia.com/current-worker-hash-v2: fd2f4dfa
+        nvidia.com/current-worker-hash-v2: c68337d9
         nvidia.com/dynamo-operator-origin-version: 1.2.1
         nvidia.com/enable-grove: "false"
-      creationTimestamp: "2026-10-18T17:28:02Z"
+      creationTimestamp: "2026-10-19T06:55:14Z"
       finalizers:
       - nvidia.com/finalizer
       generateName: karta-e2e-dynamo-updated-
       generation: 2
-      name: karta-e2e-dynamo-updated-4hb8z
-      namespace: test-mrbln
-      uid: 0e6d0300-a500-4aa0-b0fe-2f51ce4eddb2
+      name: karta-e2e-dynamo-updated-fxzr2
+      namespace: test-n4d9l
+      uid: 78496c7c-aa80-4f35-b02e-49a73dd69e0c
     spec:
       services:
         Frontend:
@@ -1546,41 +1455,41 @@ events:
           subComponentType: decode
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:28:44Z"
+      - lastTransitionTime: "2026-10-19T06:55:56Z"
         message: All resources are ready
         reason: all_resources_are_ready
         status: "True"
         type: Ready
       observedGeneration: 2
       rollingUpdate:
-        endTime: "2026-10-18T17:28:44Z"
+        endTime: "2026-10-19T06:55:56Z"
         phase: Completed
-        startTime: "2026-10-18T17:28:23Z"
+        startTime: "2026-10-19T06:55:35Z"
         updatedServices:
         - decode
       services:
         Frontend:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-frontend
+          componentName: karta-e2e-dynamo-updated-fxzr2-frontend
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-frontend
+          - karta-e2e-dynamo-updated-fxzr2-frontend
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
         decode:
           availableReplicas: 1
           componentKind: Deployment
-          componentName: karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
+          componentName: karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
           componentNames:
-          - karta-e2e-dynamo-updated-4hb8z-decode-0a67c599
+          - karta-e2e-dynamo-updated-fxzr2-decode-0a67c599
           readyReplicas: 1
           replicas: 1
           updatedReplicas: 1
       state: successful
   phases:
   - Running
-  resourceVersion: "3749"
+  resourceVersion: "4080"
   state: Running
 flow: updated
 kartaFile: docs/catalog/nvidia-com-dynamographdeployment-v1alpha1.yaml
@@ -1590,15 +1499,15 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 2
-  phases:
-  - Undefined
-- amount: 5
+- amount: 6
   phases:
   - Pending
-- amount: 2
+- amount: 1
   phases:
   - Running
+- amount: 1
+  phases:
+  - Pending
 - amount: 6
   phases:
   - Progressing

@@ -26,10 +26,12 @@ spec:
                   .metadata.deletionTimestamp == null and .spec.suspend != true
                       and (any(.status.conditions[]?; .status == "True"
                           and (.type == "Completed" or .type == "Failed")) | not) and (
-                      .spec.replicatedJobs as $desired |
-                      any(.status.replicatedJobsStatus[]?; . as $observed |
-                          any($desired[]?; .name == $observed.name
-                              and (.replicas // 1) > (($observed.ready // 0) + ($observed.succeeded // 0)))))
+                      . as $jobset | any(.spec.replicatedJobs[]?; . as $desired |
+                          ($jobset.status.replicatedJobsStatus // [] | map(select(.name == $desired.name)) | .[0]) as $observed |
+                          ($desired.replicas // 1) > 0 and (
+                              ($observed != null and ($desired.replicas // 1) >
+                                  (([$observed.ready // 0, $observed.active // 0] | min) + ($observed.succeeded // 0))) or
+                              ($observed == null and ($jobset.metadata.generation // 0) > 0))))
                 expectedResult: "true"
           progressing:
             - byExpression:
@@ -47,7 +49,7 @@ spec:
                   .metadata.deletionTimestamp == null and .spec.suspend != true
                       and (any(.status.conditions[]?; .status == "True"
                           and (.type == "Completed" or .type == "Failed")) | not) and ((.status.replicatedJobsStatus // []) |
-                      any((.ready // 0) > 0) and all((.failed // 0) == 0))
+                      any((.ready // 0) > 0 and (.active // 0) > 0) and all((.failed // 0) == 0))
                 expectedResult: "true"
           completed:
             - byConditions:

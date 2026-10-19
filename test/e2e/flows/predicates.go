@@ -195,6 +195,11 @@ func currentGeneration(u *unstructured.Unstructured) bool {
 	return notDeleting(u) && err == nil && found && observed == u.GetGeneration()
 }
 
+func waitingForObservation(u *unstructured.Unstructured) bool {
+	observed, found, err := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+	return notDeleting(u) && u.GetGeneration() > 0 && err == nil && (!found || observed < u.GetGeneration())
+}
+
 func desiredReplicas(u *unstructured.Unstructured) int64 {
 	replicas, found, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
 	if !found {
@@ -205,8 +210,13 @@ func desiredReplicas(u *unstructured.Unstructured) int64 {
 
 func DeploymentPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
+		if !notDeleting(u) || desiredReplicas(u) <= 0 {
+			return false
+		}
 		available, _, _ := unstructured.NestedInt64(u.Object, "status", "availableReplicas")
-		return currentGeneration(u) && desiredReplicas(u) > 0 && available < desiredReplicas(u)
+		return currentGeneration(u) && available < desiredReplicas(u) ||
+			waitingForObservation(u) && !CondTrue("ReplicaFailure")(u) &&
+				!operatorConditionReason("Progressing", "False", "ProgressDeadlineExceeded")(u)
 	}
 }
 
@@ -268,8 +278,12 @@ func DeploymentFailed() recorder.StateCheck {
 
 func ReplicasPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
+		if !notDeleting(u) || desiredReplicas(u) <= 0 {
+			return false
+		}
 		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
-		return currentGeneration(u) && desiredReplicas(u) > 0 && ready < desiredReplicas(u)
+		conditions, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+		return currentGeneration(u) && ready < desiredReplicas(u) || waitingForObservation(u) && len(conditions) == 0
 	}
 }
 
@@ -341,11 +355,28 @@ func jobActive(u *unstructured.Unstructured) bool {
 	return notDeleting(u) && !BoolTrue("spec", "suspend")(u) && (!found || parallelism > 0) && !CondTrue("Complete", "SuccessCriteriaMet", "Failed", "FailureTarget", "Suspended")(u)
 }
 
+func jobWantedActive(u *unstructured.Unstructured) int64 {
+	parallelism, found, _ := unstructured.NestedInt64(u.Object, "spec", "parallelism")
+	if !found {
+		parallelism = 1
+	}
+	succeeded, _, _ := unstructured.NestedInt64(u.Object, "status", "succeeded")
+	if completions, found, _ := unstructured.NestedInt64(u.Object, "spec", "completions"); found {
+		return min(parallelism, max(int64(0), completions-succeeded))
+	}
+	if succeeded > 0 {
+		active, _, _ := unstructured.NestedInt64(u.Object, "status", "active")
+		return active
+	}
+	return parallelism
+}
+
 func JobPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		active, _, _ := unstructured.NestedInt64(u.Object, "status", "active")
 		ready, found, _ := unstructured.NestedInt64(u.Object, "status", "ready")
-		return jobActive(u) && active > 0 && found && ready < active
+		status, _, _ := unstructured.NestedMap(u.Object, "status")
+		return jobActive(u) && (found && ready < jobWantedActive(u) ||
+			u.GetGeneration() > 0 && len(status) == 0 && jobWantedActive(u) > 0)
 	}
 }
 
@@ -357,11 +388,11 @@ func JobRunning() recorder.StateCheck {
 
 func JobDegraded() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		parallelism, _, _ := unstructured.NestedInt64(u.Object, "spec", "parallelism")
+		active, _, _ := unstructured.NestedInt64(u.Object, "status", "active")
 		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "ready")
-		succeeded, _, _ := unstructured.NestedInt64(u.Object, "status", "succeeded")
 		failed, _, _ := unstructured.NestedInt64(u.Object, "status", "failed")
-		return jobActive(u) && parallelism > 1 && ready < parallelism && (succeeded > 0 || failed > 0)
+		uncountedFailed, _, _ := unstructured.NestedSlice(u.Object, "status", "uncountedTerminatedPods", "failed")
+		return jobActive(u) && active > 0 && ready > 0 && (failed > 0 || len(uncountedFailed) > 0) && ready < jobWantedActive(u)
 	}
 }
 
@@ -387,7 +418,8 @@ func JobsetRunning() recorder.StateCheck {
 				return false
 			}
 			ready, _, _ := unstructured.NestedInt64(observed, "ready")
-			anyReady = anyReady || ready > 0
+			active, _, _ := unstructured.NestedInt64(observed, "active")
+			anyReady = anyReady || ready > 0 && active > 0
 		}
 		return anyReady
 	}
@@ -400,25 +432,35 @@ func JobsetPending() recorder.StateCheck {
 		}
 		desired, _, _ := unstructured.NestedSlice(u.Object, "spec", "replicatedJobs")
 		groups, _, _ := unstructured.NestedSlice(u.Object, "status", "replicatedJobsStatus")
-		for _, group := range groups {
-			observed, ok := group.(map[string]any)
+		for _, entry := range desired {
+			spec, ok := entry.(map[string]any)
 			if !ok {
 				continue
 			}
-			ready, _, _ := unstructured.NestedInt64(observed, "ready")
-			succeeded, _, _ := unstructured.NestedInt64(observed, "succeeded")
-			for _, entry := range desired {
-				spec, ok := entry.(map[string]any)
+			replicas, found, _ := unstructured.NestedInt64(spec, "replicas")
+			if !found {
+				replicas = 1
+			}
+			if replicas <= 0 {
+				continue
+			}
+			observedGroup := false
+			for _, group := range groups {
+				observed, ok := group.(map[string]any)
 				if !ok || spec["name"] != observed["name"] {
 					continue
 				}
-				replicas, found, _ := unstructured.NestedInt64(spec, "replicas")
-				if !found {
-					replicas = 1
-				}
-				if replicas > ready+succeeded {
+				observedGroup = true
+				ready, _, _ := unstructured.NestedInt64(observed, "ready")
+				active, _, _ := unstructured.NestedInt64(observed, "active")
+				succeeded, _, _ := unstructured.NestedInt64(observed, "succeeded")
+				if replicas > min(ready, active)+succeeded {
 					return true
 				}
+				break
+			}
+			if !observedGroup && u.GetGeneration() > 0 {
+				return true
 			}
 		}
 		return false
@@ -444,8 +486,16 @@ func lwsCurrent(u *unstructured.Unstructured) bool {
 
 func LWSPending() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
-		return lwsCurrent(u) && desiredReplicas(u) > 0 && ready == 0 && CondTrue("Progressing", "UpdateInProgress")(u)
+		if !notDeleting(u) || desiredReplicas(u) <= 0 || CondsFalse("Available", "Progressing", "UpdateInProgress")(u) {
+			return false
+		}
+		ready, hasReady, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
+		if lwsCurrent(u) && ready < desiredReplicas(u) && (hasReady || CondTrue("Progressing", "UpdateInProgress")(u)) {
+			return true
+		}
+		status, _, _ := unstructured.NestedMap(u.Object, "status")
+		observed, hasObserved, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+		return u.GetGeneration() > 0 && (len(status) == 0 || hasObserved && observed < u.GetGeneration())
 	}
 }
 
@@ -460,7 +510,7 @@ func LWSRunning() recorder.StateCheck {
 		}
 		actual, _, _ := unstructured.NestedInt64(u.Object, "status", "replicas")
 		ready, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
-		return CondTrue("Available")(u) || actual >= desiredReplicas(u) && ready >= desiredReplicas(u)
+		return actual >= desiredReplicas(u) && ready >= desiredReplicas(u)
 	}
 }
 
@@ -468,15 +518,14 @@ func LWSFailed() recorder.StateCheck {
 	return AllOf(lwsCurrent, CondsFalse("Available", "Progressing", "UpdateInProgress"))
 }
 
-// RaySuspended matches a RayCluster suspended at creation: spec.suspend is true and status.state is either
-// "suspended" or not yet set (the operator may not have written a state yet).
+// RaySuspended requires the controller to acknowledge suspension for the current generation.
 func RaySuspended() recorder.StateCheck {
 	return func(u *unstructured.Unstructured) bool {
-		if suspend, _, _ := unstructured.NestedBool(u.Object, "spec", "suspend"); !suspend {
-			return false
-		}
-		state, found, _ := unstructured.NestedString(u.Object, "status", "state")
-		return !found || state == "" || state == "suspended"
+		generation, hasGeneration, _ := unstructured.NestedInt64(u.Object, "metadata", "generation")
+		observed, hasObserved, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+		return notDeleting(u) && BoolTrue("spec", "suspend")(u) &&
+			PhaseEq("suspended", "status", "state")(u) &&
+			hasGeneration && hasObserved && generation == observed
 	}
 }
 

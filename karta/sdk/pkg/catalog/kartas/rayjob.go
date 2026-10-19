@@ -12,12 +12,26 @@ import (
 
 // Deployment status tracks infrastructure and submission, independently of jobStatus.
 // Cleanup, retry and suspension can retain the previous application's status.
-const rayJobStartingExpression = `.spec.suspend != true and
+const rayJobStartingExpression = `.metadata.deletionTimestamp == null and .spec.suspend != true and
     .status.jobStatus != "RUNNING" and .status.jobStatus != "SUCCEEDED" and
     .status.jobStatus != "FAILED" and .status.jobStatus != "STOPPED" and
     (.status.jobDeploymentStatus == null or .status.jobDeploymentStatus == "" or
      .status.jobDeploymentStatus == "Initializing" or .status.jobDeploymentStatus == "Running" or
      .status.jobDeploymentStatus == "Waiting")`
+
+// Empty deployment and application status are the native New states, including a resume reset.
+const rayJobAwaitingObservationExpression = `.metadata.deletionTimestamp == null and (.metadata.generation // 0) > 0 and
+    (.status.jobDeploymentStatus == null or .status.jobDeploymentStatus == "") and
+    (.status.jobStatus == null or .status.jobStatus == "") and
+    (.status.reason == null or .status.reason == "") and
+    (.status.message == null or .status.message == "")`
+
+// Initializing can be observed before the controller acknowledges a suspension request.
+const rayJobAwaitingSuspensionExpression = `.metadata.deletionTimestamp == null and (.metadata.generation // 0) > 0 and
+    .spec.suspend == true and .status.jobDeploymentStatus == "Initializing" and
+    (.status.jobStatus == null or .status.jobStatus == "" or .status.jobStatus == "PENDING") and
+    (.status.reason == null or .status.reason == "") and
+    (.status.message == null or .status.message == "")`
 
 // Rayjob returns the built-in Karta for the RayJob workload
 // (ray.io/v1).
@@ -46,11 +60,11 @@ func Rayjob() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: rayJobStartingExpression + ` and
+								Expression: `(` + rayJobStartingExpression + ` and
                                     (.status.jobStatus == "PENDING" or .status.jobDeploymentStatus == "Initializing" or
                                      .status.jobDeploymentStatus == "Waiting" or
                                      (.status.jobDeploymentStatus == "Running" and
-                                      (.status.jobStatus == null or .status.jobStatus == "")))`,
+                                      (.status.jobStatus == null or .status.jobStatus == "")))) or (` + rayJobAwaitingObservationExpression + `) or (` + rayJobAwaitingSuspensionExpression + `)`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
@@ -60,6 +74,11 @@ func Rayjob() *v1alpha1.Karta {
 							Running:   []v1alpha1.StatusMatcher{{ByPhase: "RUNNING"}},
 							Completed: []v1alpha1.StatusMatcher{{ByPhase: "SUCCEEDED"}},
 							Failed:    []v1alpha1.StatusMatcher{{ByPhase: "FAILED"}},
+							Suspending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+								Expression: `.metadata.deletionTimestamp == null and .status.jobDeploymentStatus == "Suspending" and
+                                    (.status.jobStatus | IN("SUCCEEDED", "FAILED", "STOPPED") | not)`,
+								ExpectedResult: "true",
+							}}},
 							Suspended: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression:     `.status.jobDeploymentStatus == "Suspended"`,
 								ExpectedResult: "true",

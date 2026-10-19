@@ -4,11 +4,11 @@ events:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 1
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -57,7 +57,7 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:55Z"
+      - lastTransitionTime: "2026-10-19T06:33:38Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "True"
@@ -66,18 +66,18 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "4562"
+  resourceVersion: "3503"
   state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 1
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -126,7 +126,7 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:55Z"
+      - lastTransitionTime: "2026-10-19T06:33:38Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "True"
@@ -137,18 +137,18 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "4578"
+  resourceVersion: "3516"
   state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 1
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -197,12 +197,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:55Z"
+      - lastTransitionTime: "2026-10-19T06:33:38Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -213,7 +213,7 @@ events:
       updatedReplicas: 1
   phases:
   - Running
-  resourceVersion: "4607"
+  resourceVersion: "3544"
   state: Running
 - action:
     name: Scale
@@ -229,11 +229,11 @@ events:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 2
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -282,12 +282,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:55Z"
+      - lastTransitionTime: "2026-10-19T06:33:38Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -297,19 +297,19 @@ events:
       replicas: 1
       updatedReplicas: 1
   phases:
-  - Running
-  resourceVersion: "4609"
-  state: Running
+  - Pending
+  resourceVersion: "3545"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 2
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -358,12 +358,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "True"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "False"
@@ -374,18 +374,19 @@ events:
       updatedReplicas: 1
   phases:
   - Progressing
-  resourceVersion: "4612"
-  state: Progressing
+  - Pending
+  resourceVersion: "3548"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 2
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -434,12 +435,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "True"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "False"
@@ -450,18 +451,19 @@ events:
       updatedReplicas: 2
   phases:
   - Progressing
-  resourceVersion: "4625"
-  state: Progressing
+  - Pending
+  resourceVersion: "3559"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 2
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -510,12 +512,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "True"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "False"
@@ -526,18 +528,19 @@ events:
       updatedReplicas: 2
   phases:
   - Progressing
-  resourceVersion: "4633"
-  state: Progressing
+  - Pending
+  resourceVersion: "3570"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 2
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -586,12 +589,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:59Z"
+      - lastTransitionTime: "2026-10-19T06:33:42Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -602,7 +605,7 @@ events:
       updatedReplicas: 2
   phases:
   - Running
-  resourceVersion: "4654"
+  resourceVersion: "3594"
   state: Running
 - action:
     name: Scale
@@ -618,11 +621,11 @@ events:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 3
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -671,12 +674,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:59Z"
+      - lastTransitionTime: "2026-10-19T06:33:42Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -687,18 +690,18 @@ events:
       updatedReplicas: 2
   phases:
   - Running
-  resourceVersion: "4656"
+  resourceVersion: "3596"
   state: Running
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 3
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -747,12 +750,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:59Z"
+      - lastTransitionTime: "2026-10-19T06:33:42Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -763,18 +766,18 @@ events:
       updatedReplicas: 2
   phases:
   - Running
-  resourceVersion: "4798"
+  resourceVersion: "3718"
   state: Running
 - kind: STATE
   object:
     apiVersion: leaderworkerset.x-k8s.io/v1
     kind: LeaderWorkerSet
     metadata:
-      creationTimestamp: "2026-10-18T16:31:55Z"
+      creationTimestamp: "2026-10-19T06:33:38Z"
       generation: 3
       name: karta-e2e-lws-scaled
-      namespace: test-6dlx2
-      uid: 5982b5e5-0141-47c2-95e3-b370f2139871
+      namespace: test-pb5h5
+      uid: 5d37cb3a-fbbd-4712-bbed-c3088c93681c
     spec:
       leaderWorkerTemplate:
         leaderTemplate:
@@ -823,12 +826,12 @@ events:
       startupPolicy: LeaderCreated
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:31:57Z"
+      - lastTransitionTime: "2026-10-19T06:33:40Z"
         message: Replicas are progressing
         reason: GroupsProgressing
         status: "False"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:31:59Z"
+      - lastTransitionTime: "2026-10-19T06:33:42Z"
         message: All replicas are ready
         reason: AllGroupsReady
         status: "True"
@@ -839,7 +842,7 @@ events:
       updatedReplicas: 1
   phases:
   - Running
-  resourceVersion: "4811"
+  resourceVersion: "3729"
   state: Running
 flow: scaled
 kartaFile: docs/catalog/leaderworkerset-x-k8s-io-leaderworkerset-v1.yaml
@@ -853,12 +856,16 @@ summary:
   phases:
   - Progressing
   - Pending
-- amount: 2
+- amount: 1
   phases:
   - Running
+- amount: 1
+  phases:
+  - Pending
 - amount: 3
   phases:
   - Progressing
+  - Pending
 - amount: 4
   phases:
   - Running

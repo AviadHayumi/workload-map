@@ -40,8 +40,14 @@ func Deployment() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: deploymentCurrentStatus + ` and (.spec.replicas // 1) > 0
-    and (.status.availableReplicas // 0) < (.spec.replicas // 1)`,
+								Expression: `(` + deploymentCurrentStatus + ` and (.spec.replicas // 1) > 0
+    and (.status.availableReplicas // 0) < (.spec.replicas // 1)) or (
+    .metadata.deletionTimestamp == null and (.spec.replicas // 1) > 0
+    and (.metadata.generation // 0) > 0
+    and (.status.observedGeneration == null or .status.observedGeneration < .metadata.generation)
+    and (any(.status.conditions[]?;
+        (.type == "ReplicaFailure" and .status == "True") or
+        (.type == "Progressing" and .status == "False" and .reason == "ProgressDeadlineExceeded")) | not))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{

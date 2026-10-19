@@ -5,6 +5,7 @@ package flows
 
 import (
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -14,24 +15,56 @@ func inferenceObservationCurrent(u *unstructured.Unstructured) bool {
 	return !found || u.GetGeneration() == 0 || observed >= u.GetGeneration()
 }
 
+func inferenceAwaitingFirstStatus(u *unstructured.Unstructured) bool {
+	if u.GetGeneration() <= 0 || !notDeleting(u) {
+		return false
+	}
+	value, _, err := unstructured.NestedFieldNoCopy(u.Object, "status")
+	if err != nil {
+		return false
+	}
+	if value == nil {
+		return true
+	}
+	status, ok := value.(map[string]any)
+	return ok && len(status) == 0
+}
+
+func inferenceServiceAwaitingStatus(u *unstructured.Unstructured) bool {
+	return inferenceAwaitingFirstStatus(u) && !strings.EqualFold(u.GetAnnotations()["serving.kserve.io/stop"], "true")
+}
+
 func nimPending(u *unstructured.Unstructured) bool {
 	replicas, found, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
-	return inferenceObservationCurrent(u) && (!found || replicas > 0) && PhaseAny([]string{"Pending", "NotReady", "PVC-Created"}, "status", "state")(u)
+	return (!found || replicas > 0) && (inferenceAwaitingFirstStatus(u) ||
+		(inferenceObservationCurrent(u) && PhaseAny([]string{"Pending", "NotReady", "PVC-Created"}, "status", "state")(u)))
 }
 
 func grovePending(u *unstructured.Unstructured) bool {
-	available, hasAvailable, _ := unstructured.NestedInt64(u.Object, "status", "availableReplicas")
-	_, observed, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
 	desired, _, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
-	return inferenceObservationCurrent(u) && !CondTrue("TopologyLevelsUnavailable")(u) && (hasAvailable || observed) && desired > 0 && available < desired
+	if !notDeleting(u) || desired <= 0 || CondTrue("TopologyLevelsUnavailable")(u) {
+		return false
+	}
+	available, hasAvailable, _ := unstructured.NestedInt64(u.Object, "status", "availableReplicas")
+	observed, hasObserved, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+	if inferenceObservationCurrent(u) && (hasAvailable || hasObserved) && available < desired {
+		return true
+	}
+	status, _, _ := unstructured.NestedMap(u.Object, "status")
+	lastErrors, _, _ := unstructured.NestedSlice(u.Object, "status", "lastErrors")
+	return u.GetGeneration() > 0 && len(lastErrors) == 0 &&
+		(len(status) == 0 || hasObserved && observed < u.GetGeneration())
 }
 
 func groveProgressing(u *unstructured.Unstructured) bool {
 	strategy, _, _ := unstructured.NestedString(u.Object, "spec", "updateStrategy", "type")
 	ended, _, _ := unstructured.NestedFieldNoCopy(u.Object, "status", "updateProgress", "updateEndedAt")
-	// observedGeneration advances after convergence, so an unfinished update can lag it.
+	started, _, _ := unstructured.NestedString(u.Object, "status", "updateProgress", "updateStartedAt")
+	// The root operation begins before child update conditions become active.
+	// Its generation watermark advances only after convergence.
 	return notDeleting(u) && strategy != "OnDelete" && ended == nil && !CondTrue("TopologyLevelsUnavailable")(u) &&
-		(CondTrue("UpdateInProgress")(u) || operatorConditionReason("UpdateInProgress", "Unknown", "ProgressDeadlineExceeded")(u))
+		(started != "" && started != "0001-01-01T00:00:00Z" ||
+			CondTrue("UpdateInProgress")(u) || operatorConditionReason("UpdateInProgress", "Unknown", "ProgressDeadlineExceeded")(u))
 }
 
 func groveRunning(u *unstructured.Unstructured) bool {
@@ -73,6 +106,9 @@ func inferenceServiceProgressing(u *unstructured.Unstructured) bool {
 }
 
 func inferenceServicePending(u *unstructured.Unstructured) bool {
+	if inferenceServiceAwaitingStatus(u) {
+		return true
+	}
 	if !inferenceObservationCurrent(u) || CondTrue("Ready")(u) || CondsFalse("PredictorReady", "PredictorConfigurationReady", "RoutesReady")(u) {
 		return false
 	}

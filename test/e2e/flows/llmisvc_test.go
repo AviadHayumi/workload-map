@@ -97,7 +97,9 @@ func describeLLMInferenceService(version, manifestDir string) bool {
 			// service is stopped.
 			presetsFalse := CondStatus("PresetsCombined", "False")
 			pending := func(u *unstructured.Unstructured) bool {
-				return inferenceObservationCurrent(u) && !presetsFalse(u) && (CondStatus("Ready", "Unknown")(u) || readyFalseReason(true, llmStartupReasons...)(u))
+				replicas, hasReplicas, _ := unstructured.NestedInt64(u.Object, "spec", "replicas")
+				return (inferenceServiceAwaitingStatus(u) && (!hasReplicas || replicas > 0)) ||
+					(inferenceObservationCurrent(u) && !presetsFalse(u) && (CondStatus("Ready", "Unknown")(u) || readyFalseReason(true, llmStartupReasons...)(u)))
 			}
 			suspended := func(u *unstructured.Unstructured) bool {
 				return condWithReason("Ready", "False", llmStopReason, true)(u) ||

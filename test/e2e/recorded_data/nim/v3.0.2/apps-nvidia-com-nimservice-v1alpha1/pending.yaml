@@ -4,13 +4,13 @@ events:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-10-18T17:54:45Z"
+      creationTimestamp: "2026-10-19T06:40:17Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim-initializing
-      namespace: test-68ns8
-      uid: 9cf4e925-e427-418d-8103-25d73863883c
+      namespace: test-qc5gn
+      uid: d5500d2c-2c84-451b-84aa-56a5746bbb4b
     spec:
       authSecret: ngc-secret
       env:
@@ -51,21 +51,21 @@ events:
           size: 1Gi
           volumeAccessMode: ReadWriteOnce
   phases:
-  - Undefined
-  resourceVersion: "1741"
-  state: Undefined
+  - Pending
+  resourceVersion: "6485"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: apps.nvidia.com/v1alpha1
     kind: NIMService
     metadata:
-      creationTimestamp: "2026-10-18T17:54:45Z"
+      creationTimestamp: "2026-10-19T06:40:17Z"
       finalizers:
       - finalizer.nimservice.apps.nvidia.com
       generation: 2
       name: karta-e2e-nim-initializing
-      namespace: test-68ns8
-      uid: 9cf4e925-e427-418d-8103-25d73863883c
+      namespace: test-qc5gn
+      uid: d5500d2c-2c84-451b-84aa-56a5746bbb4b
     spec:
       authSecret: ngc-secret
       env:
@@ -107,7 +107,7 @@ events:
           volumeAccessMode: ReadWriteOnce
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T17:54:45Z"
+      - lastTransitionTime: "2026-10-19T06:40:17Z"
         message: The PVC has been created for storing NIM
         reason: PVCCreated
         status: "True"
@@ -116,9 +116,9 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "1754"
+  resourceVersion: "6507"
   state: Pending
-flow: initializing
+flow: pending
 kartaFile: docs/catalog/apps-nvidia-com-nimservice-v1alpha1.yaml
 kartaName: apps-nvidia-com-nimservice-v1alpha1
 operator: nim
@@ -128,7 +128,7 @@ schemaVersion: 1
 summary:
 - amount: 1
   phases:
-  - Undefined
+  - Pending
 - amount: 1
   phases:
   - Progressing

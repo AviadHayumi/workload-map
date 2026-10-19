@@ -38,10 +38,15 @@ func Milvus() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Running: []v1alpha1.StatusMatcher{{ByPhase: "Healthy"}},
-							Pending: []v1alpha1.StatusMatcher{{
-								ByPhase:      "Pending",
-								ByExpression: &v1alpha1.ExpressionMatcher{Expression: milvusTransitionExpression, ExpectedResult: "true"},
-							}},
+							Pending: []v1alpha1.StatusMatcher{
+								{ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     inferenceEmptyStatusExpression + ` and .spec.mode == "standalone" and (.spec.components.standalone.replicas // 1) > 0 and .spec.components.enableManualMode != true`,
+									ExpectedResult: "true",
+								}},
+								{
+									ByPhase:      "Pending",
+									ByExpression: &v1alpha1.ExpressionMatcher{Expression: milvusTransitionExpression, ExpectedResult: "true"},
+								}},
 							// Update convergence is independent of the cluster's serving health.
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression: milvusTransitionExpression + ` and

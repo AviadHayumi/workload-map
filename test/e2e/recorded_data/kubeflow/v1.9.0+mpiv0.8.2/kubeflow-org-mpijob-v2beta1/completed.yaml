@@ -4,11 +4,11 @@ events:
     apiVersion: kubeflow.org/v2beta1
     kind: MPIJob
     metadata:
-      creationTimestamp: "2026-10-18T16:26:44Z"
+      creationTimestamp: "2026-10-19T06:41:45Z"
       generation: 1
       name: karta-e2e-mpi
-      namespace: test-6dlx2
-      uid: 2ebe94e2-07e5-457a-ab73-aa5228ed8bc2
+      namespace: test-hgzkt
+      uid: 518b8a84-d906-4f29-980e-86357df724d9
     spec:
       launcherCreationPolicy: AtStartup
       mpiImplementation: OpenMPI
@@ -54,30 +54,30 @@ events:
       sshAuthMountPath: /root/.ssh
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:26:44Z"
-        lastUpdateTime: "2026-10-18T16:26:44Z"
-        message: MPIJob test-6dlx2/karta-e2e-mpi is created.
+      - lastTransitionTime: "2026-10-19T06:41:45Z"
+        lastUpdateTime: "2026-10-19T06:41:45Z"
+        message: MPIJob test-hgzkt/karta-e2e-mpi is created.
         reason: MPIJobCreated
         status: "True"
         type: Created
       replicaStatuses:
         Launcher: {}
         Worker: {}
-      startTime: "2026-10-18T16:26:44Z"
+      startTime: "2026-10-19T06:41:45Z"
   phases:
   - Pending
-  resourceVersion: "2656"
+  resourceVersion: "7206"
   state: Pending
 - kind: STATE
   object:
     apiVersion: kubeflow.org/v2beta1
     kind: MPIJob
     metadata:
-      creationTimestamp: "2026-10-18T16:26:44Z"
+      creationTimestamp: "2026-10-19T06:41:45Z"
       generation: 1
       name: karta-e2e-mpi
-      namespace: test-6dlx2
-      uid: 2ebe94e2-07e5-457a-ab73-aa5228ed8bc2
+      namespace: test-hgzkt
+      uid: 518b8a84-d906-4f29-980e-86357df724d9
     spec:
       launcherCreationPolicy: AtStartup
       mpiImplementation: OpenMPI
@@ -123,9 +123,9 @@ events:
       sshAuthMountPath: /root/.ssh
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:26:44Z"
-        lastUpdateTime: "2026-10-18T16:26:44Z"
-        message: MPIJob test-6dlx2/karta-e2e-mpi is created.
+      - lastTransitionTime: "2026-10-19T06:41:45Z"
+        lastUpdateTime: "2026-10-19T06:41:45Z"
+        message: MPIJob test-hgzkt/karta-e2e-mpi is created.
         reason: MPIJobCreated
         status: "True"
         type: Created
@@ -133,22 +133,22 @@ events:
         Launcher: {}
         Worker:
           active: 1
-      startTime: "2026-10-18T16:26:44Z"
+      startTime: "2026-10-19T06:41:45Z"
   phases:
   - Progressing
   - Pending
-  resourceVersion: "2693"
+  resourceVersion: "7238"
   state: Pending
 - kind: STATE
   object:
     apiVersion: kubeflow.org/v2beta1
     kind: MPIJob
     metadata:
-      creationTimestamp: "2026-10-18T16:26:44Z"
+      creationTimestamp: "2026-10-19T06:41:45Z"
       generation: 1
       name: karta-e2e-mpi
-      namespace: test-6dlx2
-      uid: 2ebe94e2-07e5-457a-ab73-aa5228ed8bc2
+      namespace: test-hgzkt
+      uid: 518b8a84-d906-4f29-980e-86357df724d9
     spec:
       launcherCreationPolicy: AtStartup
       mpiImplementation: OpenMPI
@@ -193,23 +193,23 @@ events:
       slotsPerWorker: 1
       sshAuthMountPath: /root/.ssh
     status:
-      completionTime: "2026-10-18T16:26:48Z"
+      completionTime: "2026-10-19T06:41:49Z"
       conditions:
-      - lastTransitionTime: "2026-10-18T16:26:44Z"
-        lastUpdateTime: "2026-10-18T16:26:44Z"
-        message: MPIJob test-6dlx2/karta-e2e-mpi is created.
+      - lastTransitionTime: "2026-10-19T06:41:45Z"
+        lastUpdateTime: "2026-10-19T06:41:45Z"
+        message: MPIJob test-hgzkt/karta-e2e-mpi is created.
         reason: MPIJobCreated
         status: "True"
         type: Created
-      - lastTransitionTime: "2026-10-18T16:26:48Z"
-        lastUpdateTime: "2026-10-18T16:26:48Z"
-        message: MPIJob test-6dlx2/karta-e2e-mpi successfully completed.
+      - lastTransitionTime: "2026-10-19T06:41:49Z"
+        lastUpdateTime: "2026-10-19T06:41:49Z"
+        message: MPIJob test-hgzkt/karta-e2e-mpi successfully completed.
         reason: MPIJobSucceeded
         status: "True"
         type: Succeeded
-      - lastTransitionTime: "2026-10-18T16:26:48Z"
-        lastUpdateTime: "2026-10-18T16:26:48Z"
-        message: MPIJob test-6dlx2/karta-e2e-mpi is finished but Running condition
+      - lastTransitionTime: "2026-10-19T06:41:49Z"
+        lastUpdateTime: "2026-10-19T06:41:49Z"
+        message: MPIJob test-hgzkt/karta-e2e-mpi is finished but Running condition
           was never set.
         reason: MPIJobRunning
         status: "False"
@@ -218,10 +218,10 @@ events:
         Launcher:
           succeeded: 1
         Worker: {}
-      startTime: "2026-10-18T16:26:44Z"
+      startTime: "2026-10-19T06:41:45Z"
   phases:
   - Completed
-  resourceVersion: "2715"
+  resourceVersion: "7252"
   state: Completed
 flow: completed
 kartaFile: docs/catalog/kubeflow-org-mpijob-v2beta1.yaml

@@ -43,14 +43,26 @@ func GrovePodCliqueSet() *v1alpha1.Karta {
 								ExpectedResult: "true",
 							}}},
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `(.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and (.status.availableReplicas != null or .status.observedGeneration != null) and (.spec.replicas // 0) > 0 and (.status.availableReplicas // 0) < .spec.replicas`,
+								Expression: `.metadata.deletionTimestamp == null and (.spec.replicas // 0) > 0
+    and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not)
+    and (((.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation)
+        and (.status.availableReplicas != null or .status.observedGeneration != null)
+        and (.status.availableReplicas // 0) < .spec.replicas)
+        or ((.metadata.generation // 0) > 0 and ((.status.lastErrors // []) | length == 0)
+            and ((.status == null or .status == {}) or
+                (.status.observedGeneration != null and .status.observedGeneration < .metadata.generation))))`,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								// Grove advances observedGeneration after an update converges. Its
-								// condition reports unfinished work, without identifying the latest
+								// condition and root update timestamps report unfinished work without identifying the latest
 								// desired generation; a superseded update can still be reported.
-								Expression:     `.metadata.deletionTimestamp == null and (.spec.updateStrategy.type // "RollingRecreate") != "OnDelete" and .status.updateProgress.updateEndedAt == null and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not) and any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded")))`,
+								Expression: `.metadata.deletionTimestamp == null and (.spec.updateStrategy.type // "RollingRecreate") != "OnDelete"
+    and .status.updateProgress.updateEndedAt == null
+    and (any(.status.conditions[]?; .type == "TopologyLevelsUnavailable" and .status == "True") | not)
+    and ((.status.updateProgress.updateStartedAt != null and .status.updateProgress.updateStartedAt != ""
+        and .status.updateProgress.updateStartedAt != "0001-01-01T00:00:00Z")
+        or any(.status.conditions[]?; .type == "UpdateInProgress" and (.status == "True" or (.status == "Unknown" and .reason == "ProgressDeadlineExceeded"))))`,
 								ExpectedResult: "true",
 							}}},
 						},

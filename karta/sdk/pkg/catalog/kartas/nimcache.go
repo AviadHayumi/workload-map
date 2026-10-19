@@ -42,10 +42,15 @@ func NIMCache() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							// NotReady is a reconcile error; retained JobCreated conditions are not current startup evidence.
-							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `(.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (.status.state | IN("Pending", "PVC-Created", "Started")) and (any(.status.conditions[]?; .type == "NIM_CACHE_JOB_COMPLETED" and .status == "True") | not)`,
-								ExpectedResult: "true",
-							}}},
+							Pending: []v1alpha1.StatusMatcher{
+								{ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     inferenceEmptyStatusExpression,
+									ExpectedResult: "true",
+								}},
+								{ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     `(.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (.status.state | IN("Pending", "PVC-Created", "Started")) and (any(.status.conditions[]?; .type == "NIM_CACHE_JOB_COMPLETED" and .status == "True") | not)`,
+									ExpectedResult: "true",
+								}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
 								Expression:     `(.status.observedGeneration == null or .metadata.generation == null or .status.observedGeneration >= .metadata.generation) and (.status.state | IN("Pending", "PVC-Created", "Started")) and (any(.status.conditions[]?; .type == "NIM_CACHE_JOB_COMPLETED" and .status == "True") | not) and ((.status.state | IN("PVC-Created", "Started")) or any(.status.conditions[]?; .type == "NIM_CACHE_JOB_CREATED" and .status == "True"))`,
 								ExpectedResult: "true",

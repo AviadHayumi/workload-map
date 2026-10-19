@@ -5,7 +5,7 @@
 
 The built-in catalog now reports independent observations instead of grouping
 all startup and update activity into Initializing. Pending means waiting for
-required readiness. Progressing means an evidenced, unfinished operation and
+required readiness or a known controller observation. Progressing means an evidenced, unfinished operation and
 can remain set while that operation is blocked. Neither label alone establishes
 Pod scheduling. Missing evidence is not evidence of progress.
 
@@ -22,25 +22,25 @@ other statuses; the evaluator has no global precedence rule.
 | Kind and served version | Pending evidence | Progressing evidence |
 | --- | --- | --- |
 | Pod v1 | Native phase Pending | Pending and PodScheduled=True |
-| Deployment apps/v1 | Fresh desired availability deficit | Fresh incomplete replica reconciliation or unfinished native rollout, including a deadline-exceeded rollout |
-| StatefulSet apps/v1 | Fresh ready-replica deficit | Replica reconciliation or an unfinished update consistent with its update strategy and partition |
-| Job batch/v1 | Active Pods with an explicit ready-count deficit | No parent-only signal used; active includes Pending Pods |
+| Deployment apps/v1 | First/current observation wait or fresh desired availability deficit | Fresh incomplete replica reconciliation or unfinished native rollout, including a deadline-exceeded rollout |
+| StatefulSet apps/v1 | First/current observation wait or fresh ready-replica deficit | Replica reconciliation or an unfinished update consistent with its update strategy and partition |
+| Job batch/v1 | First observation or ready-count deficit against remaining work | No parent-only signal used; active includes Pending Pods |
 | CronJob batch/v1 | Unsuspended, observed status, first schedule not yet recorded | No parent rollout signal used |
-| JobSet v1alpha2 | Observed replicated Jobs below their ready-or-succeeded target | InOrder startup policy in progress, or RestartingJobSet=True |
-| LeaderWorkerSet v1 | No ready groups during native progress | Progressing=True or UpdateInProgress=True |
-| Grove PodCliqueSet v1alpha1 | Observed available-replica deficit | Controller-reported unfinished UpdateInProgress=True, or Unknown/ProgressDeadlineExceeded; not attributed to the latest desired generation |
-| PyTorchJob v1 | Created=True without running, terminal, or suspended state | That startup state plus active replica components |
+| JobSet v1alpha2 | Missing expected groups or active-ready plus succeeded Jobs below their target | InOrder startup policy in progress, or RestartingJobSet=True |
+| LeaderWorkerSet v1 | First/current observation wait or desired ready-group deficit | Progressing=True or UpdateInProgress=True |
+| Grove PodCliqueSet v1alpha1 | First/current observation wait or observed available-replica deficit | Unfinished root update timestamps, UpdateInProgress=True, or Unknown/ProgressDeadlineExceeded; not attributed to the latest desired generation |
+| PyTorchJob v1 | Created startup, or a nonelastic running master with an observed worker deficit | That startup state plus active replica components |
 | MPIJob v2beta1 | Created=True without running, terminal, or suspended state | That startup state plus active replica components |
-| RayCluster v1 | Not provisioned and head not ready, including a current observed resume after suspension conditions clear | Specific head container startup or backoff reasons during initial provisioning or that observed resume |
-| RayJob v1 | Application PENDING, deployment Initializing, interactive Waiting, or deployment Running awaiting its first application status | Deployment Initializing while the application is not running or terminal |
-| RayService v1 | Ready=False with Initializing reason | Allocated pending cluster during initialization, UpgradeInProgress=True, or RollbackInProgress=True |
-| DynamoGraphDeployment v1alpha1 and v1beta1 | Native pending state | Explicit rollingUpdate phase Pending or InProgress; schema default initializing alone is Undefined |
+| RayCluster v1 | First observation, resume acknowledgment wait, or not provisioned with head not ready | Specific head container startup or backoff reasons during initial provisioning or that observed resume |
+| RayJob v1 | Native New/first observation, application PENDING, Initializing, interactive Waiting, first application-status wait, or known suspension-acknowledgment wait | Deployment Initializing while the application is not running or terminal |
+| RayService v1 | First observation or Ready=False/Initializing | Allocated pending or promoted active cluster during initialization, UpgradeInProgress=True, or RollbackInProgress=True |
+| DynamoGraphDeployment v1alpha1 and v1beta1 | Native pending or bounded first/current observation wait for desired components | Explicit rollingUpdate phase Pending or InProgress; default initializing alone does not prove progress |
 | Knative Service v1 | Ready=Unknown | Specific revision or traffic transition evidence during unresolved readiness |
-| Milvus v1beta1 | Native Pending phase | MilvusUpdated=False with an explicit image/component update reason |
-| NIMService v1alpha1 | Pending, NotReady, or PVC-Created with positive desired replicas | PVC-Created provisioning milestone; generic NotReady is not progress evidence |
-| NIMCache v1alpha1 | Pending, PVC-Created, or Started, excluding completion | PVC/Job creation within that unfinished startup; retained creation history after completion is ignored |
-| KServe InferenceService v1beta1 | Explicit unresolved readiness, or model Loading waiting for predictor availability | modelStatus.states.targetModelState=Loading |
-| LLMInferenceService v1alpha1 and v1alpha2 | Unknown readiness or known readiness-wait reasons, excluding failed/stopped presets | Ready=False with reason Progressing; gateway or autoscaler wait names alone do not prove a rollout |
+| Milvus v1beta1 | Native Pending or first observation of an active standalone instance | MilvusUpdated=False with an explicit image/component update reason |
+| NIMService v1alpha1 | First observation, Pending, NotReady, or PVC-Created with positive desired replicas | PVC-Created provisioning milestone; generic NotReady is not progress evidence |
+| NIMCache v1alpha1 | First observation, Pending, PVC-Created, or Started, excluding completion | PVC/Job creation within that unfinished startup; retained creation history after completion is ignored |
+| KServe InferenceService v1beta1 | First observation, unresolved readiness, or model Loading waiting for predictor availability | modelStatus.states.targetModelState=Loading |
+| LLMInferenceService v1alpha1 and v1alpha2 | First observation, unknown readiness, or known wait reasons, excluding failed/stopped presets | Ready=False with reason Progressing; gateway or autoscaler wait names alone do not prove a rollout |
 | Sandbox v1beta1 | Running intent, Ready=False/DependenciesNotReady, not suspended or finished | That startup state plus current PodScheduled=True |
 
 The 21 rows cover all 23 catalog definitions. Each definition has fresh live
@@ -87,8 +87,24 @@ observedGeneration advances after an update converges, so Progressing does not
 require that watermark to match the desired generation. The native update
 condition does not identify its generation and can describe a superseded
 operation. This is not evidence that the latest desired generation is making
-progress. Pending and Running retain their generation checks. OnDelete,
+progress. Running retains its generation check; a known wait for observation is Pending. OnDelete,
 deletion, an explicit updateEndedAt, or a topology failure suppress Progressing.
+
+A known observation wait is not a blanket Undefined fallback. The new branches
+require an existing generation, active desired work where applicable, and exact
+empty or allowlisted stale status. They exclude deletion, stopped intent, and
+known error or terminal signals. Unrecognized native enum values remain
+Undefined. Waiting for observation does not add Progressing or establish
+whether any Pod is scheduled.
+
+Job readiness is compared with remaining work after successful completions.
+A successful replica no longer makes the remaining healthy work Degraded.
+JobSet ready counts can include successful Pods in a nonterminal Job, so
+Running additionally requires active Jobs. Those aggregate counters still do
+not prove active and ready Pod overlap, even within one child Job; child status
+is required to answer that question. LWS Available=True no longer bypasses the desired replica count.
+Dynamo Running requires a current observation. These checks prevent false
+health claims rather than guaranteeing monotonic phase sequences.
 
 ## Source basis
 
@@ -107,13 +123,17 @@ The live release behavior was also checked against
 and [Grove v0.1.0-alpha.14](https://github.com/ai-dynamo/grove/tree/78231d747d1dfe877dadf0bd9c6c261293b245a1).
 Newer upstream signals only match when the CR actually contains them.
 
-## Fresh live validation (2026-10-18)
+## Historical live validation (2026-10-18)
 
 The 2026-10-18 run captured 83 successful flows and 454 STATE frames across all
-23 catalog definitions. Every fresh recording passed exact-set SDK replay and
-recording validation. Flow predicates read native resource fields independently
-of the SDK; replay compares the entire recorded phase set, including simultaneous
-labels and Undefined observations.
+23 catalog definitions at
+[recording commit 86b916ed](https://github.com/AviadHayumi/workload-map/tree/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data).
+This table and its evidence links describe that historical checkpoint. The
+whole-catalog follow-up below supersedes its mapping results. Every recording
+passed exact-set SDK replay and recording validation at that checkpoint.
+Flow predicates read native resource fields independently of the SDK; replay
+compares the entire recorded phase set, including simultaneous labels and
+Undefined observations.
 
 | Catalog kind and API version | Tested operator release(s) | Successful flows | STATE frames | Observed complete phase sets |
 | --- | --- | ---: | ---: | --- |
@@ -145,25 +165,25 @@ labels and Undefined observations.
 Phase sets are observations, not guaranteed lifecycle sequences. Display order
 does not imply precedence. Historical inputs and action events are excluded.
 
-Representative scenarios include:
+Representative scenarios from that checkpoint include:
 
-- [Paused Deployment scaling](../test/e2e/recorded_data/deployment/v1.34.0/apps-deployment-v1/paused-scaled.yaml)
+- [Paused Deployment scaling](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/deployment/v1.34.0/apps-deployment-v1/paused-scaled.yaml)
   captures Pending + Progressing while a settled, paused Deployment scales from
   one to three replicas, then Running. It does not pause an active template rollout.
-- [RayService replacement](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayservice-v1/upgraded.yaml)
+- [RayService replacement](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayservice-v1/upgraded.yaml)
   captures Running + Progressing while the active cluster remains ready.
-- [Grove alpha.14 replacement](../test/e2e/recorded_data/grove/v0.1.0-alpha.14/grove-io-podcliqueset-v1alpha1/updated.yaml)
+- [Grove alpha.14 replacement](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/grove/v0.1.0-alpha.14/grove-io-podcliqueset-v1alpha1/updated.yaml)
   captures UpdateInProgress=True and Progressing at generation 2 with
   observedGeneration 1. The flow then requires new ready Pod UIDs with the updated
   annotation and converged root status before completing.
-- NIMCache [completion](../test/e2e/recorded_data/nim/v3.0.2/apps-nvidia-com-nimcache-v1alpha1/completed.yaml)
-  and [failure](../test/e2e/recorded_data/nim/v3.0.2/apps-nvidia-com-nimcache-v1alpha1/failed.yaml)
+- NIMCache [completion](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/nim/v3.0.2/apps-nvidia-com-nimcache-v1alpha1/completed.yaml)
+  and [failure](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/nim/v3.0.2/apps-nvidia-com-nimcache-v1alpha1/failed.yaml)
   use controller-created Jobs and PVCs with the CPU cache command.
-- Dynamo updates cover [v1alpha1](../test/e2e/recorded_data/dynamo/1.2.1/nvidia-com-dynamographdeployment-v1alpha1/updated.yaml)
-  and [v1beta1](../test/e2e/recorded_data/dynamo/1.2.1/nvidia-com-dynamographdeployment-v1beta1/updated.yaml).
+- Dynamo updates cover [v1alpha1](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/dynamo/1.2.1/nvidia-com-dynamographdeployment-v1alpha1/updated.yaml)
+  and [v1beta1](https://github.com/AviadHayumi/workload-map/blob/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/dynamo/1.2.1/nvidia-com-dynamographdeployment-v1beta1/updated.yaml).
   LLMInferenceService startup, failure, missing-preset, and stopped flows cover
-  [v1alpha1](../test/e2e/recorded_data/kserve/v0.20.0/serving-kserve-io-llminferenceservice-v1alpha1)
-  and [v1alpha2](../test/e2e/recorded_data/kserve/v0.20.0/serving-kserve-io-llminferenceservice-v1alpha2).
+  [v1alpha1](https://github.com/AviadHayumi/workload-map/tree/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/kserve/v0.20.0/serving-kserve-io-llminferenceservice-v1alpha1)
+  and [v1alpha2](https://github.com/AviadHayumi/workload-map/tree/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data/kserve/v0.20.0/serving-kserve-io-llminferenceservice-v1alpha2).
 
 These recordings exercise real controller and Kubernetes object lifecycles
 using small CPU applications and stand-ins. Dynamo uses its mocker.
@@ -183,49 +203,160 @@ Grove alpha.14 proves the native unfinished-update branch while its generation
 watermark lags. The condition still does not identify which generation it
 reports and can describe a superseded operation. The default e2e pin,
 v0.1.0-alpha.10-rc1, does not emit UpdateInProgress; its separate startup and
-scaling recordings do not prove that branch. Its older updateProgress timestamps
-are not substituted for the condition.
+scaling recordings do not prove that branch. That dated run did not use its older updateProgress timestamps. The broader
+follow-up below verifies and uses unfinished root timestamps in both releases.
 
 Coverage of every definition does not mean every branch was observed live.
 For example, these JobSet recordings contain no Progressing observation.
 Constructed tests and source review cover additional cases. The table describes
 this dated run; later fixture edits do not automatically preserve its coverage.
 
-## Ray startup and resume corrections (2026-10-19)
+## Whole-catalog follow-up (2026-10-19)
 
-Two mapping gaps can be resolved from native fields already present on the root
-resource:
+The follow-up examines every STATE frame in all 83 recordings at
+[the previous PR head](https://github.com/AviadHayumi/workload-map/tree/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data),
+including recordings that already had no Undefined phases. Applying the updated
+definitions to the same 455 objects changes 95 frames in 50 recordings.
+Undefined decreases from 76 frames to one. The remaining Undefined observation
+is NIMCache NotReady with an explicit retryable reconcile error. It does not
+prove either healthy waiting or running capacity, so it is not relabeled
+Pending or Degraded.
+
+Twenty of the 23 definitions change. Pod, CronJob, and Sandbox retain their
+mappings because the inspected transitions match the available native evidence.
+The changes cover:
+
+- Known first/current controller-observation waits across workload families.
+- Job remaining-work readiness and genuine failed-replica degradation, including
+  failed Pod UIDs reported before the controller increments its failure count.
+- JobSet active Jobs in addition to its readiness threshold, which can include
+  successful Pods in a nonterminal Job.
+- LWS desired ready-group counts despite an old Available condition.
+- Grove root update timestamps before child update conditions appear.
+- Dynamo current-generation Running and suppression of retained rollout
+  markers during deletion.
+- Knative child revision/traffic reasons while aggregate readiness is unknown.
+- RayService progress across pending-to-active cluster promotion.
+- RayCluster observed suspension acknowledgment, and bounded RayJob native New,
+  suspension-acknowledgment, and Suspending states.
+- PyTorch's observed missing workers alongside a running master, and MPI's
+  failed no-retry launcher while another replica remains active.
+
+This comparison isolates mapping changes from watch timing. It does not claim
+that a new live run must contain the same intermediate frames. Some earlier
+recording endpoints were too weak: an intent-only RayCluster was called
+Suspended, and a PyTorch recording stopped while its worker was still missing.
+Their checkpoints now require actual controller acknowledgment or the desired
+active replicas. Pending-only flows also wait beyond the initial empty status.
+
+Job and JobSet can return from Running to Pending before their parent terminal
+condition is written. Several complete root spec/status snapshots are identical
+at startup and before termination. A stateless root definition cannot distinguish
+those moments. NIMCache can similarly return from InProgress to Pending while
+the controller has no active child Job but has not recorded completion. Child
+Job/Pod status or richer native status is required to remove that ambiguity.
+Dropping Progressing while still Pending is also valid when an observed
+operation ends before readiness is satisfied.
+
+The new Job degraded fixture intentionally fails one indexed Pod with retries
+remaining while its peer stays ready. The previous fixture demonstrated a
+successful completion and incorrectly called the healthy remaining work
+Degraded. Native status is never patched to produce the desired phases.
+
+### Fresh whole-catalog validation
+
+All 83 recordings were replaced by successful real-controller runs on 2026-10-19.
+The final corpus has 457 STATE frames across all 23 definitions. Every complete
+phase set passes offline SDK replay, and every recording passes result validation.
+The runs used isolated two-node kind clusters with Kubernetes v1.34.0 on arm64.
+Generated definitions were installed before each flow. Native object events,
+recorded phases, and summaries were not rewritten to produce a desired sequence.
+
+| Kind and API version | Operator release | Flows | STATE frames |
+| --- | --- | ---: | ---: |
+| CronJob batch/v1 | cronjob v1.34.0 | 4 | 5 |
+| Deployment apps/v1 | deployment v1.34.0 | 4 | 32 |
+| DynamoGraphDeployment nvidia.com/v1alpha1 | dynamo 1.2.1 | 3 | 26 |
+| DynamoGraphDeployment nvidia.com/v1beta1 | dynamo 1.2.1 | 3 | 27 |
+| InferenceService serving.kserve.io/v1beta1 | kserve v0.20.0 | 2 | 11 |
+| Job batch/v1 | batch-job v1.34.0 | 7 | 27 |
+| JobSet jobset.x-k8s.io/v1alpha2 | jobset v0.10.1 | 5 | 23 |
+| LLMInferenceService serving.kserve.io/v1alpha1 | kserve v0.20.0 | 4 | 13 |
+| LLMInferenceService serving.kserve.io/v1alpha2 | kserve v0.20.0 | 4 | 14 |
+| LeaderWorkerSet leaderworkerset.x-k8s.io/v1 | lws v0.7.0 | 2 | 14 |
+| MPIJob kubeflow.org/v2beta1 | kubeflow v1.9.0+mpiv0.8.2 | 5 | 15 |
+| Milvus milvus.io/v1beta1 | milvus 1.3.7 | 2 | 12 |
+| NIMCache apps.nvidia.com/v1alpha1 | nim v3.0.2 | 2 | 12 |
+| NIMService apps.nvidia.com/v1alpha1 | nim v3.0.2 | 2 | 7 |
+| Pod v1 | pod v1.34.0 | 4 | 20 |
+| PodCliqueSet grove.io/v1alpha1 | grove v0.1.0-alpha.10-rc1 | 3 | 27 |
+| PodCliqueSet grove.io/v1alpha1 | grove v0.1.0-alpha.14 | 4 | 38 |
+| PyTorchJob kubeflow.org/v1 | kubeflow v1.9.0+mpiv0.8.2 | 5 | 14 |
+| RayCluster ray.io/v1 | kuberay 1.6.2 | 3 | 13 |
+| RayJob ray.io/v1 | kuberay 1.6.2 | 5 | 38 |
+| RayService ray.io/v1 | kuberay 1.6.2 | 2 | 16 |
+| Sandbox agents.x-k8s.io/v1beta1 | agent-sandbox v1.0.5 | 4 | 22 |
+| Service serving.knative.dev/v1 | knative knative-v1.15.2 | 2 | 11 |
+| StatefulSet apps/v1 | statefulset v1.34.0 | 2 | 20 |
+
+The sole fresh Undefined frame is an explicit retryable NIMCache reconcile error.
+The remaining parent-status ambiguities above are preserved. The real Job
+degraded flow observes an uncounted failed Pod UID before the numeric failure
+counter increments, and already reports Degraded alongside its ready peer.
+
+LLMInferenceService can retain Ready=True for one observation after the stop
+annotation changes. That is an acknowledgment delay: the workload still reports
+serving readiness until Ready=False/Stopped appears. A stop request alone does
+not prove draining or completed suspension. The definition retains Running for
+that observation instead of inventing an active transition.
+
+CPU applications and stand-ins exercise controller lifecycles, not GPU execution
+or model-inference correctness. Every definition is covered, but not every
+conditional branch is necessarily observed in one live run. Source-backed unit
+cases cover additional error, deletion, stale-observation, and zero-intent guards.
+
+## Earlier Ray-only corrections (2026-10-19)
+
+This historical checkpoint is preserved at
+[commit ba925769](https://github.com/AviadHayumi/workload-map/tree/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data).
+It preceded the whole-catalog follow-up above. Its counts, trajectories, and
+remaining gaps describe the earlier Ray-only changes, not the final mappings.
+
+That change resolved two mapping gaps from native fields already present on
+the root resource:
 
 - RayJob deployment Running can precede its first application jobStatus. A
-  missing or empty application status now maps to Pending, meaning waiting for
+  missing or empty application status mapped to Pending, meaning waiting for
   that status report. It does not establish whether execution has started.
   Deployment Running alone does not add Running or Progressing.
 - RayCluster retains state=suspended while resumed Pods start. Explicit resume
   intent, equal known desired and observed generations, both suspension
-  conditions False, RayClusterProvisioned=False, and HeadPodReady=False now
-  allow Pending. Existing container startup or backoff reasons also allow
-  Progressing. Stale observations and uncleared suspension conditions do not.
+  conditions False, RayClusterProvisioned=False, and HeadPodReady=False
+  allowed Pending. Existing container startup or backoff reasons also allowed
+  Progressing. Stale observations and uncleared suspension conditions did not
+  qualify for that exception.
 
 These decisions follow the KubeRay v1.6.2
 [RayJob controller](https://github.com/ray-project/kuberay/blob/598eb66aa077c55ae04fa87b192238a3ec184e88/ray-operator/controllers/ray/rayjob_controller.go#L214-L287)
 and [RayCluster controller](https://github.com/ray-project/kuberay/blob/598eb66aa077c55ae04fa87b192238a3ec184e88/ray-operator/controllers/ray/raycluster_controller.go#L1452-L1588).
 
-### Comparison on identical observations
+### Earlier comparison on identical observations
 
 Replaying all 454 native STATE objects from
 [the previous recording commit](https://github.com/AviadHayumi/workload-map/tree/86b916edae80e299cb0554910839613a2f813718/test/e2e/recorded_data)
-with both definitions changes eight frames in five recordings. The other 446
-frames are unchanged. Undefined frames decrease from 84 to 76. Recordings with
-reappearing Undefined gaps decrease from 12 to 9. The strict whole-recording
-categories remain 37 without gaps, 40 with Undefined but no return-to-waiting
-transition, and six with return-to-waiting transitions. The improved flows
-retain initial or transition gaps. This isolates
-the mapping effect from changes in watch timing between live runs.
+with the pre-correction and Ray-only definitions changed eight frames in five
+recordings. The other 446 frames were unchanged. Undefined frames decreased
+from 84 to 76. Recordings with reappearing Undefined gaps decreased from 12 to
+9. At that checkpoint, the strict whole-recording categories remained 37
+without gaps, 40 with Undefined but no return-to-waiting transition, and six
+with return-to-waiting transitions. The improved flows still retained initial
+or transition gaps. This comparison isolated the mapping effect from changes
+in watch timing between live runs.
 
 P means Pending, G means Progressing, U means Undefined, and S means Suspended.
 Consecutive identical phase sets are collapsed.
 
-| Flow | Previous definition | Corrected definition on the same objects |
+| Flow | Previous definition | Earlier Ray-only correction on the same objects |
 | --- | --- | --- |
 | RayCluster resumed | `S -> U -> Running` | `S -> U -> P -> P + G -> Running` |
 | RayJob running | `U -> P + G -> U -> P -> Running` | `U -> P + G -> P -> Running` |
@@ -233,7 +364,7 @@ Consecutive identical phase sets are collapsed.
 | RayJob failed | `U -> P + G -> U -> P -> Failed` | `U -> P + G -> P -> Failed` |
 | RayJob resumed | `U -> S -> U -> P + G -> U -> P -> Running` | `U -> S -> U -> P + G -> P -> Running` |
 
-### Fresh follow-up recordings
+### Earlier Ray-only live recordings
 
 All eight RayCluster and RayJob flows passed on 2026-10-19 using a new two-node
 kind cluster with Kubernetes v1.34.0, KubeRay 1.6.2, and Ray 2.40.0 on arm64.
@@ -243,34 +374,38 @@ evaluator receives these changes through the definitions. Recordings come from
 real controller watch events with independent native predicates; saved phases
 and summaries were not rewritten.
 
-The eight new recordings contain 55 STATE frames. The remaining 75 recordings
-are unchanged from the previous commit. The active corpus now contains
-83 successful recordings and 455 STATE frames across all 23 definitions.
+The eight recordings captured then contained 55 STATE frames. At that
+checkpoint only, the other 75 recordings were unchanged from the previous
+commit. The corpus at ba925769 contained 83 successful recordings and 455 STATE
+frames across all 23 definitions.
 
-| Fresh flow | Recorded trajectory | STATE frames |
+| Earlier Ray-only flow | Recorded trajectory at ba925769 | STATE frames |
 | --- | --- | ---: |
-| [RayCluster resumed](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/resumed.yaml) | `Suspended -> Undefined -> Pending -> Pending + Progressing -> Running` | 8 |
-| [RayCluster running](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/running.yaml) | `Pending -> Pending + Progressing -> Running` | 4 |
-| [RayCluster suspended](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/suspended.yaml) | `Suspended` | 1 |
-| [RayJob completed](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/completed.yaml) | `Undefined -> Pending + Progressing -> Pending -> Completed` | 8 |
-| [RayJob failed](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/failed.yaml) | `Undefined -> Pending + Progressing -> Pending -> Failed` | 8 |
-| [RayJob resumed](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/resumed.yaml) | `Undefined -> Suspended -> Undefined -> Pending + Progressing -> Pending -> Running` | 13 |
-| [RayJob running](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/running.yaml) | `Undefined -> Pending + Progressing -> Pending -> Running` | 9 |
-| [RayJob suspended](../test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/suspended.yaml) | `Undefined -> Suspended` | 4 |
+| [RayCluster resumed](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/resumed.yaml) | `Suspended -> Undefined -> Pending -> Pending + Progressing -> Running` | 8 |
+| [RayCluster running](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/running.yaml) | `Pending -> Pending + Progressing -> Running` | 4 |
+| [RayCluster suspended](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-raycluster-v1/suspended.yaml) | `Suspended` | 1 |
+| [RayJob completed](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/completed.yaml) | `Undefined -> Pending + Progressing -> Pending -> Completed` | 8 |
+| [RayJob failed](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/failed.yaml) | `Undefined -> Pending + Progressing -> Pending -> Failed` | 8 |
+| [RayJob resumed](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/resumed.yaml) | `Undefined -> Suspended -> Undefined -> Pending + Progressing -> Pending -> Running` | 13 |
+| [RayJob running](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/running.yaml) | `Undefined -> Pending + Progressing -> Pending -> Running` | 9 |
+| [RayJob suspended](https://github.com/AviadHayumi/workload-map/blob/ba925769fdbc15f3511be110af34a1205282b0ac/test/e2e/recorded_data/kuberay/1.6.2/ray-io-rayjob-v1/suspended.yaml) | `Undefined -> Suspended` | 4 |
 
-Fast completion and failure still skip an observed Running application status
-in these RayJob recordings. The definitions do not invent that missing watch
-observation. The full corpus passes exact-set SDK replay and recording
-validation.
+Fast completion and failure skipped an observed Running application status
+in these RayJob recordings. The definitions did not invent that missing watch
+observation. The full corpus passed exact-set SDK replay and recording
+validation at that checkpoint.
 
-### Remaining limits
+### Limits at the earlier checkpoint
 
-Missing initial status, RayJob's empty status during resume, and RayCluster's
-stale or still-suspended observations remain Undefined. An arbitrary fallback
-to Pending would conceal the lack of evidence. These changes also do not add
-parent-level scheduling proof or guarantee that a watch captures every phase.
+At that checkpoint, missing initial status, RayJob's empty status during resume,
+and RayCluster's stale or still-suspended observations remained Undefined. The
+whole-catalog follow-up supersedes that result with bounded observation-wait
+predicates. It does not introduce an arbitrary Undefined-to-Pending fallback.
+Neither change adds parent-level scheduling proof or guarantees that a watch
+captures every phase.
 
-Six previously recorded return-to-waiting trajectories remain unchanged:
+Six previously recorded return-to-waiting trajectories were unchanged by the
+earlier Ray-only correction:
 
 - Job: completed and resumed.
 - JobSet: completed and failed.

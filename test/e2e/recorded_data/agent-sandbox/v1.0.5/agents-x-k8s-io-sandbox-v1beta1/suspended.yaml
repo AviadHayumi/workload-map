@@ -4,11 +4,11 @@ events:
     apiVersion: agents.x-k8s.io/v1beta1
     kind: Sandbox
     metadata:
-      creationTimestamp: "2026-10-18T16:27:01Z"
+      creationTimestamp: "2026-10-19T07:07:18Z"
       generation: 1
       name: karta-e2e-sandbox-suspended
-      namespace: test-6dlx2
-      uid: a1401634-2484-401d-80a2-848b88397bfa
+      namespace: test-njrzk
+      uid: 94618074-2585-4350-b98e-e79c03b0eedf
     spec:
       operatingMode: Suspended
       podTemplate:
@@ -30,13 +30,13 @@ events:
       shutdownPolicy: Retain
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:27:01Z"
+      - lastTransitionTime: "2026-10-19T07:07:18Z"
         message: Pod has been terminated. Sandbox is suspended
         observedGeneration: 1
         reason: PodTerminated
         status: "True"
         type: Suspended
-      - lastTransitionTime: "2026-10-18T16:27:01Z"
+      - lastTransitionTime: "2026-10-19T07:07:18Z"
         message: Sandbox is suspended
         observedGeneration: 1
         reason: SandboxSuspended
@@ -44,7 +44,7 @@ events:
         type: Ready
   phases:
   - Suspended
-  resourceVersion: "2971"
+  resourceVersion: "2207"
   state: Suspended
 flow: suspended
 kartaFile: docs/catalog/agents-x-k8s-io-sandbox-v1beta1.yaml

@@ -4,13 +4,13 @@ events:
     apiVersion: serving.kserve.io/v1alpha1
     kind: LLMInferenceService
     metadata:
-      creationTimestamp: "2026-10-18T17:11:03Z"
+      creationTimestamp: "2026-10-19T07:11:29Z"
       finalizers:
       - serving.kserve.io/llmisvc-finalizer
       generation: 1
       name: karta-e2e-llmisvc-failed-v1alpha1
-      namespace: test-mxbzw
-      uid: 9c2a6b3f-ec4d-495c-b83f-f1e96df3973c
+      namespace: test-qbks7
+      uid: f56d2c2c-4b50-4f6a-9459-7c2f48e470d3
     spec:
       model:
         name: karta-e2e/fake-model
@@ -39,21 +39,21 @@ events:
             runAsUser: 65532
     status: {}
   phases:
-  - Undefined
-  resourceVersion: "4738"
-  state: Undefined
+  - Pending
+  resourceVersion: "4206"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: serving.kserve.io/v1alpha1
     kind: LLMInferenceService
     metadata:
-      creationTimestamp: "2026-10-18T17:11:03Z"
+      creationTimestamp: "2026-10-19T07:11:29Z"
       finalizers:
       - serving.kserve.io/llmisvc-finalizer
       generation: 1
       name: karta-e2e-llmisvc-failed-v1alpha1
-      namespace: test-mxbzw
-      uid: 9c2a6b3f-ec4d-495c-b83f-f1e96df3973c
+      namespace: test-qbks7
+      uid: f56d2c2c-4b50-4f6a-9459-7c2f48e470d3
     spec:
       model:
         name: karta-e2e/fake-model
@@ -93,33 +93,33 @@ events:
         serving.kserve.io/config-llm-tracing: kserve-config-llm-tracing
         serving.kserve.io/config-llm-worker-data-parallel: kserve-config-llm-worker-data-parallel
       conditions:
-      - lastTransitionTime: "2026-10-18T17:11:10Z"
+      - lastTransitionTime: "2026-10-19T07:11:34Z"
         message: 'failed to reconcile main workload: failed to create v1.Deployment
-          test-mxbzw/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
+          test-qbks7/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
           is invalid: spec.template.spec.containers[0].readinessProbe.tcpSocket: Forbidden:
           may not specify more than 1 handler type'
         reason: ReconcileSingleNodeWorkloadError
         severity: Info
         status: "False"
         type: MainWorkloadReady
-      - lastTransitionTime: "2026-10-18T17:11:10Z"
+      - lastTransitionTime: "2026-10-19T07:11:34Z"
         severity: Info
         status: "True"
         type: PresetsCombined
-      - lastTransitionTime: "2026-10-18T17:11:10Z"
+      - lastTransitionTime: "2026-10-19T07:11:34Z"
         message: 'failed to reconcile main workload: failed to create v1.Deployment
-          test-mxbzw/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
+          test-qbks7/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
           is invalid: spec.template.spec.containers[0].readinessProbe.tcpSocket: Forbidden:
           may not specify more than 1 handler type'
         reason: ReconcileSingleNodeWorkloadError
         status: "False"
         type: Ready
-      - lastTransitionTime: "2026-10-18T17:11:10Z"
+      - lastTransitionTime: "2026-10-19T07:11:34Z"
         status: Unknown
         type: RouterReady
-      - lastTransitionTime: "2026-10-18T17:11:10Z"
+      - lastTransitionTime: "2026-10-19T07:11:34Z"
         message: 'failed to reconcile main workload: failed to create v1.Deployment
-          test-mxbzw/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
+          test-qbks7/karta-e2e-llmisvc-failed-v1alpha1-kserve: Deployment.apps "karta-e2e-llmisvc-failed-v1alpha1-kserve"
           is invalid: spec.template.spec.containers[0].readinessProbe.tcpSocket: Forbidden:
           may not specify more than 1 handler type'
         reason: ReconcileSingleNodeWorkloadError
@@ -128,7 +128,7 @@ events:
       observedGeneration: 1
   phases:
   - Failed
-  resourceVersion: "4776"
+  resourceVersion: "4242"
   state: Failed
 flow: failed
 kartaFile: docs/catalog/serving-kserve-io-llminferenceservice-v1alpha1.yaml
@@ -140,7 +140,7 @@ schemaVersion: 1
 summary:
 - amount: 1
   phases:
-  - Undefined
+  - Pending
 - amount: 1
   phases:
   - Failed

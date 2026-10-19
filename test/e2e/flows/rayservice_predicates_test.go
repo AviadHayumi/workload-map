@@ -22,8 +22,18 @@ func TestRayServiceRecordedPhases(t *testing.T) {
 		want []string
 	}{
 		{"absent status", `{}`, []string{"Undefined"}},
+		{"first observation wait", `{"metadata":{"generation":1},"spec":{"rayClusterConfig":{},"serveConfigV2":"applications: []"},"status":{}}`, []string{"Pending"}},
+		{"uncreated desired service", `{"spec":{"rayClusterConfig":{},"serveConfigV2":"applications: []"}}`, []string{"Undefined"}},
+		{"zero generation desired service", `{"metadata":{"generation":0},"spec":{"rayClusterConfig":{},"serveConfigV2":"applications: []"}}`, []string{"Undefined"}},
+		{"missing service intent", `{"metadata":{"generation":1},"spec":{"rayClusterConfig":{}}}`, []string{"Undefined"}},
+		{"unknown nonempty first status", `{"metadata":{"generation":1},"spec":{"rayClusterConfig":{},"serveConfigV2":"applications: []"},"status":{"message":"unrecognized problem"}}`, []string{"Undefined"}},
+		{"deleting unobserved service", `{"metadata":{"generation":1,"deletionTimestamp":"2026-10-19T00:00:00Z"},"spec":{"rayClusterConfig":{},"serveConfigV2":"applications: []"}}`, []string{"Undefined"}},
 		{"waiting", `{"status":{"conditions":[{"type":"Ready","status":"False","reason":"Initializing"}]}}`, []string{"Pending"}},
 		{"initial cluster starting", `{"status":{"pendingServiceStatus":{"rayClusterName":"new"},"conditions":[{"type":"Ready","status":"False","reason":"Initializing"}]}}`, []string{"Pending", "Progressing"}},
+		{"promoted cluster awaiting endpoints", `{"status":{"activeServiceStatus":{"rayClusterName":"promoted"},"conditions":[{"type":"Ready","status":"False","reason":"Initializing"},{"type":"UpgradeInProgress","status":"False","reason":"NoPendingCluster"}]}}`, []string{"Pending", "Progressing"}},
+		{"active name after readiness is not progress", `{"status":{"activeServiceStatus":{"rayClusterName":"active"},"conditions":[{"type":"Ready","status":"True"}]}}`, []string{"Running"}},
+		{"active name with lost endpoints", `{"status":{"activeServiceStatus":{"rayClusterName":"active"},"conditions":[{"type":"Ready","status":"False","reason":"ZeroServeEndpoints"}]}}`, []string{"Degraded"}},
+		{"deleting initialization", `{"metadata":{"deletionTimestamp":"2026-10-19T00:00:00Z"},"status":{"activeServiceStatus":{"rayClusterName":"active"},"conditions":[{"type":"Ready","status":"False","reason":"Initializing"}]}}`, []string{"Undefined"}},
 		{"running", `{"status":{"conditions":[{"type":"Ready","status":"True"}]}}`, []string{"Running"}},
 		{"serving during replacement", `{"status":{"conditions":[{"type":"Ready","status":"True"},{"type":"UpgradeInProgress","status":"True"}]}}`, []string{"Progressing", "Running"}},
 		{"serving during rollback", `{"status":{"conditions":[{"type":"Ready","status":"True"},{"type":"RollbackInProgress","status":"True"}]}}`, []string{"Progressing", "Running"}},

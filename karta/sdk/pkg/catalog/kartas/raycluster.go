@@ -25,6 +25,16 @@ const rayClusterStartingExpression = `.spec.suspend != true and
     any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and
     any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False")`
 
+// Suspension intent alone does not establish that the controller has removed the Pods.
+const rayClusterSuspendedExpression = `.metadata.deletionTimestamp == null and .spec.suspend == true and
+    .status.state == "suspended" and .metadata.generation != null and
+    .status.observedGeneration == .metadata.generation`
+
+const rayClusterPendingExpression = `.metadata.deletionTimestamp == null and (` + rayClusterStartingExpression + ` or
+    ((.metadata.generation // 0) > 0 and
+     ((.status == null or .status == {}) or
+      (.spec.suspend == false and .status.state == "suspended"))))`
+
 // Raycluster returns the built-in Karta for the RayCluster workload
 // (ray.io/v1).
 func Raycluster() *v1alpha1.Karta {
@@ -46,11 +56,11 @@ func Raycluster() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Pending: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     rayClusterStartingExpression,
+								Expression:     rayClusterPendingExpression,
 								ExpectedResult: "true",
 							}}},
 							Progressing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression: rayClusterStartingExpression + ` and
+								Expression: `.metadata.deletionTimestamp == null and ` + rayClusterStartingExpression + ` and
                                     any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False" and
                                         (.reason == "ContainerCreating" or .reason == "ContainersNotReady" or
                                          .reason == "ErrImagePull" or .reason == "ImagePullBackOff" or .reason == "CrashLoopBackOff"))`,
@@ -59,7 +69,7 @@ func Raycluster() *v1alpha1.Karta {
 							Running: []v1alpha1.StatusMatcher{{ByPhase: "ready"}},
 							Failed:  []v1alpha1.StatusMatcher{{ByPhase: "failed"}},
 							Suspended: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `.spec.suspend == true and (.status.state == "suspended" or (.status.state | not))`,
+								Expression:     rayClusterSuspendedExpression,
 								ExpectedResult: "true",
 							}}},
 						},

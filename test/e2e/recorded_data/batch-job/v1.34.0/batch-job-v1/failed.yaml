@@ -4,16 +4,16 @@ events:
     apiVersion: batch/v1
     kind: Job
     metadata:
-      creationTimestamp: "2026-10-18T16:33:43Z"
+      creationTimestamp: "2026-10-19T06:32:28Z"
       generation: 1
       labels:
-        batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+        batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
         batch.kubernetes.io/job-name: karta-e2e-job-failed
-        controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+        controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
         job-name: karta-e2e-job-failed
       name: karta-e2e-job-failed
-      namespace: test-6dlx2
-      uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+      namespace: test-pb5h5
+      uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
     spec:
       backoffLimit: 0
       completionMode: NonIndexed
@@ -23,14 +23,14 @@ events:
       podReplacementPolicy: TerminatingOrFailed
       selector:
         matchLabels:
-          batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+          batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
       suspend: false
       template:
         metadata:
           labels:
-            batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+            batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
             batch.kubernetes.io/job-name: karta-e2e-job-failed
-            controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+            controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
             job-name: karta-e2e-job-failed
         spec:
           automountServiceAccountToken: false
@@ -68,28 +68,28 @@ events:
     status:
       active: 1
       ready: 0
-      startTime: "2026-10-18T16:33:43Z"
+      startTime: "2026-10-19T06:32:28Z"
       terminating: 0
       uncountedTerminatedPods: {}
   phases:
   - Pending
-  resourceVersion: "5227"
+  resourceVersion: "3092"
   state: Pending
 - kind: STATE
   object:
     apiVersion: batch/v1
     kind: Job
     metadata:
-      creationTimestamp: "2026-10-18T16:33:43Z"
+      creationTimestamp: "2026-10-19T06:32:28Z"
       generation: 1
       labels:
-        batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+        batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
         batch.kubernetes.io/job-name: karta-e2e-job-failed
-        controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+        controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
         job-name: karta-e2e-job-failed
       name: karta-e2e-job-failed
-      namespace: test-6dlx2
-      uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+      namespace: test-pb5h5
+      uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
     spec:
       backoffLimit: 0
       completionMode: NonIndexed
@@ -99,14 +99,14 @@ events:
       podReplacementPolicy: TerminatingOrFailed
       selector:
         matchLabels:
-          batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+          batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
       suspend: false
       template:
         metadata:
           labels:
-            batch.kubernetes.io/controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+            batch.kubernetes.io/controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
             batch.kubernetes.io/job-name: karta-e2e-job-failed
-            controller-uid: d1ef76c7-05c8-4581-ac10-63a8eb3c3c18
+            controller-uid: c2fddf5f-56fb-4adf-848a-4b2281c0214e
             job-name: karta-e2e-job-failed
         spec:
           automountServiceAccountToken: false
@@ -143,21 +143,21 @@ events:
           terminationGracePeriodSeconds: 30
     status:
       conditions:
-      - lastProbeTime: "2026-10-18T16:33:52Z"
-        lastTransitionTime: "2026-10-18T16:33:52Z"
+      - lastProbeTime: "2026-10-19T06:32:37Z"
+        lastTransitionTime: "2026-10-19T06:32:37Z"
         message: Job has reached the specified backoff limit
         reason: BackoffLimitExceeded
         status: "True"
         type: FailureTarget
       ready: 0
-      startTime: "2026-10-18T16:33:43Z"
+      startTime: "2026-10-19T06:32:28Z"
       terminating: 0
       uncountedTerminatedPods:
         failed:
-        - 4db937af-d586-451d-b0bb-2a466a0cc7bd
+        - 64690ced-ada4-44a8-81f9-9ebbeb81abdb
   phases:
   - Failed
-  resourceVersion: "5271"
+  resourceVersion: "3131"
   state: Failed
 flow: failed
 kartaFile: docs/catalog/batch-job-v1.yaml

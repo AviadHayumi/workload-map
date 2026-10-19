@@ -19,7 +19,7 @@ spec:
           pending:
             - byExpression:
                 expression: |-
-                  .spec.suspend != true and
+                  .metadata.deletionTimestamp == null and (.spec.suspend != true and
                       .status.state != "failed" and
                       (.status.state != "suspended" or
                        (.spec.suspend == false and .metadata.generation != null and
@@ -29,12 +29,15 @@ spec:
                       (any(.status.conditions[]?; .status == "True" and
                           (.type == "RayClusterSuspending" or .type == "RayClusterSuspended")) | not) and
                       any(.status.conditions[]?; .type == "RayClusterProvisioned" and .status == "False") and
-                      any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False")
+                      any(.status.conditions[]?; .type == "HeadPodReady" and .status == "False") or
+                      ((.metadata.generation // 0) > 0 and
+                       ((.status == null or .status == {}) or
+                        (.spec.suspend == false and .status.state == "suspended"))))
                 expectedResult: "true"
           progressing:
             - byExpression:
                 expression: |-
-                  .spec.suspend != true and
+                  .metadata.deletionTimestamp == null and .spec.suspend != true and
                       .status.state != "failed" and
                       (.status.state != "suspended" or
                        (.spec.suspend == false and .metadata.generation != null and
@@ -55,7 +58,10 @@ spec:
             - byPhase: failed
           suspended:
             - byExpression:
-                expression: .spec.suspend == true and (.status.state == "suspended" or (.status.state | not))
+                expression: |-
+                  .metadata.deletionTimestamp == null and .spec.suspend == true and
+                      .status.state == "suspended" and .metadata.generation != null and
+                      .status.observedGeneration == .metadata.generation
                 expectedResult: "true"
       suspendDefinition:
         suspendActions:

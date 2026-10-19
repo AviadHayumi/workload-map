@@ -4,13 +4,13 @@ events:
     apiVersion: ray.io/v1
     kind: RayJob
     metadata:
-      creationTimestamp: "2026-10-19T06:02:05Z"
+      creationTimestamp: "2026-10-19T07:18:28Z"
       finalizers:
       - ray.io/rayjob-finalizer
       generation: 2
       name: karta-e2e-rayjob-suspended
-      namespace: test-zwzsb
-      uid: 794c98a2-acdd-4942-ad1d-62c93275a66f
+      namespace: test-qpn52
+      uid: 9f72fe84-c858-4bca-9ce5-6a2e5021e615
     spec:
       backoffLimit: 0
       entrypoint: python -c "print(1)"
@@ -60,21 +60,21 @@ events:
       suspend: true
       ttlSecondsAfterFinished: 0
   phases:
-  - Undefined
-  resourceVersion: "1300"
-  state: Undefined
+  - Pending
+  resourceVersion: "1687"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: ray.io/v1
     kind: RayJob
     metadata:
-      creationTimestamp: "2026-10-19T06:02:05Z"
+      creationTimestamp: "2026-10-19T07:18:28Z"
       finalizers:
       - ray.io/rayjob-finalizer
       generation: 2
       name: karta-e2e-rayjob-suspended
-      namespace: test-zwzsb
-      uid: 794c98a2-acdd-4942-ad1d-62c93275a66f
+      namespace: test-qpn52
+      uid: 9f72fe84-c858-4bca-9ce5-6a2e5021e615
     spec:
       backoffLimit: 0
       entrypoint: python -c "print(1)"
@@ -126,8 +126,8 @@ events:
     status:
       failed: 0
       jobDeploymentStatus: Initializing
-      jobId: karta-e2e-rayjob-suspended-q78sh
-      rayClusterName: karta-e2e-rayjob-suspended-htcxh
+      jobId: karta-e2e-rayjob-suspended-jw2sh
+      rayClusterName: karta-e2e-rayjob-suspended-27lbp
       rayClusterStatus:
         desiredCPU: "0"
         desiredGPU: "0"
@@ -135,24 +135,24 @@ events:
         desiredTPU: "0"
         head: {}
       rayJobInfo: {}
-      startTime: "2026-10-19T06:02:05Z"
+      startTime: "2026-10-19T07:18:28Z"
       succeeded: 0
   phases:
-  - Undefined
-  resourceVersion: "1305"
-  state: Undefined
+  - Pending
+  resourceVersion: "1689"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: ray.io/v1
     kind: RayJob
     metadata:
-      creationTimestamp: "2026-10-19T06:02:05Z"
+      creationTimestamp: "2026-10-19T07:18:28Z"
       finalizers:
       - ray.io/rayjob-finalizer
       generation: 2
       name: karta-e2e-rayjob-suspended
-      namespace: test-zwzsb
-      uid: 794c98a2-acdd-4942-ad1d-62c93275a66f
+      namespace: test-qpn52
+      uid: 9f72fe84-c858-4bca-9ce5-6a2e5021e615
     spec:
       backoffLimit: 0
       entrypoint: python -c "print(1)"
@@ -204,8 +204,8 @@ events:
     status:
       failed: 0
       jobDeploymentStatus: Suspending
-      jobId: karta-e2e-rayjob-suspended-q78sh
-      rayClusterName: karta-e2e-rayjob-suspended-htcxh
+      jobId: karta-e2e-rayjob-suspended-jw2sh
+      rayClusterName: karta-e2e-rayjob-suspended-27lbp
       rayClusterStatus:
         desiredCPU: "0"
         desiredGPU: "0"
@@ -213,24 +213,24 @@ events:
         desiredTPU: "0"
         head: {}
       rayJobInfo: {}
-      startTime: "2026-10-19T06:02:05Z"
+      startTime: "2026-10-19T07:18:28Z"
       succeeded: 0
   phases:
-  - Undefined
-  resourceVersion: "1317"
-  state: Undefined
+  - Suspending
+  resourceVersion: "1690"
+  state: Suspending
 - kind: STATE
   object:
     apiVersion: ray.io/v1
     kind: RayJob
     metadata:
-      creationTimestamp: "2026-10-19T06:02:05Z"
+      creationTimestamp: "2026-10-19T07:18:28Z"
       finalizers:
       - ray.io/rayjob-finalizer
       generation: 2
       name: karta-e2e-rayjob-suspended
-      namespace: test-zwzsb
-      uid: 794c98a2-acdd-4942-ad1d-62c93275a66f
+      namespace: test-qpn52
+      uid: 9f72fe84-c858-4bca-9ce5-6a2e5021e615
     spec:
       backoffLimit: 0
       entrypoint: python -c "print(1)"
@@ -289,11 +289,11 @@ events:
         desiredTPU: "0"
         head: {}
       rayJobInfo: {}
-      startTime: "2026-10-19T06:02:05Z"
+      startTime: "2026-10-19T07:18:28Z"
       succeeded: 0
   phases:
   - Suspended
-  resourceVersion: "1318"
+  resourceVersion: "1691"
   state: Suspended
 flow: suspended
 kartaFile: docs/catalog/ray-io-rayjob-v1.yaml
@@ -303,9 +303,12 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 3
+- amount: 2
   phases:
-  - Undefined
+  - Pending
+- amount: 1
+  phases:
+  - Suspending
 - amount: 1
   phases:
   - Suspended

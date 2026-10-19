@@ -22,6 +22,7 @@ var _ = Describe("MPIJob", Ordered, Label("kubeflow", "mpijob"), func() {
 			AddState(kartav1alpha1.ProgressingStatus, TrainingProgressing()).
 			AddState(kartav1alpha1.PendingStatus, TrainingPending()).
 			AddState(kartav1alpha1.RunningStatus, CondTrue("Running")).
+			AddState(kartav1alpha1.DegradedStatus, MPIJobDegraded()).
 			AddState(kartav1alpha1.CompletedStatus, CondTrue("Succeeded")).
 			AddState(kartav1alpha1.FailedStatus, CondTrue("Failed")).
 			AddState(kartav1alpha1.SuspendedStatus, CondTrue("Suspended"))
@@ -54,6 +55,7 @@ var _ = Describe("MPIJob", Ordered, Label("kubeflow", "mpijob"), func() {
 			recorder.Reaches(kartav1alpha1.PendingStatus),
 			recorder.Reaches(kartav1alpha1.RunningStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.DegradedStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.FailedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())

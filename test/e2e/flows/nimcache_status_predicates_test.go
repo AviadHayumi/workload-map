@@ -28,6 +28,11 @@ func TestNIMCacheFlowPredicates(t *testing.T) {
 		want   []v1alpha1.ResourceStatus
 	}{
 		{"absent status", `{}`, nil},
+		{"existing empty cache", `{"metadata":{"generation":1}}`, []v1alpha1.ResourceStatus{v1alpha1.PendingStatus}},
+		{"deleted empty cache", `{"metadata":{"generation":1,"deletionTimestamp":"2026-10-18T00:00:00Z"}}`, nil},
+		{"current reconcile error", `{"status":{"state":"NotReady","conditions":[{"type":"NIM_CACHE_RECONCILE_FAILED","status":"True","reason":"ReconcileFailed"}]}}`, nil},
+		{"old reconcile error", `{"metadata":{"generation":2},"status":{"observedGeneration":1,"state":"NotReady","conditions":[{"type":"NIM_CACHE_RECONCILE_FAILED","status":"True","reason":"ReconcileFailed"}]}}`, nil},
+		{"historical reconcile error", `{"status":{"state":"InProgress","conditions":[{"type":"NIM_CACHE_RECONCILE_FAILED","status":"True","reason":"ReconcileFailed"}]}}`, []v1alpha1.ResourceStatus{v1alpha1.RunningStatus}},
 		{"waiting without created job", `{"status":{"state":"Pending"}}`, []v1alpha1.ResourceStatus{v1alpha1.PendingStatus}},
 		{"PVC created", `{"status":{"state":"PVC-Created"}}`, []v1alpha1.ResourceStatus{v1alpha1.PendingStatus, v1alpha1.ProgressingStatus}},
 		{"job created", `{"status":{"state":"Started"}}`, []v1alpha1.ResourceStatus{v1alpha1.PendingStatus, v1alpha1.ProgressingStatus}},

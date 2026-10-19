@@ -6,9 +6,9 @@ package flows
 import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 func nimCachePending(u *unstructured.Unstructured) bool {
-	return inferenceObservationCurrent(u) &&
+	return inferenceAwaitingFirstStatus(u) || (inferenceObservationCurrent(u) &&
 		PhaseAny([]string{"Pending", "PVC-Created", "Started"}, "status", "state")(u) &&
-		!CondTrue("NIM_CACHE_JOB_COMPLETED")(u)
+		!CondTrue("NIM_CACHE_JOB_COMPLETED")(u))
 }
 
 func nimCacheProgressing(u *unstructured.Unstructured) bool {

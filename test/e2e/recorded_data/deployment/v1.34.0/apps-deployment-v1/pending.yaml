@@ -6,11 +6,11 @@ events:
     metadata:
       annotations:
         deployment.kubernetes.io/revision: "1"
-      creationTimestamp: "2026-10-18T16:35:58Z"
+      creationTimestamp: "2026-10-19T06:35:46Z"
       generation: 1
       name: karta-e2e-deploy-initializing
-      namespace: test-f7hxq
-      uid: b47e8d21-2dcd-4d37-8fb4-97bfa8015302
+      namespace: test-pb5h5
+      uid: ed4af58a-7f0e-4a72-a931-cea381613e86
     spec:
       progressDeadlineSeconds: 600
       replicas: 1
@@ -53,16 +53,16 @@ events:
           terminationGracePeriodSeconds: 30
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:35:58Z"
-        lastUpdateTime: "2026-10-18T16:35:58Z"
+      - lastTransitionTime: "2026-10-19T06:35:46Z"
+        lastUpdateTime: "2026-10-19T06:35:46Z"
         message: Created new replica set "karta-e2e-deploy-initializing-79466684f7"
         reason: NewReplicaSetCreated
         status: "True"
         type: Progressing
   phases:
-  - Undefined
-  resourceVersion: "6363"
-  state: Undefined
+  - Pending
+  resourceVersion: "4415"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: apps/v1
@@ -70,11 +70,11 @@ events:
     metadata:
       annotations:
         deployment.kubernetes.io/revision: "1"
-      creationTimestamp: "2026-10-18T16:35:58Z"
+      creationTimestamp: "2026-10-19T06:35:46Z"
       generation: 1
       name: karta-e2e-deploy-initializing
-      namespace: test-f7hxq
-      uid: b47e8d21-2dcd-4d37-8fb4-97bfa8015302
+      namespace: test-pb5h5
+      uid: ed4af58a-7f0e-4a72-a931-cea381613e86
     spec:
       progressDeadlineSeconds: 600
       replicas: 1
@@ -117,14 +117,14 @@ events:
           terminationGracePeriodSeconds: 30
     status:
       conditions:
-      - lastTransitionTime: "2026-10-18T16:35:58Z"
-        lastUpdateTime: "2026-10-18T16:35:58Z"
+      - lastTransitionTime: "2026-10-19T06:35:46Z"
+        lastUpdateTime: "2026-10-19T06:35:46Z"
         message: Created new replica set "karta-e2e-deploy-initializing-79466684f7"
         reason: NewReplicaSetCreated
         status: "True"
         type: Progressing
-      - lastTransitionTime: "2026-10-18T16:35:58Z"
-        lastUpdateTime: "2026-10-18T16:35:58Z"
+      - lastTransitionTime: "2026-10-19T06:35:46Z"
+        lastUpdateTime: "2026-10-19T06:35:46Z"
         message: Deployment does not have minimum availability.
         reason: MinimumReplicasUnavailable
         status: "False"
@@ -134,9 +134,9 @@ events:
   phases:
   - Progressing
   - Pending
-  resourceVersion: "6368"
+  resourceVersion: "4423"
   state: Pending
-flow: initializing
+flow: pending
 kartaFile: docs/catalog/apps-deployment-v1.yaml
 kartaName: apps-deployment-v1
 operator: deployment
@@ -146,7 +146,7 @@ schemaVersion: 1
 summary:
 - amount: 1
   phases:
-  - Undefined
+  - Pending
 - amount: 1
   phases:
   - Progressing

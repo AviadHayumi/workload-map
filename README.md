@@ -260,7 +260,8 @@ A Pod or Sandbox can follow `Pending -> Pending + Progressing -> Running` when
 those observations are captured. LWS root status commonly starts at
 `Pending + Progressing`; it does not expose the scheduling of every worker.
 Some kinds lack a reliable progress signal, so a `Pending -> Running` flow is
-valid. Missing or explicitly stale evidence can produce `Undefined`.
+valid. Known waits for a controller observation can be `Pending`; unknown
+states and unclassifiable errors remain `Undefined`.
 
 This vocabulary follows Kubernetes' distinction between waiting and controller
 conditions, while retaining their limits. A Pending Pod can already be assigned
@@ -274,9 +275,9 @@ Deployment keeps `Pending` when required availability is missing and
 even if scaling is blocked. A settled paused Deployment does not claim an
 active template rollout.
 
-Grove's Progressing condition reports an unfinished operation observed by its
-controller. Its generation watermark advances after convergence, so the
-condition does not establish progress for the latest desired generation.
+Grove's unfinished root update timestamps and native update condition establish
+Progressing. Its generation watermark advances after convergence, so those
+signals do not establish progress for the latest desired generation.
 
 ### Can this tell whether a workload is scheduled?
 
@@ -310,14 +311,21 @@ frames across all 23 catalog definitions, with exact-set SDK replay. The run
 used real controllers with CPU applications and stand-ins; it did not validate
 real model inference or GPU execution.
 
-A 2026-10-19 follow-up fixes RayJob's gap while awaiting its first application
-status and RayCluster's startup gap during an observed resume. All eight Ray
-flows were re-recorded on real kind with KubeRay 1.6.2; the active corpus now has
-83 successful flows and 455 STATE frames. On identical prior observations,
-eight Undefined frames across five recordings gain evidence-based labels.
-Initial missing status and stale observations remain Undefined. Job, JobSet,
-and NIMCache return-to-waiting transitions still need child or richer native
-status evidence; this change does not hide them.
+The 2026-10-19 whole-catalog audit examines every recording, including traces
+without Undefined phases. Twenty of 23 definitions improve. On the same 455
+native observations, 95 frames across 50 recordings change, and Undefined falls
+from 76 frames to one explicit NIMCache reconcile error. Fixes cover known
+observation waits, stale availability, healthy partial completion, missing
+workers, and lost update evidence. Pod, CronJob, and Sandbox retain their
+mappings because their recorded transitions already match native status.
+
+Job, JobSet, and NIMCache can still return to waiting when parent status loses
+decisive execution evidence. JobSet aggregate counts cannot establish which
+active Pods are ready. Those gaps require child status; a root definition cannot
+honestly remove them. The follow-up re-recorded all 83 flows on real kind
+clusters: 457 native STATE frames, all passing exact-set SDK replay. One explicit
+NIMCache reconcile error remains Undefined. The guide lists the coverage and
+remaining limits.
 
 See [the per-kind mapping, fresh coverage, and historical comparison](docs/Status%20Mapping%20Migration.md)
 for tested operator versions, behavior changes, and verification limits.

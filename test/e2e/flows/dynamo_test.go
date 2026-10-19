@@ -37,7 +37,7 @@ func describeDynamoGraphDeployment(version, manifestDir, secretName string) bool
 				SetTimeout(8*time.Minute).
 				AddState(kartav1alpha1.ProgressingStatus, DynamoProgressing()).
 				AddState(kartav1alpha1.PendingStatus, DynamoPending()).
-				AddState(kartav1alpha1.RunningStatus, PhaseEq("successful", "status", "state"))
+				AddState(kartav1alpha1.RunningStatus, AllOf(operatorCurrentObservation, PhaseEq("successful", "status", "state")))
 		})
 
 		It("running", func(ctx SpecContext) {
@@ -67,7 +67,7 @@ func describeDynamoGraphDeployment(version, manifestDir, secretName string) bool
 
 		It("pending", func(ctx SpecContext) {
 			out, err := recorder.NewFlow(rec, "pending", manifestDir+"/pending.yaml").Through(
-				recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
+				recorder.Reaches(kartav1alpha1.PendingStatus).With(AllOf(currentGeneration, PhaseEq("pending", "status", "state")))).Run(ctx)
 			Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 			Expect(err).To(Succeed())
 		})

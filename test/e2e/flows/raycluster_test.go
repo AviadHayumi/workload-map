@@ -39,13 +39,17 @@ var _ = Describe("RayCluster", Ordered, Label("kuberay", "raycluster"), func() {
 	})
 
 	It("suspended", func(ctx SpecContext) {
-		out, err := recorder.NewFlow(rec, "suspended", "testdata/raycluster/suspended.yaml").Through(recorder.Reaches(kartav1alpha1.SuspendedStatus)).Run(ctx)
+		out, err := recorder.NewFlow(rec, "suspended", "testdata/raycluster/suspended.yaml").Through(
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.SuspendedStatus),
+		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
 	})
 
 	It("resumed", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "resumed", "testdata/raycluster/resumed.yaml").Through(
+			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.SuspendedStatus).Do(Resume()),
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus),

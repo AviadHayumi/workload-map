@@ -27,6 +27,7 @@ var _ = Describe("RayJob", Ordered, Label("kuberay", "rayjob"), func() {
 			AddState(kartav1alpha1.RunningStatus, PhaseEq("RUNNING", "status", "jobStatus")).
 			AddState(kartav1alpha1.CompletedStatus, PhaseEq("SUCCEEDED", "status", "jobStatus")).
 			AddState(kartav1alpha1.FailedStatus, PhaseEq("FAILED", "status", "jobStatus")).
+			AddState(kartav1alpha1.SuspendingStatus, RayJobSuspending()).
 			AddState(kartav1alpha1.SuspendedStatus, PhaseEq("Suspended", "status", "jobDeploymentStatus"))
 	})
 
@@ -64,6 +65,7 @@ var _ = Describe("RayJob", Ordered, Label("kuberay", "rayjob"), func() {
 	It("suspended", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "suspended", "testdata/rayjob/suspended.yaml").Through(
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.SuspendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.SuspendedStatus),
 		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
@@ -73,6 +75,7 @@ var _ = Describe("RayJob", Ordered, Label("kuberay", "rayjob"), func() {
 	It("resumed", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "resumed", "testdata/rayjob/resumed.yaml").Through(
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
+			recorder.Reaches(kartav1alpha1.SuspendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.SuspendedStatus).Do(Resume()),
 			recorder.Reaches(kartav1alpha1.PendingStatus).Optional(),
 			recorder.Reaches(kartav1alpha1.RunningStatus),

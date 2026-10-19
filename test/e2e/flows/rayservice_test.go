@@ -76,12 +76,19 @@ func rayServiceFailed(u *unstructured.Unstructured) bool {
 }
 
 func rayServiceCanTransition(u *unstructured.Unstructured) bool {
-	return !BoolTrue("spec", "suspend")(u) && operatorCurrentObservation(u) &&
+	return notDeleting(u) && !BoolTrue("spec", "suspend")(u) && operatorCurrentObservation(u) &&
 		!CondTrue("Suspending", "Suspended")(u) && !rayServiceFailed(u)
 }
 
 func rayServicePending(u *unstructured.Unstructured) bool {
-	return rayServiceCanTransition(u) && operatorConditionReason("Ready", "False", "Initializing")(u)
+	if rayServiceCanTransition(u) && operatorConditionReason("Ready", "False", "Initializing")(u) {
+		return true
+	}
+	status, _, err := unstructured.NestedMap(u.Object, "status")
+	cluster, hasCluster, _ := unstructured.NestedMap(u.Object, "spec", "rayClusterConfig")
+	serve, _, _ := unstructured.NestedString(u.Object, "spec", "serveConfigV2")
+	return notDeleting(u) && u.GetGeneration() > 0 && !BoolTrue("spec", "suspend")(u) &&
+		hasCluster && cluster != nil && serve != "" && err == nil && len(status) == 0
 }
 
 func rayServiceProgressing(u *unstructured.Unstructured) bool {
@@ -89,5 +96,6 @@ func rayServiceProgressing(u *unstructured.Unstructured) bool {
 		return false
 	}
 	pending, _, _ := unstructured.NestedString(u.Object, "status", "pendingServiceStatus", "rayClusterName")
-	return CondTrue("UpgradeInProgress", "RollbackInProgress")(u) || (pending != "" && rayServicePending(u))
+	active, _, _ := unstructured.NestedString(u.Object, "status", "activeServiceStatus", "rayClusterName")
+	return CondTrue("UpgradeInProgress", "RollbackInProgress")(u) || ((pending != "" || active != "") && rayServicePending(u))
 }

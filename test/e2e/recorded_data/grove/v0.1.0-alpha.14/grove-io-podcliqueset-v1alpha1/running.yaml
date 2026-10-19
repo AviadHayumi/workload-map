@@ -4,13 +4,13 @@ events:
     apiVersion: grove.io/v1alpha1
     kind: PodCliqueSet
     metadata:
-      creationTimestamp: "2026-10-18T17:46:23Z"
+      creationTimestamp: "2026-10-19T07:00:58Z"
       finalizers:
       - grove.io/podcliqueset.grove.io
       generation: 1
       name: karta-e2e-grove
-      namespace: test-2sbwn
-      uid: 68b80542-2db0-456f-8b95-d18aa25f2161
+      namespace: test-stvv2
+      uid: b02dd5cc-faba-467a-9830-9aff5581d5d1
     spec:
       replicas: 1
       template:
@@ -46,21 +46,21 @@ events:
       updateStrategy:
         type: RollingRecreate
   phases:
-  - Undefined
-  resourceVersion: "1847"
-  state: Undefined
+  - Pending
+  resourceVersion: "5768"
+  state: Pending
 - kind: STATE
   object:
     apiVersion: grove.io/v1alpha1
     kind: PodCliqueSet
     metadata:
-      creationTimestamp: "2026-10-18T17:46:23Z"
+      creationTimestamp: "2026-10-19T07:00:58Z"
       finalizers:
       - grove.io/podcliqueset.grove.io
       generation: 1
       name: karta-e2e-grove
-      namespace: test-2sbwn
-      uid: 68b80542-2db0-456f-8b95-d18aa25f2161
+      namespace: test-stvv2
+      uid: b02dd5cc-faba-467a-9830-9aff5581d5d1
     spec:
       replicas: 1
       template:
@@ -101,20 +101,20 @@ events:
       updatedReplicas: 0
   phases:
   - Pending
-  resourceVersion: "1848"
+  resourceVersion: "5769"
   state: Pending
 - kind: STATE
   object:
     apiVersion: grove.io/v1alpha1
     kind: PodCliqueSet
     metadata:
-      creationTimestamp: "2026-10-18T17:46:23Z"
+      creationTimestamp: "2026-10-19T07:00:58Z"
       finalizers:
       - grove.io/podcliqueset.grove.io
       generation: 1
       name: karta-e2e-grove
-      namespace: test-2sbwn
-      uid: 68b80542-2db0-456f-8b95-d18aa25f2161
+      namespace: test-stvv2
+      uid: b02dd5cc-faba-467a-9830-9aff5581d5d1
     spec:
       replicas: 1
       template:
@@ -152,7 +152,7 @@ events:
     status:
       availableReplicas: 0
       conditions:
-      - lastTransitionTime: "2026-10-18T17:46:23Z"
+      - lastTransitionTime: "2026-10-19T07:00:58Z"
         message: No rolling update is in progress
         reason: NoActiveUpdate
         status: "False"
@@ -163,20 +163,20 @@ events:
       updatedReplicas: 0
   phases:
   - Pending
-  resourceVersion: "1857"
+  resourceVersion: "5778"
   state: Pending
 - kind: STATE
   object:
     apiVersion: grove.io/v1alpha1
     kind: PodCliqueSet
     metadata:
-      creationTimestamp: "2026-10-18T17:46:23Z"
+      creationTimestamp: "2026-10-19T07:00:58Z"
       finalizers:
       - grove.io/podcliqueset.grove.io
       generation: 1
       name: karta-e2e-grove
-      namespace: test-2sbwn
-      uid: 68b80542-2db0-456f-8b95-d18aa25f2161
+      namespace: test-stvv2
+      uid: b02dd5cc-faba-467a-9830-9aff5581d5d1
     spec:
       replicas: 1
       template:
@@ -214,7 +214,7 @@ events:
     status:
       availableReplicas: 0
       conditions:
-      - lastTransitionTime: "2026-10-18T17:46:23Z"
+      - lastTransitionTime: "2026-10-19T07:00:58Z"
         message: No rolling update is in progress
         reason: NoActiveUpdate
         status: "False"
@@ -226,20 +226,20 @@ events:
       updatedReplicas: 0
   phases:
   - Pending
-  resourceVersion: "1885"
+  resourceVersion: "5809"
   state: Pending
 - kind: STATE
   object:
     apiVersion: grove.io/v1alpha1
     kind: PodCliqueSet
     metadata:
-      creationTimestamp: "2026-10-18T17:46:23Z"
+      creationTimestamp: "2026-10-19T07:00:58Z"
       finalizers:
       - grove.io/podcliqueset.grove.io
       generation: 1
       name: karta-e2e-grove
-      namespace: test-2sbwn
-      uid: 68b80542-2db0-456f-8b95-d18aa25f2161
+      namespace: test-stvv2
+      uid: b02dd5cc-faba-467a-9830-9aff5581d5d1
     spec:
       replicas: 1
       template:
@@ -277,7 +277,7 @@ events:
     status:
       availableReplicas: 1
       conditions:
-      - lastTransitionTime: "2026-10-18T17:46:23Z"
+      - lastTransitionTime: "2026-10-19T07:00:58Z"
         message: No rolling update is in progress
         reason: NoActiveUpdate
         status: "False"
@@ -289,7 +289,7 @@ events:
       updatedReplicas: 1
   phases:
   - Running
-  resourceVersion: "1924"
+  resourceVersion: "5843"
   state: Running
 flow: running
 kartaFile: docs/catalog/grove-io-podcliqueset-v1alpha1.yaml
@@ -299,10 +299,7 @@ result:
   succeeded: true
 schemaVersion: 1
 summary:
-- amount: 1
-  phases:
-  - Undefined
-- amount: 3
+- amount: 4
   phases:
   - Pending
 - amount: 1
