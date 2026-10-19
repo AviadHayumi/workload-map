@@ -2,7 +2,7 @@
   "SPDX-License-Identifier": "Apache-2.0",
   "copyright": "Copyright (c) 2026 NVIDIA Corporation",
   "recordings": {
-    "dynamo/v1.34.0/nvidia-com-dynamographdeployment-v1alpha1/initializing.yaml": {
+    "dynamo/v1.34.0/nvidia-com-dynamographdeployment-v1alpha1/pending.yaml": {
       "sha256": "f12d56ef72036571797c3b8a381fa843326c1be3d36942f29bb0564aa73e7347",
       "statuses": [
         [
@@ -42,7 +42,7 @@
         ]
       ]
     },
-    "grove/v1.34.0/grove-io-podcliqueset-v1alpha1/initializing.yaml": {
+    "grove/v1.34.0/grove-io-podcliqueset-v1alpha1/pending.yaml": {
       "sha256": "c9c343ef5ed0299793d29a1e237be7bc24f3c58f54528ada6bbe7db85e9e32e8",
       "statuses": [
         [
@@ -719,7 +719,7 @@
         ]
       ]
     },
-    "milvus/v1.34.0/milvus-io-milvus-v1beta1/initializing.yaml": {
+    "milvus/v1.34.0/milvus-io-milvus-v1beta1/pending.yaml": {
       "sha256": "6f1c64e6eb955f284fd046e4fbcf13c64011af2c4552d74f9d77b88f93342080",
       "statuses": [
         [
@@ -770,7 +770,7 @@
         ]
       ]
     },
-    "nim/v1.34.0/apps-nvidia-com-nimservice-v1alpha1/initializing.yaml": {
+    "nim/v1.34.0/apps-nvidia-com-nimservice-v1alpha1/pending.yaml": {
       "sha256": "1450357dcd9d99de730ee7da8bdecb9fd133f971477c8fe6679bed0f28bbc089",
       "statuses": [
         [

@@ -206,6 +206,9 @@ historical inputs. Fresh recordings have no historical override: their complete
 recorded phase sets must match the SDK, including any simultaneous statuses.
 The historical comparison below is not fresh live evidence.
 
+Current waiting-flow files use `pending.yaml`. Historical links and captured
+recording metadata retain their original names.
+
 | Saved flow | Before | After |
 | --- | --- | --- |
 | [agent-sandbox/v1.0.5/agents-x-k8s-io-sandbox-v1beta1/resumed.yaml](https://github.com/dsx-ai-factory/workload-map/blob/749feed8475901c23f71ee935a2fbf580cfd0eca/test/e2e/recorded_data/agent-sandbox/v1.0.5/agents-x-k8s-io-sandbox-v1beta1/resumed.yaml) | `Initializing -> Running -> Suspending -> Suspended -> Resuming -> Initializing -> Running` | `Pending -> Pending + Progressing -> Running -> Suspending -> Suspended -> Resuming -> Pending -> Pending + Progressing -> Running` |

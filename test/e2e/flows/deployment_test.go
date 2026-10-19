@@ -65,8 +65,8 @@ var _ = Describe("Deployment (built-in)", Ordered, Label("deployment", "builtin"
 	})
 
 	// A bad image leaves readiness pending and the rollout unfinished.
-	It("initializing", func(ctx SpecContext) {
-		out, err := recorder.NewFlow(rec, "initializing", "testdata/deployment/initializing.yaml").
+	It("pending", func(ctx SpecContext) {
+		out, err := recorder.NewFlow(rec, "pending", "testdata/deployment/pending.yaml").
 			// Gate on Available=False being written: the birth frame (no Available at all) stays a
 			// recorded non-terminal, and the fixture ends on a state the definition reads.
 			Through(recorder.Reaches(kartav1alpha1.PendingStatus).With(AllOf(CondFalse("Available"), DeploymentProgressing()))).Run(ctx)

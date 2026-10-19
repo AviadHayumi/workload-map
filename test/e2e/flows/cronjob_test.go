@@ -24,8 +24,8 @@ var _ = Describe("CronJob (built-in)", Ordered, Label("cronjob", "builtin"), fun
 			AddState(kartav1alpha1.SuspendedStatus, BoolTrue("spec", "suspend"))
 	})
 
-	It("initializing", func(ctx SpecContext) {
-		out, err := recorder.NewFlow(rec, "initializing", "testdata/cronjob/initializing.yaml").
+	It("pending", func(ctx SpecContext) {
+		out, err := recorder.NewFlow(rec, "pending", "testdata/cronjob/pending.yaml").
 			Through(recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())

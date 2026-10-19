@@ -65,8 +65,8 @@ func describeDynamoGraphDeployment(version, manifestDir, secretName string) bool
 			Expect(err).To(Succeed())
 		})
 
-		It("initializing", func(ctx SpecContext) {
-			out, err := recorder.NewFlow(rec, "initializing", manifestDir+"/initializing.yaml").Through(
+		It("pending", func(ctx SpecContext) {
+			out, err := recorder.NewFlow(rec, "pending", manifestDir+"/pending.yaml").Through(
 				recorder.Reaches(kartav1alpha1.PendingStatus)).Run(ctx)
 			Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 			Expect(err).To(Succeed())
