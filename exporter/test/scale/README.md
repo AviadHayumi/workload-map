@@ -1,79 +1,38 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Synthetic exporter scale scenarios
+# Exporter scale checks
 
-These scenarios test an in-memory store and the real Prometheus HTTP handler.
-They do not represent a 100,000-workload production Kubernetes cluster. They
-exclude informer ingestion, real API latency, Prometheus ingestion, network I/O,
-and compression. The independent streaming oracle verifies all workload and Pod
-identities, all nine phase values, health values, exact label sets, and absence of
-extra metric families or overflow rows.
+[Runtime scale checks](runtime-scale.md) run the actual exporter command against a modeled Kubernetes API. They exercise informer traffic, workqueues, verification and metrics. They remain separate from real-cluster acceptance.
 
-Run from `exporter/`. The workload selection is required for tests and benchmarks:
+The tests below measure immutable publications and the Prometheus HTTP handler. They exclude informer ingestion, API latency and Prometheus ingestion. Their results do not establish cluster capacity.
+
+Run from `exporter/`:
 
 ```sh
-KARTA_SCALE_WORKLOADS=1000 KARTA_SCALE_PODS_PER_WORKLOAD=1 \
+KARTA_SCALE_WORKLOADS=1000 KARTA_SCALE_PODS_PER_WORKLOAD=0,1,10 \
   go test ./pkg/collector -run '^TestScalePrometheusExposition$' -count=1 -v
 
-KARTA_SCALE_WORKLOADS=all KARTA_SCALE_PODS_PER_WORKLOAD=all \
+go test -race ./pkg/collector ./pkg/store -count=1
+
+KARTA_SCALE_WORKLOADS=10000 KARTA_SCALE_PODS_PER_WORKLOAD=1 \
   go test ./pkg/collector ./pkg/store -run '^$' -bench '^BenchmarkScale' \
-  -benchtime=1x -benchmem -count=1 -timeout=30m
-
-go test -race ./pkg/collector ./pkg/store -run '^TestScaleConcurrentHTTPOracle$|^TestScaleStore' -count=1
-
-KARTA_SCALE_WORKLOADS=100000 KARTA_SCALE_PODS_PER_WORKLOAD=1 \
-  go test ./pkg/controller -run '^TestScaleHealthVerification$' -count=1 -v
+  -benchtime=1x -benchmem -count=1
 ```
 
-The full matrix is 1,000, 10,000 and 100,000 roots, each with 0, 1 and 10 Pods.
-Every root has nine status samples and one healthy workload observation. At
-100,000 roots this is 1,000,000 samples plus Pod mappings. The test deletes 10%
-of roots and replaces another 10% under the same names with new UIDs, then
-verifies that old identities have disappeared.
+Each root contributes nine status samples and one creation timestamp. Each Pod contributes one mapping. Healthy workloads have no workload-health row. The fixture has one resource-type health row.
 
-Run one case per process for a useful peak RSS measurement:
+The collector tests check identities, phases and coordinates before and after deletion and same-name UID replacement. The store tests check publication lifetime and atomic capture under concurrent writes. Race runs check correctness, not performance.
+
+For an isolated exposition measurement:
 
 ```sh
 go build -o /tmp/karta-exporter-scale ./test/scale/cmd
-/tmp/karta-exporter-scale -workloads=100000 -pods=1 -scrapes=3
+/tmp/karta-exporter-scale -workloads=10000 -pods=1 -scrapes=3
 ```
 
-The command validates a complete exposition before timing scrapes. Timed scrapes
-include snapshot creation, OTel callbacks and aggregation, Prometheus gathering,
-and text encoding. They write to a byte-counting response writer. The oracle and
-fixture generation are outside the timed scrapes. Exposition byte counts must
-remain equal on every measured scrape.
+The command verifies every sample through an independent streaming oracle before timing scrapes. Timings include capture, OTel aggregation, Prometheus gathering and encoding. Fixture construction and oracle parsing are reported separately. One case per process gives a meaningful peak RSS.
 
-JSON reports samples, bytes, each scrape duration, allocation bytes and count per
-scrape, GC cycles, retained heap after GC, and process peak RSS on Linux/macOS.
-Peak RSS includes fixture generation and oracle verification; it is a process
-high-water mark, not an incremental scrape allocation. Repeated cases in one
-benchmark process cannot isolate peak RSS. `-race` runs are correctness checks,
-not performance measurements.
+Use `-profile-dir=/tmp/karta-scale-profiles` to record CPU and allocation profiles. Peak RSS includes setup and validation. It is not retained controller memory.
 
-Optional `-profile-dir=/tmp/karta-scale-profiles` records a CPU profile only during
-timed scrapes and allocation profiles before and after them. Compare allocation
-profiles to remove fixture construction and oracle costs:
-
-```sh
-go tool pprof -top -alloc_space -base /tmp/karta-scale-profiles/before.pb.gz \
-  /tmp/karta-scale-profiles/after.pb.gz
-go tool pprof -top /tmp/karta-scale-profiles/cpu.pb.gz
-```
-
-The controller scenario uses paginated loopback HTTP API responses, populated
-informers, and real status/attribution evaluation. It checks every healthy root,
-three collection-health rows, a page size of 1,000, and exact LIST counts. With
-100,000 roots and 100,000 Pods, one pass issues 301 LISTs: 100 Job pages, 200 Pod
-pages across two reads, and one Karta collection. No fallback owner GETs are
-expected. It uses QPS 50, burst 100, and the default verification deadline. It
-does not model a real API server, authorization, etcd, watch traffic, or network
-latency. `BenchmarkScaleHealthVerification` uses the same opt-in selection.
-
-Scrape benchmarks call the Prometheus handler directly and issue serial requests.
-The small concurrent oracle test also calls this handler directly to stress SDK
-and store synchronization. It bypasses the production server's admission limit
-of one in-flight scrape, where overlapping requests receive HTTP 503. Benchmark
-peak memory therefore describes serial scrapes, not unconstrained production
-request concurrency.
+Historical results under `results/` belong to their recorded source revisions. They do not validate the current runtime or publication implementation.

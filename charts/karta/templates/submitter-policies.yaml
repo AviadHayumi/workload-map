@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+{{- $capture := .Values.submitterAdmission -}}
+{{- $validation := and (.Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/ValidatingAdmissionPolicy") (.Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/ValidatingAdmissionPolicyBinding") -}}
+{{- $mutationVersion := "" -}}
+{{- range $version := list "v1beta1" "v1" -}}
+{{- if and ($.Capabilities.APIVersions.Has (printf "admissionregistration.k8s.io/%s/MutatingAdmissionPolicy" $version)) ($.Capabilities.APIVersions.Has (printf "admissionregistration.k8s.io/%s/MutatingAdmissionPolicyBinding" $version)) -}}
+{{- $mutationVersion = printf "admissionregistration.k8s.io/%s" $version -}}
+{{- end -}}
+{{- end -}}
+{{- if and $capture.enabled (not (and $validation $mutationVersion)) -}}
+{{- fail "submitterAdmission requires served MutatingAdmissionPolicy and Binding (v1 or v1beta1), and ValidatingAdmissionPolicy and Binding (v1); Kubernetes 1.34-1.35 requires MutatingAdmissionPolicy feature gate and beta API enablement" -}}
+{{- end -}}
+{{- $name := printf "%s-submitter" (include "karta.fullname" . | trunc 43 | trimSuffix "-") -}}
+{{- if $capture.enabled }}
+apiVersion: {{ $mutationVersion }}
+kind: MutatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-capture
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: IfNeeded
+  matchConstraints:
+    {{- toYaml $capture.matchConstraints | nindent 4 }}
+  {{- with $capture.matchConditions }}
+  matchConditions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          !has(object.metadata.annotations)
+            ? [JSONPatch{op: "add", path: "/metadata/annotations",
+                value: {"karta.run.ai/submitted-by": request.userInfo.username}}]
+            : !("karta.run.ai/submitted-by" in object.metadata.annotations)
+              ? [JSONPatch{op: "add", path: "/metadata/annotations/karta.run.ai~1submitted-by",
+                  value: request.userInfo.username}]
+              : []
+---
+apiVersion: {{ $mutationVersion }}
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-capture
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $name }}-capture
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-create
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    {{- toYaml $capture.matchConstraints | nindent 4 }}
+  {{- with $capture.matchConditions }}
+  matchConditions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  validations:
+    - expression: >-
+        has(object.metadata.annotations) &&
+        "karta.run.ai/submitted-by" in object.metadata.annotations &&
+        object.metadata.annotations["karta.run.ai/submitted-by"] == request.userInfo.username
+      message: "The submitted-by annotation must match the authenticated caller."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-create
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $name }}-create
+  validationActions: [Deny]
+---
+{{- end }}
+{{- if $validation }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ $name }}-protect
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - operations: ["UPDATE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["*/*"]
+        scope: Namespaced
+  matchConditions:
+    - name: already-captured
+      expression: >-
+        has(oldObject.metadata.annotations) &&
+        "karta.run.ai/submitted-by" in oldObject.metadata.annotations
+  validations:
+    - expression: >-
+        has(object.metadata.annotations) &&
+        "karta.run.ai/submitted-by" in object.metadata.annotations &&
+        object.metadata.annotations["karta.run.ai/submitted-by"] ==
+        oldObject.metadata.annotations["karta.run.ai/submitted-by"]
+      message: "The recorded submitter cannot be changed or removed."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}-protect
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "karta.labels" . | nindent 4 }}
+spec:
+  policyName: {{ $name }}-protect
+  validationActions: [Deny]
+{{- end }}

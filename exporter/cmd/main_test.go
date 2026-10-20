@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -72,7 +73,8 @@ func renderExporterChart(t *testing.T, values string, apis ...string) (map[strin
 			}
 			t.Fatal(err)
 		}
-		if doc.GetLabels()["app.kubernetes.io/component"] == "exporter" {
+		if doc.GetLabels()["app.kubernetes.io/component"] == "exporter" ||
+			doc.GetKind() == "ConfigMap" && doc.GetName() == "karta-exporter-identity" {
 			docs[doc.GetKind()+"/"+doc.GetName()] = doc
 		}
 	}
@@ -83,13 +85,41 @@ func TestExporterChartConfiguration(t *testing.T) {
 	docs, err := renderExporterChart(t, `exporter:
   enabled: true
   replicaCount: 2
-  namespace: observed
+  namespaceSelector:
+    matchLabels:
+      team: observed
+  objectSelector:
+    matchLabels:
+      export: "true"
+  podSelector:
+    matchLabels:
+      visible: "true"
+  resourceRules:
+  - apiGroups: [batch]
+    apiVersions: [v1]
+    resources: [jobs, cronjobs]
+  excludeResourceRules:
+  - apiGroups: [batch]
+    apiVersions: [v1]
+    resources: [cronjobs]
   metricsExporter: prometheus
   image:
     tag: contract
-  ports:
-    metrics: 9090
-  useCatalog: true
+  http:
+    port: 9090
+  kartaDefinitionSource:
+    catalog:
+      enabled: true
+      include: [batch-job-v1]
+    cluster:
+      enabled: true
+      include: [team-definition]
+      exclude: [disabled-definition]
+      labelSelector:
+        matchLabels:
+          source: observability
+  attribution:
+    submittedByExpression: '"submitter" in annotations ? annotations["submitter"] : ""'
   ignoredOwnerKinds: [example.com/v1/Wrapper, v1/Node]
   requiredKinds: [jobset.x-k8s.io/v1alpha2/JobSet]
   metrics:
@@ -120,9 +150,32 @@ func TestExporterChartConfiguration(t *testing.T) {
 	}
 	container := containers[0].(map[string]any)
 	args, _, _ := unstructured.NestedStringSlice(container, "args")
-	wantArgs := []string{"--metrics-bind-address=:9090", "--metrics-exporter=prometheus", "--namespace=observed", "--ignored-owner-kinds=example.com/v1/Wrapper,v1/Node", "--required-kinds=jobset.x-k8s.io/v1alpha2/JobSet", "--use-catalog", "--workload-phases=Running,Failed"}
+	wantArgs := []string{"--config=/etc/karta/exporter/config.json", "--metrics-bind-address=:9090", "--identity-config=/etc/karta/identity/rules.json", "--metrics-exporter=prometheus", "--workload-phases=Running,Failed"}
 	if !reflect.DeepEqual(args, wantArgs) {
 		t.Fatalf("args = %v, want %v", args, wantArgs)
+	}
+	directory := t.TempDir()
+	configPath, identityPath := filepath.Join(directory, "config.json"), filepath.Join(directory, "rules.json")
+	for _, file := range []struct {
+		name, key, path string
+	}{{"karta-exporter-config", "config.json", configPath}, {"karta-exporter-identity", "rules.json", identityPath}} {
+		config := docs["ConfigMap/"+file.name]
+		data, present, err := unstructured.NestedString(config.Object, "data", file.key)
+		if err != nil || !present {
+			t.Fatalf("rendered %s/%s is missing: %v", file.name, file.key, err)
+		}
+		if err := os.WriteFile(file.path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	options, err := loadOptions(configPath, identityPath, "prometheus", "Running,Failed")
+	if err != nil {
+		t.Fatalf("command rejected rendered configuration: %v", err)
+	}
+	if options.submitter == nil || !options.metricOptions.Identity || len(options.ignored) != 2 || len(options.required) != 1 ||
+		options.config.NamespaceSelector.MatchLabels["team"] != "observed" || !options.config.DefinitionSources.Catalog.Enabled ||
+		len(options.config.ResourceRules) != 1 || len(options.config.ExcludeResourceRules) != 1 {
+		t.Fatalf("command lost configured scope or attribution: %#v", options)
 	}
 	if !strings.HasSuffix(container["image"].(string), ":contract") {
 		t.Fatalf("image = %v", container["image"])
@@ -202,13 +255,25 @@ func TestExporterChartMonitoringKinds(t *testing.T) {
 	}
 }
 
-func TestExporterChartDisabledAndUnsupportedDelivery(t *testing.T) {
+func TestExporterChartDisabledAndDeliveryModes(t *testing.T) {
 	docs, err := renderExporterChart(t, "{}")
 	if err != nil || len(docs) != 0 {
 		t.Fatalf("disabled exporter resources: %v, error: %v", docs, err)
 	}
-	if _, err := renderExporterChart(t, "exporter:\n  enabled: true\n  metricsExporter: otlp\n"); err == nil || !strings.Contains(err.Error(), "must be prometheus") {
+	if _, err := renderExporterChart(t, "exporter:\n  enabled: true\n  metricsExporter: unsupported\n"); err == nil || !strings.Contains(err.Error(), "must be prometheus or otlp") {
 		t.Fatalf("unsupported delivery must fail clearly: %v", err)
+	}
+	if _, err := renderExporterChart(t, "exporter:\n  enabled: true\n  metricsExporter: otlp\n  otlp:\n    endpoint: https://metrics.example.com/v1/metrics\n"); err != nil {
+		t.Fatalf("supported OTLP delivery rejected: %v", err)
+	}
+}
+
+func TestExporterChartRejectsLegacyAttribution(t *testing.T) {
+	for _, values := range []string{"enabled: true", "enabled: false", "rules: []"} {
+		_, err := renderExporterChart(t, "exporter:\n  enabled: true\n  attribution:\n    "+values+"\n")
+		if err == nil || !strings.Contains(err.Error(), "submittedByExpression") {
+			t.Fatalf("obsolete attribution %q must reject with the supported setting: %v", values, err)
+		}
 	}
 }
 

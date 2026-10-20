@@ -14,7 +14,7 @@ spec:
     {{- include "karta.exporter.selectorLabels" . | nindent 4 }}
   ports:
     - name: metrics
-      port: {{ .Values.exporter.ports.metrics }}
+      port: {{ .Values.exporter.http.port }}
       targetPort: metrics
       protocol: TCP
 {{- end }}

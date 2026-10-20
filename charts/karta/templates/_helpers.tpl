@@ -101,28 +101,16 @@ app.kubernetes.io/component: exporter
 {{- end -}}
 
 {{- define "karta.exporter.attributionEnabled" -}}
-{{- if or .Values.exporter.attribution.enabled (trim .Values.exporter.attribution.submittedByExpression) -}}true{{- else -}}false{{- end -}}
+{{- if or (hasKey .Values.exporter.attribution "enabled") (hasKey .Values.exporter.attribution "rules") -}}
+{{- fail "exporter.attribution supports submittedByExpression only" -}}
+{{- end -}}
+{{- if trim .Values.exporter.attribution.submittedByExpression -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
 {{- define "karta.exporter.identityConfig" -}}
-{{- if and .Values.exporter.attribution.submittedByExpression .Values.exporter.attribution.rules -}}
-{{- fail "configure exporter.attribution.submittedByExpression or rules, not both" -}}
-{{- end -}}
-{{- if .Values.exporter.attribution.submittedByExpression -}}
 {{- dict "submittedByExpression" .Values.exporter.attribution.submittedByExpression | toJson -}}
-{{- else -}}
-{{- if not .Values.exporter.attribution.rules -}}{{- fail "exporter.attribution requires submittedByExpression or rules" -}}{{- end -}}
-{{- dict "rules" .Values.exporter.attribution.rules | toJson -}}
-{{- end -}}
 {{- end -}}
 
-{{- define "karta.submitterAdmission" -}}
-{{- if and .Values.exporter.attribution.admission.enabled .Values.submitterAdmission.enabled -}}
-{{- fail "configure exporter.attribution.admission or submitterAdmission, not both" -}}
-{{- end -}}
-{{- if .Values.exporter.attribution.admission.enabled -}}
-{{- toYaml .Values.exporter.attribution.admission -}}
-{{- else -}}
-{{- toYaml .Values.submitterAdmission -}}
-{{- end -}}
+{{- define "karta.exporter.config" -}}
+{{- pick .Values.exporter "kartaDefinitionSource" "namespaceSelector" "objectSelector" "podSelector" "resourceRules" "excludeResourceRules" "ignoredOwnerKinds" "requiredKinds" | toJson -}}
 {{- end -}}

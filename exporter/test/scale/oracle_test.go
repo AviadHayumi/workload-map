@@ -28,12 +28,13 @@ func TestOracleRejectsLostOrDuplicatedIdentities(t *testing.T) {
 		if phase == "Running" {
 			value = 1
 		}
-		fmt.Fprintf(&text, "karta_workload_status{namespace=\"scale\",workload=\"workload-0\",workload_uid=\"workload-0-v0\",workload_group=\"batch\",workload_version=\"v1\",workload_kind=\"Job\",owner_resolution=\"resolved\",karta=\"scale-job\",karta_source=\"cluster\",phase=\"%s\"} %d\n", phase, value)
+		fmt.Fprintf(&text, "karta_workload_status{namespace=\"scale\",workload_name=\"workload-0\",workload_uid=\"workload-0-v0\",workload_group=\"batch\",workload_version=\"v1\",workload_kind=\"Job\",owner_resolution=\"resolved\",karta=\"scale-job\",karta_source=\"cluster\",observation_valid=\"true\",phase=\"%s\"} %d\n", phase, value)
 	}
-	text.WriteString("karta_exporter_observation_healthy{scope=\"workload\",namespace=\"scale\",workload=\"workload-0\",workload_uid=\"workload-0-v0\",group=\"batch\",version=\"v1\",kind=\"Job\",reason=\"none\"} 1\n")
-	const pod = "karta_pod_workload_info{namespace=\"scale\",workload=\"workload-0\",workload_uid=\"workload-0-v0\",workload_group=\"batch\",workload_version=\"v1\",workload_kind=\"Job\",owner_resolution=\"resolved\",pod=\"pod-0-0\",pod_uid=\"pod-0-0-v0\",component=\"worker\",component_instance=\"instance-0\",replica_group_id=\"0\"} 1\n"
+	text.WriteString("karta_exporter_observation_valid{scope=\"resource_type\",namespace=\"scale\",workload_name=\"\",workload_uid=\"\",resource_group=\"batch\",resource_version=\"v1\",resource_kind=\"Job\",reason=\"none\"} 1\n")
+	text.WriteString("karta_workload_created_timestamp_seconds{namespace=\"scale\",workload_name=\"workload-0\",workload_uid=\"workload-0-v0\"} 1792324800\n")
+	const pod = "karta_pod_workload_info{namespace=\"scale\",workload_name=\"workload-0\",workload_uid=\"workload-0-v0\",workload_group=\"batch\",workload_version=\"v1\",workload_kind=\"Job\",owner_resolution=\"resolved\",pod_name=\"pod-0-0\",pod_uid=\"pod-0-0-v0\",component=\"worker\",component_instance=\"instance-0\",replica_group_id=\"0\",observation_valid=\"true\"} 1\n"
 	valid := text.String() + pod
-	if counts, err := f.Verify(strings.NewReader(valid), false); err != nil || counts != (Counts{Status: 9, Health: 1, Pods: 1}) {
+	if counts, err := f.Verify(strings.NewReader(valid), false); err != nil || counts != (Counts{Status: 9, Created: 1, Health: 1, Pods: 1}) {
 		t.Fatalf("valid fixture: %+v, %v", counts, err)
 	}
 	for name, invalid := range map[string]string{

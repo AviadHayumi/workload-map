@@ -6,12 +6,12 @@ package collector
 import (
 	"testing"
 
-	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 )
 
-func gather(t *testing.T, s *store.Store, options Options) map[string][]*dto.Metric {
+func gather(t *testing.T, s Capturer, options Options) map[string][]*dto.Metric {
 	t.Helper()
 	families, err := testGatherer(t, s, options).Gather()
 	if err != nil {
@@ -56,17 +56,17 @@ func TestSelectedPhasesRemainDense(t *testing.T) {
 		t.Fatal(err)
 	}
 	metrics = gather(t, fixtureStore(), options)
-	if len(metrics[MetricWorkloadStatus]) != 0 || len(metrics[MetricPodWorkloadInfo]) != 2 || len(metrics[MetricExporterObservationHealthy]) != 1 {
-		t.Fatal("disabling phases changed attribution or health")
+	if len(metrics[MetricWorkloadStatus]) != 0 || len(metrics[MetricPodWorkloadInfo]) != 2 || len(metrics[MetricExporterObservationValid]) != 1 || len(metrics[MetricWorkloadCreatedTimestamp]) != 1 {
+		t.Fatal("disabling phases changed other families")
 	}
 }
 
 func TestMultiplePhasesAndDefinitionReplacement(t *testing.T) {
 	s := fixtureStore()
-	w, _ := s.Workload("w1")
-	w.Phases = []v1alpha1.ResourceStatus{v1alpha1.RunningStatus, v1alpha1.DegradedStatus}
-	w.Karta, w.KartaSource, w.OwnerResolution = "custom-jobset", "cluster", "ignored_owner"
-	s.UpsertWorkload(w)
+	p := *s.Published("w1")
+	p.Workload.Phases = []v1alpha1.ResourceStatus{v1alpha1.RunningStatus, v1alpha1.DegradedStatus}
+	p.Workload.Karta, p.Workload.KartaSource, p.Workload.OwnerResolution = "custom-jobset", "cluster", "ignored_owner"
+	s.Publish(&p)
 	metrics := gather(t, s, Options{})
 	active := 0
 	for _, m := range metrics[MetricWorkloadStatus] {
@@ -84,9 +84,10 @@ func TestMultiplePhasesAndDefinitionReplacement(t *testing.T) {
 
 func TestUIDRecreationAndMappingReplacement(t *testing.T) {
 	s := fixtureStore()
-	recreated, _ := s.Workload("w1")
-	recreated.UID = "w2"
-	s.UpsertWorkload(recreated)
+	recreated := *s.Published("w1")
+	recreated.Workload.UID = "w2"
+	recreated.PodPages = nil
+	s.Publish(&recreated)
 	metrics := gather(t, s, Options{})
 	seen := map[string]bool{}
 	for _, m := range metrics[MetricWorkloadStatus] {
@@ -95,11 +96,10 @@ func TestUIDRecreationAndMappingReplacement(t *testing.T) {
 	if !seen["w1"] || !seen["w2"] {
 		t.Fatal("same-name UIDs were merged")
 	}
-	pod, _ := s.Pod("p1")
-	s.DeletePod("p1")
-	pod.UID, pod.WorkloadUID, pod.Replica = "replacement", "w2", "group-2"
-	s.UpsertPod(pod)
-	s.DeleteWorkload("w1")
+	pod, _ := s.Published("w1").Pod("p1")
+	pod.Record.UID, pod.Record.WorkloadUID, pod.Record.Replica = "replacement", "w2", "group-2"
+	s.Publish(recreated.WithPod("replacement", &pod))
+	s.RemovePublication("w1")
 	metrics = gather(t, s, Options{})
 	if len(metrics[MetricPodWorkloadInfo]) != 1 || len(metrics[MetricWorkloadStatus]) != 9 {
 		t.Fatal("deleted wrong incarnation or retained old Pod")
@@ -110,58 +110,35 @@ func TestUIDRecreationAndMappingReplacement(t *testing.T) {
 	}
 }
 
-func TestPodMappingRequiresConfirmedRootInSameSnapshot(t *testing.T) {
-	for _, scenario := range []string{"deleted", "unresolved", "child", "version", "boundary"} {
-		t.Run(scenario, func(t *testing.T) {
-			s := fixtureStore()
-			registry := testGatherer(t, s, Options{})
-			assertPods := func(want int) {
-				t.Helper()
-				families, err := registry.Gather()
-				if err != nil {
-					t.Fatal(err)
-				}
-				count := 0
-				for _, family := range families {
-					if family.GetName() == MetricPodWorkloadInfo {
-						count = len(family.Metric)
-					}
-				}
-				if count != want {
-					t.Fatalf("Pod mappings = %d, want %d", count, want)
-				}
-			}
-			assertPods(2)
-			root, _ := s.Workload("w1")
-			latePod, _ := s.Pod("p1")
-			switch scenario {
-			case "deleted":
-				s.DeleteWorkload(root.UID)
-				// A concurrent attribution that already read the root can finish late.
-				s.UpsertPod(latePod)
-			case "unresolved":
-				root.OwnerResolution = ""
-				root.OwnerFailure = store.ReasonUnresolvedOwner
-				s.UpsertWorkload(root)
-			case "child":
-				root.OwnerResolution = ""
-				s.UpsertWorkload(root)
-			case "version":
-				root.Ref.Version = "v2"
-				s.UpsertWorkload(root)
-			case "boundary":
-				root.OwnerResolution = "ignored_owner"
-				s.UpsertWorkload(root)
-			}
-			assertPods(0)
-			root.OwnerFailure = ""
-			root.OwnerResolution = "resolved"
-			root.HasStatus = false
-			s.UpsertWorkload(root)
-			latePod.Workload = root.Ref
-			s.UpsertPod(latePod)
-			s.DeletePod("p2")
-			assertPods(1)
-		})
+func TestPendingAndGenericPublicationOmitInapplicableFields(t *testing.T) {
+	s := fixtureStore()
+	p := *s.Published("w1")
+	p.Workload.HasStatus = false
+	p.Workload.Karta, p.Workload.KartaSource = "", ""
+	s.Publish(&p)
+	metrics := gather(t, s, Options{})
+	if len(metrics[MetricWorkloadStatus]) != 0 || len(metrics[MetricPodWorkloadInfo]) != 2 || len(metrics[MetricWorkloadCreatedTimestamp]) != 1 {
+		t.Fatal("generic root lost valid fields")
+	}
+	p.PodPages = nil
+	s.Publish(&p)
+	metrics = gather(t, s, Options{})
+	if len(metrics[MetricPodWorkloadInfo]) != 0 || len(metrics[MetricWorkloadCreatedTimestamp]) != 1 || len(metrics[MetricExporterObservationValid]) != 1 {
+		t.Fatal("pending mapping invented a row/failure or removed creation")
+	}
+}
+
+func TestOptionsAreCapturedAtRegistration(t *testing.T) {
+	options := Options{WorkloadPhases: []v1alpha1.ResourceStatus{v1alpha1.RunningStatus}}
+	registry := testGatherer(t, fixtureStore(), options)
+	options.WorkloadPhases[0] = v1alpha1.FailedStatus
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		if family.GetName() == MetricWorkloadStatus && (len(family.Metric) != 1 || label(family.Metric[0], LabelPhase) != "Running") {
+			t.Fatal("caller modified registered options")
+		}
 	}
 }

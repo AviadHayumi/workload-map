@@ -1,0 +1,1355 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "identity_enabled": true,
+  "expected_submitter": "scale-user@example.test",
+  "harness_sha256": "151aa6342974f12fb96934acc76122843aa53e96ed00e8adde1dda51fda7420d",
+  "roots": 10000,
+  "pods_per_root": 10,
+  "page_size": 500,
+  "poll_seconds": 5,
+  "settle_seconds": 30,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP request through streaming oracle completion",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "binary_sha256": "f2ffe592bc5607f2fb09280148e1e5b5b6e29ad79be2a3e4264e3876f669e65f",
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0101
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 25986176,
+            "health_rows": 2,
+            "health_failures": 1,
+            "created": 9482,
+            "wrong_submitter": 85338,
+            "status": 85338,
+            "missing_created": 518,
+            "missing_pods": 100000,
+            "missing_status_roots": 518,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 62.0,
+            "go_memstats_heap_alloc_bytes": 1429838968.0,
+            "process_resident_memory_bytes": 1734557696.0
+          },
+          "examples": [],
+          "response_headers_seconds": 0.6575,
+          "scrape_seconds": 1.6744
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 48225222,
+            "health_rows": 2,
+            "wrong_submitter": 152230,
+            "pods": 62230,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 37770,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 2453739648.0,
+            "process_resident_memory_bytes": 3379544064.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.2314,
+          "scrape_seconds": 3.1186
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 65232256,
+            "health_rows": 2,
+            "pods": 100000,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 1719006376.0,
+            "process_resident_memory_bytes": 4489216000.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.3122,
+          "scrape_seconds": 3.6246
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      },
+      "seconds": 23.4336,
+      "api_after": {
+        "requests": {
+          "all_requests": 474,
+          "response_bytes": 160174289,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 200,
+          "pods.objects.metadata": 100000
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 4489330688
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 65232257,
+            "health_rows": 2,
+            "pods": 100000,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 60.0,
+            "go_memstats_heap_alloc_bytes": 2016667456.0,
+            "process_resident_memory_bytes": 4489347072.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.3089,
+          "scrape_seconds": 3.6383
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 474,
+          "response_bytes": 160174289,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 200,
+          "pods.objects.metadata": 100000
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 3.6383,
+      "api_after": {
+        "requests": {
+          "all_requests": 474,
+          "response_bytes": 160174289,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 200,
+          "pods.objects.metadata": 100000
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 4489428992
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 65232256,
+            "health_rows": 2,
+            "pods": 100000,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 3179602424.0,
+            "process_resident_memory_bytes": 4489428992.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.4265,
+          "scrape_seconds": 3.721
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 474,
+          "response_bytes": 160174289,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 200,
+          "pods.objects.metadata": 100000
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 3.721,
+      "api_after": {
+        "requests": {
+          "all_requests": 474,
+          "response_bytes": 160174289,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 200,
+          "pods.objects.metadata": 100000
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 4489412608
+    },
+    {
+      "name": "single_pod_update_invariance",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 65231909,
+            "health_rows": 2,
+            "pods": 99999,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 1748564080.0,
+            "process_resident_memory_bytes": 4489412608.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.667,
+          "scrape_seconds": 4.0296
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 65232258,
+            "health_rows": 2,
+            "pods": 100000,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 60.0,
+            "go_memstats_heap_alloc_bytes": 1478852344.0,
+            "process_resident_memory_bytes": 4512137216.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.3293,
+          "scrape_seconds": 3.6495
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 674,
+          "response_bytes": 213438429,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 40,
+          "jobs.objects.metadata": 20000,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 400,
+          "pods.objects.metadata": 200000,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "seconds": 12.6794,
+      "api_after": {
+        "requests": {
+          "all_requests": 678,
+          "response_bytes": 214105556,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 41,
+          "jobs.objects.metadata": 20500,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 402,
+          "pods.objects.metadata": 201000,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 1,
+          "pods": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "rss_bytes": 4512137216,
+      "api_barrier_seconds": 14.9527,
+      "limitation": "RV-only event leaves public values unchanged; API progress is not exact callback completion"
+    },
+    {
+      "name": "status_and_pod_churn",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 65219557,
+            "health_rows": 2,
+            "pods": 99980,
+            "created": 9998,
+            "status": 89982,
+            "wrong_phase": 196,
+            "missing_created": 2,
+            "missing_pods": 20,
+            "missing_status_roots": 2,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 2046075384.0,
+            "process_resident_memory_bytes": 4512137216.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.6718,
+          "scrape_seconds": 4.1415
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 60778411,
+            "health_rows": 2,
+            "wrong_submitter": 189734,
+            "pods": 99851,
+            "created": 9987,
+            "status": 89883,
+            "missing_created": 13,
+            "missing_pods": 149,
+            "missing_status_roots": 13,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 1828040864.0,
+            "process_resident_memory_bytes": 4679712768.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.5244,
+          "scrape_seconds": 3.8816
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 65232257,
+            "health_rows": 2,
+            "pods": 100000,
+            "created": 10000,
+            "status": 90000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 2558749920.0,
+            "process_resident_memory_bytes": 4731584512.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.3334,
+          "scrape_seconds": 3.7116
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 680,
+          "response_bytes": 214516208,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 42,
+          "jobs.objects.metadata": 21000,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 403,
+          "pods.objects.metadata": 201500,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 202,
+        "completed_metadata_lists": {
+          "jobs": 1,
+          "namespaces": 2,
+          "pods": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "seconds": 21.7404,
+      "api_after": {
+        "requests": {
+          "all_requests": 1115,
+          "response_bytes": 326028523,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 80,
+          "jobs.objects.metadata": 40000,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 800,
+          "pods.objects.metadata": 400000,
+          "pods.watch_events": 101,
+          "jobs.watch_events": 100
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 202,
+        "completed_metadata_lists": {
+          "jobs": 202,
+          "namespaces": 2,
+          "pods": 202
+        },
+        "delivered_watch_versions": {
+          "pods": 202,
+          "jobs": 201
+        }
+      },
+      "rss_bytes": 4731584512
+    },
+    {
+      "name": "deletion_cleanup",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 60856344,
+            "health_rows": 2,
+            "unexpected_identity": 19980,
+            "wrong_submitter": 171000,
+            "pods": 90000,
+            "created": 9000,
+            "status": 81000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 2529763440.0,
+            "process_resident_memory_bytes": 4731600896.0
+          },
+          "examples": [
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-1-0\",pod_uid=\"pod-1-0-g0\",replica_group_id=\"\",submitted_by=\"\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-1\",workload_uid=\"job-1-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-1-1\",pod_uid=\"pod-1-1-g0\",replica_group_id=\"\",submitted_by=\"\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-1\",workload_uid=\"job-1-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-1-2\",pod_uid=\"pod-1-2-g0\",replica_group_id=\"\",submitted_by=\"\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-1\",workload_uid=\"job-1-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-1-3\",pod_uid=\"pod-1-3-g0\",replica_group_id=\"\",submitted_by=\"\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-1\",workload_uid=\"job-1-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-1-4\",pod_uid=\"pod-1-4-g0\",replica_group_id=\"\",submitted_by=\"\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-1\",workload_uid=\"job-1-g0\",workload_version=\"v1\"} 1"
+          ],
+          "response_headers_seconds": 1.9165,
+          "scrape_seconds": 4.4749
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 54836854,
+            "health_rows": 2,
+            "wrong_submitter": 171000,
+            "pods": 90000,
+            "created": 9000,
+            "status": 81000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 1720605320.0,
+            "process_resident_memory_bytes": 4641947648.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.4564,
+          "scrape_seconds": 3.6734
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 58769859,
+            "health_rows": 2,
+            "pods": 90000,
+            "created": 9000,
+            "status": 81000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 61.0,
+            "go_memstats_heap_alloc_bytes": 1734060072.0,
+            "process_resident_memory_bytes": 4642062336.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.2172,
+          "scrape_seconds": 3.3843
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 1115,
+          "response_bytes": 326031713,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 80,
+          "jobs.objects.metadata": 40000,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 800,
+          "pods.objects.metadata": 400000,
+          "pods.watch_events": 103,
+          "jobs.watch_events": 102
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 11202,
+        "completed_metadata_lists": {
+          "jobs": 202,
+          "namespaces": 2,
+          "pods": 202
+        },
+        "delivered_watch_versions": {
+          "pods": 204,
+          "jobs": 224
+        }
+      },
+      "seconds": 21.5387,
+      "api_after": {
+        "requests": {
+          "all_requests": 1511,
+          "response_bytes": 437722701,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 116,
+          "jobs.objects.metadata": 58000,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 1160,
+          "pods.objects.metadata": 580000,
+          "pods.watch_events": 10101,
+          "jobs.watch_events": 1100
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 11202,
+        "completed_metadata_lists": {
+          "jobs": 11202,
+          "namespaces": 2,
+          "pods": 11202
+        },
+        "delivered_watch_versions": {
+          "pods": 11201,
+          "jobs": 11202
+        }
+      },
+      "rss_bytes": 4642062336
+    },
+    {
+      "name": "settled_after_cleanup",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 58769858,
+            "health_rows": 2,
+            "pods": 90000,
+            "created": 9000,
+            "status": 81000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 62.0,
+            "go_memstats_heap_alloc_bytes": 2179237456.0,
+            "process_resident_memory_bytes": 4202856448.0
+          },
+          "examples": [],
+          "response_headers_seconds": 1.2074,
+          "scrape_seconds": 3.3328
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 1710,
+          "response_bytes": 488379805,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 134,
+          "jobs.objects.metadata": 67000,
+          "namespaces.list.metadata": 4,
+          "namespaces.objects.metadata": 4,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 1340,
+          "pods.objects.metadata": 670000,
+          "pods.watch_events": 10101,
+          "jobs.watch_events": 1100
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 11202,
+        "completed_metadata_lists": {
+          "jobs": 11202,
+          "namespaces": 11202,
+          "pods": 11202
+        },
+        "delivered_watch_versions": {
+          "pods": 11201,
+          "jobs": 11202
+        }
+      },
+      "seconds": 3.3329,
+      "api_after": {
+        "requests": {
+          "all_requests": 1710,
+          "response_bytes": 488379805,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 200,
+          "pods.objects.full": 100000,
+          "jobs.list.metadata": 134,
+          "jobs.objects.metadata": 67000,
+          "namespaces.list.metadata": 4,
+          "namespaces.objects.metadata": 4,
+          "jobs.list.full": 20,
+          "jobs.objects.full": 10000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "pods.list.metadata": 1340,
+          "pods.objects.metadata": 670000,
+          "pods.watch_events": 10101,
+          "jobs.watch_events": 1100
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 11202,
+        "completed_metadata_lists": {
+          "jobs": 11202,
+          "namespaces": 11202,
+          "pods": 11202
+        },
+        "delivered_watch_versions": {
+          "pods": 11201,
+          "jobs": 11202
+        }
+      },
+      "rss_bytes": 4204724224
+    }
+  ],
+  "completed_all_stages": true,
+  "steady_validity_gaps": 0,
+  "complete": true,
+  "returncode": 0,
+  "elapsed_seconds": 122.5054,
+  "peak_sampled_rss_bytes": 4731617280,
+  "rss_samples": [
+    {
+      "seconds": 1.011,
+      "rss_bytes": 692436992
+    },
+    {
+      "seconds": 2.039,
+      "rss_bytes": 1009172480
+    },
+    {
+      "seconds": 3.044,
+      "rss_bytes": 1246232576
+    },
+    {
+      "seconds": 4.054,
+      "rss_bytes": 1261469696
+    },
+    {
+      "seconds": 5.06,
+      "rss_bytes": 1744896000
+    },
+    {
+      "seconds": 6.083,
+      "rss_bytes": 2716434432
+    },
+    {
+      "seconds": 7.09,
+      "rss_bytes": 2837741568
+    },
+    {
+      "seconds": 8.101,
+      "rss_bytes": 2935291904
+    },
+    {
+      "seconds": 9.107,
+      "rss_bytes": 2965110784
+    },
+    {
+      "seconds": 10.117,
+      "rss_bytes": 3374399488
+    },
+    {
+      "seconds": 11.128,
+      "rss_bytes": 3379544064
+    },
+    {
+      "seconds": 12.136,
+      "rss_bytes": 3379707904
+    },
+    {
+      "seconds": 13.153,
+      "rss_bytes": 3834249216
+    },
+    {
+      "seconds": 14.169,
+      "rss_bytes": 4114464768
+    },
+    {
+      "seconds": 15.177,
+      "rss_bytes": 4444602368
+    },
+    {
+      "seconds": 16.185,
+      "rss_bytes": 4489068544
+    },
+    {
+      "seconds": 17.191,
+      "rss_bytes": 4489216000
+    },
+    {
+      "seconds": 18.201,
+      "rss_bytes": 4489216000
+    },
+    {
+      "seconds": 19.206,
+      "rss_bytes": 4489216000
+    },
+    {
+      "seconds": 20.213,
+      "rss_bytes": 4489232384
+    },
+    {
+      "seconds": 21.225,
+      "rss_bytes": 4489330688
+    },
+    {
+      "seconds": 22.243,
+      "rss_bytes": 4489330688
+    },
+    {
+      "seconds": 23.261,
+      "rss_bytes": 4489330688
+    },
+    {
+      "seconds": 24.269,
+      "rss_bytes": 4489396224
+    },
+    {
+      "seconds": 25.28,
+      "rss_bytes": 4489428992
+    },
+    {
+      "seconds": 26.3,
+      "rss_bytes": 4489428992
+    },
+    {
+      "seconds": 27.306,
+      "rss_bytes": 4489461760
+    },
+    {
+      "seconds": 28.311,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 29.33,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 30.349,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 31.355,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 32.363,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 33.37,
+      "rss_bytes": 4489412608
+    },
+    {
+      "seconds": 34.378,
+      "rss_bytes": 4489461760
+    },
+    {
+      "seconds": 35.4,
+      "rss_bytes": 4489510912
+    },
+    {
+      "seconds": 36.409,
+      "rss_bytes": 4512120832
+    },
+    {
+      "seconds": 37.416,
+      "rss_bytes": 4512120832
+    },
+    {
+      "seconds": 38.422,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 39.432,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 40.442,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 41.452,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 42.462,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 43.47,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 44.484,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 45.495,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 46.5,
+      "rss_bytes": 4512137216
+    },
+    {
+      "seconds": 47.514,
+      "rss_bytes": 4517167104
+    },
+    {
+      "seconds": 48.534,
+      "rss_bytes": 4656267264
+    },
+    {
+      "seconds": 49.552,
+      "rss_bytes": 4657790976
+    },
+    {
+      "seconds": 50.558,
+      "rss_bytes": 4657790976
+    },
+    {
+      "seconds": 51.564,
+      "rss_bytes": 4657954816
+    },
+    {
+      "seconds": 52.57,
+      "rss_bytes": 4658003968
+    },
+    {
+      "seconds": 53.575,
+      "rss_bytes": 4679155712
+    },
+    {
+      "seconds": 54.584,
+      "rss_bytes": 4679712768
+    },
+    {
+      "seconds": 55.591,
+      "rss_bytes": 4679712768
+    },
+    {
+      "seconds": 56.622,
+      "rss_bytes": 4707631104
+    },
+    {
+      "seconds": 57.632,
+      "rss_bytes": 4731551744
+    },
+    {
+      "seconds": 58.655,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 59.665,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 60.673,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 61.683,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 62.704,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 63.717,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 64.723,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 65.736,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 66.751,
+      "rss_bytes": 4731584512
+    },
+    {
+      "seconds": 67.765,
+      "rss_bytes": 4731617280
+    },
+    {
+      "seconds": 68.779,
+      "rss_bytes": 4595892224
+    },
+    {
+      "seconds": 69.803,
+      "rss_bytes": 4617125888
+    },
+    {
+      "seconds": 70.836,
+      "rss_bytes": 4638752768
+    },
+    {
+      "seconds": 71.862,
+      "rss_bytes": 4638769152
+    },
+    {
+      "seconds": 72.868,
+      "rss_bytes": 4638769152
+    },
+    {
+      "seconds": 73.875,
+      "rss_bytes": 4641013760
+    },
+    {
+      "seconds": 74.882,
+      "rss_bytes": 4641947648
+    },
+    {
+      "seconds": 75.89,
+      "rss_bytes": 4641947648
+    },
+    {
+      "seconds": 76.897,
+      "rss_bytes": 4641947648
+    },
+    {
+      "seconds": 77.903,
+      "rss_bytes": 4641947648
+    },
+    {
+      "seconds": 78.92,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 79.934,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 81.019,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 82.024,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 83.034,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 84.041,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 85.047,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 86.054,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 87.074,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 88.092,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 89.1,
+      "rss_bytes": 4642062336
+    },
+    {
+      "seconds": 90.113,
+      "rss_bytes": 4642078720
+    },
+    {
+      "seconds": 91.12,
+      "rss_bytes": 4642078720
+    },
+    {
+      "seconds": 92.13,
+      "rss_bytes": 4642095104
+    },
+    {
+      "seconds": 93.139,
+      "rss_bytes": 4642095104
+    },
+    {
+      "seconds": 94.149,
+      "rss_bytes": 4642095104
+    },
+    {
+      "seconds": 95.155,
+      "rss_bytes": 4553637888
+    },
+    {
+      "seconds": 96.165,
+      "rss_bytes": 4202496000
+    },
+    {
+      "seconds": 97.174,
+      "rss_bytes": 4202708992
+    },
+    {
+      "seconds": 98.184,
+      "rss_bytes": 4202807296
+    },
+    {
+      "seconds": 99.194,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 100.2,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 101.21,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 102.219,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 103.226,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 104.232,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 105.239,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 106.252,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 107.258,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 108.267,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 109.274,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 110.283,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 111.294,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 112.302,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 113.317,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 114.329,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 115.334,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 116.341,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 117.35,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 118.362,
+      "rss_bytes": 4202840064
+    },
+    {
+      "seconds": 119.372,
+      "rss_bytes": 4203003904
+    },
+    {
+      "seconds": 120.387,
+      "rss_bytes": 4204658688
+    },
+    {
+      "seconds": 121.428,
+      "rss_bytes": 4204658688
+    },
+    {
+      "seconds": 122.434,
+      "rss_bytes": 4204724224
+    }
+  ],
+  "limit_triggered": [],
+  "api": {
+    "requests": {
+      "all_requests": 1710,
+      "response_bytes": 488379805,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "pods.list.full": 200,
+      "pods.objects.full": 100000,
+      "jobs.list.metadata": 134,
+      "jobs.objects.metadata": 67000,
+      "namespaces.list.metadata": 4,
+      "namespaces.objects.metadata": 4,
+      "jobs.list.full": 20,
+      "jobs.objects.full": 10000,
+      "jobs.watch": 1,
+      "pods.watch": 1,
+      "pods.list.metadata": 1340,
+      "pods.objects.metadata": 670000,
+      "pods.watch_events": 10101,
+      "jobs.watch_events": 1100
+    },
+    "max_page_objects": 500,
+    "active_watches": 3,
+    "revision": 11202,
+    "completed_metadata_lists": {
+      "jobs": 11202,
+      "namespaces": 11202,
+      "pods": 11202
+    },
+    "delivered_watch_versions": {
+      "pods": 11201,
+      "jobs": 11202
+    }
+  },
+  "harness_rss_bytes": 68567040
+}

@@ -3,16 +3,23 @@
 
 exporter:
   enabled: true
-  useCatalog: true
-  attribution:
-    admission:
+  kartaDefinitionSource:
+    catalog:
       enabled: true
+  attribution:
     submittedByExpression: |
       ("workload.dgxc.nvidia.com/submitter-id" in annotations &&
        annotations["workload.dgxc.nvidia.com/submitter-id"] != "")
         ? annotations["workload.dgxc.nvidia.com/submitter-id"]
-        : ("run.ai/submitted-by" in annotations &&
-           annotations["run.ai/submitted-by"] != "")
-          ? annotations["run.ai/submitted-by"]
+        : ("karta.run.ai/submitted-by" in annotations &&
+           annotations["karta.run.ai/submitted-by"] != "")
+          ? annotations["karta.run.ai/submitted-by"]
           : ("osmo.submitted_by" in labels
               ? labels["osmo.submitted_by"] : "")
+
+submitterAdmission:
+  enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        karta.run.ai/capture-submitter: "true"

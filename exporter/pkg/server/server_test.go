@@ -41,6 +41,17 @@ func TestMetricsRemainVisibleBeforeInitialSync(t *testing.T) {
 	wg.Wait()
 }
 
+func TestOTLPModeExposesOnlyHealthEndpoints(t *testing.T) {
+	server := New(":0", nil, func() bool { return true })
+	for path, want := range map[string]int{"/metrics": http.StatusNotFound, "/healthz": http.StatusOK, "/readyz": http.StatusOK} {
+		response := httptest.NewRecorder()
+		server.httpServer.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != want {
+			t.Fatalf("%s status=%d, want %d", path, response.Code, want)
+		}
+	}
+}
+
 func TestConcurrentScrapeIsBoundedAndHealthStaysResponsive(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})

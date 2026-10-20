@@ -76,25 +76,27 @@ func (f *Fixture) Workload(i int) store.WorkloadRecord {
 		UID:   types.UID(fmt.Sprintf("workload-%d-v%d", i, f.Generation[i])),
 		Ref:   store.WorkloadRef{Namespace: "scale", Name: fmt.Sprintf("workload-%d", i), Group: "batch", Version: "v1", Kind: "Job"},
 		Karta: "scale-job", KartaSource: "cluster", OwnerResolution: "resolved",
-		Generation: int64(f.Generation[i]), HasStatus: true, Phases: []v1alpha1.ResourceStatus{phase},
+		CreatedTimestamp: 1792324800, HasStatus: true, Phases: []v1alpha1.ResourceStatus{phase},
 	}
 }
 
 func (f *Fixture) insert(i int) {
 	w := f.Workload(i)
-	f.Store.UpsertWorkload(w)
+	evidence := store.Evidence{ExpiresAt: time.Now().Add(time.Hour)}
+	rows := make([]store.PublishedPod, f.Case.Pods)
 	for p := range f.Case.Pods {
 		name := fmt.Sprintf("pod-%d-%d", i, p)
-		f.Store.UpsertPod(store.PodRecord{
+		rows[p] = store.PublishedPod{Record: store.PodRecord{
 			UID: types.UID(fmt.Sprintf("%s-v%d", name, f.Generation[i])), Namespace: "scale", Name: name,
 			WorkloadUID: w.UID, Workload: w.Ref, OwnerResolution: "resolved",
 			Component: "worker", Instance: fmt.Sprintf("instance-%d", p%2), Replica: strconv.Itoa(p),
-		})
+		}, Mapping: evidence}
 	}
+	f.Store.Publish(&store.Publication{Workload: w, Status: evidence, Creation: evidence, Membership: evidence, PodPages: store.BuildPodPages(rows, nil)})
 }
 
 func (f *Fixture) Delete(i int) {
-	f.Store.DeleteWorkload(f.Workload(i).UID)
+	f.Store.RemovePublication(f.Workload(i).UID)
 	f.Active[i] = false
 }
 
@@ -106,14 +108,5 @@ func (f *Fixture) Replace(i int) {
 }
 
 func (f *Fixture) PublishHealth() {
-	now := time.Now()
-	rows := make([]store.HealthRecord, 0, f.Case.Workloads)
-	for i, active := range f.Active {
-		if !active {
-			continue
-		}
-		w := f.Workload(i)
-		rows = append(rows, store.HealthRecord{Scope: "workload", Ref: w.Ref, UID: w.UID, Healthy: true, VerifiedAt: now, MaxAge: time.Hour})
-	}
-	f.Store.SetHealth(rows, f.Store.HealthEpoch())
+	f.Store.SetPublicationHealth([]store.HealthRecord{{Scope: "resource_type", Ref: store.WorkloadRef{Namespace: "scale", Group: "batch", Version: "v1", Kind: "Job"}, Healthy: true, VerifiedAt: time.Now(), MaxAge: time.Hour}})
 }

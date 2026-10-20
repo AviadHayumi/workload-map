@@ -6,16 +6,17 @@ package collector
 import "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
 
 const (
-	MetricPodWorkloadInfo            = "karta_pod_workload_info"
-	MetricWorkloadStatus             = "karta_workload_status"
-	MetricExporterObservationHealthy = "karta_exporter_observation_healthy"
+	MetricPodWorkloadInfo          = "karta_pod_workload_info"
+	MetricWorkloadStatus           = "karta_workload_status"
+	MetricWorkloadCreatedTimestamp = "karta_workload_created_timestamp_seconds"
+	MetricExporterObservationValid = "karta_exporter_observation_valid"
 )
 
 const (
 	LabelNamespace         = "namespace"
-	LabelPod               = "pod"
+	LabelPod               = "pod_name"
 	LabelPodUID            = "pod_uid"
-	LabelWorkload          = "workload"
+	LabelWorkload          = "workload_name"
 	LabelWorkloadUID       = "workload_uid"
 	LabelWorkloadKind      = "workload_kind"
 	LabelWorkloadGroup     = "workload_group"
@@ -29,6 +30,10 @@ const (
 	LabelPhase             = "phase"
 	LabelReason            = "reason"
 	LabelSubmittedBy       = "submitted_by"
+	LabelObservationValid  = "observation_valid"
+	LabelResourceGroup     = "resource_group"
+	LabelResourceVersion   = "resource_version"
+	LabelResourceKind      = "resource_kind"
 )
 
 // SentinelUnknown cannot collide with a Kubernetes object name.

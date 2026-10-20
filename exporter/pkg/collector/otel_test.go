@@ -13,7 +13,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/telemetry"
 )
 
@@ -23,7 +22,7 @@ type testingT interface {
 	Cleanup(func())
 }
 
-func testGatherer(t testingT, s *store.Store, options Options) *prometheus.Registry {
+func testGatherer(t testingT, s Capturer, options Options) *prometheus.Registry {
 	t.Helper()
 	registry := prometheus.NewRegistry()
 	provider, err := telemetry.NewPrometheusProvider(registry)
@@ -49,17 +48,21 @@ func testGatherer(t testingT, s *store.Store, options Options) *prometheus.Regis
 
 func TestOTelPreservesMoreThanDefaultCardinality(t *testing.T) {
 	s := fixtureStore()
-	pod, _ := s.Pod("p1")
+	pod, _ := s.Published("w1").Pod("p1")
 	for i := range 2500 {
-		pod.UID = types.UID(fmt.Sprintf("pod-%d", i))
-		pod.Name = string(pod.UID)
-		s.UpsertPod(pod)
+		pod.Record.UID = types.UID(fmt.Sprintf("pod-%d", i))
+		pod.Record.Name = string(pod.Record.UID)
+		s.Publish(s.Published("w1").WithPod(pod.Record.UID, &pod))
 	}
-	workload, _ := s.Workload("w1")
+	publication := *s.Published("w1")
+	publication.PodPages = nil
+	workload := publication.Workload
 	for i := range 250 {
 		workload.UID = types.UID(fmt.Sprintf("workload-%d", i))
 		workload.Ref.Name = string(workload.UID)
-		s.UpsertWorkload(workload)
+		next := publication
+		next.Workload = workload
+		s.Publish(&next)
 	}
 	registry := testGatherer(t, s, Options{})
 	for pass := range 2 {
@@ -91,12 +94,12 @@ func TestOTelPreservesMoreThanDefaultCardinality(t *testing.T) {
 func TestConcurrentOTelScrapesAndUpdates(t *testing.T) {
 	s := fixtureStore()
 	registry := testGatherer(t, s, Options{})
-	pod, _ := s.Pod("p1")
+	pod, _ := s.Published("w1").Pod("p1")
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		for i := range 100 {
-			pod.Instance = fmt.Sprintf("instance-%d", i)
-			s.UpsertPod(pod)
+			pod.Record.Instance = fmt.Sprintf("instance-%d", i)
+			s.Publish(s.Published("w1").WithPod(pod.Record.UID, &pod))
 		}
 	})
 	for range 4 {

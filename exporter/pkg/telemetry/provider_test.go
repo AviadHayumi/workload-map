@@ -20,6 +20,10 @@ func TestParseExporter(t *testing.T) {
 				if err != nil || got != "prometheus" {
 					t.Fatalf("ParseExporter(%q) = %q, %v; want prometheus, nil", input, got, err)
 				}
+			} else if input == "otlp" {
+				if err != nil || got != "otlp" {
+					t.Fatalf("ParseExporter(%q) = %q, %v; want otlp, nil", input, got, err)
+				}
 			} else if err == nil {
 				t.Fatalf("ParseExporter(%q) accepted unsupported output", input)
 			}

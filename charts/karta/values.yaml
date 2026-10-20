@@ -4,8 +4,6 @@
 # Set false to install only the CRD, without deploying the operator workload.
 operator:
   enabled: true
-  # Serve only the optional submitter webhook; useful alongside another operator.
-  webhookOnly: false
 
 # Overrides for resource names. Rarely needed.
 fullnameOverride: ""
@@ -131,14 +129,28 @@ exporter:
     tag: ""
     pullPolicy: IfNotPresent
 
-  ports:
-    metrics: 8080
+  # Health endpoints in both modes; /metrics only in Prometheus mode.
+  http:
+    port: 8080
 
-  # Observation scope; this does not change the release namespace or RBAC.
-  namespace: ""
-
-  # Native OTLP delivery is deferred.
   metricsExporter: prometheus
+  otlp:
+    protocol: http/protobuf
+    endpoint: ""
+    interval: 30s
+    timeout: 10s
+    headersSecretRef: {} # Optional {name: secret-name, key: headers}.
+    tls:
+      caSecretRef: {} # Optional {name: secret-name, key: ca.crt}.
+      clientCertSecretRef: {} # Requires clientKeySecretRef.
+      clientKeySecretRef: {} # Requires clientCertSecretRef.
+
+  # Namespace selection controls watches. Root/Pod selectors only filter output.
+  namespaceSelector: {}
+  objectSelector: {}
+  podSelector: {}
+  resourceRules: []
+  excludeResourceRules: []
 
   # Exact group/version/Kind boundaries; stop before reading the ignored owner.
   ignoredOwnerKinds: []
@@ -146,47 +158,24 @@ exporter:
   # Expected APIs, even before discovery. Missing or unreadable APIs fail health.
   requiredKinds: []
 
-  # Use the built-in catalog definitions for workload kinds that have no
-  # Karta CR on the cluster. A Karta CR always overrides the catalog.
-  useCatalog: false
+  # Selected cluster definitions override catalog definitions for the same kind.
+  # Include names OR match cluster labels; exclusions take precedence.
+  kartaDefinitionSource:
+    catalog:
+      enabled: false
+      include: []
+      exclude: [core-pod-v1]
+    cluster:
+      enabled: true
+      include: []
+      exclude: []
+      labelSelector: {}
 
   # CEL is evaluated from cached metadata, once per observed update. Configuration
   # changes roll the exporter; invalid rules fail startup rather than run silently.
   attribution:
     # A nonempty expression enables submitted_by on the existing Pod/workload metrics.
     submittedByExpression: ""
-    admission:
-      enabled: false
-      identitySource: "kubernetes"
-      # Native API-server CEL, mirrored on CREATE capture and UPDATE protection.
-      # Nonempty conditions require Kubernetes 1.30+. All conditions must be true;
-      # any false skips that webhook, even if another condition errors. Otherwise
-      # an evaluation error rejects the request under the existing failurePolicy.
-      # CEL syntax/type validation is performed by the API server at installation.
-      # Conditions are evaluated independently on each request; oldObject is null
-      # on CREATE. Filtering only new-object labels/annotations, request.operation,
-      # or the current caller can bypass protection on later UPDATE requests.
-      # Prefer stable resource scope, and ensure every update of a captured object
-      # still matches. This list does not change exporter watches or RBAC.
-      matchConditions: []
-      namespaceSelector:
-        matchLabels:
-          karta.run.ai/capture-submitter: "true"
-      resourceRules:
-        - apiGroups: ["apps"]
-          apiVersions: ["v1"]
-          resources: ["deployments"]
-        - apiGroups: ["batch"]
-          apiVersions: ["v1"]
-          resources: ["jobs"]
-        - apiGroups: [""]
-          apiVersions: ["v1"]
-          resources: ["pods"]
-    # Existing advanced configuration remains supported.
-    enabled: false
-    # Additional metadata-only watches; also grant their read RBAC explicitly.
-    resourceKinds: []
-    rules: []
 
   metrics:
     # all, none, or an explicit list. Selected states retain 0/1 samples.
@@ -271,23 +260,31 @@ exporter:
   tolerations: []
   affinity: {}
 
-# Original Kubernetes request principal; independent of exporter extraction.
-# Select only namespaces whose top-level submissions this admission owns.
+# Native API-server capture, independent of the operator and exporter.
+# Requires MAP v1 (Kubernetes 1.36+) or enabled v1beta1 (1.34-1.35), plus VAP v1.
+# UPDATE protection is rendered whenever VAP v1 is served, even with capture off.
+# Protection policies survive Helm uninstall and require administrator removal.
 submitterAdmission:
   enabled: false
-  identitySource: ""
-  # Same native conditions and restrictions as exporter.attribution.admission.
+  matchConstraints:
+    # Empty matches all namespaces. Use labels to narrow capture.
+    namespaceSelector: {}
+    resourceRules:
+      - operations: ["CREATE"]
+        apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        resources: ["deployments"]
+        scope: Namespaced
+      - operations: ["CREATE"]
+        apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        resources: ["jobs"]
+        scope: Namespaced
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        scope: Namespaced
+    excludeResourceRules: []
+  # Native CEL conditions apply only to CREATE capture and validation.
   matchConditions: []
-  namespaceSelector:
-    matchLabels:
-      karta.run.ai/capture-submitter: "true"
-  resourceRules:
-    - apiGroups: ["apps"]
-      apiVersions: ["v1"]
-      resources: ["deployments"]
-    - apiGroups: ["batch"]
-      apiVersions: ["v1"]
-      resources: ["jobs"]
-    - apiGroups: [""]
-      apiVersions: ["v1"]
-      resources: ["pods"]

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
+	"strconv"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -16,13 +16,18 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 )
 
-// Collector observes one current store snapshot per collection.
+type Capturer interface {
+	Capture() store.CapturedView
+}
+
+// Collector formats one immutable publication view per collection.
 type Collector struct {
-	store              *store.Store
-	options            Options
-	podInfo            gauge
-	workloadStatus     gauge
-	observationHealthy gauge
+	store            Capturer
+	options          Options
+	podInfo          gauge
+	workloadStatus   gauge
+	workloadCreated  gauge
+	observationValid gauge
 }
 
 type gauge struct {
@@ -32,10 +37,17 @@ type gauge struct {
 	instrument  metric.Float64ObservableGauge
 }
 
+type workloadKey struct {
+	ref store.WorkloadRef
+	uid types.UID
+}
+
 // New registers the KEP gauges. Unregister before shutting down the provider.
-func New(meter metric.Meter, s *store.Store, options Options) (metric.Registration, error) {
+func New(meter metric.Meter, s Capturer, options Options) (metric.Registration, error) {
 	if options.WorkloadPhases == nil {
 		options.WorkloadPhases = slices.Clone(AllPhases)
+	} else {
+		options.WorkloadPhases = slices.Clone(options.WorkloadPhases)
 	}
 	c := &Collector{
 		store:   s,
@@ -43,20 +55,25 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 		podInfo: gauge{
 			name:        MetricPodWorkloadInfo,
 			description: "Pod attribution to a confirmed workload root. Value is always 1.",
-			labels:      []string{LabelNamespace, LabelWorkload, LabelWorkloadGroup, LabelWorkloadVersion, LabelWorkloadKind, LabelWorkloadUID, LabelOwnerResolution, LabelPod, LabelPodUID, LabelComponent, LabelComponentInstance, LabelReplicaGroupID},
+			labels:      []string{LabelNamespace, LabelWorkload, LabelWorkloadGroup, LabelWorkloadVersion, LabelWorkloadKind, LabelWorkloadUID, LabelOwnerResolution, LabelPod, LabelPodUID, LabelComponent, LabelComponentInstance, LabelReplicaGroupID, LabelObservationValid},
 		},
 		workloadStatus: gauge{
 			name:        MetricWorkloadStatus,
 			description: "Normalized root workload status. Each phase is 0 or 1; several phases can match.",
-			labels:      []string{LabelNamespace, LabelWorkload, LabelWorkloadGroup, LabelWorkloadVersion, LabelWorkloadKind, LabelWorkloadUID, LabelPhase, LabelOwnerResolution, LabelKarta, LabelKartaSource},
+			labels:      []string{LabelNamespace, LabelWorkload, LabelWorkloadGroup, LabelWorkloadVersion, LabelWorkloadKind, LabelWorkloadUID, LabelPhase, LabelOwnerResolution, LabelKarta, LabelKartaSource, LabelObservationValid},
 		},
-		observationHealthy: gauge{
-			name:        MetricExporterObservationHealthy,
-			description: "Fresh verified Karta observation: 1 healthy, otherwise 0. Not application readiness or GPU coverage.",
-			labels:      []string{"scope", LabelNamespace, "group", "version", "kind", LabelWorkload, LabelWorkloadUID, LabelReason},
+		workloadCreated: gauge{
+			name:        MetricWorkloadCreatedTimestamp,
+			description: "Verified root workload creation time in Unix seconds.",
+			labels:      []string{LabelNamespace, LabelWorkload, LabelWorkloadUID},
+		},
+		observationValid: gauge{
+			name:        MetricExporterObservationValid,
+			description: "Resource-type collection validity and known workload failures. Not application readiness.",
+			labels:      []string{"scope", LabelNamespace, LabelResourceGroup, LabelResourceVersion, LabelResourceKind, LabelWorkload, LabelWorkloadUID, LabelReason},
 		},
 	}
-	gauges := []*gauge{&c.podInfo, &c.workloadStatus, &c.observationHealthy}
+	gauges := []*gauge{&c.podInfo, &c.workloadStatus, &c.workloadCreated, &c.observationValid}
 	if options.Identity {
 		c.podInfo.labels = append(c.podInfo.labels, LabelSubmittedBy)
 		c.workloadStatus.labels = append(c.workloadStatus.labels, LabelSubmittedBy)
@@ -76,77 +93,123 @@ func New(meter metric.Meter, s *store.Store, options Options) (metric.Registrati
 }
 
 func (c *Collector) collect(ctx context.Context, observer metric.Observer) error {
-	snapshot := c.store.Snapshot()
-	now := time.Now()
-	var submitters map[types.UID]string
-	if c.options.Identity {
-		submitters = workloadSubmitters(snapshot, now)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	active := make(map[types.UID]*store.WorkloadRecord, len(snapshot.Workloads))
-	seenHealth := make(map[types.UID]bool, len(snapshot.Workloads))
-	for i := range snapshot.Workloads {
-		workload := &snapshot.Workloads[i]
-		if workload.OwnerResolution != "" || workload.OwnerFailure != "" {
-			active[workload.UID] = workload
+	view := c.store.Capture()
+	failures := make(map[workloadKey]string)
+	for _, h := range view.Health {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-	}
-	for _, h := range snapshot.Health {
+		value, reason := h.Status(view.At)
 		if h.Scope == "workload" {
-			if active[h.UID] == nil {
-				continue
+			if value == 0 {
+				key := workloadKey{ref: h.Ref, uid: h.UID}
+				failures[key] = failureReason(failures[key], reason)
 			}
-			seenHealth[h.UID] = true
+			continue
 		}
-		value, reason := h.Status(now)
-		c.observationHealthy.observe(observer, value, h.Scope, h.Ref.Namespace, h.Ref.Group, h.Ref.Version, h.Ref.Kind, h.Ref.Name, string(h.UID), reason)
+		if h.Scope != "resource_type" {
+			continue
+		}
+		if value == 0 {
+			reason = failureReason("", reason)
+		}
+		c.observationValid.observe(observer, value, h.Scope, h.Ref.Namespace, h.Ref.Group, h.Ref.Version, h.Ref.Kind, "", "", reason)
 	}
-	for _, workload := range snapshot.Workloads {
+	for _, publication := range view.Records {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		workload := publication.Workload
 		ref := workload.Ref
-		if active[workload.UID] != nil && !seenHealth[workload.UID] {
-			reason := workload.OwnerFailure
-			if reason == "" {
-				reason = store.ReasonAPIUnavailable
-			}
-			c.observationHealthy.observe(observer, 0, "workload", ref.Namespace, ref.Group, ref.Version, ref.Kind, ref.Name, string(workload.UID), reason)
+		key := workloadKey{ref: ref, uid: workload.UID}
+		for _, reason := range publication.FailureReasons {
+			failures[key] = failureReason(failures[key], reason)
 		}
-		if workload.OwnerResolution == "" || !workload.HasStatus {
-			continue
+		if valid, _ := view.Valid(publication.Creation); valid && workload.CreatedTimestamp != 0 {
+			c.workloadCreated.observe(observer, float64(workload.CreatedTimestamp), ref.Namespace, ref.Name, string(workload.UID))
 		}
-		for _, phase := range c.options.WorkloadPhases {
-			value := 0.0
-			if slices.Contains(workload.Phases, phase) {
-				value = 1
+		submittedBy := ""
+		if c.options.Identity {
+			if valid, _ := view.Valid(publication.Membership); valid {
+				submittedBy = publication.SubmittedBy
 			}
-			values := []string{ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(workload.UID), string(phase), workload.OwnerResolution, workload.Karta, workload.KartaSource}
-			if c.options.Identity {
-				values = append(values, submitters[workload.UID])
+		}
+		if workload.HasStatus {
+			valid, reason := view.Valid(publication.Status)
+			if !valid {
+				failures[key] = failureReason(failures[key], reason)
 			}
-			c.workloadStatus.observe(observer, value, values...)
+			for _, phase := range c.options.WorkloadPhases {
+				value := 0.0
+				if slices.Contains(workload.Phases, phase) {
+					value = 1
+				}
+				values := []string{ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(workload.UID), string(phase), workload.OwnerResolution, workload.Karta, workload.KartaSource, strconv.FormatBool(valid)}
+				if c.options.Identity {
+					identity := ""
+					if valid {
+						identity = submittedBy
+					}
+					values = append(values, identity)
+				}
+				c.workloadStatus.observe(observer, value, values...)
+			}
+		}
+		for _, page := range publication.PodPages {
+			for _, row := range page.Rows {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				pod := row.Record
+				valid, reason := view.Valid(row.Mapping)
+				if !valid {
+					failures[key] = failureReason(failures[key], reason)
+				}
+				podRoot := pod.Workload
+				values := []string{podRoot.Namespace, podRoot.Name, podRoot.Group, podRoot.Version, podRoot.Kind, string(workload.UID), pod.OwnerResolution, pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Replica, strconv.FormatBool(valid)}
+				if c.options.Identity {
+					identity := ""
+					if valid {
+						identity = submittedBy
+					}
+					values = append(values, identity)
+				}
+				c.podInfo.observe(observer, 1, values...)
+			}
 		}
 	}
-	for _, pod := range snapshot.Pods {
+	for key, reason := range failures {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		root := active[pod.WorkloadUID]
-		if pod.OwnerResolution == "" || root == nil || root.OwnerFailure != "" || root.OwnerResolution != pod.OwnerResolution || root.Ref != pod.Workload {
-			continue
+		if reason != "" {
+			c.observationValid.observe(observer, 0, "workload", key.ref.Namespace, key.ref.Group, key.ref.Version, key.ref.Kind, key.ref.Name, string(key.uid), reason)
 		}
-		ref := pod.Workload
-		values := []string{ref.Namespace, ref.Name, ref.Group, ref.Version, ref.Kind, string(pod.WorkloadUID), pod.OwnerResolution, pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Replica}
-		if c.options.Identity {
-			values = append(values, submitters[pod.WorkloadUID])
-		}
-		c.podInfo.observe(observer, 1, values...)
 	}
 	return nil
 }
 
+func failureReason(current, next string) string {
+	reasons := []string{store.ReasonPermissionDenied, store.ReasonAPIUnavailable, store.ReasonInvalidDefinition, store.ReasonUnresolvedOwner, store.ReasonEvaluationFailed}
+	if next == "" || next == store.ReasonNone {
+		return current
+	}
+	if !slices.Contains(reasons, next) {
+		next = store.ReasonAPIUnavailable
+	}
+	for _, reason := range reasons {
+		if reason == current || reason == next {
+			return reason
+		}
+	}
+	return ""
+}
+
 func (g gauge) observe(observer metric.Observer, value float64, values ...string) {
-	var attributes [13]attribute.KeyValue
+	var attributes [14]attribute.KeyValue
 	for i, name := range g.labels {
 		attributes[i] = attribute.String(name, values[i])
 	}

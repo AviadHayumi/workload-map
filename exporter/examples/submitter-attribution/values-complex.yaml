@@ -3,15 +3,15 @@
 
 exporter:
   enabled: true
-  useCatalog: true
-  attribution:
-    admission:
+  kartaDefinitionSource:
+    catalog:
       enabled: true
+  attribution:
     submittedByExpression: |
       (
         [
           "workload.dgxc.nvidia.com/submitter-id",
-          "run.ai/submitted-by",
+          "karta.run.ai/submitted-by",
           "workflow.example.com/submitter",
           "platform.example.com/username",
           "platform.example.com/created-by"
@@ -30,3 +30,10 @@ exporter:
         .map(key, labels[key])
         + [""]
       )[0]
+
+submitterAdmission:
+  enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        karta.run.ai/capture-submitter: "true"

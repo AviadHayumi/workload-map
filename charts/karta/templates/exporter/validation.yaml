@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+{{- if .Values.exporter.enabled -}}
+{{- range $key := list "namespace" "useCatalog" "ports" -}}
+{{- if hasKey $.Values.exporter $key -}}
+{{- fail (printf "exporter.%s is obsolete; use namespaceSelector, kartaDefinitionSource and http.port" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (has .Values.exporter.metricsExporter (list "prometheus" "otlp")) -}}
+{{- fail "exporter.metricsExporter must be prometheus or otlp" -}}
+{{- end -}}
+{{- if eq .Values.exporter.metricsExporter "otlp" -}}
+{{- if .Values.exporter.serviceMonitor.enabled -}}
+{{- fail "exporter.serviceMonitor.enabled must be false in OTLP mode" -}}
+{{- end -}}
+{{- if not (has .Values.exporter.otlp.protocol (list "http/protobuf" "grpc")) -}}
+{{- fail "exporter.otlp.protocol must be http/protobuf or grpc" -}}
+{{- end -}}
+{{- $_ := required "exporter.otlp.endpoint is required in OTLP mode" .Values.exporter.otlp.endpoint -}}
+{{- if ne (empty .Values.exporter.otlp.tls.clientCertSecretRef) (empty .Values.exporter.otlp.tls.clientKeySecretRef) -}}
+{{- fail "exporter.otlp.tls requires both clientCertSecretRef and clientKeySecretRef" -}}
+{{- end -}}
+{{- range $name, $ref := dict "headersSecretRef" .Values.exporter.otlp.headersSecretRef "tls.caSecretRef" .Values.exporter.otlp.tls.caSecretRef "tls.clientCertSecretRef" .Values.exporter.otlp.tls.clientCertSecretRef "tls.clientKeySecretRef" .Values.exporter.otlp.tls.clientKeySecretRef -}}
+{{- if $ref -}}
+{{- $_ := required (printf "exporter.otlp.%s.name is required" $name) $ref.name -}}
+{{- $_ := required (printf "exporter.otlp.%s.key is required" $name) $ref.key -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

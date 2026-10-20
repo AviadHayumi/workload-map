@@ -29,9 +29,17 @@ metadata:
     {{- include "karta.exporter.labels" . | nindent 4 }}
     karta.run.ai/exporter-rbac: "true"
 rules:
-  # Karta definitions drive everything else the exporter watches
+  {{- if .Values.exporter.kartaDefinitionSource.cluster.enabled }}
+  # Read enabled cluster definitions.
   - apiGroups: ["run.ai"]
     resources: ["kartas"]
+    verbs: ["get", "list", "watch"]
+
+  {{- end }}
+
+  # Namespace labels select observation scope.
+  - apiGroups: [""]
+    resources: ["namespaces"]
     verbs: ["get", "list", "watch"]
 
   # Pods are the attribution subject

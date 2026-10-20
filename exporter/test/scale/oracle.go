@@ -21,9 +21,10 @@ type Response struct {
 }
 
 type Counts struct {
-	Status int
-	Health int
-	Pods   int
+	Status  int
+	Created int
+	Health  int
+	Pods    int
 }
 
 func (r *Response) Header() http.Header {
@@ -87,7 +88,7 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 	phases := []string{"Initializing", "Running", "Completed", "Failed", "Degraded", "Suspended", "Suspending", "Resuming", "Undefined"}
 	seenStatus := make([]uint16, f.Case.Workloads)
 	positiveStatus := make([]int, f.Case.Workloads)
-	seenHealth := make([]bool, f.Case.Workloads)
+	seenCreation := make([]bool, f.Case.Workloads)
 	seenPods := make([]bool, f.Case.Workloads*f.Case.Pods)
 	counts := Counts{}
 	scanner := bufio.NewScanner(reader)
@@ -102,7 +103,7 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 			return counts, fmt.Errorf("unexpected exposition line %q", line)
 		}
 		value, err := strconv.ParseFloat(strings.TrimSpace(rest[end+1:]), 64)
-		if err != nil || (value != 0 && value != 1) {
+		if err != nil || (name != "karta_workload_created_timestamp_seconds" && value != 0 && value != 1) {
 			return counts, fmt.Errorf("invalid gauge value in %q", line)
 		}
 		labels := make(map[string]string, 12)
@@ -115,6 +116,13 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 			}
 			labels[key] = val
 		}
+		if name == "karta_exporter_observation_valid" {
+			if len(labels) != 8 || labels["scope"] != "resource_type" || labels["namespace"] != "scale" || labels["resource_group"] != "batch" || labels["resource_version"] != "v1" || labels["resource_kind"] != "Job" || labels["workload_name"] != "" || labels["workload_uid"] != "" || labels["reason"] != "none" || value != 1 || counts.Health != 0 {
+				return counts, fmt.Errorf("incorrect or duplicate type health: %v", labels)
+			}
+			counts.Health++
+			continue
+		}
 		identity, ok := strings.CutPrefix(labels["workload_uid"], "workload-")
 		id, generation, split := strings.Cut(identity, "-v")
 		i, idErr := strconv.Atoi(id)
@@ -122,12 +130,12 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 		if !ok || !split || idErr != nil || generationErr != nil || i < 0 || i >= f.Case.Workloads || !f.Active[i] || g != f.Generation[i] {
 			return counts, fmt.Errorf("unexpected workload identity %q", labels["workload_uid"])
 		}
-		if labels["namespace"] != "scale" || labels["workload"] != "workload-"+id {
+		if labels["namespace"] != "scale" || labels["workload_name"] != "workload-"+id {
 			return counts, fmt.Errorf("incorrect root labels for %q", labels["workload_uid"])
 		}
 		switch name {
 		case "karta_workload_status":
-			if len(labels) != 10 || labels["workload_group"] != "batch" || labels["workload_version"] != "v1" || labels["workload_kind"] != "Job" || labels["owner_resolution"] != "resolved" || labels["karta"] != "scale-job" || labels["karta_source"] != "cluster" {
+			if len(labels) != 11 || labels["observation_valid"] != "true" || labels["workload_group"] != "batch" || labels["workload_version"] != "v1" || labels["workload_kind"] != "Job" || labels["owner_resolution"] != "resolved" || labels["karta"] != "scale-job" || labels["karta_source"] != "cluster" {
 				return counts, fmt.Errorf("incorrect status labels: %v", labels)
 			}
 			phaseIndex := -1
@@ -155,14 +163,14 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 				return counts, fmt.Errorf("wrong phase value for %q: %s=%v", labels["workload_uid"], labels["phase"], value)
 			}
 			counts.Status++
-		case "karta_exporter_observation_healthy":
-			if len(labels) != 8 || labels["group"] != "batch" || labels["version"] != "v1" || labels["kind"] != "Job" || labels["scope"] != "workload" || labels["reason"] != "none" || value != 1 || seenHealth[i] {
-				return counts, fmt.Errorf("incorrect or duplicate health observation: %v", labels)
+		case "karta_workload_created_timestamp_seconds":
+			if len(labels) != 3 || value != 1792324800 || seenCreation[i] {
+				return counts, fmt.Errorf("incorrect or duplicate creation time: %v", labels)
 			}
-			seenHealth[i] = true
-			counts.Health++
+			seenCreation[i] = true
+			counts.Created++
 		case "karta_pod_workload_info":
-			if len(labels) != 12 || labels["workload_group"] != "batch" || labels["workload_version"] != "v1" || labels["workload_kind"] != "Job" || labels["owner_resolution"] != "resolved" || labels["component"] != "worker" || value != 1 {
+			if len(labels) != 13 || labels["observation_valid"] != "true" || labels["workload_group"] != "batch" || labels["workload_version"] != "v1" || labels["workload_kind"] != "Job" || labels["owner_resolution"] != "resolved" || labels["component"] != "worker" || value != 1 {
 				return counts, fmt.Errorf("incorrect Pod labels: %v", labels)
 			}
 			p, err := strconv.Atoi(labels["replica_group_id"])
@@ -170,7 +178,7 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 				return counts, fmt.Errorf("invalid Pod replica %q", labels["replica_group_id"])
 			}
 			podName := fmt.Sprintf("pod-%d-%d", i, p)
-			if labels["pod"] != podName || labels["pod_uid"] != fmt.Sprintf("%s-v%d", podName, g) || labels["component_instance"] != fmt.Sprintf("instance-%d", p%2) || seenPods[i*f.Case.Pods+p] {
+			if labels["pod_name"] != podName || labels["pod_uid"] != fmt.Sprintf("%s-v%d", podName, g) || labels["component_instance"] != fmt.Sprintf("instance-%d", p%2) || seenPods[i*f.Case.Pods+p] {
 				return counts, fmt.Errorf("incorrect or duplicate Pod identity: %v", labels)
 			}
 			seenPods[i*f.Case.Pods+p] = true
@@ -182,12 +190,15 @@ func (f *Fixture) Verify(reader io.Reader, allowEitherPhase bool) (Counts, error
 	if err := scanner.Err(); err != nil {
 		return counts, err
 	}
+	if counts.Health != 1 {
+		return counts, fmt.Errorf("missing resource-type health")
+	}
 	for i, active := range f.Active {
 		if !active {
 			continue
 		}
-		if seenStatus[i] != (1<<len(phases))-1 || positiveStatus[i] != 1 || !seenHealth[i] {
-			return counts, fmt.Errorf("missing dense status or health for workload %d", i)
+		if seenStatus[i] != (1<<len(phases))-1 || positiveStatus[i] != 1 || !seenCreation[i] {
+			return counts, fmt.Errorf("missing dense status or creation for workload %d", i)
 		}
 		for p := range f.Case.Pods {
 			if !seenPods[i*f.Case.Pods+p] {
