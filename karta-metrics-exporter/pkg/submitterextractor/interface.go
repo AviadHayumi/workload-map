@@ -11,9 +11,9 @@ import (
 )
 
 type Interface interface {
-	Evaluate(context.Context, metav1.Object, schema.GroupVersionKind) (Result, error)
+	Evaluate(context.Context, metav1.Object, schema.GroupVersionKind) (Submitter, error)
 }
 
-type Result struct {
-	Value string
+type Submitter struct {
+	Identity string
 }
