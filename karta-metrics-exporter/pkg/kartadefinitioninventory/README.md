@@ -12,8 +12,9 @@ Source failure must not appear as absence or trigger a fallback selection.
 
 `Definition` uses the existing SDK Karta API type.
 `Origin` records the catalog or cluster source and its identity.
-`Origin.Revision` is a source resourceVersion or catalog content digest.
-`Selection.Revision` is the local selection revision, including confirmed absence.
+For cluster definitions, `UID` and `ResourceVersion` come from the Karta object.
+Catalog definitions use source and name; `UID` and `ResourceVersion` are empty.
+The catalog is bundled with the SDK. Updating it requires a new SDK version.
 Returned selections and definitions are caller-owned snapshots.
 
 Constructors, mutation, filtering, preparation and caches remain under design.

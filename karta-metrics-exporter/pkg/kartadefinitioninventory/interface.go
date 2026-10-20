@@ -18,14 +18,13 @@ type Selection struct {
 	Definition *v1alpha1.Karta
 	GVK        schema.GroupVersionKind
 	Origin     Origin
-	Revision   uint64
 }
 
 type Origin struct {
-	Source   Source
-	Name     string
-	UID      types.UID
-	Revision string
+	Source          Source
+	Name            string
+	UID             types.UID
+	ResourceVersion string
 }
 
 type Source string
