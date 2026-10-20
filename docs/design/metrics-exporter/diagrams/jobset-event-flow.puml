@@ -1,0 +1,106 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 14
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 14
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 12
+    FontColor #424242
+}
+
+skinparam shadowing false
+skinparam ParticipantPadding 12
+skinparam BoxPadding 10
+skinparam maxMessageSize 190
+skinparam sequenceMessageAlign center
+hide footbox
+
+title JobSet train: from Pod event to metrics
+
+participant "Kubernetes\nAPI + watches" as K #4263EB
+box "Exporter - one process" #F4F7FA
+participant "Controller\nqueue + verification" as C
+participant "Discovery\nowner traversal" as D
+participant "Inventory +\nKarta library" as L
+participant "Published records\n+ OTel adapter" as P
+end box
+
+note over K,P #FFF9DB
+Illustrative execution of the local PoC, not a live-cluster trace.
+The catalog JobSet Karta supplies component, instance and replica selectors.
+end note
+
+== A. Observe a Pod before its parent ==
+K -[#4263EB]> C : Pod workers-2-0 observed
+C -> D : Upsert Pod\nResolve(Pod)
+D --> C : ErrPending\nno usable root
+C -> K : Ensure Job / owner watch coverage
+note over C,D #FFF9DB
+The call ends. The queue retries after a dependency changes.
+No guessed root is published.
+end note
+
+== B. Accept parents, then retry ==
+K -[#4263EB]> C : Job workers-2 + JobSet train observed
+C -> D : Upsert parents\naccept watch sync
+D --> C : Affected Pod key
+C -> D : Resolve(Pod) again
+D -> D : Resolve owners\nPod -> Job -> JobSet
+D -> L : Select root definition
+L --> D : Selection + origin
+D --> C : JobSet train + optional\nKartaWorkload
+
+== C. Interpret and verify the candidate ==
+C -> D : KartaWorkload:\nPodMapping + Status
+D -> L : Evaluate captured definition
+L --> D : component: replicatedjob\ninstance: workers\ngroup: 2
+D --> C : Mapping + status
+C -> C : Run separate submitter CEL\non root + member Pods
+C -> C : Prepare candidate identity\nfrom root + Pod values
+C -> K : Fresh paginated LISTs:\nverify UID/RV + all Pod membership
+K --> C : Matching objects + complete membership
+C -> C : Recheck inputs + scope\nand accept submitter agreement
+note over C,P #FFF9DB
+Accept only if the candidate still matches those inputs.
+Otherwise retry. Do not publish a mixed candidate.
+end note
+C -[#0CA678]> P : Atomic accept: records\n+ evidence
+
+== D. Collect the accepted view ==
+P -[#0CA678]> P : Collect snapshot\napply expiry\nemit gauges
+note over K,P #E6FCF5
+Metric collection performs no API reads, owner walks, JQ, or CEL.
+The configured reader serves Prometheus or exports to an OTLP receiver.
+end note
+legend bottom
+|<#E7F0FF> Blue | observed Kubernetes events |
+| Gray | calls and returned results |
+|<#E6FCF5> Green | accepted state and metric collection |
+endlegend
+@enduml
