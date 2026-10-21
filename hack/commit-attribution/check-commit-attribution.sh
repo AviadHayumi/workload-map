@@ -11,12 +11,14 @@ if [[ $# -ne 2 ]]; then
 fi
 
 head=$(git rev-parse --verify --end-of-options "$2^{commit}")
-revision_range=$head
-# A new branch push has no previous tip; check all reachable commits.
-if [[ $1 != 0000000000000000000000000000000000000000 ]]; then
+if [[ $1 == 0000000000000000000000000000000000000000 ]]; then
+  # A new release branch inherits history that predates this policy.
+  # Check only commits not already reachable from the default branch.
+  base=$(git rev-parse --verify --end-of-options "${COMMIT_DEFAULT_BRANCH:-refs/remotes/origin/main}^{commit}")
+else
   base=$(git rev-parse --verify --end-of-options "$1^{commit}")
-  revision_range="$base..$head"
 fi
+revision_range="$base..$head"
 commits=$(git rev-list --reverse "$revision_range")
 
 status=0
