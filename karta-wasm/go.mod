@@ -1,9 +1,9 @@
 module github.com/dsx-ai-factory/workload-map/karta-wasm
 
-go 1.26.8
+go 1.27.3
 
 require (
-	github.com/dsx-ai-factory/workload-map v0.0.0
+	github.com/dsx-ai-factory/workload-map/karta/sdk v0.0.0
 	k8s.io/apimachinery v0.37.1
 )
 
@@ -20,8 +20,8 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.37.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
@@ -32,4 +32,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
-replace github.com/dsx-ai-factory/workload-map => ../
+replace github.com/dsx-ai-factory/workload-map/karta/sdk => ../karta/sdk
