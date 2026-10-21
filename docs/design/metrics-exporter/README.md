@@ -3,177 +3,231 @@
 
 # Karta metrics exporter: implementation design
 
-- Status: implementation design, with a local PoC
+- Status: implementation design for the current PoC
 - Author: @AviadHayumi
-- Updated: 2026-10-20
 - Public contract: [KEP-0001][kep] and [Helm configuration][configuration]
 
-## One Pod, four coordinates
+## From one Pod to workload metrics
 
-Resource exporters report CPU, memory and GPU measurements for Pods. The Karta exporter supplies the workload identity needed to group those measurements. It also reports workload status, including workloads with no Pods.
+JobSet `train` in namespace `team-a` declares `leader` with one replica and `workers` with two.
+Each Job creates one Pod in this example. Following a Pod's owner references
+through its Job leads to the root JobSet.
 
-Consider the [JobSet quickstart](../../examples/quickstart/jobset.yaml). Its root declares these named instances. Job templates are omitted:
+![JobSet train owns three Jobs and their Pods. The highlighted Pod's labels determine its Karta mapping, while the JobSet condition determines workload status.](./jobset-pod-attribution.png)
 
-```yaml
-apiVersion: jobset.x-k8s.io/v1alpha2
-kind: JobSet
-metadata:
-  name: train
-spec:
-  replicatedJobs:
-    - name: leader
-      replicas: 1
-    - name: workers
-      replicas: 4
-```
-
-A Pod in worker Job `2` has this metadata:
+The exporter passes the root JobSet and the highlighted Pod to the Karta SDK.
+This fragment is from `spec.structureDefinition` in the JobSet Karta:
 
 ```yaml
-metadata:
-  name: train-workers-2-0
-  labels:
-    jobset.sigs.k8s.io/replicatedjob-name: workers
-    jobset.sigs.k8s.io/job-index: "2"
+childComponents:
+  - name: replicatedjob
+    specDefinition:
+      podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
+    instanceIdPath: .spec.replicatedJobs[].name
+    podSelector:
+      componentInstanceSelector:
+        idPath: '.metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]'
+      replicaSelector:
+        keyPath: '.metadata.labels["jobset.sigs.k8s.io/job-index"]'
 ```
 
-The objects carry this controller-owner chain. UIDs are shortened here:
+The Karta field determines which object the expression reads.
+`podTemplateSpecPath` and `instanceIdPath` read the root JobSet.
+Paths under `podSelector` read the Pod being mapped.
 
-| Object | UID | Controller owner reference |
-| --- | --- | --- |
-| Pod `train-workers-2-0` | `pod-uid` | Job `train-workers-2`, UID `job-uid`. |
-| Job `train-workers-2` | `job-uid` | JobSet `train`, UID `jobset-uid`. |
-| JobSet `train` | `jobset-uid` | None. |
+For Pod `train-workers-1-0`:
 
-Discovery verifies each reference against the observed object. It then selects the root's JobSet Karta. The catalog definition already contains all three selectors needed by this example:
+1. Component: `replicatedjob` is the only component with a Pod template, so the SDK selects it. No component label is needed on the Pod.
 
-```yaml
-name: replicatedjob
-instanceIdPath: .spec.replicatedJobs[].name
-podSelector:
-  componentInstanceSelector:
-    idPath: '.metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]'
-  replicaSelector:
-    keyPath: '.metadata.labels["jobset.sigs.k8s.io/job-index"]'
+   <details>
+   <summary>When a Karta has several child components</summary>
+
+   The Karta defines which Pod field to read and what value to match. These are the relevant selectors from the PyTorchJob Karta:
+
+   ```yaml
+   childComponents:
+     - name: master
+       podSelector:
+         componentTypeSelector:
+           keyPath: '.metadata.labels["training.kubeflow.org/replica-type"]'
+           value: master
+     - name: worker
+       podSelector:
+         componentTypeSelector:
+           keyPath: '.metadata.labels["training.kubeflow.org/replica-type"]'
+           value: worker
+   ```
+
+   For a Pod whose `training.kubeflow.org/replica-type` label is `worker`:
+
+   - The `master` selector does not match: `worker != master`.
+   - The `worker` selector matches: `worker == worker`.
+   - The SDK returns the matching component's `name`: `component="worker"`.
+
+   Matching uses the selector's `value`, not the component name. The Karta author selects the exact label or annotation in `keyPath`, which the SDK reads from the Pod using JQ.
+
+   If selectors overlap, the first match wins. If none match, mapping fails.
+
+   </details>
+
+2. Instance: the SDK compares the value read from the Pod with the instance names read from the JobSet:
+
+   ```text
+   JobSet instance names:                 ["leader", "workers"]
+   Pod's replicatedjob-name label:        "workers"
+   Exact match:                          "workers" == "workers"
+   Result:                               component_instance="workers"
+   ```
+
+   A Pod labeled `leader` matches `leader` instead. A value outside the JobSet's instance names fails the mapping.
+3. Replica group: `replicaSelector.keyPath` reads `1` from the Pod's `job-index` label. That becomes replica group `1`.
+
+Status is evaluated on the root JobSet. Its `Completed=True` condition matches
+Karta's `Completed` status rule.
+
+These results produce two metrics. Selected labels and the matching phase are shown:
+
+```prometheus
+karta_pod_workload_info{workload_name="train",pod_name="train-workers-1-0",component="replicatedjob",component_instance="workers",replica_group_id="1"} 1
+karta_workload_status{workload_name="train",phase="Completed"} 1
 ```
+## Controller and startup
 
-Discovery uses the existing Karta library. `jobSet` is the full root object. `pod` is the full Pod. These calls show the JobSet mapping; error handling is omitted:
-
-```go
-factory := resource.NewComponentFactoryFromObject(karta, jobSet)
-summary, _ := instructions.NewStructureSummary(karta)
-query := resource.NewPodQuerier(pod)
-
-name, _ := instructions.InferPodComponent(ctx, query, summary)
-// "replicatedjob"
-instance, _ := instructions.InferPodComponentInstance(ctx, query, name, factory)
-// pointer to "workers"
-component, _ := factory.GetComponent(name)
-group, _, _ := query.ExtractReplicaKey(ctx, component.GetPodSelector().ReplicaSelector)
-// "2"
-```
-
-Component inference selects `replicatedjob`, JobSet's only Pod-producing component. Instance inference reads the declared names from the JobSet and matches the Pod's instance label against them. Replica extraction reads the group label from the Pod.
-
-| Coordinate | Result |
-| --- | --- |
-| Workload | JobSet `train`, with its verified UID. |
-| Component | `replicatedjob`. |
-| Named instance | `workers`. |
-| Replica group | `2`. |
-
-The Pod name determines none of these values. A definition without a replica selector produces an empty group. The SDK treats the group as a key; it does not check it against replica counts. Missing or undeclared required instances are evaluation errors.
-
-## Ownership before interpretation
-
-A selected Karta never stops the controller-owner walk. A LeaderWorkerSet worker can have this chain:
-
-```text
-worker Pod -> worker StatefulSet -> leader Pod -> leader StatefulSet -> LeaderWorkerSet
-```
-
-The root remains LeaderWorkerSet even if only StatefulSet has a Karta. Karta lookup uses the resolved root's group and kind. Definitions for intermediate owners are not evaluated.
-
-Every owner read from the informer store must match the reference UID. Cycles, multiple controller owners and incomplete paths fail resolution.
-
-A missing owner in a synchronized cache returns `ErrUnresolvedOwner`. It does not prove the owner is absent from the API server. Separate watches may deliver the Pod first. The parent event retries its waiting children; no root is invented during that gap.
-
-Only `ignoredOwnerKinds` creates an intentional boundary. It matches the next owner reference's exact group, version and kind before reading it from the informer store. A different API version does not match the ignore entry. The last verified object below that boundary becomes the root with `owner_resolution="ignored_owner"`. No owners are ignored by default. A missing or denied owner below the boundary still fails.
-
-For the LWS chain above:
-
-```yaml
-exporter:
-  ignoredOwnerKinds:
-    - leaderworkerset.x-k8s.io/v1/LeaderWorkerSet
-```
-
-The walk stops at the leader StatefulSet, directly below LeaderWorkerSet. That StatefulSet becomes the generic root. Its Karta, if selected, supplies interpretation. The worker StatefulSet does not become the root just because it has a Karta.
-
-Ignoring LWS changes this traversal, not selection of the LWS object itself. A selected LWS can still emit its own status and creation time while its Pods belong to the StatefulSet root. Use root exclusion rules to remove that independent LWS output.
-
-If no Karta is selected for the resolved root, the result is a valid generic workload. Pod identity uses the verified root, component and instance are `<unknown>`, and group is empty. Creation time remains available; status does not.
-
-Bare Pods require a selected core Pod Karta. The catalog contains `core-pod-v1`, excluded by default. Clearing that exclusion selects its interpretation: component `pod`, empty instance and group, and status from the Pod. A selected cluster Pod Karta instead supplies its own interpretation. The controller suppresses Pod-info, status and creation rows for a Pod root without a selected Pod Karta. This also applies when an ignored owner makes the Pod the root. Resource-type health remains independent.
-
-Root selection applies after ownership resolution. With a Karta, resource rules match the selected definition's API version and its mapped resource. Without one, each observed root representation is checked separately. Each generic Pod row requires its verified owner version to pass. Changing a definition's version can therefore change output scope. `<unknown>` is the defined generic coordinate, not a guessed value after ownership failure. Excluding a root does not promote its child.
-
-Parents can arrive after their Pods. Until the required watch synchronizes, resolution is pending. Once synchronized, a missing parent is an unresolved owner. A reported denial, timeout or watch failure is never hidden as pending.
-
-![A Pod waits for its parents, then shares the verified JobSet path with a sibling.](./ownership-traversal.png)
-
-## Component selection and status
-
-LeaderWorkerSet illustrates a different rule. Its Karta has a logical `group` containing Pod-producing `leader` and `worker` components. The group has no Pod template and is not a Kubernetes object.
-
-| Definition field | Evaluator input | Result |
-| --- | --- | --- |
-| Leader component type selector | Pod label `worker-index="0"`. | Component `leader`. |
-| Worker component type selector | Pod annotation `leader-name` exists. | Component `worker`. |
-| Group replica selector | Same Pod's `group-index="2"` label. | Group `2`. |
-| Root status expression | Full LeaderWorkerSet object. | Positive `.status.replicas`, with equal ready and updated replica counts, matches `Running`. |
-
-For example, this worker Pod produces component `worker`, an empty instance and group `2`:
-
-```yaml
-metadata:
-  labels:
-    leaderworkerset.sigs.k8s.io/worker-index: "1"
-    leaderworkerset.sigs.k8s.io/group-index: "2"
-  annotations:
-    leaderworkerset.sigs.k8s.io/leader-name: leader-2
-```
-
-The table uses shortened keys; all have the same prefix shown above. A nonzero worker index alone does not select the worker component.
-
-The exporter calls `instructions.InferPodComponent` with the SDK structure summary. Only components with a Pod definition are candidates. Candidates follow SDK order: the root component, then child components in definition order. With several candidates, the first matching component type selector wins. With one, the SDK selects it directly. Zero candidates or no matching selector returns `ErrEvaluation` for mapping. Root status remains independent. It then calls `InferPodComponentInstance`. LWS has no named instance, so the exported instance is empty.
-
-Replica selection starts at the selected component. It then visits Karta parent components through the definition's `ownerRef` field. These are logical component links, unrelated to Kubernetes `ownerReferences`.
-
-The nearest selector with a nonempty key path wins. It evaluates that path on the same Pod. An extraction error stops mapping; it does not fall back to an ancestor. With no configured path anywhere, group is empty. For LWS, the path comes from logical component `group` and applies to leader and worker Pods. Discovery owns this traversal and uses the SDK to extract the selected key.
-
-Status uses the root component's `GetStatus(ctx)` independently of Pod mapping. No status definition returns no status. Successful rules with no match return `Undefined`; several phases may match. An expression error returns an error, never `Undefined`. Status failure does not invalidate independently verified creation metadata or successful Pod mapping. Scale extraction is unnecessary.
-
-## Responsibilities and data
-
-![Controller, discovery, submitter and OpenTelemetry responsibilities.](./exporter-component-flow.png)
-
-The local PoC connects these components in one exporter process. [Behavior checks](./behavior-checks.md) distinguish component tests, connected Kind tests and scale measurements:
+One process runs the controller, inventory and telemetry. `controller.Runtime` is the Go struct that implements the exporter controller.
 
 | Component | Responsibility |
 | --- | --- |
-| Controller | Watches, workqueue, scope, fresh API verification, submitter agreement and publication. |
-| Discovery | Controller-owner tree, root resolution, selected Karta interpretation and evaluation caches. |
-| Definition inventory | Concurrent lookup of the selected definition and its origin. |
-| Submitter | Compiled CEL evaluated on one object's metadata. |
-| OTel adapter | Format one captured publication view into four metric families. |
+| `Runtime` | Watches resources, queues changes, verifies API objects and publishes results. Owns scope, Pod associations and the workqueue. |
+| `Discovery` | Follows the UID ownership graph and evaluates the selected Karta. Caches calculations. |
+| Definition inventory | Selects a catalog or cluster Karta. Owns a separate cluster-Karta watch. |
+| Submitter extractor | Evaluates one object's metadata with compiled CEL. Keeps a bounded cache of successful results. |
+| Publication store | Keeps immutable results per root UID, including Pod rows and verification state. |
+| Collector and telemetry | Turns one store snapshot into samples through OTel instruments and a metric reader. |
 
-Discovery reads existing informer stores. It starts no watches and performs no API calls. The controller owns watch registration and explicit verification reads. Full objects remain in informer stores; the ownership tree stores compact identity and owner facts.
+![Controller, discovery, submitter and OpenTelemetry responsibilities.](./exporter-component-flow.png)
 
-The core is a reusable `Discovery` struct. The controller supplies observed objects and a cache reader. The inventory is its replaceable definition lookup dependency.
+### Construct and run
+
+[`exporter/cmd/main.go`](../../../exporter/cmd/main.go) constructs dynamic and metadata clients and a REST mapper from GVK to LIST/WATCH resource.
+
+The components receive these settings:
+
+- `definitionOptions` selects Kartas. The inventory and `runtimeOptions.Definitions` use the same options.
+- `ignoredOwners` lists the owner GVKs where discovery should stop.
+- `submittedByExpression` is the configured CEL expression. When extraction is disabled, `submitter` is nil.
+- `provider` sends metrics through the selected OTel reader. `metricOptions` selects phases and the optional identity label.
 
 ```go
-// Core dependencies; private cache and revision fields are omitted.
+inventory, err := kartadefinitioninventory.New(client, definitionOptions)
+if err != nil {
+    return err
+}
+submitter, err := submitterextractor.New(submittedByExpression)
+if err != nil {
+    return err
+}
+reader := controller.NewInformerReader()
+discovery := workloaddiscovery.New(reader, inventory, ignoredOwners...)
+metricsStore := store.New()
+
+runtime, err := controller.NewRuntime(
+    client, metadataClient, mapper,
+    reader, discovery, inventory, submitter, metricsStore,
+    runtimeOptions,
+)
+if err != nil {
+    return err
+}
+registration, err := collector.New(
+    provider.Meter("karta-exporter"), metricsStore, metricOptions,
+)
+if err != nil {
+    return err
+}
+
+results := make(chan error, 2)
+go func() { results <- inventory.Run(ctx) }()
+go func() { results <- runtime.Run(ctx) }()
+```
+
+`InformerReader` lets discovery read cached Kubernetes objects. The controller starts Pod and configured resource watches, then adds missing owner kinds as discovery finds them.
+
+The exporter exits before starting watches if its configuration or enabled submitter CEL is invalid. It shuts down gracefully.
+
+### From Pod to workload
+
+This example follows `Pod -> Job -> JobSet`. Only the JobSet Karta is selected.
+
+| Watch | Starts when | Cached data |
+| --- | --- | --- |
+| Pods | Exporter starts | Full objects |
+| JobSets | JobSet Karta is selected | Full objects |
+| Jobs | A Pod names a Job owner | Metadata only |
+
+Complete objects include metadata, spec and status. Kinds with a selected Karta are cached in full.
+
+Status is evaluated only on a resolved root with a selected Karta. For `Pod -> ReplicaSet -> Deployment`, that is the Deployment. A ReplicaSet Karta is not applied while the ReplicaSet is an intermediate owner.
+
+![The Job callback allows ownership resolution before the whole watch finishes loading.](./owner-arrival-resolution.png)
+
+An owner watch is added through this flow:
+
+1. The Pod informer sends an add or update event. The controller calls `Discovery.Upsert` with the Pod's reference and owners.
+2. The Pod names a Job as its owner, but Jobs are not watched yet. Discovery still records `Job UID -> Pod UID` in `children`. It returns the Job's GVK and namespace in `ChangeSet.MissingCoverage` so the controller can start that watch.
+3. The controller queues that request. When it processes the request, it starts or reuses a shared Job metadata informer for the namespace.
+4. The initial Job list delivers `train-workers-1`. The controller calls `Discovery.Upsert`. Discovery reads `children[job-uid]` and includes Pod `train-workers-1-0` in `ChangeSet.Objects`. The controller queues that Pod again.
+5. The controller retries `Resolve`. Once every owner in the Pod's path has arrived on its current watch, resolution returns the JobSet root. Other Jobs can still be loading.
+6. The controller waits until the initial objects are cached and their add callbacks have run. It checks `informer.HasSynced` and `registration.HasSynced`, then calls `Discovery.CoverageChanged` to retry subtree traversal and Pod mapping. Pod metrics publish after verification.
+
+During startup, one Pod may arrive before another in the same workload. Waiting avoids treating that partial set as the whole workload. The current PoC also delays individual Pod mapping, even when that Pod's inputs are already present.
+
+The exporter is still eventually consistent. Related watches can deliver changes at different times. Initial synchronization does not replace API verification.
+
+If Kubernetes cannot serve or read the required kind, ownership remains unresolved.
+
+### Scope and readiness
+
+The [configuration guide][configuration] defines all settings. Defaults are:
+
+| Setting | Default and effect |
+| --- | --- |
+| `namespaceSelector` | All namespaces. Limits namespaced watches. |
+| `objectSelector`, `resourceRules`, `excludeResourceRules` | No root filter. Exclusions win after ownership resolution. |
+| `podSelector` | All Pods. Controls emitted Pod rows. Hidden Pods remain observed. |
+| Definition sources | Cluster enabled, catalog disabled. Catalog excludes `core-pod-v1`. |
+| `ignoredOwnerKinds`, `requiredKinds` | Empty. Set traversal boundaries and resource kinds required for readiness. |
+
+Workload filters apply after ownership resolution, so intermediate kinds still need read permissions without an explicit discovery entry. Excluding a root removes its output. Its children do not become replacement roots.
+
+Resource rules use the selected Karta's API version, or each observed version separately when no Karta exists. Namespace and workload scope exits remove rows. A failed scope refresh cannot add workloads.
+
+`/healthz` reports process health. `/readyz` requires current configuration and source verification and synchronized Pod and required-kind watches, without waiting for every workload calculation. A failed kind invalidates dependent results. Required kinds also fail readiness, even when traversal ignores them. Optional kinds leave unrelated workloads running.
+
+## How the controller handles a Pod
+
+After `Resolve` returns the root, the controller associates the Pod UID with that root UID and queues the root.
+
+The root worker applies workload filters, evaluates status and maps its Pods using the selected Karta. It also runs the submitter extractor when enabled.
+
+Before publishing, the controller checks that the objects, owners, definition and scope still match the calculation. Status, creation time and each Pod mapping publish after their own API checks succeed.
+
+Evaluation and verification run separately on one rate-limited queue, alongside object and membership work. Repeated keys combine, and workers read current state when they start. Events queue verification immediately, while periodic checks keep it running between events.
+
+Verification shares complete API LISTs across workloads in a namespace and resource. Inputs must match UID and resourceVersion in the same API version. These reads detect stale cached objects. The local input checks reject work overtaken during calculation. Membership also needs complete Pod LISTs and verified owner paths, because checking only known Pods could miss a new member.
+
+Every accepted Job update with a new `resourceVersion` queues its descendant Pods for `Resolve`, even when its owners are unchanged. Duplicate callbacks for the same object version and watch run are ignored. A root change queues status and dependent Pod mappings. Deletion removes the UID and retries surviving dependents. When a Pod moves to another root, the controller removes the old association before publishing the new one.
+
+## Resolve ownership, then interpret the root
+
+Watch logic, scope and readiness stay in the controller. Discovery receives an `InformerReader` and uses it to read cached objects.
+
+The controller sends object changes to one `Discovery` through `Upsert` and `Delete`. Watch and definition changes use `CoverageChanged` and `DefinitionChanged`. Each returns a `ChangeSet` with affected objects, roots to reconcile and missing watches.
+
+`Resolve(ctx, podRef)` reads the current cached state and returns a workload or an error. It does not start watches or wait for missing owners. If a required owner has not arrived while its watch is loading, it returns `ErrPending`. The exporter controller retries as watch events arrive.
+
+A selected Karta supplies `Status` and `PodMapping`. These operations share Discovery's references and ownership graph:
+
+```go
 type Discovery struct {
     mu        sync.RWMutex
     reader    CachedReader
@@ -193,19 +247,6 @@ type ObjectRef struct {
     ResourceVersion string
 }
 
-func New(CachedReader, kartadefinitioninventory.Interface,
-    ...schema.GroupVersionKind) *Discovery
-
-func (d *Discovery) Resolve(context.Context, ObjectRef) (GenericWorkload, error)
-func (d *Discovery) NewEvaluationBatch() EvaluationBatch
-func (d *Discovery) IsCurrent(...CapturedState) bool
-```
-
-The optional GVKs passed to `New` are ignored-owner boundaries. They do not select Kartas.
-
-The ownership tree is stored in maps keyed by UID. These are the relevant fields from the implementation; cache and revision fields are omitted:
-
-```go
 type OwnershipIndex struct {
     nodes    map[types.UID]*OwnerNode
     children map[types.UID]map[types.UID]struct{}
@@ -218,51 +259,31 @@ type OwnerNode struct {
 }
 ```
 
-An `observation` contains the object reference, controller-owner references and watch generation. Several API representations can belong to one UID. Disagreement between their owners invalidates the path. Event arrival order does not choose a parent.
+`nodes` indexes objects by UID, so siblings share their ancestors. `children` finds descendants affected by an owner change, including children received before their parent. `byKind` finds objects affected by Karta changes. Pods can be parents too.
 
-Reverse child links let an owner update find its affected descendants. A missing parent can be represented by a child link before that parent arrives. Pods can also be parents, as in LeaderWorkerSet.
+An `observation` records the reference, controller owners and source watch while full objects stay in informers. Each resolution walks the shared graph without caching a complete path, so siblings still traverse their common ancestors. Conflicting owners for one UID across API versions fail resolution.
 
-The controller feeds accepted events to the same `Discovery` instance:
+### Follow controller owners
 
-```go
-func (d *Discovery) Upsert(ObservedObject) ChangeSet
-func (d *Discovery) Delete(ObjectRef) ChangeSet
-func (d *Discovery) CoverageChanged(CoverageChange) ChangeSet
-func (d *Discovery) DefinitionChanged(schema.GroupKind) ChangeSet
+Discovery follows controller owners and checks parent UIDs. After the required watch initializes, a missing parent returns `ErrUnresolvedOwner`. Wrong UIDs, cycles and multiple controller owners return the same error. An unreadable parent cannot become a root boundary. Cache absence alone cannot confirm deletion.
 
-type ObservedObject struct {
-    Ref      ObjectRef
-    Owners   []metav1.OwnerReference
-    WatchKey CoverageKey
-    Run      uint64
-}
+![A Pod waits for parent coverage, then shares the ownership graph with a sibling.](./ownership-traversal.png)
 
-type CoverageKey struct {
-    Resource  schema.GroupVersionResource
-    Namespace string
-}
+Traversal continues past an owner that has a Karta:
 
-type CoverageChange struct {
-    Key        CoverageKey
-    Run        uint64
-    FullObject bool
-    Ready      bool
-    Removed    bool
-    Err        error
-}
+```text
+worker Pod -> worker StatefulSet -> leader Pod -> leader StatefulSet -> LeaderWorkerSet
 ```
 
-`Run` identifies one watch lifetime. The controller assigns a new value when it replaces a watch. It is carried by the observation, not `ObjectRef`.
+LeaderWorkerSet is the root even if only StatefulSet has a Karta. Discovery does not evaluate intermediate definitions.
 
-`Upsert` updates owner edges. `Delete` removes only the supplied UID. `CoverageChanged` invalidates paths that depend on the changed watch. `DefinitionChanged` invalidates interpretation for the root group/kind.
+With `leaderworkerset.x-k8s.io/v1/LeaderWorkerSet` in `ignoredOwnerKinds`, Discovery stops before reading that owner. The leader StatefulSet becomes the root and gets `owner_resolution="ignored_owner"`. The path below that boundary must still resolve.
 
-Each returns a `ChangeSet`:
+Ignoring this ownership edge does not filter out the LWS object itself. If it has a selected Karta, the exporter can still report its status and creation time.
 
-- `Objects` identifies changed objects and affected descendants. Their dependent results must be checked again.
-- `Roots` identifies workloads needing reconciliation. An unchanged root is not invalid merely because its Pod changed.
-- `MissingCoverage` names the GVK, namespace and whether full objects are required. The controller starts that watch and retries.
+### Return the root and its interpretation
 
-`GenericWorkload` exposes the input-to-root `Path` and `Resolution` fields. `Resolution` is `resolved` or `ignored_owner`. Its root and captured state have accessors. `KartaWorkload` adds the selected definition and SDK evaluation:
+`Resolve` returns a `GenericWorkload` with the root and the path from the starting object. If the root has a selected Karta, `KartaWorkload()` returns a handle that evaluates the same root using that definition.
 
 ```go
 type GenericWorkload struct {
@@ -279,70 +300,33 @@ type KartaWorkload struct {
     discovery *Discovery
     state     CapturedState
 }
-
-func (w GenericWorkload) Root() ObjectRef
-func (w GenericWorkload) KartaWorkload() *KartaWorkload
-func (w GenericWorkload) State() CapturedState
-func (w GenericWorkload) Walk(
-    context.Context, func(ObjectRef, *ObjectRef) error,
-) (CapturedState, error)
-
-func (w *KartaWorkload) Status(context.Context, EvaluationBatch) (StatusResult, error)
-func (w *KartaWorkload) PodMapping(context.Context, *corev1.Pod, EvaluationBatch) (PodMapping, error)
-
-type StatusResult struct {
-    Defined bool
-    Matched []v1alpha1.ResourceStatus
-    state   CapturedState
-}
-
-type PodMapping struct {
-    Component string
-    Instance  string
-    Group     string
-    state     CapturedState
-}
 ```
 
-Both results expose `State()`. `CapturedState` is an opaque token for the local inputs used by a calculation. A zero token is invalid. `IsCurrent` checks those inputs before publication. It does not replace fresh API verification.
-
-`EvaluationBatch` shares SDK preparation and root calculations across sibling Pods in one round. It has no public configuration.
-
-`Resolve` selects the Karta once. `KartaWorkload()` returns that interpretation, or nil for confirmed absence. The handle never silently switches definitions. The JobSet result is:
+For the JobSet example, the result is:
 
 ```text
-GenericWorkload
-  Root(): JobSet team-a/train, UID jobset-uid
-  Path: [Pod train-workers-2-0, Job train-workers-2, JobSet train]
-  Resolution: resolved
-
-PodMapping: {Component: replicatedjob, Instance: workers, Group: "2"}
+GenericWorkload.Root(): JobSet team-a/train, UID jobset-uid
+GenericWorkload.Path: [Pod train-workers-1-0, Job train-workers-1, JobSet train]
+GenericWorkload.Resolution: resolved
+GenericWorkload.KartaWorkload(): selected JobSet interpretation
 ```
 
-The controller calls `Resolve(ctx, podRef)` first. On success, it checks `KartaWorkload()`. A nil result means confirmed absence of a definition, subject to the Pod-root opt-in described above.
+`OwnerResolution` is a string enum with successful values `resolved` and `ignored_owner`. `CapturedState` records the inputs so `Discovery.IsCurrent` can detect changes during calculation. The handle keeps a definition snapshot, so definition changes require resolution again. `Walk` visits the root and observed descendants, but complete Pod membership still requires the controller's check.
 
-For a selected definition, it calls `Status(ctx, batch)` and `PodMapping(ctx, pod, batch)` separately. Failure in one does not discard the other. Publication checks their captured states together with the controller's fresh evidence.
-
-`Resolve` has three outcomes. Check the error before interpreting a nil `KartaWorkload()`:
-
-| Result | Meaning |
+| `Resolve` result | Runtime behavior |
 | --- | --- |
-| No error, nonempty root UID | Ownership and selection succeeded. A nil Karta handle means confirmed absence. |
-| Error, nonempty root UID | Ownership succeeded but definition lookup failed. Only the root and captured state are usable. |
-| Error, empty root UID | No usable result. Retry or retain applicable history as described below. |
+| Success with Karta | Use root identity and selected interpretation. |
+| Success without Karta | Definition absence is confirmed. Use generic identity and verified creation time, with `<unknown>` component and instance and an empty group. Emit no status. |
+| Error with root UID | Ownership resolved, but definition selection failed. Verified creation time may publish. The controller derives no new mapping or status. |
+| Error without root UID | Ownership did not resolve. The controller retries or retains an applicable previous result. |
 
-Selection errors use `ErrPending`, `ErrPermissionDenied`, `ErrUnavailable` or `ErrInvalidDefinition`. With a usable root, fresh evidence can still support its creation timestamp. No new Pod-info or status row is derived from this partial result. Applicable previous rows may remain invalid, except when an invalid definition withdraws interpretation. A lookup error never authorizes generic coordinates.
+Pod roots require a selected Pod Karta to emit Pod-info, status or creation rows. This also applies when an ignored owner makes a Pod the root. Catalog `core-pod-v1` gives component `pod`, empty instance and group, and Pod status. Resource-type health does not depend on this choice.
 
-`Walk` starts at the resolved root and visits its observed descendant subtree in depth-first order, including the root. It does not walk the input-to-root `Path`. It copies references before calling visitors outside the discovery lock. An empty subtree does not prove complete Pod membership.
+## Definition selection and changes
 
-The cached reader finds the accepted watch generation internally from the object key. It requires the accepted UID and resourceVersion to match the stored object. If the store has advanced ahead of its callback, the worker discards its calculation and retries. Private captured revisions record ownership, membership, definition and coverage changes. These revisions are not Kubernetes resourceVersions.
-
-## Definition inventory
-
-The inventory remains an injected dependency:
+Discovery asks the inventory which Karta applies and where it came from:
 
 ```go
-// Package kartadefinitioninventory.
 type Interface interface {
     Lookup(schema.GroupVersionKind) (Selection, error)
 }
@@ -367,196 +351,190 @@ const (
 )
 ```
 
-`Lookup` accepts GVK to preserve the scaffold interface. Selection uses its group and kind; the input version does not restrict candidates. `Selection.GVK` returns the winning definition's version.
+Catalog-only lookup is ready after construction. Cluster lookup needs the watch initialized by `Run`. `Lookup` returns a copy from the cache. Confirming absence requires every enabled source to initialize. A failed source returns an error even with a catalog candidate, so a cluster-source failure cannot switch dependent output to the catalog.
 
-Filters apply within each enabled source before precedence. A nonempty `include` match OR a nonempty `labelSelector` match selects a candidate. Both empty select all candidates. `exclude` wins. Cluster candidates override catalog candidates for the same group/kind. Cluster ties use oldest creation time, then name.
+Lookup selects by group/kind across versions. `Selection.GVK` gives the selected root version. `Origin` provides the definition name and source for status labels, plus UID and resourceVersion for cluster definitions.
 
-Lookup returns a caller-owned snapshot. All enabled sources must initialize before absence is confirmed. Source failure is an error, not catalog fallback. An invalid winning definition remains an error.
+Each source includes definitions matching its include list or label selector, or all definitions when both are empty. Exclusions always win.
 
-`New(dynamicClient, options)` builds the catalog selection and cluster cache. `Run(ctx)` lists and watches cluster Kartas. It handles add, update and deletion internally. With cluster lookup disabled, catalog results are available immediately. Lookup performs no API calls and is safe during concurrent updates.
+Cluster definitions win over catalog definitions. The oldest cluster definition wins, with name order breaking ties. Catalog selection uses name order. Invalid selected definitions return an error without trying another candidate.
 
-The controller separately observes Karta changes; there is no notification interface. Before publication, it checks the returned selection against its accepted candidate facts, including competing definitions and source readiness. The inventory can receive a Karta event before the controller, or the reverse. A mismatch retries until their facts agree. [Selection ordering](./consistency.md#definition-selection) specifies this check.
+The inventory watches Kartas independently so it can serve lookups without the exporter controller. The controller has its own watch to withdraw affected output and queue recalculation. This avoids notification callbacks between the two components, but their caches can receive a change at different times. Publication waits until both select the same definition.
 
-The returned GVK selects the root representation used for Karta evaluation and `workload_version`. If ownership used another version, the controller establishes full coverage for the selected version and verifies the same UID. Version changes replace output for that lifetime, never create a second workload.
+Selecting another API version starts a full-object watch and requires verification of the same root UID.
 
-## Startup, scope and events
-
-Startup validates configuration and compiles CEL. It initializes enabled definition sources, namespace selection and required coverage. It registers handlers before starting workers. Full Pods are watched in selected namespaces. Root kinds with a selected Karta need full objects, including roots with no Pods. Generic roots and intermediate owners need metadata.
-
-A Deployment Pod may reveal a missing ReplicaSet watch. Discovery reports the missing kind and pending resolution. The controller maps the GVK through API discovery and starts a shared namespace/resource watch. The controller waits for both its store and initial handlers before reporting ready coverage to discovery and retrying children. The ReplicaSet can then reveal the Deployment. A full watch also serves metadata consumers. Failed API discovery, including an unserved GVK, returns `ErrUnavailable`. It does not leave the dependency pending forever.
-
-Full/metadata handover uses a new watch generation. The replacement must synchronize before its coverage becomes usable. Its initial cache does not prove deletion. A complete, fresh LIST must confirm absence before an old observation is retired. Retired callbacks are rejected. Deletion guards cover every representation that could still deliver an old UID. [Handover ordering](./consistency.md#deletion-and-delayed-events) prevents replacement watches from reviving stale objects.
-
-| Setting | Default | Effect |
-| --- | --- | --- |
-| `namespaceSelector` | All namespaces. | Limits namespaced watch scope. |
-| `objectSelector`, `resourceRules`, `excludeResourceRules` | No root filter. | Select resolved roots for output; exclusions win. |
-| `podSelector` | All observed Pods. | Selects emitted Pod rows only. |
-| `requiredKinds` | Empty. | Requires API coverage for readiness and type health, including ignored kinds. |
-
-An ignored boundary removes that owner from the traversal dependencies. A failed required-kind check still makes `/readyz` fail and publishes unhealthy type coverage. It invalidates workload observations only when they depend on that kind. An ignored traversal does not create that dependency.
-
-All Pods remain observed, including hidden rows. Child watches cannot use root label filters. Intermediate kinds require read permissions, but no explicit Helm discovery entry. Namespace or output-scope exit removes rows. Failed refresh never expands scope.
-
-Known root kinds retain metadata coverage after definition removal. This preserves known generic roots but does not discover every unknown zero-Pod kind. Restart rebuilds coverage from configured definitions and observed owner chains.
-
-`/healthz` reports process health. `/readyz` requires initialized configuration, sources and required coverage. It need not wait for every workload calculation. An optional kind can fail while unrelated workloads continue.
-
-Events update the index and queue stable identity keys. Workers reread current objects; repeated work coalesces and retries use rate limiting.
-
-| Event | Reconciliation |
+| Karta change | Runtime behavior |
 | --- | --- |
-| Pod create or resourceVersion update | Resolve ownership and refresh affected mapping and metadata results. Spec and status updates count. |
-| Intermediate owner add/update | Retry waiting children and affected descendants. |
-| Root update | Reevaluate root status and dependent mappings. |
-| Deletion | Retire that UID and reconcile surviving dependents. |
-| Coverage failure/recovery | Revoke affected evidence or begin fresh verification. |
+| First selection | Watch full roots and evaluate them, including roots without Pods. |
+| Winner edited or replaced | Remove old status and dependent mappings immediately. Evaluate the new snapshot. Failure cannot restore the old interpretation. |
+| Winner deleted | Choose the next candidate or confirm absence. Absence restores generic coordinates and removes status. A Pod root stops publishing without its Pod Karta. |
+| Target group/kind or version changed | Reconcile old and new selections and watches. Replace versioned output for the same lifetime. |
+| Source failed | Invalidate dependent output. Do not treat failure as absence. |
 
-Before calling `Upsert` or `Delete`, the controller rejects callbacks whose stream key and run are retired. This check and the mutation share the publication lock. `Delete` then applies to the supplied UID, so an old deletion cannot remove a replacement with the same name. Reparenting removes the old association before publishing the new one and changes both workloads' membership.
+After definition removal, metadata watches preserve known generic roots. They do not discover every unknown kind with no Pods. Restart rebuilds watches from definitions and observed owner chains. [Definition selection](./consistency.md#definition-selection) specifies cache agreement.
 
-Karta changes queue affected roots in batches. A first definition establishes full coverage and evaluates listed zero-Pod roots. Winner edits withdraw status and dependent Pod-info rows immediately. They reappear only after evaluation with the new definition succeeds. An evaluation failure cannot restore rows from the old definition. Winner deletion selects the next candidate or confirms absence. Confirmed absence removes status and restores generic coordinates; bare-Pod output loses its opt-in. Source failure instead invalidates dependent output. A target group/kind or version change affects both old and new selections.
+## Evaluate components and status
 
-![A Pod event resolves ownership, evaluates Karta and reaches metric collection.](./jobset-event-flow.png)
-
-[Zoomable sequence](./jobset-event-flow.preview.html) | [SVG](./jobset-event-flow.svg)
-
-## Verification and caching
-
-Reconciliation follows one acceptance path:
-
-1. Capture object versions, ownership, selected definition, scope, coverage and failure state.
-2. Read matching cache bodies. Evaluate status, Pod mappings and metadata outside the publication lock.
-3. Obtain fresh verification for those inputs. Share checks across dependent workloads.
-4. Under one short publication lock, verify that captured local facts still match. Install the immutable replacement and its evidence together; otherwise discard and retry.
-5. At collection, apply evidence expiry using one captured time.
-
-Local revision checks prevent publishing work superseded by accepted events. Fresh API checks bound validity when events are missed. Neither check substitutes for the other. Kubernetes resourceVersions are compared for equality within the same API representation, never sorted.
-
-An accepted object event queues verification for its resource stream immediately. It does not wait for the periodic refresh. Events also queue reconciliation, which can publish only when matching verification is available. Repeated events coalesce in the workqueue.
-
-Verification uses complete LIST requests, not one GET per object. It compares each returned UID and resourceVersion with the captured cache observation. The watch run, scope and failure state must still match at commit. Rapidly changing objects can remain hidden until a stable result passes these checks.
-
-One scheduler shares root and owner checks by namespace/resource stream. Complete paginated Pod LISTs run per namespace per verification round, not per workload. They include hidden Pods and classify every Pod through verified owner paths. Known-Pod GETs cannot prove complete membership. Partial or failed lists prove neither absence nor deletion.
-
-Internal defaults refresh with jitter across 45-60 seconds and expire evidence 120 seconds after the fresh read starts. Each LIST page has a 30-second deadline. WATCH requests use the controller lifetime context. These timings add no Helm settings.
-
-Reconnects, bookmarks, scrapes and successful delivery do not renew evidence. A normal WATCH close reconnects without revoking still-valid evidence. A short empty watch or a failed reconnect is a failure. Accepted read/watch failures revoke affected validity immediately. Recovery requires fresh verification.
-
-Ownership resolution walks the cached UID graph under a read lock. It performs no API calls and keeps no second cache of paths. Each result captures the object, owner-edge, coverage and definition revisions used by that walk. Unrelated changes leave the result current. A subtree walk also captures membership changes.
-
-Karta results depend on root and Pod resourceVersions, selected definition and evaluation batch. New verification batches reevaluate time-dependent JQ even when objects are unchanged. CEL caches depend only on complete metadata, resource identity and extractor configuration, so status-only changes can reuse them.
-
-Derived caches may be evicted. Active ownership links, unresolved references and dirty work remain until deletion or scope exit. Publication stores immutable records per root, with small immutable Pod pages. A single-Pod change copies its page rather than every Pod in a large root. Each page contains at most 256 Pod rows. The controller builds pages in one pass when many rows change. [Verification details](./consistency.md) cover pagination, deletion guards, lock ordering and independent field deadlines.
-
-## Submitter agreement
-
-Submitter extraction is independent of discovery:
+The controller resolves `podRef`, then evaluates status and maps the full `pod` object through the Karta handle. The reference and Pod must have the same UID and resourceVersion:
 
 ```go
-// Package submitterextractor.
+workload, err := discovery.Resolve(ctx, podRef)
+if err != nil {
+    return err
+}
+interpretation := workload.KartaWorkload()
+if interpretation == nil {
+    // Runtime handles the generic-root case separately.
+    return nil
+}
+batch := discovery.NewEvaluationBatch()
+status, statusErr := interpretation.Status(ctx, batch)
+mapping, mappingErr := interpretation.PodMapping(ctx, pod, batch)
+```
+
+An evaluation batch shares root calculations across status and sibling Pods, while status and mapping can succeed independently.
+
+```go
+type StatusResult struct {
+    Defined bool
+    Matched []v1alpha1.ResourceStatus
+    state   CapturedState
+}
+type PodMapping struct {
+    Component string
+    Instance  string
+    Group     string
+    state     CapturedState
+}
+```
+
+Both results expose `State()` for publication checks. Periodic API checks queue root reconciliation, which creates a new evaluation batch. This reevaluates JQ even when objects are unchanged, so time-dependent expressions can produce new results.
+
+### JobSet mapping in the SDK
+
+For the [opening JobSet example](#from-one-pod-to-workload-metrics), `NewComponentFactoryFromObject(karta, jobSet)` receives the full JobSet. `NewPodQuerier(pod)` receives the full Pod.
+
+| SDK call | Produces |
+| --- | --- |
+| `InferPodComponent` | Component name. |
+| `InferPodComponentInstance` | Named instance. |
+| `ExtractReplicaKey` | Replica group key. |
+
+The result is `{Component: "replicatedjob", Instance: "workers", Group: "1"}`. Mapping fails when a required instance is missing or not declared on the root. The group is only a key: the SDK does not compare it with the replica count or treat it as a Pod index.
+
+### LWS: inherit the group expression
+
+LWS defines a logical `group` containing Pod-producing `leader` and `worker` components. The group has no Kubernetes object or Pod template. Consider this worker:
+
+```yaml
+metadata:
+  labels:
+    leaderworkerset.sigs.k8s.io/worker-index: "1"
+    leaderworkerset.sigs.k8s.io/group-index: "2"
+  annotations:
+    leaderworkerset.sigs.k8s.io/leader-name: leader-2
+```
+
+Its `leader-name` annotation matches the worker selector. A nonzero worker index alone does not select it. The leader selector matches `worker-index="0"`.
+
+The LWS definition has no named instances. Its `worker` component belongs to the logical `group`, which defines the replica key expression. Discovery uses the nearest such expression along the Karta's `ownerRef` links. These links describe Karta components, separately from Kubernetes ownership.
+
+The expression runs on the same Pod and reads `group-index="2"`. The result is `{Component: "worker", Instance: "", Group: "2"}`. A missing expression gives an empty group. An extraction error fails mapping.
+
+### Workload status
+
+`GetStatus(ctx)` evaluates the root component against the full workload object. For LWS, it matches `Running` when `.status.replicas` is positive and the ready and updated counts both match it.
+
+Without a status definition, the exporter emits no status rows. Otherwise, successful evaluation returns every matching phase, or `Undefined` when none match. Expression errors fail the evaluation rather than producing `Undefined`.
+
+## Submitter identity
+
+The submitter extractor returns an identity from one object's metadata and GVK:
+
+```go
 type Interface interface {
     Evaluate(context.Context, metav1.Object, schema.GroupVersionKind) (Submitter, error)
 }
-
-type Submitter struct {
-    Identity string
-}
-
-type Extractor struct {
-    program cel.Program
-    // Private bounded cache of metadata results.
-}
-
-func (e *Extractor) Evaluate(
-    context.Context, metav1.Object, schema.GroupVersionKind,
-) (Submitter, error)
+type Submitter struct { Identity string }
 ```
 
-`Extractor` implements the existing interface and holds compiled CEL. Compilation requires a string result; invalid CEL rejects startup. Evaluation respects cancellation and cost/output limits. CEL receives `labels`, `annotations` and `resource`; resource contains namespace, name, group, version and kind. It cannot read spec, status or Kubernetes APIs.
+`submitterextractor.New(expression)` compiles CEL with a string result. Invalid CEL rejects startup. The extractor receives metadata as `labels`, `annotations` and `resource`. Resource contains namespace, name, group, version and kind. CEL cannot access spec, status or Kubernetes APIs.
 
-For example, the configured expression reads one annotation:
-
-```yaml
-exporter:
-  attribution:
-    submittedByExpression: |
-      "team.example/submitted-by" in annotations
-        ? annotations["team.example/submitted-by"] : ""
+```cel
+"team.example/submitted-by" in annotations
+  ? annotations["team.example/submitted-by"] : ""
 ```
 
-Given a JobSet with `metadata.annotations["team.example/submitted-by"] = "alice"`, the controller passes that root object and its GVK to `Evaluate`. The result is `Submitter{Identity: "alice"}`. It calls the same extractor separately for each Pod. A Pod without that annotation returns an empty identity.
+For JobSet `train` with this annotation set to `alice`, `Evaluate` returns `Submitter{Identity: "alice"}`. Each associated Pod is evaluated separately. A missing annotation returns empty identity. Successful metadata results are cached across status-only changes. Cancellation, evaluation limits and invalid output return errors.
 
-The controller evaluates the root and every associated Pod, including hidden rows. Equal nonempty identities produce one shared `submitted_by`; empty results do not conflict. All empty, conflicting identities, any extraction failure or unverified membership produce an empty value. Disabling attribution omits the label. Invalid emitted rows clear their value. Submitter extraction failure alone does not invalidate independently verified Pod mapping, status or creation time.
+When enabled, API-server admission policies record the authenticated CREATE caller in `karta.run.ai/submitted-by`. UPDATE protection stays in place even if the recording policy is later narrowed or disabled. The CEL example reads a separate, custom annotation. CEL can extract either value, but it does not authenticate the caller. See [policy details](./consistency.md#submitter-update-protection).
 
-Membership proof is shared across a namespace. Adding or deleting a Pod, changing its owner, or changing its labels or annotations invalidates that proof. Any Pod whose owner path is pending or failed blocks renewal for the namespace. A status-only update can delay renewal but does not revoke the existing proof before its deadline.
+The controller compares root and Pod identities, including Pods hidden by `podSelector`. When all nonempty values agree, Pod-info and status share that `submitted_by` value. Empty values do not conflict with a nonempty one. All-empty results, conflicts, extraction errors and unverified membership leave the label empty, as do invalid mapping and status rows. Disabling extraction removes the label. A submitter error alone leaves other verified results available.
 
-This is conservative: one busy workload can temporarily clear `submitted_by` for other workloads in the namespace. Independently verified status, mapping and creation time remain available. Stale calculations cannot clear newer agreement.
+Agreement needs a complete Pod list because an unseen Pod could carry a different identity. The controller shares one namespace list across roots and verifies every owner path, including paths outside a workload. One unresolved Pod therefore blocks renewal and can temporarily clear other workloads' identities. Pod creation, deletion, owner changes, and label or annotation changes invalidate the check. [Membership checks](./consistency.md#pod-membership-and-pagination) describe expiry and renewal.
 
-Changing `submitted_by`, including clearing it, changes the metric series. Consumers must handle the empty value as unknown identity. Valid mapping does not imply verified submitter identity.
+An empty `submitted_by` means the identity is unknown. Changing its value creates a different metric series.
 
-Native admission capture remains separate. Helm installs API-server policies to record the authenticated CREATE caller and reject conflicting supplied identity. UPDATE protection prevents changes or removal even after capture narrows or is disabled. [Policy details](./consistency.md#submitter-update-protection) define that independent protection. CEL fallback labels do not authenticate their values.
+## Updates and failures
 
-## Failure and publication
+Pod-info and status carry `observation_valid`. A workload can be `Failed` while its observation is valid. The label describes whether the exporter verified its result, not whether the workload is healthy.
 
-Internal errors wrap sentinels with `%w`; the controller checks them with `errors.Is`. Detailed errors are not exported as metric labels. Cancellation remains a context error.
+After verification fails or expires, the exporter may retain a previous result with `observation_valid="false"`. Consumers must filter that label. Creation time has no validity label, so an unverified timestamp is omitted. A status-expression error alone does not remove a verified timestamp.
 
-| Sentinel | Meaning and output |
+For a Pod last verified as instance `workers`:
+
+| Change | Pod-info result |
 | --- | --- |
-| `ErrPending` | Needed coverage or definition selection has not initialized. No new result is published. Required coverage blocks readiness; optional discovery coverage does not. |
-| `ErrPermissionDenied` | Denied read; `permission_denied` invalidates dependent observations. |
-| `ErrUnavailable` | Read/source failure or expired evidence; `api_unavailable`. |
-| `ErrUnresolvedOwner` | Missing owner, wrong UID or invalid chain; `unresolved_owner`. |
-| `ErrInvalidDefinition` | Invalid winner; `invalid_definition`, with no fallback. |
-| `ErrEvaluation` | Status or mapping error; `evaluation_failed` for that result. |
-| `ErrStale` | Changed inputs; discard and retry without a public failure. |
+| Pod resourceVersion changes, including status-only updates | Hide its mapping until reevaluation. |
+| Evaluation and verification succeed | Publish the new mapping as valid. |
+| Evaluation fails | Retain an applicable previous mapping as invalid, with empty submitter. |
+| Association moved, deletion or scope exit | Remove superseded output permanently. Failure cannot restore it. |
 
-`ErrPermissionDenied`, `ErrUnavailable`, `ErrUnresolvedOwner` and `ErrEvaluation` retain applicable previously verified Pod/status rows as `observation_valid="false"`. An invalid definition withdraws its interpretation. `ErrStale` discards the calculation without changing newer output. Ownership failure changes retained rows to `owner_resolution="unknown"`. Without a previous applicable result, no identity, coordinates or phase is invented.
+Retention requires the same Pod UID, root UID and definition snapshot.
 
-`ErrPending` alone does not change existing publication. Startup has no previous rows. A changed input suppresses its affected fields while work is pending. Replacing coverage revokes its old evidence, so applicable retained rows become invalid until fresh verification succeeds. Unrelated pending work leaves other observations unchanged.
+A root resourceVersion change hides status, dependent Pod mappings and creation time while the controller recalculates them. Each result returns independently. A Pod change leaves unchanged root status, creation time and sibling mappings available. It can still clear their shared submitter value by invalidating membership.
 
-A retained mapping remains applicable only for the same Pod UID, root UID and selected definition snapshot. A cluster definition snapshot includes its UID and resourceVersion. Any edit to the winning Karta withdraws the previous interpretation, even when its UID stays the same.
-
-Any Pod resourceVersion change suppresses its mapping until reevaluation, including status-only changes. It does not suppress unchanged root status, creation time or sibling mappings.
-
-Karta expressions can read the full Pod, so metadata-only comparison cannot prove the result unchanged. This conservative choice can create short gaps during churn. The old mapping remains in memory for failure reporting. For an instance-label change:
-
-| Step | Pod mapping output |
+| Error | Result |
 | --- | --- |
-| Before the update | Instance `workers`, validity `true`. |
-| Recalculation pending | No Pod-info row for this mapping until recalculation succeeds or fails. |
-| Recalculation fails | Last verified instance `workers`, validity `false`, empty `submitted_by`. |
-| Recalculation succeeds | New instance replaces the old row, validity `true`. |
+| `ErrPending` | Watch/source initialization produces no new result or failure reason. Unchanged existing results remain. |
+| `ErrPermissionDenied` | Mark dependent observations invalid with `permission_denied`. |
+| `ErrUnavailable` | Read/source failure or expiry reports `api_unavailable`. |
+| `ErrUnresolvedOwner` | Missing owner, wrong UID or invalid chain reports `unresolved_owner`. Retained ownership becomes `unknown`. |
+| `ErrInvalidDefinition` | Remove invalid interpretation and report `invalid_definition`. |
+| `ErrEvaluation` | Retain applicable affected results as invalid with `evaluation_failed`. |
+| `ErrStale` | Discard superseded work and retry. Preserve newer output. |
 
-A root resourceVersion change suppresses its status rows, dependent Pod-info rows and creation timestamp while verification and reevaluation are pending. Karta can read the full root, including status, so a status-only update follows the same rule. Each successful result returns independently. A failure may retain applicable historical status or mappings as invalid. Creation time returns only with valid metadata evidence.
+The controller checks these wrapped sentinel errors with `errors.Is`. Cancellation remains a context error. Detailed error messages are not metric labels. Without an applicable earlier result, the exporter omits the affected identity, mapping or phase.
 
-Invalid rows describe the last verified observation, not the new object's state. Consumers must filter on validity. Confirmed reparenting, definition replacement, deletion and scope exit permanently withdraw superseded rows. Later failure cannot restore them.
+Failed reads or watches immediately invalidate dependent results. A normal WATCH close reconnects without discarding current verification. Failed reconnects and short empty watches count as failures. Only fresh API checks restore validity, so scrapes cannot renew it. Rapid changes can prevent matching reads and temporarily hide output.
 
-Queue delay alone adds no failure reason. Unverified creation time is omitted. A successfully observed `Failed` phase still has validity `true`.
+Replacement watches must synchronize. An object missing from a replacement cache is removed only after a fresh complete LIST confirms its absence. [Consistency details](./consistency.md) cover delayed callbacks, UID deletions, verification expiry, locking and independent field deadlines.
 
-## OpenTelemetry delivery
+## Publication and delivery
 
-The controller exposes a read-only capture operation to the adapter. Capture fixes one time and one set of immutable root records with their validity evidence. Proof identifiers and invalidation bookkeeping stay private to publication. Every family uses this same view.
+The store keeps immutable records per root, with separate verification for status, creation time, membership and each Pod mapping. Pod rows use small pages, so updating one Pod does not copy every sibling. [Memory and collection](./consistency.md#memory-and-collection) describes storage and cache lifetime.
 
-| Metric family | Observation |
+The OTel callback calls `Store.Capture()` once and formats all families from the same records and collection time. It performs no API reads, ownership walks or expression evaluation. This is a consistent view within the exporter, not an atomic Kubernetes snapshot.
+
+| Family | Output |
 | --- | --- |
-| `karta_pod_workload_info` | Value `1` with root and Pod coordinates. |
-| `karta_workload_status` | Configured phases as `1` when matched, otherwise `0`. |
+| `karta_pod_workload_info` | Value `1` with workload and Pod coordinates. |
+| `karta_workload_status` | Selected phases as `1` when matched, otherwise `0`. |
 | `karta_workload_created_timestamp_seconds` | Verified root creation timestamp. |
-| `karta_exporter_observation_valid` | Resource-type health as 1/0; known-workload failures as 0 only. |
+| `karta_exporter_observation_valid` | Resource-type health as 1/0. Known-workload failures as 0 only. |
 
-The callback performs no Kubernetes reads, ownership traversal or JQ/CEL evaluation. Mapping, status, creation time and submitter agreement retain separate validity. Healthy workloads have no separate health row. `observation_valid` is a label on Pod-info and status metrics. `karta_exporter_observation_valid` is a separate health metric. Creation time has no validity label; unverified samples are omitted. The KEP defines exact labels and reasons.
+The KEP defines the labels and failure reasons. Healthy workloads have no separate health row.
 
-Prometheus is the default delivery mode and exposes `/metrics` through the OTel reader. OTLP mode uses a periodic reader with HTTP/protobuf or gRPC and has no ServiceMonitor. Exactly one delivery mode is enabled. Both expose health endpoints.
+Prometheus delivery is the default. Its OTel reader serves `/metrics`. Alternatively, OTLP uses a periodic HTTP/protobuf or gRPC reader, with no `/metrics` or ServiceMonitor. Only one mode runs. Both retain health endpoints. Omitted OTLP samples depend on backend expiry.
 
-Prometheus translation, scope info and target info are disabled to preserve metric names and labels. SDK overflow aggregation is disabled so different identities are not merged. OTLP headers come from a Secret-backed environment variable; TLS files are mounted read-only. Secret changes require restart. Shutdown cancels work and closes the provider with a deadline. OTLP omission relies on backend expiry; delivery success does not certify validity.
+Prometheus translation, scope info and target info are disabled to preserve names and labels. SDK overflow aggregation is disabled to avoid merging identities.
 
-## Evidence and remaining decisions
+Replicas with overlapping namespaces duplicate watch work. Separate namespace sets divide it.
 
-The [behavior checks](./behavior-checks.md) record the executable and source revision for each verification. Component tests, the connected command, Kind acceptance and scale measurements are separate checks. A component test does not establish cluster or scale behavior.
+## Current gaps
 
-The scale model passed 100k workloads with zero or one Pod each. One root with 100k Pods also passed. The million-Pod case exceeded the 8 GiB RSS limit during startup. These are bounded loopback measurements, not production capacity guarantees.
-
-Discovery preserves cluster-scoped roots. Publishing them still needs a KEP decision. Replicas observe duplicate scope; disjoint namespace deployments remain the partitioning option.
+- Discovery can resolve cluster-scoped roots, but the controller does not publish their Pod-info, status or creation rows. Resource-type health is separate. Cluster-scoped workload output still needs a KEP decision.
+- Detailed reconciliation logging is not implemented in the PoC.
 
 [kep]: ../../../keps/0001-metrics-exporter/README.md
 [configuration]: ../../karta-metrics-exporter/configuration.md

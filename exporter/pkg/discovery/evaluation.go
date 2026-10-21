@@ -130,7 +130,7 @@ func (w *KartaWorkload) prepareRoot(ctx context.Context) (*preparedWorkload, err
 		d.mu.RUnlock()
 		return nil, d.missingObject(ctx, ref, true)
 	}
-	if err := d.coverageErrorLocked(object, true); err != nil {
+	if err := d.coverageErrorLocked(object, fullObjectCoverage); err != nil {
 		d.mu.RUnlock()
 		return nil, err
 	}
@@ -220,9 +220,9 @@ func (w *KartaWorkload) PodMapping(ctx context.Context, pod *corev1.Pod, batch E
 	ref := ObjectRef{GVK: corev1.SchemeGroupVersion.WithKind("Pod"), Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID, ResourceVersion: pod.ResourceVersion}
 	d := w.discovery
 	d.mu.RLock()
-	workload, missing, err := d.resolveLocked(ref)
+	workload, missing, err := d.resolveLocked(ref, synchronizedCoverage)
 	if err == nil {
-		err = d.coverageErrorLocked(d.ownership.nodes[pod.UID].objects[ref.GVK], true)
+		err = d.coverageErrorLocked(d.ownership.nodes[pod.UID].objects[ref.GVK], fullObjectCoverage)
 	}
 	d.mu.RUnlock()
 	if missing != nil {

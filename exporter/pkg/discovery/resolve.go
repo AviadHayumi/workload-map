@@ -21,6 +21,15 @@ type CoverageError struct {
 	Err     error
 }
 
+type coverageRequirement uint8
+
+const (
+	// Positive owner lookups can use accepted objects before the initial list finishes.
+	acceptedCoverage coverageRequirement = iota
+	synchronizedCoverage
+	fullObjectCoverage
+)
+
 func (e *CoverageError) Error() string { return fmt.Sprintf("%s: %v", e.Request.GVK, e.Err) }
 
 func (e *CoverageError) Unwrap() error { return e.Err }
@@ -30,7 +39,7 @@ func (d *Discovery) Resolve(ctx context.Context, ref ObjectRef) (GenericWorkload
 		return GenericWorkload{}, err
 	}
 	d.mu.RLock()
-	workload, missing, err := d.resolveLocked(ref)
+	workload, missing, err := d.resolveLocked(ref, acceptedCoverage)
 	d.mu.RUnlock()
 	if missing != nil {
 		err = d.missingObject(ctx, *missing, false)
@@ -71,7 +80,7 @@ func (d *Discovery) Resolve(ctx context.Context, ref ObjectRef) (GenericWorkload
 	return workload, nil
 }
 
-func (d *Discovery) resolveLocked(ref ObjectRef) (GenericWorkload, *ObjectRef, error) {
+func (d *Discovery) resolveLocked(ref ObjectRef, requirement coverageRequirement) (GenericWorkload, *ObjectRef, error) {
 	state := d.newStateLocked()
 	workload := GenericWorkload{Resolution: UnknownOwner}
 	seen := make(map[types.UID]struct{})
@@ -95,7 +104,7 @@ func (d *Discovery) resolveLocked(ref ObjectRef) (GenericWorkload, *ObjectRef, e
 		if current.ResourceVersion != "" && current.ResourceVersion != object.Ref.ResourceVersion {
 			return workload, nil, ErrStale
 		}
-		if err := d.coverageErrorLocked(object, false); err != nil {
+		if err := d.coverageErrorLocked(object, requirement); err != nil {
 			return workload, nil, err
 		}
 		d.captureLocked(&state, node, object)
@@ -197,7 +206,8 @@ func (d *Discovery) isCurrentLocked(state CapturedState) bool {
 	return true
 }
 
-func (d *Discovery) coverageErrorLocked(object observation, full bool) error {
+func (d *Discovery) coverageErrorLocked(object observation, requirement coverageRequirement) error {
+	full := requirement == fullObjectCoverage
 	c, ok := d.coverage[object.WatchKey]
 	var err error
 	switch {
@@ -205,7 +215,9 @@ func (d *Discovery) coverageErrorLocked(object observation, full bool) error {
 		err = ErrPending
 	case c.Err != nil:
 		err = classifyError(c.Err)
-	case c.Run != object.Run || !c.Ready || full && !c.FullObject:
+	case c.Run != object.Run,
+		requirement != acceptedCoverage && !c.Ready,
+		full && !c.FullObject:
 		err = ErrPending
 	}
 	if err != nil {
@@ -307,7 +319,7 @@ func (w GenericWorkload) Walk(ctx context.Context, visit func(ObjectRef, *Object
 			d.mu.RUnlock()
 			return CapturedState{}, err
 		}
-		if err := d.coverageErrorLocked(object, false); err != nil {
+		if err := d.coverageErrorLocked(object, synchronizedCoverage); err != nil {
 			d.mu.RUnlock()
 			return CapturedState{}, err
 		}
@@ -326,7 +338,7 @@ func (w GenericWorkload) Walk(ctx context.Context, visit func(ObjectRef, *Object
 			slices.SortFunc(refs, compareRefs)
 			selected := refs[0]
 			for _, ref := range refs {
-				if d.coverageErrorLocked(child.objects[ref.GVK], false) == nil {
+				if d.coverageErrorLocked(child.objects[ref.GVK], synchronizedCoverage) == nil {
 					selected = ref
 					break
 				}

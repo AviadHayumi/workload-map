@@ -1,0 +1,89 @@
+@startuml
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+
+skinparam shadowing false
+skinparam sequenceArrowFontSize 15
+skinparam sequenceParticipantFontSize 16
+skinparam noteFontSize 14
+skinparam maxMessageSize 300
+skinparam ParticipantPadding 35
+hide footbox
+
+title A Pod arrives before its Job watch exists
+box "Exporter process" #F5F7FB
+participant "Shared informers\nread Kubernetes API" as I #4263EB
+participant "Controller\nstarts watches and queues work" as C #0B7285
+participant "Discovery\nrecords owners and resolves roots" as D #7048E8
+end box
+
+note over I,D #F1F3F5
+team-a: Pod train-workers-1-0 -> Job train-workers-1 -> JobSet train
+The JobSet watch is ready. The Job watch has not started.
+end note
+
+== A. Record the Pod and its owner ==
+I -[#4263EB]> C : Pod add event
+C -> D : Upsert(Pod reference, ownerReferences)
+note right of D
+Remember Job UID -> Pod UID.
+The Job has not arrived yet.
+end note
+D --> C : ChangeSet.MissingCoverage\nJob (batch/v1), namespace team-a
+note over C,D
+Watch setup and Pod reconciliation are queued separately.
+If Resolve runs before the Job watch is ready, it returns
+CoverageError(Job, ErrPending). The controller retries later.
+end note
+
+== B. Load the missing Job ==
+C -> I : Start shared Job metadata LIST / WATCH\nin namespace team-a
+I -[#4263EB]> C : Job add event\nownerReferences names JobSet train
+C -> D : Upsert(Job reference, ownerReferences)
+D --> C : ChangeSet.Objects: waiting Pod
+note over I,C
+Wait for the initial objects and their add handlers.
+The Pod is queued again.
+end note
+C -> D : CoverageChanged(Job watch ready)
+
+== C. Resolve the Pod ==
+C -> D : Resolve(Pod reference)
+D -[#0CA678]> C : GenericWorkload\nRoot(): JobSet train\nPath: Pod -> Job -> JobSet
+note over C,D #E6FCF5
+The Pod's workload is known.
+Status and component mapping are evaluated afterward.
+end note
+@enduml
