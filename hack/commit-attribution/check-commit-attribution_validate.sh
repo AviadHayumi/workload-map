@@ -8,6 +8,7 @@ fixture=$(mktemp -d)
 trap 'rm -r "$fixture"' EXIT
 # Fixture commits must not depend on the caller's Git identity or hooks.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+unset COMMIT_DEFAULT_BRANCH
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 export GIT_AUTHOR_NAME='Example Contributor' GIT_AUTHOR_EMAIL='contributor@example.com'
 export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
@@ -38,6 +39,27 @@ clean=$(commit "docs: explain Claude integration"$'\n\nCo-authored-by: Example C
 expect 0 "$historical" "$clean"
 expect 0 "$clean" "$clean"
 
+# Creating a release branch at the default tip must not recheck old trailers.
+zero=0000000000000000000000000000000000000000
+git update-ref refs/remotes/origin/main "$clean"
+expect 0 "$zero" "$clean"
+[[ $output == *'0 commit(s)'* ]]
+expect 0 "$zero" "$historical"
+new_clean=$(commit 'test: first release-only commit')
+expect 0 "$zero" "$new_clean"
+[[ $output == *'1 commit(s)'* ]]
+new_bad=$(commit "test: new release attribution"$'\n\n'"$ai")
+commit 'test: clean release tip' > /dev/null
+expect 1 "$zero" HEAD
+[[ $output == *"${new_bad:0:12}"* && $output != *"${historical:0:12}"* ]]
+git update-ref refs/remotes/origin/trunk "$new_clean"
+COMMIT_DEFAULT_BRANCH=refs/remotes/origin/trunk expect 0 "$zero" "$new_clean"
+COMMIT_DEFAULT_BRANCH=refs/remotes/origin/trunk expect 1 "$zero" HEAD
+COMMIT_DEFAULT_BRANCH=refs/remotes/origin/missing expect 128 "$zero" HEAD
+git update-ref -d refs/remotes/origin/main
+expect 128 "$zero" HEAD
+git update-ref refs/remotes/origin/main "$clean"
+
 before=$(git rev-parse HEAD)
 prose=$'docs: explain attribution\n\nCo-authored-by: Claude is prohibited by policy.\nThis is ordinary prose.'
 clean=$(commit "$prose")
@@ -67,7 +89,6 @@ done
 before=$(git rev-parse HEAD)
 bad=$(commit $'fix: mixed case\n\nco-AUTHORED-by : claude <noreply@anthropic.com>\r\n')
 expect 1 "$before" "$bad"
-expect 1 0000000000000000000000000000000000000000 "$historical"
 expect 128 missing-base HEAD
 expect 128 HEAD missing-head
 expect 2 HEAD

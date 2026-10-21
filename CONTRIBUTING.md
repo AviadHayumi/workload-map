@@ -164,6 +164,13 @@ case-insensitively. Merge, revert, and fixup commit messages are checked too.
 This is name matching, not an identity lookup. Unlisted names are outside the
 rule's scope. Normal prose mentioning these tools is allowed.
 
+PRs and updates to existing branches check the supplied base-to-head range.
+For a new branch push, GitHub supplies an all-zero base. CI then checks only
+commits not already on the repository's default branch. Creating a release
+branch does not recheck inherited history. Locally, this fallback uses
+`refs/remotes/origin/main`; set `COMMIT_DEFAULT_BRANCH` to use another ref.
+An unavailable base ref fails the check rather than skipping validation.
+
 Run the same check locally:
 
 ```bash
