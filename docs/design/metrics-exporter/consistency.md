@@ -46,6 +46,19 @@ An invalid selected definition returns an error. Recovery needs fresh API checks
 The lock protects local state. It cannot turn separate caches or Kubernetes
 objects into one atomic API snapshot.
 
+### Definition changes and root watches
+
+A first selected definition starts full-object watches and evaluation for its
+root kind, including roots with no Pods. Selecting another root API version
+requires a watch and fresh verification of the same root UID. The controller
+replaces that lifetime's versioned output.
+
+If a selected Karta changes its target group/kind or version, the controller
+reconciles both the old and new selections and watches. When a definition is
+removed, metadata watches keep known generic roots available. This does not
+discover every unknown kind with no Pods. Restart rebuilds watches from selected
+definitions and observed owner chains.
+
 ## API verification
 
 Discovery evaluates cached objects. The controller checks those objects against
@@ -93,7 +106,8 @@ or failed reconnect is a failure.
 
 A source or resource failure immediately invalidates results that depend on it.
 Checks started before that failure cannot clear it. Recovery starts a new round
-of checks. Repeated failures of the same type and scope are combined.
+of checks. Repeated failures of the same type and scope are combined. Rapid
+object changes can prevent matching API reads and temporarily hide output.
 
 ## Cached objects and Karta evaluation
 
@@ -111,6 +125,37 @@ no matching selector fails mapping.
 batch shares root calculations across status and sibling Pod mappings. Periodic API
 checks queue root reconciliation and create a new evaluation batch. JQ runs
 again even on unchanged objects, including expressions that depend on time.
+
+### SDK calls and inherited group expressions
+
+Discovery calls `resource.NewComponentFactory(definition, accessor)` with the
+selected Karta. The accessor runs JQ against the full root object and caches
+extracted instance IDs within the batch. `NewPodQuerier(pod)` receives the full
+Pod. `InferPodComponent` returns the component name, `InferPodComponentInstance`
+returns its named instance, and `ExtractReplicaKey` returns the group key.
+Missing or undeclared required instances fail mapping.
+
+### LWS: inherit the group expression
+
+LWS defines a logical `group` containing Pod-producing `leader` and `worker` components. The group has no Kubernetes object or Pod template. Consider this worker:
+
+```yaml
+metadata:
+  labels:
+    leaderworkerset.sigs.k8s.io/worker-index: "1"
+    leaderworkerset.sigs.k8s.io/group-index: "2"
+  annotations:
+    leaderworkerset.sigs.k8s.io/leader-name: leader-2
+```
+
+Its `leader-name` annotation matches the worker selector. A nonzero worker index alone does not select it. The leader selector matches `worker-index="0"`.
+
+The LWS definition has no named instances. Its `worker` component belongs to the logical `group`, which defines the replica key expression. Discovery uses the nearest such expression along the Karta's `ownerRef` links. These links describe Karta components, separately from Kubernetes ownership.
+
+The expression runs on the same Pod and reads `group-index="2"`. The result is `{Component: "worker", Instance: "", Group: "2"}`. A missing expression gives an empty group. An extraction error fails mapping.
+
+For LWS status, `GetStatus(ctx)` matches `Running` when `.status.replicas` is
+positive and the ready and updated counts both match it.
 
 ## Pod membership and pagination
 
@@ -144,6 +189,20 @@ change exists. Relevant events invalidate it when the controller accepts them.
 Uncertain membership clears `submitted_by`. Separately verified mapping, status
 and creation time remain available. A missing owner can also invalidate the
 affected Pod's mapping.
+
+## Controller errors and watch failures
+
+| Error | Result |
+| --- | --- |
+| `ErrPending` | Watch/source initialization produces no new result or failure reason. Unchanged existing results remain. |
+| `ErrPermissionDenied` | Mark dependent observations invalid with `permission_denied`. |
+| `ErrUnavailable` | Read/source failure or expiry reports `api_unavailable`. |
+| `ErrUnresolvedOwner` | Missing owner, wrong UID or invalid chain reports `unresolved_owner`. Retained ownership becomes `unknown`. |
+| `ErrInvalidDefinition` | Remove invalid interpretation and report `invalid_definition`. |
+| `ErrEvaluation` | Retain applicable affected results as invalid with `evaluation_failed`. |
+| `ErrStale` | Discard superseded work and retry. Preserve newer output. |
+
+The controller checks these wrapped sentinel errors with `errors.Is`. Cancellation remains a context error. Detailed error messages are not metric labels. Without an applicable earlier result, the exporter omits the affected identity, mapping or phase.
 
 ## Deletion and delayed events
 
@@ -233,6 +292,32 @@ and retried after errors. Informers hold full roots and Pods, with metadata for
 intermediate owners. Queues hold keys. Verification
 copies the needed metadata and releases each LIST page before reading the next.
 It does not retain pointers into the page.
+
+## Scope and readiness
+
+[Configuration](../../karta-metrics-exporter/configuration.md) defines the full
+settings. Namespace and Pod selectors default to all. Root filters default to
+none. Exclusions win. Cluster definitions are enabled by default; the catalog is
+disabled and excludes `core-pod-v1`. `ignoredOwnerKinds` and `requiredKinds` are
+empty by default.
+
+Root labels cannot filter child watches. Intermediate kinds need read
+permissions without explicit discovery entries. Resource rules use the selected
+Karta's API version, or check each observed root version separately when no
+Karta exists. Namespace and workload scope exits remove current rows. A failed
+scope refresh cannot add workloads.
+
+A failed kind invalidates only dependent results. Required kinds also affect
+readiness even when traversal ignores them. Optional-kind failures leave
+unrelated workloads running.
+
+## Submitter evaluation
+
+`submitterextractor.New(expression)` compiles CEL with a string result. Invalid
+expressions prevent startup. The extractor keeps a bounded cache of successful
+metadata results. Cancellation, evaluation limits and invalid output return
+errors. A status-only change can reuse a cached result because the input metadata
+has not changed.
 
 <a id="submitter-update-protection"></a>
 
