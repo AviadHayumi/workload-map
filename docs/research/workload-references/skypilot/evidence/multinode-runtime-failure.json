@@ -1,0 +1,15 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "notes": "Sanitized diagnostic summary from actual head Ray logs; job execution did not succeed."
+  },
+  "cluster": "sky-ref-multinode",
+  "requestID": "7414c933-f9ba-42c0-8899-2b6e08404bd8",
+  "rayVersion": "2.56.1",
+  "rayCommit": "06729817574615e25afe8f20902b37660c2e6962",
+  "rayletFailureAtUTC": "2026-10-21T21:39:29.610Z",
+  "failure": "Timed out waiting for metrics_export_port file; raylet terminated.",
+  "dashboardAgentRegisteredAtUTC": "2026-10-21T21:39:32.108Z",
+  "sourceDefaultPortWaitMilliseconds": 15000,
+  "proposedRecovery": "Set explicit per-Pod Ray metrics, dashboard-agent and runtime-agent ports through SkyPilot-supported environment variables."
+}

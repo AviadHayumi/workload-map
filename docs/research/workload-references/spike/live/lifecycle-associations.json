@@ -1,0 +1,85 @@
+[
+  {
+    "stage": "created",
+    "results": [
+      {
+        "pod": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "namespace": "test-ref",
+            "name": "ref-lifecycle",
+            "uid": "fb68ba26-455f-45ba-819e-3a5dbb371861"
+          }
+        },
+        "relation": "test-association",
+        "value": "ref-life-a",
+        "status": "observed_metadata"
+      }
+    ]
+  },
+  {
+    "stage": "label-removed",
+    "results": [
+      {
+        "pod": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "namespace": "test-ref",
+            "name": "ref-lifecycle",
+            "uid": "fb68ba26-455f-45ba-819e-3a5dbb371861"
+          }
+        },
+        "relation": "test-association",
+        "status": "absent"
+      }
+    ]
+  },
+  {
+    "stage": "label-replaced",
+    "results": [
+      {
+        "pod": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "namespace": "test-ref",
+            "name": "ref-lifecycle",
+            "uid": "fb68ba26-455f-45ba-819e-3a5dbb371861"
+          }
+        },
+        "relation": "test-association",
+        "value": "ref-life-b",
+        "status": "observed_metadata"
+      }
+    ]
+  },
+  {
+    "stage": "deleted",
+    "results": []
+  },
+  {
+    "stage": "recreated",
+    "results": [
+      {
+        "pod": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "namespace": "test-ref",
+            "name": "ref-lifecycle",
+            "uid": "246fde39-2a4a-4e71-bb80-6f3bc3f7bf49"
+          }
+        },
+        "relation": "test-association",
+        "value": "ref-life-a",
+        "status": "observed_metadata"
+      }
+    ]
+  },
+  {
+    "stage": "cleaned-up",
+    "results": []
+  }
+]

@@ -1,0 +1,39 @@
+=== RUN   TestReferences
+Running Suite: References Suite - /Users/ahayumi/conductor/workspaces/karta/dakar/.context/cel-refs/pkg/references
+==================================================================================================================
+Random Seed: 1
+
+Will run 6 of 6 specs
+••••••
+
+Ran 6 of 6 Specs in 0.003 seconds
+SUCCESS! -- 6 Passed | 0 Failed | 0 Pending | 0 Skipped
+--- PASS: TestReferences (0.00s)
+PASS
+ok  	github.com/run-ai/karta/pkg/references	0.260s
+=== RUN   TestCEL
+Running Suite: CEL Suite - /Users/ahayumi/conductor/workspaces/karta/dakar/.context/cel-refs/pkg/cel
+====================================================================================================
+Random Seed: 1
+
+Will run 8 of 33 specs
+SSSSSSSSSSSSSS••••••••SSSSSSSSSSS
+
+Ran 8 of 33 Specs in 0.004 seconds
+SUCCESS! -- 8 Passed | 0 Failed | 0 Pending | 25 Skipped
+--- PASS: TestCEL (0.00s)
+PASS
+ok  	github.com/run-ai/karta/pkg/cel	0.692s
+=== RUN   TestKarta
+Running Suite: Karta Suite - /Users/ahayumi/conductor/workspaces/karta/dakar/.context/cel-refs/pkg/resource
+===========================================================================================================
+Random Seed: 1
+
+Will run 7 of 237 specs
+••SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS•••••SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+Ran 7 of 237 Specs in 0.004 seconds
+SUCCESS! -- 7 Passed | 0 Failed | 0 Pending | 230 Skipped
+--- PASS: TestKarta (0.01s)
+PASS
+ok  	github.com/run-ai/karta/pkg/resource	0.523s

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+name: sky-ref-concurrent
+resources:
+  cpus: 0.2
+  memory: 0.5
+envs:
+  REF_JOB: supplied-by-launch
+run: |
+  python3 - <<'PY'
+  import json
+  import os
+  import time
+  print(json.dumps({"event": "start", "job": os.environ["REF_JOB"], "time": time.time(), "pid": os.getpid()}), flush=True)
+  time.sleep(180)
+  print(json.dumps({"event": "finish", "job": os.environ["REF_JOB"], "time": time.time()}), flush=True)
+  PY

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+# Run from this directory. Only research port-forwards are scraped.
+global:
+  scrape_interval: 10s
+  scrape_timeout: 8s
+  evaluation_interval: 5s
+rule_files:
+  - ../promql/associations.rules.yaml
+  - lifecycle.rules.yaml
+scrape_configs:
+  - job_name: karta-reference-exporter
+    static_configs:
+      - targets: [127.0.0.1:18092]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: karta_pod_workload_info
+        action: keep
+      - source_labels: [namespace]
+        regex: test-ref
+        action: keep
+  - job_name: karta-reference-ksm
+    static_configs:
+      - targets: [127.0.0.1:18091]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: kube_pod_labels
+        action: keep
+      - source_labels: [namespace]
+        regex: test-ref
+        action: keep

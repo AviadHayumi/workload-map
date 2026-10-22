@@ -1,0 +1,30 @@
+[
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "sky-ref-multinode-a1b2c3d4-head",
+        "uid": "8b3d6cf9-8261-4be8-9a9a-c4dce976f572"
+      }
+    },
+    "relation": "skypilot-cluster",
+    "value": "sky-ref-multinode-a1b2c3d4",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "sky-ref-multinode-a1b2c3d4-worker1",
+        "uid": "0d6ebcec-0487-42b8-98c0-ec85cf7d5e28"
+      }
+    },
+    "relation": "skypilot-cluster",
+    "value": "sky-ref-multinode-a1b2c3d4",
+    "status": "observed_metadata"
+  }
+]

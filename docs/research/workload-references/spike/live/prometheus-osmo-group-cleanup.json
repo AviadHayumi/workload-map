@@ -1,0 +1,8 @@
+{
+  "kind": "live_prometheus_group_cleanup",
+  "observedAt": "2026-10-21T21:59:05.223825+00:00",
+  "expression": "research:karta_pod_osmo_association{label_osmo_workflow_uuid=\"faa9dfbbaa0b4d009ab7ef312f3d6444\"}",
+  "result": [],
+  "pollAttempts": 1,
+  "note": "After the platform reported successful completion and API cleanup, the actual periodic recording rule no longer returns either group Pod."
+}

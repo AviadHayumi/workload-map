@@ -1,0 +1,101 @@
+{
+  "rule_files": [
+    "lifecycle.rules.yaml"
+  ],
+  "evaluation_interval": "1m",
+  "tests": [
+    {
+      "name": "Actual lifecycle snapshots with scrape staleness at missing series",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "karta_pod_workload_info{component=\"pod\",component_instance=\"\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",workload_version=\"v1\"}",
+          "values": "stale stale stale stale 1.0"
+        },
+        {
+          "series": "karta_pod_workload_info{component=\"pod\",component_instance=\"\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",workload_version=\"v1\"}",
+          "values": "1.0 1.0 1.0 stale stale"
+        },
+        {
+          "series": "kube_pod_labels{namespace=\"test-ref\",pod=\"ref-lifecycle\",uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",label_skypilot_cluster_name=\"ref-life-a\"}",
+          "values": "stale stale stale stale 1.0"
+        },
+        {
+          "series": "kube_pod_labels{namespace=\"test-ref\",pod=\"ref-lifecycle\",uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",label_skypilot_cluster_name=\"ref-life-a\"}",
+          "values": "1.0 stale stale stale stale"
+        },
+        {
+          "series": "kube_pod_labels{namespace=\"test-ref\",pod=\"ref-lifecycle\",uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",label_skypilot_cluster_name=\"ref-life-b\"}",
+          "values": "stale stale 1.0 stale stale"
+        },
+        {
+          "series": "kube_pod_labels{namespace=\"test-ref\",pod=\"ref-lifecycle\",uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\"}",
+          "values": "stale 1.0 stale stale stale"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "0m",
+          "exp_samples": [
+            {
+              "labels": "research:karta_pod_lifecycle_association{component=\"pod\",component_instance=\"\",label_skypilot_cluster_name=\"ref-life-a\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",workload_version=\"v1\"}",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "1m",
+          "exp_samples": []
+        },
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "research:karta_pod_lifecycle_association{component=\"pod\",component_instance=\"\",label_skypilot_cluster_name=\"ref-life-b\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",workload_version=\"v1\"}",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "3m",
+          "exp_samples": []
+        },
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "4m",
+          "exp_samples": [
+            {
+              "labels": "research:karta_pod_lifecycle_association{component=\"pod\",component_instance=\"\",label_skypilot_cluster_name=\"ref-life-a\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",workload_version=\"v1\"}",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Deliberately stale old root cannot join new same-name Pod metadata",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "karta_pod_workload_info{component=\"pod\",component_instance=\"\",namespace=\"test-ref\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"ref-lifecycle\",pod_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",replica_group_id=\"\",workload_group=\"\",workload_kind=\"Pod\",workload_name=\"ref-lifecycle\",workload_uid=\"fb68ba26-455f-45ba-819e-3a5dbb371861\",workload_version=\"v1\"}",
+          "values": "1.0"
+        },
+        {
+          "series": "kube_pod_labels{namespace=\"test-ref\",pod=\"ref-lifecycle\",uid=\"246fde39-2a4a-4e71-bb80-6f3bc3f7bf49\",label_skypilot_cluster_name=\"ref-life-a\"}",
+          "values": "1.0"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "research:karta_pod_lifecycle_association",
+          "eval_time": "0m",
+          "exp_samples": []
+        }
+      ]
+    }
+  ]
+}

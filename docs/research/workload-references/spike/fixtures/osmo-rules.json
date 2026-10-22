@@ -1,0 +1,7 @@
+[
+  {"relation":"osmo-workflow","source":{"from":"label","key":"osmo.workflow_uuid"}},
+  {"relation":"osmo-group","source":{"from":"label","key":"osmo.group_uuid"}},
+  {"relation":"osmo-task","source":{"from":"label","key":"osmo.task_uuid"}},
+  {"relation":"osmo-attempt","source":{"from":"label","key":"osmo.retry_id"}},
+  {"relation":"podgroup","source":{"from":"annotation","key":"pod-group-name"},"targetSet":"podgroups","matchAttribute":"name"}
+]

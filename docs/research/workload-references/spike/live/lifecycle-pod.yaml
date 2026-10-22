@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ref-lifecycle
+  namespace: test-ref
+  labels:
+    research.karta.dev/suite: reference-lifecycle
+    skypilot-cluster-name: ref-life-a
+spec:
+  automountServiceAccountToken: false
+  activeDeadlineSeconds: 600
+  terminationGracePeriodSeconds: 1
+  restartPolicy: Never
+  containers:
+    - name: pause
+      image: registry.k8s.io/pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+      resources:
+        requests:
+          cpu: 1m
+          memory: 4Mi
+        limits:
+          cpu: 10m
+          memory: 16Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65532
+        capabilities:
+          drop: [ALL]

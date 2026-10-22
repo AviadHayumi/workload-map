@@ -1,0 +1,188 @@
+[
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca"
+      }
+    },
+    "relation": "osmo-workflow",
+    "value": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca"
+      }
+    },
+    "relation": "osmo-group",
+    "value": "c60ec160a9954b4a82c5475def93f5be",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca"
+      }
+    },
+    "relation": "osmo-task",
+    "value": "875210e6c63f4d09b8379d209cc356df",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca"
+      }
+    },
+    "relation": "osmo-attempt",
+    "value": "0",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca"
+      }
+    },
+    "relation": "podgroup",
+    "value": "c60ec160a9954b4a82c5475def93f5be",
+    "status": "resolved_target",
+    "target": {
+      "namespace": "test-ref",
+      "id": "c60ec160a9954b4a82c5475def93f5be",
+      "attributes": {
+        "name": "c60ec160a9954b4a82c5475def93f5be"
+      },
+      "kubernetes": {
+        "apiVersion": "scheduling.run.ai/v2alpha2",
+        "kind": "PodGroup",
+        "metadata": {
+          "namespace": "test-ref",
+          "name": "c60ec160a9954b4a82c5475def93f5be",
+          "uid": "2aa3ccfe-5937-447e-9f0e-307c2cf5104d",
+          "labels": {
+            "osmo.group_name": "pair",
+            "osmo.group_uuid": "c60ec160a9954b4a82c5475def93f5be",
+            "osmo.workflow_id": "karta-ref-group-2",
+            "osmo.workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444"
+          }
+        }
+      }
+    },
+    "candidates": 1
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd"
+      }
+    },
+    "relation": "osmo-workflow",
+    "value": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd"
+      }
+    },
+    "relation": "osmo-group",
+    "value": "c60ec160a9954b4a82c5475def93f5be",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd"
+      }
+    },
+    "relation": "osmo-task",
+    "value": "b4ced59a832b4d859898557da14a2ec4",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd"
+      }
+    },
+    "relation": "osmo-attempt",
+    "value": "0",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd"
+      }
+    },
+    "relation": "podgroup",
+    "value": "c60ec160a9954b4a82c5475def93f5be",
+    "status": "resolved_target",
+    "target": {
+      "namespace": "test-ref",
+      "id": "c60ec160a9954b4a82c5475def93f5be",
+      "attributes": {
+        "name": "c60ec160a9954b4a82c5475def93f5be"
+      },
+      "kubernetes": {
+        "apiVersion": "scheduling.run.ai/v2alpha2",
+        "kind": "PodGroup",
+        "metadata": {
+          "namespace": "test-ref",
+          "name": "c60ec160a9954b4a82c5475def93f5be",
+          "uid": "2aa3ccfe-5937-447e-9f0e-307c2cf5104d",
+          "labels": {
+            "osmo.group_name": "pair",
+            "osmo.group_uuid": "c60ec160a9954b4a82c5475def93f5be",
+            "osmo.workflow_id": "karta-ref-group-2",
+            "osmo.workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444"
+          }
+        }
+      }
+    },
+    "candidates": 1
+  }
+]

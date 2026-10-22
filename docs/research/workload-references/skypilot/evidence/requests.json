@@ -1,0 +1,39 @@
+[
+  {
+    "operation": "first shared launch",
+    "requestID": "31644028-0fe6-4cd2-a2c5-e9777e334339",
+    "lastObservedStatus": "FAILED"
+  },
+  {
+    "operation": "multinode launch",
+    "requestID": "7414c933-f9ba-42c0-8899-2b6e08404bd8",
+    "lastObservedStatus": "CANCELLED"
+  },
+  {
+    "operation": "shared launch retry",
+    "requestID": "dbcad38b-9df7-41a7-aa25-d31915aab35b",
+    "lastObservedStatus": "CANCELLED"
+  },
+  {
+    "operation": "remove failed multinode cluster",
+    "requestID": "9fde563f-2f1d-4857-93df-5e1f7846697b",
+    "submittedAtUnix": 1792619226.982953
+  },
+  {
+    "operation": "shared launch",
+    "requestID": "f7e1ea3e-173c-44ed-a054-becdbdb5c625",
+    "submittedAtUnix": 1792619272.717538,
+    "lastObservedStatus": "CANCELLED"
+  },
+  {
+    "operation": "remove scheduler-blocked shared cluster",
+    "requestID": "a20340f0-c6e1-4fd4-b1bc-2d3198fb3e40",
+    "submittedAtUnix": 1792619758.640487
+  },
+  {
+    "operation": "shared launch",
+    "requestID": "f76b7022-b489-43aa-aeed-76f5379a4a65",
+    "submittedAtUnix": 1792619810.214881,
+    "lastObservedStatus": "FAILED"
+  }
+]

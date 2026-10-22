@@ -1,0 +1,65 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792619882.377177,
+    "skyVersion": "1.0.0.dev20261021",
+    "skyCommit": "2b12f65313bfc045c4b673dfd383be8c317885f9",
+    "notes": "Real shared cluster Pod Running after test-only scheduler override. Runtime setup and job execution are pending."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "sky-ref-shared-a1b2c3d4-head",
+        "namespace": "test-ref",
+        "uid": "28989b44-c164-4123-a195-65b1fbb1fa2f",
+        "creationTimestamp": "2026-10-21T21:57:07Z",
+        "ownerReferences": [],
+        "labels": {
+          "component": "sky-ref-shared-a1b2c3d4-head",
+          "kai.scheduler/queue": "osmo-pool-test-ref-karta-reference-test",
+          "parent": "skypilot",
+          "ray-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "ray-node-type": "head",
+          "research.karta.dev/suite": "skypilot",
+          "runai/queue": "osmo-pool-test-ref-karta-reference-test",
+          "skypilot-cluster": "sky-ref-shared-a1b2c3d4",
+          "skypilot-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "skypilot-head-node": "1",
+          "skypilot-user": "sky-ref-user"
+        },
+        "annotations": {
+          "pod-group-name": "pg-sky-ref-shared-a1b2c3d4-head-28989b44-c164-4123-a195-65b1fbb1fa2f",
+          "skypilot-cluster-name": "sky-ref-shared",
+          "skypilot-user": "sky-ref-user"
+        }
+      },
+      "spec": {
+        "schedulerName": "runai-scheduler",
+        "containers": [
+          {
+            "name": "ray-node",
+            "image": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot:202609010416-ray2.56.1",
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "2G"
+              }
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "ray-node",
+            "imageID": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot@sha256:3d49c33ab6042096bb82797cc202442f3586f5114167793cf6e1b3795c162c0a"
+          }
+        ]
+      }
+    }
+  ],
+  "targetSets": {}
+}

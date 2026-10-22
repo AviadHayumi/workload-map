@@ -1,0 +1,17 @@
+{
+  "kind": "live_paired_scrapes",
+  "reads": [
+    {
+      "file": "karta-osmo-group.prom",
+      "startedAt": "2026-10-21T21:56:19.244992+00:00",
+      "completedAt": "2026-10-21T21:56:20.089584+00:00",
+      "sampleCount": 7
+    },
+    {
+      "file": "ksm-osmo-group.prom",
+      "startedAt": "2026-10-21T21:56:20.089599+00:00",
+      "completedAt": "2026-10-21T21:56:21.281826+00:00",
+      "sampleCount": 7
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+fullnameOverride: sky-ref
+apiService:
+  image: berkeleyskypilot/skypilot-nightly@sha256:ed6205fbae86b38656ee9a41d91d99d7f2f9fe17b164b35f645de6cb269c5c5a
+  skipResourceCheck: true
+  resources:
+    requests:
+      cpu: "100m"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  config: |
+    allowed_clouds: [kubernetes]
+    kubernetes:
+      namespace: test-ref
+      allowed_contexts: [in-cluster]
+      remote_identity: sky-ref-api
+      provision_timeout: 600
+      pod_config:
+        metadata:
+          labels:
+            research.karta.dev/suite: skypilot
+        spec:
+          activeDeadlineSeconds: 1800
+          containers:
+            - name: ray-node
+              env:
+                - name: SKYPILOT_RAY_METRICS_EXPORT_PORT
+                  value: "9380"
+                - name: SKYPILOT_RAY_DASHBOARD_AGENT_LISTEN_PORT
+                  value: "52365"
+                - name: SKYPILOT_RAY_RUNTIME_ENV_AGENT_PORT
+                  value: "10002"
+    jobs:
+      controller:
+        consolidation_mode: true
+    serve:
+      controller:
+        consolidation_mode: true
+  extraEnvs:
+    - name: SKYPILOT_DISABLE_USAGE_COLLECTION
+      value: "true"
+    - name: SKYPILOT_USER
+      value: sky-ref-user
+    - name: SKYPILOT_USER_ID
+      value: a1b2c3d4
+storage:
+  enabled: false
+ingress:
+  enabled: false
+ingress-nginx:
+  enabled: false
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+auth:
+  serviceAccount:
+    enabled: false
+rbac:
+  create: true
+  serviceAccountName: sky-ref-api
+  manageRbacPolicies: false
+  manageSystemComponents: false
+  namespaceRules:
+    - apiGroups: [""]
+      resources: [pods, pods/status, pods/exec, pods/portforward, services, secrets]
+      verbs: ["*"]
+    - apiGroups: [""]
+      resources: [pods/log, events]
+      verbs: [get, list, watch]
+    - apiGroups: [""]
+      resources: [configmaps]
+      verbs: [get, patch]
+    - apiGroups: [apps]
+      resources: [deployments, deployments/status]
+      verbs: ["*"]
+    - apiGroups: [""]
+      resources: [persistentvolumeclaims]
+      verbs: ["*"]
+  clusterRules:
+    - apiGroups: [""]
+      resources: [nodes, pods]
+      verbs: [get, list, watch]
+    - apiGroups: [node.k8s.io]
+      resources: [runtimeclasses]
+      verbs: [get, list, watch]
+    - apiGroups: [""]
+      resources: [namespaces]
+      resourceNames: [kube-system]
+      verbs: [get]
+kubernetesCredentials:
+  useApiServerCluster: true
+  useKubeconfig: false
+  inclusterNamespace: test-ref

@@ -1,0 +1,79 @@
+{
+  "provenance": {
+    "kind": "historical_capture",
+    "capturedAt": "2026-10-16T06:47:30.911801+00:00",
+    "source": "docs/metrics-exporter-lab/submitter-attribution/evidence/cel/resumed/osmo-verified-pods.json",
+    "notes": "Prior lab capture. Original namespace and Pod UID retained. Not a new test-ref submission. No PodGroup inventory was captured here, so no target set is claimed."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "namespace": "osmo-submitter-lab",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3",
+        "labels": {
+          "osmo.group_name": "pair",
+          "osmo.group_uuid": "3017031336d54bdd8cafd38d744f5826",
+          "osmo.lead_container": "true",
+          "osmo.platform": "cel-audit-control-plane",
+          "osmo.pool": "default",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "leader",
+          "osmo.task_uuid": "69b5048077da47dfb245854f709ef7ee",
+          "osmo.workflow_id": "cel-metric-group-1",
+          "osmo.workflow_uuid": "77e449eedfdc4f9085f525811262825f"
+        },
+        "annotations": {},
+        "ownerReferences": []
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "namespace": "osmo-submitter-lab",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20",
+        "labels": {
+          "osmo.group_name": "pair",
+          "osmo.group_uuid": "3017031336d54bdd8cafd38d744f5826",
+          "osmo.platform": "cel-audit-control-plane",
+          "osmo.pool": "default",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "worker",
+          "osmo.task_uuid": "a4750ab5d1b5454992367ef4732ac3cd",
+          "osmo.workflow_id": "cel-metric-group-1",
+          "osmo.workflow_uuid": "77e449eedfdc4f9085f525811262825f"
+        },
+        "annotations": {},
+        "ownerReferences": []
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "namespace": "osmo-submitter-lab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b",
+        "labels": {
+          "osmo.group_name": "worker-group",
+          "osmo.group_uuid": "ae9d897dae66440491abf2b4d35941de",
+          "osmo.lead_container": "true",
+          "osmo.platform": "cel-audit-control-plane",
+          "osmo.pool": "default",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "worker",
+          "osmo.task_uuid": "75a6aa25566742abb0e82e7a55f97938",
+          "osmo.workflow_id": "cel-metric-single-1",
+          "osmo.workflow_uuid": "7a38b6926b9e4ed48e03bb959ddaa2e1"
+        },
+        "annotations": {},
+        "ownerReferences": []
+      }
+    }
+  ],
+  "targetSets": {}
+}

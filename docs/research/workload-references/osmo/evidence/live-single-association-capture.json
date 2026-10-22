@@ -1,0 +1,37 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAt": "2026-10-21T21:46:18.629809+00:00",
+    "notes": "Sanitized successful Kubernetes list from test-ref; user identity omitted."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "df8c436a2ee64248-275e9079d6834334",
+        "uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+        "labels": {
+          "osmo.group_name": "worker-group",
+          "osmo.group_uuid": "1ebc762de6be477ab77cf2c205830db8",
+          "osmo.lead_container": "true",
+          "osmo.platform": "reference-cpu",
+          "osmo.pool": "karta-reference-test",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "worker",
+          "osmo.task_uuid": "275e9079d68343349ed9fc9492dc7f20",
+          "osmo.workflow_id": "karta-ref-single-4",
+          "osmo.workflow_uuid": "df8c436a2ee642488e061aef2fc5e1f4",
+          "research.karta.dev/case": "osmo-reference"
+        },
+        "annotations": {
+          "pod-group-name": "1ebc762de6be477ab77cf2c205830db8",
+          "reference.example.test/group-name": "osmo-reference-1ebc762de6be477ab77cf2c205830db8"
+        },
+        "ownerReferences": []
+      }
+    }
+  ],
+  "targetSets": {}
+}

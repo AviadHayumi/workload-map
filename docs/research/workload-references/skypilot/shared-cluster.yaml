@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+name: sky-ref-bootstrap
+resources:
+  infra: kubernetes/in-cluster
+  cpus: 0.5
+  memory: 2
+run: |
+  python3 -c 'print("SKY_REF_BOOTSTRAP_SUCCEEDED", flush=True)'
+
+config:
+  kubernetes:
+    pod_config:
+      metadata:
+        labels:
+          kai.scheduler/queue: osmo-pool-test-ref-karta-reference-test
+          runai/queue: osmo-pool-test-ref-karta-reference-test
+      spec:
+        schedulerName: runai-scheduler
+        containers:
+          - name: ray-node
+            env:
+              - name: SKYPILOT_RAY_METRICS_EXPORT_PORT
+                value: "9380"
+              - name: SKYPILOT_RAY_DASHBOARD_AGENT_LISTEN_PORT
+                value: "52365"
+              - name: SKYPILOT_RAY_RUNTIME_ENV_AGENT_PORT
+                value: "10002"

@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-10-21T21:57:16.701355+00:00",
+  "context": "kmetric-playground-dev",
+  "namespace": "test-ref",
+  "allListsSucceeded": true,
+  "items": {
+    "pods": [],
+    "podgroups.scheduling.run.ai": [],
+    "configmaps": []
+  },
+  "workflowIDs": [
+    "karta-ref-single-1",
+    "karta-ref-single-4",
+    "karta-ref-group-1",
+    "karta-ref-group-2"
+  ]
+}

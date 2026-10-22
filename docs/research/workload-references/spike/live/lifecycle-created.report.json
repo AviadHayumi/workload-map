@@ -1,0 +1,13 @@
+{
+  "kind": "live_lifecycle_stage",
+  "stage": "created",
+  "podUID": "fb68ba26-455f-45ba-819e-3a5dbb371861",
+  "expectedAssociation": "ref-life-a",
+  "podAbsent": false,
+  "ksmSamples": 1,
+  "validKartaSamples": 1,
+  "pollAttempts": 1,
+  "startedAt": "2026-10-21T21:49:25.353785+00:00",
+  "completedAt": "2026-10-21T21:49:27.590397+00:00",
+  "note": "Verified eventual convergence after this operation; no atomic cross-informer timing guarantee."
+}

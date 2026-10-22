@@ -1,0 +1,16 @@
+{
+  "provenance": {
+    "kind": "local_test",
+    "notes": "Standard-library tests use a fake SkyPilot SDK and a temporary evidence directory. No Kubernetes or runtime workload result is implied."
+  },
+  "command": "PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s docs/research/workload-references/skypilot -p test_run.py -v",
+  "testCount": 9,
+  "result": "passed",
+  "covered": [
+    "Empty and partial multinode captures cannot report success.",
+    "Multinode UIDs, namespace, roles, cluster labels and sibling owners are checked.",
+    "Runtime success and mapping success are recorded independently.",
+    "Managed metadata must cover every submitted job ID with matching task metadata.",
+    "Partial runtime job sets cannot report managed probe success."
+  ]
+}

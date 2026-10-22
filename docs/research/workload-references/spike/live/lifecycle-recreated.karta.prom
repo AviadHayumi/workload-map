@@ -1,0 +1,1 @@
+karta_pod_workload_info{component="pod",component_instance="",namespace="test-ref",observation_valid="true",owner_resolution="resolved",pod_name="ref-lifecycle",pod_uid="246fde39-2a4a-4e71-bb80-6f3bc3f7bf49",replica_group_id="",workload_group="",workload_kind="Pod",workload_name="ref-lifecycle",workload_uid="246fde39-2a4a-4e71-bb80-6f3bc3f7bf49",workload_version="v1"} 1

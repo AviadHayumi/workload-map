@@ -1,0 +1,153 @@
+{
+  "liveValidation": "blocked_by_runtime_and_control_plane",
+  "blocker": "The corrected launch returned FAILED after in-cluster Kubernetes startup connection refusal and a Ray metrics_agent_port timeout. Source assessment found no supported task-configuration bypass. The head Pod later reached DeadlineExceeded; no additional launch was submitted.",
+  "resourcesInstalled": true,
+  "workloadsExecuted": false,
+  "livePodCaptures": true,
+  "checks": {
+    "clientVersionCommand": "passed",
+    "helmTemplate": "passed",
+    "taskParsing": "4 task YAMLs passed",
+    "probeSyntaxCompilation": "passed after proof-gate fixes",
+    "kubernetesCredentialCheck": "passed: in-cluster",
+    "finalTaskParsing": "4 task YAMLs with supported per-task port overrides passed",
+    "proofGateUnitTests": "passed: 9 standard-library unittest cases with fake SDK, plus metadata subcases; not live workload validation",
+    "runtimeRecoveryAssessment": "completed: pinned-source assessment and sanitized live Pod-state read; no supported bounded task fix found"
+  },
+  "versions": {
+    "client": "1.0.0.dev20261021",
+    "clientSourceCommit": "2b12f65313bfc045c4b673dfd383be8c317885f9",
+    "initialInvestigatedSourceCommit": "358c245e42eebe4ef8bc8ca7412ae2822c63ce02",
+    "helmChart": "1.0.0-dev.20261021",
+    "helmChartSHA256": "77f0ce07a5f5de61410e214f54e27a3ed3bf4ff6f2efb15c344c389eb04f385b",
+    "apiImage": "berkeleyskypilot/skypilot-nightly@sha256:ed6205fbae86b38656ee9a41d91d99d7f2f9fe17b164b35f645de6cb269c5c5a",
+    "ray": "2.56.1",
+    "rayCommit": "06729817574615e25afe8f20902b37660c2e6962"
+  },
+  "renderedResources": [
+    {
+      "kind": "ServiceAccount",
+      "name": "sky-ref-api",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "ConfigMap",
+      "name": "sky-ref-config",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "ClusterRole",
+      "name": "sky-ref-api-role",
+      "namespace": null,
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes",
+            "pods"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "node.k8s.io"
+          ],
+          "resources": [
+            "runtimeclasses"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resourceNames": [
+            "kube-system"
+          ],
+          "resources": [
+            "namespaces"
+          ],
+          "verbs": [
+            "get"
+          ]
+        },
+        {
+          "apiGroups": [
+            "storage.k8s.io"
+          ],
+          "resources": [
+            "storageclasses"
+          ],
+          "verbs": [
+            "get",
+            "list",
+            "watch"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "ClusterRoleBinding",
+      "name": "sky-ref-api-role-binding",
+      "namespace": null
+    },
+    {
+      "kind": "Role",
+      "name": "sky-ref-api-role",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "RoleBinding",
+      "name": "sky-ref-api-role-binding",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "Service",
+      "name": "sky-ref-api-service",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "Deployment",
+      "name": "sky-ref-api-server",
+      "namespace": "test-ref"
+    }
+  ],
+  "independentClaudeReview": {
+    "status": "unavailable",
+    "reason": "No authenticated Claude session was available; no review result was obtained."
+  },
+  "helmRelease": {
+    "name": "sky-ref",
+    "namespace": "test-ref",
+    "revision": 2,
+    "status": "deployed"
+  },
+  "observations": {
+    "ordinaryPodCreated": true,
+    "multinodeSiblingPodsCreated": true,
+    "concurrentJobsObserved": false,
+    "managedJobSubmitted": false,
+    "firstSharedLaunch": "failed during Kubernetes API instability; one bounded retry submitted after permission verification",
+    "sharedPodRunningUnderKAI": true,
+    "podNameAndClusterLabelReusedWithNewUID": true,
+    "lastFailedRequestID": "f76b7022-b489-43aa-aeed-76f5379a4a65",
+    "sharedLaunchTerminalStatus": "FAILED",
+    "sharedPodFinalPhase": "Failed",
+    "sharedPodFinalReason": "DeadlineExceeded"
+  },
+  "schedulerWorkaround": {
+    "schedulerName": "runai-scheduler",
+    "queue": "osmo-pool-test-ref-karta-reference-test",
+    "scope": "per-task Pod configuration in test-ref; existing dedicated test queue retained; no scheduler or queue mutations"
+  }
+}

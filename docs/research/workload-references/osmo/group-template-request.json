@@ -1,0 +1,17 @@
+{
+  "description": "Optional per-group projection; not workflow owner",
+  "configs": {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "osmo-reference-{{WF_GROUP_UUID}}"
+    },
+    "data": {
+      "workflowID": "{{WF_ID}}",
+      "workflowUUID": "{{WF_UUID}}",
+      "groupName": "{{WF_GROUP_NAME}}",
+      "groupUUID": "{{WF_GROUP_UUID}}",
+      "pool": "{{WF_POOL}}"
+    }
+  }
+}

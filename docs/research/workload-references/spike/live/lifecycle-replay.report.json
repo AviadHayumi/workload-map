@@ -1,0 +1,19 @@
+{
+  "kind": "live_lifecycle_replay",
+  "stages": [
+    "created",
+    "label-removed",
+    "label-replaced",
+    "deleted",
+    "recreated"
+  ],
+  "observedPodUIDs": [
+    "fb68ba26-455f-45ba-819e-3a5dbb371861",
+    "fb68ba26-455f-45ba-819e-3a5dbb371861",
+    "fb68ba26-455f-45ba-819e-3a5dbb371861",
+    null,
+    "246fde39-2a4a-4e71-bb80-6f3bc3f7bf49"
+  ],
+  "checks": 6,
+  "note": "Each stage was captured after both informers converged. Minute spacing is local replay time, not measured operation latency. The last check intentionally combines captured old-root and new-Pod samples."
+}

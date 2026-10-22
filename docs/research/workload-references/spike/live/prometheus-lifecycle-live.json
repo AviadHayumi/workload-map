@@ -1,0 +1,40 @@
+{
+  "kind": "live_prometheus_lifecycle",
+  "runsOn": "local workstation",
+  "recreated": {
+    "observedAt": "2026-10-21T21:51:27.141945+00:00",
+    "expression": "research:karta_pod_sky_association{pod_name=\"ref-lifecycle\"}",
+    "result": [
+      {
+        "metric": {
+          "__name__": "research:karta_pod_sky_association",
+          "component": "pod",
+          "instance": "127.0.0.1:18092",
+          "job": "karta-reference-exporter",
+          "label_skypilot_cluster_name": "ref-life-a",
+          "namespace": "test-ref",
+          "observation_valid": "true",
+          "owner_resolution": "resolved",
+          "pod_name": "ref-lifecycle",
+          "pod_uid": "246fde39-2a4a-4e71-bb80-6f3bc3f7bf49",
+          "workload_kind": "Pod",
+          "workload_name": "ref-lifecycle",
+          "workload_uid": "246fde39-2a4a-4e71-bb80-6f3bc3f7bf49",
+          "workload_version": "v1"
+        },
+        "value": [
+          1792619487.141,
+          "1"
+        ]
+      }
+    ],
+    "pollAttempts": 1
+  },
+  "note": "The reused label is configurable test data on a disposable generic Pod, not a SkyPilot workload.",
+  "deleted": {
+    "observedAt": "2026-10-21T21:51:39.168388+00:00",
+    "expression": "research:karta_pod_sky_association{pod_name=\"ref-lifecycle\"}",
+    "result": [],
+    "pollAttempts": 4
+  }
+}

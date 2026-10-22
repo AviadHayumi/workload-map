@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-10-21T21:28:56.191806+00:00",
+  "namespace": "test-ref",
+  "deployment": "karta-reference-ksm",
+  "observedImageTag": "v2.14.0",
+  "pinnedImage": "registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:37d841299325c23b56e5951176ce8ef317d537447c0f1b2d2437dddbb1f51165",
+  "scrapeMetric": "kube_pod_labels",
+  "scope": "test-ref only",
+  "sampleCount": 5,
+  "provenance": "live KSM scrape; other families excluded to avoid collecting node or network metadata"
+}

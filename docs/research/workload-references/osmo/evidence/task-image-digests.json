@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-21T21:55:56.128456+00:00",
+  "images": [
+    {
+      "podName": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+      "podUID": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+      "container": "leader",
+      "submittedImage": "ubuntu:24.04",
+      "podSpecImage": "ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+      "imageID": "docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+    },
+    {
+      "podName": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+      "podUID": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+      "container": "worker",
+      "submittedImage": "ubuntu:24.04",
+      "podSpecImage": "ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+      "imageID": "docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "workflowID": "karta-ref-single-4",
+  "workflowUUID": "df8c436a2ee642488e061aef2fc5e1f4",
+  "status": "RUNNING",
+  "observedAt": "2026-10-21T21:49:38.995751+00:00",
+  "groups": [
+    {
+      "name": "worker-group",
+      "status": "RUNNING",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "RUNNING",
+          "retry_id": 0
+        }
+      ]
+    }
+  ]
+}

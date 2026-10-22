@@ -1,0 +1,33 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792619621.997717,
+    "notes": "Read-only scheduler health and diagnostic subset; Pod/node names and endpoints removed."
+  },
+  "schedulers": [
+    {
+      "scheduler": "scheduler-1",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "kube-scheduler",
+          "ready": false,
+          "restartCount": 7,
+          "state": [
+            "waiting"
+          ]
+        }
+      ],
+      "diagnosticLines": [
+        "I1021 21:52:45.765268       1 leaderelection.go:258] \"Attempting to acquire leader lease...\" lock=\"kube-system/kube-scheduler\"",
+        "I1021 21:52:45.771967       1 leaderelection.go:272] \"Successfully acquired lease\" lock=\"kube-system/kube-scheduler\"",
+        "E1021 21:53:05.754791       1 leaderelection.go:445] \"Failed to update lease optimistically, falling back to slow path\" err=\"Put \\\"<cluster-endpoint>\": net/http: request canceled (Client.Timeout exceeded while awaiting headers)\" lock=\"kube-system/kube-scheduler\"",
+        "E1021 21:53:10.619945       1 leaderelection.go:452] \"Error retrieving lease lock\" err=\"Get \\\"<cluster-endpoint>\": context deadline exceeded\" lock=\"kube-system/kube-scheduler\"",
+        "I1021 21:53:10.637988       1 leaderelection.go:299] \"Failed to renew lease\" lock=\"kube-system/kube-scheduler\" err=\"context deadline exceeded\"",
+        "E1021 21:53:15.638347       1 leaderelection.go:318] \"error retrieving resource lock\" err=\"Get \\\"<cluster-endpoint>\": net/http: request canceled (Client.Timeout exceeded while awaiting headers)\" lock=\"kube-system/kube-scheduler\"",
+        "E1021 21:53:15.769649       1 server.go:319] \"Leaderelection lost\""
+      ],
+      "logReadExitCode": 0
+    }
+  ]
+}

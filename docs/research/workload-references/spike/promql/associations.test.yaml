@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+rule_files:
+  - associations.rules.yaml
+evaluation_interval: 1m
+tests:
+  - name: metadata join preserves the Kubernetes root and collapses duplicate KSM scrapes
+    interval: 1m
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_name="true-root",workload_uid="root-a",workload_kind="Workflow",owner_resolution="resolved",observation_valid="true"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="pod-a",label_osmo_workflow_uuid="logical-workflow",label_skypilot_cluster_name="shared-cluster",instance="ksm-one"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="pod-a",label_osmo_workflow_uuid="logical-workflow",label_skypilot_cluster_name="shared-cluster",instance="ksm-two"}'
+        values: '1 1'
+    promql_expr_test:
+      - expr: research:karta_pod_osmo_association
+        eval_time: 1m
+        exp_samples:
+          - labels: 'research:karta_pod_osmo_association{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_name="true-root",workload_uid="root-a",workload_kind="Workflow",owner_resolution="resolved",observation_valid="true",label_osmo_workflow_uuid="logical-workflow"}'
+            value: 1
+      - expr: research:karta_pod_sky_association
+        eval_time: 1m
+        exp_samples:
+          - labels: 'research:karta_pod_sky_association{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_name="true-root",workload_uid="root-a",workload_kind="Workflow",owner_resolution="resolved",observation_valid="true",label_skypilot_cluster_name="shared-cluster"}'
+            value: 1
+  - name: same Pod name after recreation cannot attach to the old UID
+    interval: 1m
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="team-a",pod_name="worker",pod_uid="old-pod",workload_uid="old-root",observation_valid="true"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="new-pod",label_osmo_workflow_uuid="new-workflow",label_skypilot_cluster_name="new-cluster"}'
+        values: '1 1'
+    promql_expr_test:
+      - expr: research:karta_pod_osmo_association
+        eval_time: 1m
+        exp_samples: []
+      - expr: research:karta_pod_sky_association
+        eval_time: 1m
+        exp_samples: []
+  - name: namespace mismatch cannot attach metadata even when UID values match
+    interval: 1m
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_uid="root-a",observation_valid="true"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-b",pod="worker",uid="pod-a",label_osmo_workflow_uuid="foreign-workflow",label_skypilot_cluster_name="foreign-cluster"}'
+        values: '1 1'
+    promql_expr_test:
+      - expr: research:karta_pod_osmo_association
+        eval_time: 1m
+        exp_samples: []
+      - expr: research:karta_pod_sky_association
+        eval_time: 1m
+        exp_samples: []
+  - name: invalid retained Karta observations are excluded
+    interval: 1m
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_uid="root-a",observation_valid="false"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="pod-a",label_osmo_workflow_uuid="logical-workflow",label_skypilot_cluster_name="shared-cluster"}'
+        values: '1 1'
+    promql_expr_test:
+      - expr: research:karta_pod_osmo_association
+        eval_time: 1m
+        exp_samples: []
+      - expr: research:karta_pod_sky_association
+        eval_time: 1m
+        exp_samples: []
+  - name: conflicting metadata for one Pod is suppressed instead of choosing a value
+    interval: 1m
+    input_series:
+      - series: 'karta_pod_workload_info{namespace="team-a",pod_name="worker",pod_uid="pod-a",workload_uid="root-a",observation_valid="true"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="pod-a",label_osmo_workflow_uuid="workflow-a",label_skypilot_cluster_name="cluster-a"}'
+        values: '1 1'
+      - series: 'kube_pod_labels{namespace="team-a",pod="worker",uid="pod-a",label_osmo_workflow_uuid="workflow-b",label_skypilot_cluster_name="cluster-b"}'
+        values: '1 1'
+    promql_expr_test:
+      - expr: research:karta_pod_osmo_association
+        eval_time: 1m
+        exp_samples: []
+      - expr: research:karta_pod_sky_association
+        eval_time: 1m
+        exp_samples: []

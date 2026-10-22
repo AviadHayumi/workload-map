@@ -1,0 +1,7 @@
+kube_pod_labels{namespace="test-ref",pod="osmo-ref-osmo-backend-worker-59848f9b87-k9685",uid="b60aec35-33eb-4399-8841-caa7eb4b8e15"} 1
+kube_pod_labels{namespace="test-ref",pod="sky-ref-api-server-68d784d6b-x5tm7",uid="39c8ba0a-99a4-4ad9-a5a0-911875ce6b77"} 1
+kube_pod_labels{namespace="test-ref",pod="sky-ref-multinode-a1b2c3d4-worker1",uid="0d6ebcec-0487-42b8-98c0-ec85cf7d5e28",label_skypilot_cluster_name="sky-ref-multinode-a1b2c3d4"} 1
+kube_pod_labels{namespace="test-ref",pod="sky-ref-multinode-a1b2c3d4-head",uid="8b3d6cf9-8261-4be8-9a9a-c4dce976f572",label_skypilot_cluster_name="sky-ref-multinode-a1b2c3d4"} 1
+kube_pod_labels{namespace="test-ref",pod="karta-ref-exporter-749bb696dc-fxjfc",uid="68281fd9-47c4-4151-a5f9-4ca04151bee1"} 1
+kube_pod_labels{namespace="test-ref",pod="karta-reference-ksm-f5cf868d7-8xqv6",uid="9dfedfa9-201e-4753-9f1a-d075c755e2f7"} 1
+kube_pod_labels{namespace="test-ref",pod="osmo-ref-osmo-backend-listener-65b745cb78-gflxf",uid="944f6a50-f445-4261-afc0-541598ef67dd"} 1

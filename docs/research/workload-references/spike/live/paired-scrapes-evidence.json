@@ -1,0 +1,21 @@
+{
+  "kind": "live_paired_scrapes",
+  "namespace": "test-ref",
+  "reads": [
+    {
+      "file": "karta-platform.prom",
+      "metric": "karta_pod_workload_info",
+      "startedAt": "2026-10-21T21:44:42.284905+00:00",
+      "completedAt": "2026-10-21T21:44:43.834769+00:00",
+      "sampleCount": 7
+    },
+    {
+      "file": "ksm-platform.prom",
+      "metric": "kube_pod_labels",
+      "startedAt": "2026-10-21T21:44:43.834786+00:00",
+      "completedAt": "2026-10-21T21:44:46.307141+00:00",
+      "sampleCount": 8
+    }
+  ],
+  "exporterReadyHTTPStatus": 200
+}

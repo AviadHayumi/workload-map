@@ -1,0 +1,30 @@
+=== RUN   TestResolveMissingOwnerRemainsPendingUntilSync
+--- PASS: TestResolveMissingOwnerRemainsPendingUntilSync (0.00s)
+=== RUN   TestResolveUsesTrueRoot
+--- PASS: TestResolveUsesTrueRoot (0.00s)
+=== RUN   TestIgnoredOwnerIsExactGVK
+=== RUN   TestIgnoredOwnerIsExactGVK/v1
+=== RUN   TestIgnoredOwnerIsExactGVK/v2
+--- PASS: TestIgnoredOwnerIsExactGVK (0.00s)
+    --- PASS: TestIgnoredOwnerIsExactGVK/v1 (0.00s)
+    --- PASS: TestIgnoredOwnerIsExactGVK/v2 (0.00s)
+=== RUN   TestLateParentAndMissingParent
+--- PASS: TestLateParentAndMissingParent (0.00s)
+=== RUN   TestReplacementDeletionAndReparent
+--- PASS: TestReplacementDeletionAndReparent (0.00s)
+=== RUN   TestOwnershipNamespaceScope
+=== RUN   TestOwnershipNamespaceScope/namespaced_to_cluster
+=== RUN   TestOwnershipNamespaceScope/same_namespace
+=== RUN   TestOwnershipNamespaceScope/cross_namespace
+=== RUN   TestOwnershipNamespaceScope/cluster_to_namespaced
+=== RUN   TestOwnershipNamespaceScope/cluster_intermediate_to_namespaced
+--- PASS: TestOwnershipNamespaceScope (0.00s)
+    --- PASS: TestOwnershipNamespaceScope/namespaced_to_cluster (0.00s)
+    --- PASS: TestOwnershipNamespaceScope/same_namespace (0.00s)
+    --- PASS: TestOwnershipNamespaceScope/cross_namespace (0.00s)
+    --- PASS: TestOwnershipNamespaceScope/cluster_to_namespaced (0.00s)
+    --- PASS: TestOwnershipNamespaceScope/cluster_intermediate_to_namespaced (0.00s)
+=== RUN   TestOwnershipConcurrentPublicationNeverInventsRoot
+--- PASS: TestOwnershipConcurrentPublicationNeverInventsRoot (0.01s)
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery	0.559s

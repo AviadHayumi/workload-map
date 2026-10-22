@@ -1,0 +1,15 @@
+{
+  "kind": "live_deployment_status",
+  "capturedAt": "2026-10-21T21:53:22.331445+00:00",
+  "namespace": "test-ref",
+  "name": "karta-reference-ksm",
+  "generation": 2,
+  "observedGeneration": 2,
+  "readyReplicas": 1,
+  "configuredArgs": [
+    "--resources=pods",
+    "--namespaces=test-ref",
+    "--metric-labels-allowlist=pods=[osmo.workflow_uuid,osmo.group_uuid,osmo.task_uuid,skypilot-cluster-name,karta.test/association]"
+  ],
+  "note": "The additional generic key is configured. Lifecycle execution reused an already allowed label and did not depend on this rollout."
+}

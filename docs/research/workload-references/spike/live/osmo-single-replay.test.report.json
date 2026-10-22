@@ -1,0 +1,24 @@
+{
+  "kind": "live_scrape_replay",
+  "kartaSource": "karta-osmo-single.prom",
+  "ksmSource": "ksm-osmo-single.prom",
+  "sourceSHA256": {
+    "karta-osmo-single.prom": "eae6174af1209f071626a41190e7604f43fe40ed40427c8f319ea2d62e4cf3c9",
+    "ksm-osmo-single.prom": "7a8e0e2756dfbeb11345ffc4f6b526b605e048ca8336b53483ed5278d3efeed5",
+    "live-single-association-capture.json": "a819070fd2cfef5e75bad1153d7ae5c82ecc094d8a5a14d182c3e83d254a7275"
+  },
+  "matchedRows": {
+    "osmo": 1,
+    "sky": 2
+  },
+  "capturedPodRootChecks": [
+    {
+      "namespace": "test-ref",
+      "pod": "df8c436a2ee64248-275e9079d6834334",
+      "podUID": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+      "workloadUID": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+      "ownerlessRootVerified": true
+    }
+  ],
+  "note": "Actual captured samples replayed locally; this is not a running Prometheus scrape test."
+}

@@ -1,0 +1,10 @@
+{
+  "capturedAt": "2026-10-21T21:56:37.819933+00:00",
+  "allListsSucceeded": true,
+  "items": {
+    "pods": [],
+    "podgroups.scheduling.run.ai": [],
+    "configmaps": []
+  },
+  "note": "Sequential namespace-scoped reads. Terminal status queried after these reads; a later cleanup check is still required."
+}

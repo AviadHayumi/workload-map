@@ -1,0 +1,18 @@
+{
+  "workflowID": "karta-ref-single-4",
+  "workflowUUID": "df8c436a2ee642488e061aef2fc5e1f4",
+  "status": "COMPLETED",
+  "groups": [
+    {
+      "name": "worker-group",
+      "status": "COMPLETED",
+      "tasks": [
+        {
+          "name": "worker",
+          "status": "COMPLETED",
+          "retry_id": 0
+        }
+      ]
+    }
+  ]
+}

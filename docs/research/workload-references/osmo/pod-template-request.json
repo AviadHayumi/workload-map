@@ -1,0 +1,30 @@
+{
+  "description": "Reference metadata and retry visibility for isolated test pool",
+  "configs": {
+    "metadata": {
+      "labels": {
+        "research.karta.dev/case": "osmo-reference"
+      },
+      "annotations": {
+        "reference.example.test/group-name": "osmo-reference-{{WF_GROUP_UUID}}"
+      }
+    },
+    "spec": {
+      "containers": [
+        {
+          "name": "{{USER_CONTAINER_NAME}}",
+          "env": [
+            {
+              "name": "OSMO_REFERENCE_RETRY",
+              "valueFrom": {
+                "fieldRef": {
+                  "fieldPath": "metadata.labels['osmo.retry_id']"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

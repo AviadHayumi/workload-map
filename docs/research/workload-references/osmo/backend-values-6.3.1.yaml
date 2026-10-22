@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+global:
+  name: osmo-ref
+  osmoImageTag: "6.3.1"
+  agentNamespace: test-ref
+  nodeSelector:
+    kubernetes.io/os: linux
+  backendNamespace: test-ref
+  backendName: karta-reference-test
+  nodeConditionPrefix: osmo-lab.nvidia.com/
+  backendTestNamespace: null
+  accountTokenSecret: test-ref-osmo-backend-token
+  accountTokenSecretKey: token
+  loginMethod: token
+  includeNamespaceUsage: test-ref
+  priorityClasses:
+    enabled: false
+  enableClusterRoles: true
+  enableNonClusterRoles: true
+services:
+  backendListener:
+    serviceAccount: osmo-ref-listener
+    enableNodeLabelUpdate: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  backendWorker:
+    serviceAccount: osmo-ref-worker
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    extraRBACRules:
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["list", "create", "delete", "patch"]
+backendTestRunner:
+  enabled: false
+podMonitor:
+  enabled: false

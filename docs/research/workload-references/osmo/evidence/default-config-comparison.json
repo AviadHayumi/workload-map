@@ -1,0 +1,14 @@
+{
+  "pool": {
+    "backend": true,
+    "default_platform": true,
+    "platforms": true,
+    "common_pod_template": true,
+    "common_group_templates": true
+  },
+  "backend": {
+    "k8s_namespace": true,
+    "scheduler_settings": true,
+    "node_conditions": true
+  }
+}

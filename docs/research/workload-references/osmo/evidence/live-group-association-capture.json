@@ -1,0 +1,93 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAt": "2026-10-21T21:56:21.939552+00:00",
+    "notes": "Dedicated-pool Pod read and complete namespace PodGroup read are sequential; no atomic-snapshot guarantee."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+        "labels": {
+          "osmo.group_name": "pair",
+          "osmo.group_uuid": "c60ec160a9954b4a82c5475def93f5be",
+          "osmo.lead_container": "true",
+          "osmo.platform": "reference-cpu",
+          "osmo.pool": "karta-reference-test",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "leader",
+          "osmo.task_uuid": "875210e6c63f4d09b8379d209cc356df",
+          "osmo.workflow_id": "karta-ref-group-2",
+          "osmo.workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+          "research.karta.dev/case": "osmo-reference"
+        },
+        "annotations": {
+          "pod-group-name": "c60ec160a9954b4a82c5475def93f5be",
+          "reference.example.test/group-name": "osmo-reference-c60ec160a9954b4a82c5475def93f5be"
+        },
+        "ownerReferences": []
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+        "labels": {
+          "osmo.group_name": "pair",
+          "osmo.group_uuid": "c60ec160a9954b4a82c5475def93f5be",
+          "osmo.platform": "reference-cpu",
+          "osmo.pool": "karta-reference-test",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "worker",
+          "osmo.task_uuid": "b4ced59a832b4d859898557da14a2ec4",
+          "osmo.workflow_id": "karta-ref-group-2",
+          "osmo.workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+          "research.karta.dev/case": "osmo-reference"
+        },
+        "annotations": {
+          "pod-group-name": "c60ec160a9954b4a82c5475def93f5be",
+          "reference.example.test/group-name": "osmo-reference-c60ec160a9954b4a82c5475def93f5be"
+        },
+        "ownerReferences": []
+      }
+    }
+  ],
+  "targetSets": {
+    "podgroups": {
+      "complete": true,
+      "targets": [
+        {
+          "namespace": "test-ref",
+          "id": "c60ec160a9954b4a82c5475def93f5be",
+          "attributes": {
+            "name": "c60ec160a9954b4a82c5475def93f5be"
+          },
+          "kubernetes": {
+            "apiVersion": "scheduling.run.ai/v2alpha2",
+            "kind": "PodGroup",
+            "metadata": {
+              "namespace": "test-ref",
+              "name": "c60ec160a9954b4a82c5475def93f5be",
+              "uid": "2aa3ccfe-5937-447e-9f0e-307c2cf5104d",
+              "labels": {
+                "osmo.group_name": "pair",
+                "osmo.group_uuid": "c60ec160a9954b4a82c5475def93f5be",
+                "osmo.workflow_id": "karta-ref-group-2",
+                "osmo.workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444"
+              },
+              "annotations": {},
+              "ownerReferences": []
+            }
+          }
+        }
+      ]
+    }
+  }
+}

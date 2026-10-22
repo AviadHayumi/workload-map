@@ -1,0 +1,36 @@
+{
+  "description": "Isolated namespace reference experiment",
+  "configs": {
+    "name": "karta-reference-test",
+    "description": "Reference experiment in test-ref",
+    "backend": "karta-reference-test",
+    "default_platform": "reference-cpu",
+    "common_pod_template": [
+      "default_ctrl",
+      "default_user",
+      "default_compute",
+      "karta-reference-test"
+    ],
+    "platforms": {
+      "reference-cpu": {
+        "override_pod_template": [
+          "karta-reference-scheduling"
+        ]
+      }
+    },
+    "common_group_templates": [
+      "karta-reference-test"
+    ],
+    "common_default_variables": {
+      "USER_CPU": 1,
+      "USER_GPU": 0,
+      "USER_MEMORY": "1Gi",
+      "USER_STORAGE": "1Gi"
+    },
+    "common_resource_validations": [
+      "default_cpu",
+      "default_memory",
+      "default_storage"
+    ]
+  }
+}

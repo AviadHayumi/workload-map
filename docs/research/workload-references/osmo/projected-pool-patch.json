@@ -1,0 +1,8 @@
+{
+  "description": "Enable optional per-group projection for isolated test pool",
+  "configs_dict": {
+    "common_group_templates": [
+      "karta-reference-test"
+    ]
+  }
+}

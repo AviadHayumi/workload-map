@@ -1,0 +1,17 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "notes": "Sanitized summary of the first real SkyPilot provisioning failure. No successful runtime job is implied."
+  },
+  "cluster": "sky-ref-shared",
+  "requestID": "31644028-0fe6-4cd2-a2c5-e9777e334339",
+  "result": "ResourcesUnavailableError",
+  "diagnostics": [
+    "In-cluster Kubernetes API connection refused during polling.",
+    "Pod list returned 403 for the test SkyPilot service account.",
+    "Provisioner cleaned up the failed cluster.",
+    "Subsequent namespace Pod-list authorization check returned yes with the existing RoleBinding."
+  ],
+  "podUID": "627ad6c8-b7d0-4ae3-84c0-8f7348c9ef84",
+  "containerReachedRunning": true
+}

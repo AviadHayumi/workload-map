@@ -1,0 +1,20 @@
+{
+  "kind": "live_paired_scrapes",
+  "namespace": "test-ref",
+  "reads": [
+    {
+      "file": "karta-osmo-single.prom",
+      "metric": "karta_pod_workload_info",
+      "startedAt": "2026-10-21T21:47:01.076086+00:00",
+      "completedAt": "2026-10-21T21:47:04.864993+00:00",
+      "sampleCount": 8
+    },
+    {
+      "file": "ksm-osmo-single.prom",
+      "metric": "kube_pod_labels",
+      "startedAt": "2026-10-21T21:47:04.865009+00:00",
+      "completedAt": "2026-10-21T21:47:06.962958+00:00",
+      "sampleCount": 8
+    }
+  ]
+}

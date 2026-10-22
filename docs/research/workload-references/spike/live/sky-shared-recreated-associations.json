@@ -1,0 +1,16 @@
+[
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "sky-ref-shared-a1b2c3d4-head",
+        "uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18"
+      }
+    },
+    "relation": "skypilot-cluster",
+    "value": "sky-ref-shared-a1b2c3d4",
+    "status": "observed_metadata"
+  }
+]

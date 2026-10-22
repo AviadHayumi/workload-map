@@ -1,0 +1,12 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "notes": "Actual Pod environment subset confirms the intended startup settings were rendered; no runtime success implied."
+  },
+  "podUID": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+  "settings": {
+    "SKYPILOT_RAY_METRICS_EXPORT_PORT": "9380",
+    "SKYPILOT_RAY_DASHBOARD_AGENT_LISTEN_PORT": "52365",
+    "SKYPILOT_RAY_RUNTIME_ENV_AGENT_PORT": "10002"
+  }
+}

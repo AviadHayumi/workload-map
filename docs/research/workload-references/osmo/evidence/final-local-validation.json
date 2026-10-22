@@ -1,0 +1,10 @@
+{
+  "docsASCIIHeadersLocalLinks": "passed",
+  "topReadmeLines": 97,
+  "OSMOJSONAndYAMLRequestAgreement": "passed",
+  "pythonAST": "passed",
+  "OSMOChartScope": "12 objects; all namespaced objects test-ref",
+  "privateAddressScan": "passed",
+  "rawCaptureBehavior": "unchanged; complete target inventories only after successful lists",
+  "cleanupSkill": "ai-slop-cleaner; docs only; no code behavior changed"
+}

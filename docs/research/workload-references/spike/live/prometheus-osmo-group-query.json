@@ -1,0 +1,56 @@
+{
+  "kind": "live_prometheus_group_query",
+  "runsOn": "local workstation",
+  "observedAt": "2026-10-21T21:56:19.244230+00:00",
+  "expression": "research:karta_pod_osmo_association{label_osmo_workflow_uuid=\"faa9dfbbaa0b4d009ab7ef312f3d6444\"}",
+  "result": [
+    {
+      "metric": {
+        "__name__": "research:karta_pod_osmo_association",
+        "component": "pod",
+        "instance": "127.0.0.1:18092",
+        "job": "karta-reference-exporter",
+        "label_osmo_workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+        "namespace": "test-ref",
+        "observation_valid": "true",
+        "owner_resolution": "resolved",
+        "pod_name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "pod_uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+        "workload_kind": "Pod",
+        "workload_name": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+        "workload_uid": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+        "workload_version": "v1"
+      },
+      "value": [
+        1792619779.243,
+        "1"
+      ]
+    },
+    {
+      "metric": {
+        "__name__": "research:karta_pod_osmo_association",
+        "component": "pod",
+        "instance": "127.0.0.1:18092",
+        "job": "karta-reference-exporter",
+        "label_osmo_workflow_uuid": "faa9dfbbaa0b4d009ab7ef312f3d6444",
+        "namespace": "test-ref",
+        "observation_valid": "true",
+        "owner_resolution": "resolved",
+        "pod_name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "pod_uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+        "workload_kind": "Pod",
+        "workload_name": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+        "workload_uid": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+        "workload_version": "v1"
+      },
+      "value": [
+        1792619779.243,
+        "1"
+      ]
+    }
+  ],
+  "capturedPodCount": 2,
+  "exactPodRootsPreserved": true,
+  "source": "osmo-group-capture.json",
+  "note": "Prometheus omits empty-valued labels in query output; absent workload_group represents the empty core API group."
+}

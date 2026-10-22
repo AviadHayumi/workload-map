@@ -1,0 +1,110 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792618671.113287,
+    "skyVersion": "1.0.0.dev20261021",
+    "skyCommit": "2b12f65313bfc045c4b673dfd383be8c317885f9",
+    "notes": "Both multinode compute Pods are Running. SkyPilot runtime setup and finite job execution are not yet complete."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "sky-ref-multinode-a1b2c3d4-head",
+        "namespace": "test-ref",
+        "uid": "8b3d6cf9-8261-4be8-9a9a-c4dce976f572",
+        "creationTimestamp": "2026-10-21T21:33:36Z",
+        "ownerReferences": [],
+        "labels": {
+          "component": "sky-ref-multinode-a1b2c3d4-head",
+          "parent": "skypilot",
+          "ray-cluster-name": "sky-ref-multinode-a1b2c3d4",
+          "ray-node-type": "head",
+          "research.karta.dev/suite": "skypilot",
+          "skypilot-cluster": "sky-ref-multinode-a1b2c3d4",
+          "skypilot-cluster-name": "sky-ref-multinode-a1b2c3d4",
+          "skypilot-head-node": "1",
+          "skypilot-user": "sky-ref-user"
+        },
+        "annotations": {
+          "skypilot-cluster-name": "sky-ref-multinode",
+          "skypilot-user": "sky-ref-user"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "ray-node",
+            "image": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot:202609010416-ray2.56.1",
+            "resources": {
+              "requests": {
+                "cpu": "200m",
+                "memory": "1G"
+              }
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "ray-node",
+            "imageID": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot@sha256:3d49c33ab6042096bb82797cc202442f3586f5114167793cf6e1b3795c162c0a"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "sky-ref-multinode-a1b2c3d4-worker1",
+        "namespace": "test-ref",
+        "uid": "0d6ebcec-0487-42b8-98c0-ec85cf7d5e28",
+        "creationTimestamp": "2026-10-21T21:33:36Z",
+        "ownerReferences": [],
+        "labels": {
+          "component": "sky-ref-multinode-a1b2c3d4-worker1",
+          "parent": "skypilot",
+          "ray-cluster-name": "sky-ref-multinode-a1b2c3d4",
+          "ray-node-type": "worker",
+          "research.karta.dev/suite": "skypilot",
+          "skypilot-cluster": "sky-ref-multinode-a1b2c3d4",
+          "skypilot-cluster-name": "sky-ref-multinode-a1b2c3d4",
+          "skypilot-head-node": "0",
+          "skypilot-user": "sky-ref-user"
+        },
+        "annotations": {
+          "skypilot-cluster-name": "sky-ref-multinode",
+          "skypilot-user": "sky-ref-user"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "ray-node",
+            "image": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot:202609010416-ray2.56.1",
+            "resources": {
+              "requests": {
+                "cpu": "200m",
+                "memory": "1G"
+              }
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "ray-node",
+            "imageID": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot@sha256:3d49c33ab6042096bb82797cc202442f3586f5114167793cf6e1b3795c162c0a"
+          }
+        ]
+      }
+    }
+  ],
+  "targetSets": {}
+}

@@ -1,0 +1,3 @@
+[
+  {"relation":"skypilot-cluster","source":{"from":"label","key":"skypilot-cluster-name"}}
+]

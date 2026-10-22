@@ -1,0 +1,41 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792618081.289388,
+    "skyVersion": "1.0.0.dev20261021",
+    "skyCommit": "2b12f65313bfc045c4b673dfd383be8c317885f9",
+    "notes": "Live Pod metadata during image pull. No job execution is implied by this capture."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "sky-ref-shared-a1b2c3d4-head",
+        "namespace": "test-ref",
+        "uid": "627ad6c8-b7d0-4ae3-84c0-8f7348c9ef84",
+        "creationTimestamp": "2026-10-21T21:27:20Z",
+        "ownerReferences": [],
+        "labels": {
+          "component": "sky-ref-shared-a1b2c3d4-head",
+          "parent": "skypilot",
+          "ray-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "ray-node-type": "head",
+          "research.karta.dev/suite": "skypilot",
+          "skypilot-cluster": "sky-ref-shared-a1b2c3d4",
+          "skypilot-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "skypilot-head-node": "1",
+          "skypilot-user": "sky-ref-user"
+        },
+        "annotations": {
+          "skypilot-cluster-name": "sky-ref-shared",
+          "skypilot-user": "sky-ref-user"
+        }
+      },
+      "status": {
+        "phase": "Pending"
+      }
+    }
+  ],
+  "targetSets": {}
+}

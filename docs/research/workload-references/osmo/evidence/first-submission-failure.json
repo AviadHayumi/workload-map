@@ -1,0 +1,7 @@
+{
+  "workflowID": "karta-ref-single-1",
+  "status": "FAILED_SERVER_ERROR",
+  "observedFailure": "Kubernetes rejected Pod with invalid resource quantity. New pool omitted common_default_variables needed by reused default_user template. Added the existing defaults/validations only to the dedicated pool.",
+  "groupResourcesCreated": true,
+  "taskPodCreated": false
+}

@@ -1,0 +1,16 @@
+{
+  "description": "Isolated test-ref backend scheduler configuration",
+  "configs": {
+    "scheduler_settings": {
+      "scheduler_type": "kai",
+      "scheduler_name": "runai-scheduler",
+      "scheduler_timeout": 60
+    },
+    "node_conditions": {
+      "rules": {
+        "Ready": "True"
+      },
+      "prefix": "osmo-lab.nvidia.com/"
+    }
+  }
+}

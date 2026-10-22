@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAt": "2026-10-21T21:56:19.123987+00:00"
+  },
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "osmo-reference-c60ec160a9954b4a82c5475def93f5be",
+        "namespace": "test-ref",
+        "uid": "a78129d4-c691-4eb4-9cd7-f10470700360",
+        "ownerReferences": []
+      },
+      "data": {
+        "groupName": "pair",
+        "groupUUID": "c60ec160a9954b4a82c5475def93f5be",
+        "pool": "karta-reference-test",
+        "workflowID": "karta-ref-group-2",
+        "workflowUUID": "faa9dfbbaa0b4d009ab7ef312f3d6444"
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792620498.289384,
+    "notes": "Recovered terminal SkyPilot request status and actual Ray error from the existing corrected head. Sanitized diagnostic summary, not successful job execution."
+  },
+  "requestID": "f76b7022-b489-43aa-aeed-76f5379a4a65",
+  "requestStatus": "FAILED",
+  "cluster": "sky-ref-shared",
+  "podUID": "28989b44-c164-4123-a195-65b1fbb1fa2f",
+  "runtime": {
+    "succeeded": false,
+    "jobExecutionObserved": false
+  },
+  "failureReasons": [
+    "In-cluster Kubernetes API refused the Ray startup exec request.",
+    "Ray raylet timed out waiting for metrics_agent_port at 2026-10-21T21:59:46.444Z. The three explicit supported port settings did not remove this remaining discovery wait."
+  ],
+  "metadataObservation": "Pod was Running and retained SkyPilot cluster labels. This does not establish a usable runtime."
+}

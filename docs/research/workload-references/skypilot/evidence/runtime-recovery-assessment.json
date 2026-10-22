@@ -1,0 +1,70 @@
+{
+  "provenance": {
+    "kind": "source_assessment_with_live_state_read",
+    "capturedAtUnix": 1792643500.9075992,
+    "notes": "Pinned upstream Ray source and installed pinned SkyPilot source were inspected. The Pod state was read live. No new workload request was submitted."
+  },
+  "runtimeRecovered": false,
+  "newLaunchSubmitted": false,
+  "configurationChanged": false,
+  "pod": {
+    "uid": "28989b44-c164-4123-a195-65b1fbb1fa2f",
+    "phase": "Failed",
+    "reason": "DeadlineExceeded",
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "2G"
+      }
+    }
+  },
+  "findings": [
+    {
+      "setting": "port-file timeout",
+      "result": "The metrics-agent wait uses the default 15000ms argument. No runtime configuration is read for this call.",
+      "sources": [
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/src/ray/util/port_persistence.h#L70",
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/src/ray/raylet/node_manager.cc#L3445"
+      ]
+    },
+    {
+      "setting": "explicit metrics-agent gRPC port",
+      "result": "Ray supports --dashboard-agent-grpc-port and maps it to metrics_agent_port. SkyPilot startup env flags omit that port; its Kubernetes provider supplies only CPU and object-store-memory custom Ray options. No supported task setting was found to pass this flag.",
+      "sources": [
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/python/ray/scripts/scripts.py#L625",
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/python/ray/scripts/scripts.py#L949",
+        "https://github.com/skypilot-org/skypilot/blob/2b12f65313bfc045c4b673dfd383be8c317885f9/sky/provision/instance_setup.py#L617",
+        "https://github.com/skypilot-org/skypilot/blob/2b12f65313bfc045c4b673dfd383be8c317885f9/sky/provision/kubernetes/instance.py#L3346"
+      ]
+    },
+    {
+      "setting": "disable metrics collection",
+      "result": "The metrics-disable setting changes agent arguments but does not gate the metrics-agent port-file wait. It would not fix this failure.",
+      "sources": [
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/src/ray/raylet/node_manager.cc#L3421",
+        "https://github.com/ray-project/ray/blob/06729817574615e25afe8f20902b37660c2e6962/src/ray/raylet/node_manager.cc#L3445"
+      ]
+    },
+    {
+      "setting": "pin a different Ray runtime",
+      "result": "The inspected new-cluster path uses SKY_REMOTE_RAY_VERSION=2.56.1. Existing-cluster version retention is internal state, not a user task override. No supported task runtime-version setting was found.",
+      "sources": [
+        "https://github.com/skypilot-org/skypilot/blob/2b12f65313bfc045c4b673dfd383be8c317885f9/sky/backends/backend_utils.py#L604",
+        "https://github.com/skypilot-org/skypilot/blob/2b12f65313bfc045c4b673dfd383be8c317885f9/sky/skylet/constants.py#L58"
+      ]
+    },
+    {
+      "setting": "increase CPU limit",
+      "result": "The failed Pod has no CPU limit. CPU throttling was not established; another resource-only launch would not be an evidence-based fix.",
+      "sources": [
+        "shared-kai-runtime-failure.json"
+      ]
+    }
+  ],
+  "remainingBlockers": [
+    "Ray metrics-agent port discovery timeout in the prior live launch.",
+    "Previously captured in-cluster Kubernetes API connection refusal during startup."
+  ],
+  "stopCondition": "No supported bounded task-configuration fix was identified. Preserve terminal failure evidence; do not submit duplicate or speculative launches.",
+  "scope": "No third-party source patches, shared scheduler changes, queue writes, or platform mutations."
+}

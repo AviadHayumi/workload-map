@@ -1,0 +1,71 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAt": "2026-10-21T21:49:18.318967+00:00",
+    "notes": "Sanitized separate successful reads: dedicated-pool Pods and all PodGroups in namespace test-ref. No atomic-snapshot guarantee.",
+    "resourceReadTimes": {
+      "pods": "2026-10-21T21:49:17.237306+00:00",
+      "podgroups.scheduling.run.ai": "2026-10-21T21:49:18.283889+00:00"
+    }
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "df8c436a2ee64248-275e9079d6834334",
+        "uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+        "labels": {
+          "osmo.group_name": "worker-group",
+          "osmo.group_uuid": "1ebc762de6be477ab77cf2c205830db8",
+          "osmo.lead_container": "true",
+          "osmo.platform": "reference-cpu",
+          "osmo.pool": "karta-reference-test",
+          "osmo.retry_id": "0",
+          "osmo.task_name": "worker",
+          "osmo.task_uuid": "275e9079d68343349ed9fc9492dc7f20",
+          "osmo.workflow_id": "karta-ref-single-4",
+          "osmo.workflow_uuid": "df8c436a2ee642488e061aef2fc5e1f4",
+          "research.karta.dev/case": "osmo-reference"
+        },
+        "annotations": {
+          "pod-group-name": "1ebc762de6be477ab77cf2c205830db8",
+          "reference.example.test/group-name": "osmo-reference-1ebc762de6be477ab77cf2c205830db8"
+        },
+        "ownerReferences": []
+      }
+    }
+  ],
+  "targetSets": {
+    "podgroups": {
+      "complete": true,
+      "targets": [
+        {
+          "namespace": "test-ref",
+          "id": "1ebc762de6be477ab77cf2c205830db8",
+          "attributes": {
+            "name": "1ebc762de6be477ab77cf2c205830db8"
+          },
+          "kubernetes": {
+            "apiVersion": "scheduling.run.ai/v2alpha2",
+            "kind": "PodGroup",
+            "metadata": {
+              "namespace": "test-ref",
+              "name": "1ebc762de6be477ab77cf2c205830db8",
+              "uid": "704886c6-2864-43d9-bbea-dd0c069bfc73",
+              "labels": {
+                "osmo.group_name": "worker-group",
+                "osmo.group_uuid": "1ebc762de6be477ab77cf2c205830db8",
+                "osmo.workflow_id": "karta-ref-single-4",
+                "osmo.workflow_uuid": "df8c436a2ee642488e061aef2fc5e1f4"
+              },
+              "annotations": {},
+              "ownerReferences": []
+            }
+          }
+        }
+      ]
+    }
+  }
+}

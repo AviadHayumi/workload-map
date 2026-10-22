@@ -1,0 +1,10 @@
+{
+  "kind": "live_snapshot_mapping",
+  "source": "osmo-podgroup-capture.json",
+  "sourceSHA256": "a6107276866d6c1fd1a11878bd51b8684e0966c02151c5c1e7d9bd1bdc591884",
+  "metadataRelations": 4,
+  "resolvedKubernetesTargets": 1,
+  "actualTargetUID": "704886c6-2864-43d9-bbea-dd0c069bfc73",
+  "note": "Actual separately captured Pod and complete namespace PodGroup list. PodGroup association does not replace the Pod root and does not claim an atomic snapshot.",
+  "upstreamSource": "../../osmo/evidence/live-association-capture.json"
+}

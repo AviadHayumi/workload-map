@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+operator:
+  enabled: false
+crdUpgrader:
+  enabled: false
+webhook:
+  enabled: false
+submitterAdmission:
+  enabled: false
+exporter:
+  enabled: true
+  fullnameOverride: karta-ref-exporter
+  replicaCount: 1
+  image:
+    repository: example.invalid/karta-reference-exporter
+    tag: "01352db5"
+    pullPolicy: IfNotPresent
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: test-ref
+  resourceRules:
+  - apiGroups: [""]
+    apiVersions: [v1]
+    resources: [pods]
+  - apiGroups: [batch]
+    apiVersions: [v1]
+    resources: [jobs]
+  - apiGroups: [apps]
+    apiVersions: [v1]
+    resources: [deployments]
+  requiredKinds: [v1/Pod, batch/v1/Job, apps/v1/Deployment, apps/v1/ReplicaSet]
+  ignoredOwnerKinds: []
+  kartaDefinitionSource:
+    catalog:
+      enabled: true
+      include: [core-pod-v1, batch-job-v1, apps-deployment-v1]
+      exclude: []
+    cluster:
+      enabled: false
+      include: []
+      exclude: []
+      labelSelector: {}
+  rbac:
+    workloadRules:
+    - apiGroups: [batch]
+      resources: [jobs]
+    - apiGroups: [apps]
+      resources: [deployments, replicasets]
+  serviceMonitor:
+    enabled: false
+  attribution:
+    submittedByExpression: ""

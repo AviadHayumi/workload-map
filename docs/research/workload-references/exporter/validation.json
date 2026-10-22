@@ -1,0 +1,121 @@
+{
+  "source": "01352db5",
+  "helmLintStrict": "passed",
+  "renderWithKubernetesVersion": "1.35.5",
+  "renderWithVAPCapabilities": true,
+  "objectCount": 6,
+  "objectKinds": [
+    "ServiceAccount",
+    "ConfigMap",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "Service",
+    "Deployment"
+  ],
+  "allNamespacedObjectsInTestRef": true,
+  "allNamesPrefix": "karta-ref-",
+  "noCRDsKartasAdmissionOrHooks": true,
+  "aggregationRemoved": true,
+  "readResources": [
+    {
+      "group": "",
+      "resource": "namespaces"
+    },
+    {
+      "group": "",
+      "resource": "pods"
+    },
+    {
+      "group": "apiextensions.k8s.io",
+      "resource": "customresourcedefinitions"
+    },
+    {
+      "group": "apps",
+      "resource": "deployments"
+    },
+    {
+      "group": "apps",
+      "resource": "replicasets"
+    },
+    {
+      "group": "batch",
+      "resource": "jobs"
+    }
+  ],
+  "exporterConfig": {
+    "excludeResourceRules": [],
+    "ignoredOwnerKinds": [],
+    "kartaDefinitionSource": {
+      "catalog": {
+        "enabled": true,
+        "exclude": [],
+        "include": [
+          "core-pod-v1",
+          "batch-job-v1",
+          "apps-deployment-v1"
+        ]
+      },
+      "cluster": {
+        "enabled": false,
+        "exclude": [],
+        "include": [],
+        "labelSelector": {}
+      }
+    },
+    "namespaceSelector": {
+      "matchLabels": {
+        "kubernetes.io/metadata.name": "test-ref"
+      }
+    },
+    "objectSelector": {},
+    "podSelector": {},
+    "requiredKinds": [
+      "v1/Pod",
+      "batch/v1/Job",
+      "apps/v1/Deployment",
+      "apps/v1/ReplicaSet"
+    ],
+    "resourceRules": [
+      {
+        "apiGroups": [
+          ""
+        ],
+        "apiVersions": [
+          "v1"
+        ],
+        "resources": [
+          "pods"
+        ]
+      },
+      {
+        "apiGroups": [
+          "batch"
+        ],
+        "apiVersions": [
+          "v1"
+        ],
+        "resources": [
+          "jobs"
+        ]
+      },
+      {
+        "apiGroups": [
+          "apps"
+        ],
+        "apiVersions": [
+          "v1"
+        ],
+        "resources": [
+          "deployments"
+        ]
+      }
+    ]
+  },
+  "liveRolloutVerified": true,
+  "liveEffectiveRBACVerified": true,
+  "liveMetricsCaptured": true,
+  "blockedReason": null,
+  "liveImage": "ttl.sh/aviad-karta-ref-665389c52e6b@sha256:0d1fb296a86138dab7234b101cb088a44e6d96b0bbf978c4d3a2d1492e6240c5",
+  "liveImageSource": "01352db5c4be54b0b3eb6d53a0a04fb5faa34520",
+  "liveEvidence": "Coordinator verified Ready and effective RBAC; Karta lane paired two real SkyPilot Pod rows. See karta/evidence for raw sanitized metrics."
+}

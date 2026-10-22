@@ -1,0 +1,56 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "capturedAtUnix": 1792619468.385366,
+    "skyVersion": "1.0.0.dev20261021",
+    "skyCommit": "2b12f65313bfc045c4b673dfd383be8c317885f9",
+    "notes": "Corrected shared-cluster retry reused its cloud cluster label and Pod name with a new Pod UID. Pending at capture; job execution is not implied."
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "sky-ref-shared-a1b2c3d4-head",
+        "namespace": "test-ref",
+        "uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+        "creationTimestamp": "2026-10-21T21:49:17Z",
+        "ownerReferences": [],
+        "labels": {
+          "component": "sky-ref-shared-a1b2c3d4-head",
+          "parent": "skypilot",
+          "ray-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "ray-node-type": "head",
+          "research.karta.dev/suite": "skypilot",
+          "skypilot-cluster": "sky-ref-shared-a1b2c3d4",
+          "skypilot-cluster-name": "sky-ref-shared-a1b2c3d4",
+          "skypilot-head-node": "1",
+          "skypilot-user": "sky-ref-user"
+        },
+        "annotations": {
+          "skypilot-cluster-name": "sky-ref-shared",
+          "skypilot-user": "sky-ref-user"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "ray-node",
+            "image": "us-docker.pkg.dev/sky-dev-465/skypilotk8s/skypilot:202609010416-ray2.56.1",
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "2G"
+              }
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Pending",
+        "containerStatuses": []
+      }
+    }
+  ],
+  "targetSets": {}
+}

@@ -1,0 +1,269 @@
+{
+  "kind": "live_prometheus_queries",
+  "runsOn": "local workstation",
+  "version": "3.14.0",
+  "binarySHA256": "0124fab4861f7b3927b8b65dbe6549806463d9be0b6504042c1c4381c3326d28",
+  "queryTimeUnix": 1792619391.7697222,
+  "queryTimeUTC": "2026-10-21T21:49:51.769722+00:00",
+  "queries": {
+    "up": {
+      "expression": "up",
+      "result": [
+        {
+          "metric": {
+            "__name__": "up",
+            "instance": "127.0.0.1:18091",
+            "job": "karta-reference-ksm"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "up",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        }
+      ]
+    },
+    "roots": {
+      "expression": "karta_pod_workload_info{observation_valid=\"true\",pod_name!=\"ref-lifecycle\"}",
+      "result": [
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "deployment",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "karta-ref-exporter-749bb696dc-fxjfc",
+            "pod_uid": "68281fd9-47c4-4151-a5f9-4ca04151bee1",
+            "workload_group": "apps",
+            "workload_kind": "Deployment",
+            "workload_name": "karta-ref-exporter",
+            "workload_uid": "84226d18-77f7-4838-9ddd-8fe5d0f99b62",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "deployment",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "karta-reference-ksm-f5cf868d7-8xqv6",
+            "pod_uid": "9dfedfa9-201e-4753-9f1a-d075c755e2f7",
+            "workload_group": "apps",
+            "workload_kind": "Deployment",
+            "workload_name": "karta-reference-ksm",
+            "workload_uid": "40816908-07e9-4cc9-82e7-2b2c4c0a48e4",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "deployment",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "osmo-ref-osmo-backend-listener-65b745cb78-gflxf",
+            "pod_uid": "944f6a50-f445-4261-afc0-541598ef67dd",
+            "workload_group": "apps",
+            "workload_kind": "Deployment",
+            "workload_name": "osmo-ref-osmo-backend-listener",
+            "workload_uid": "6946042b-1aa8-44f3-83ec-737b2e957f0b",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "deployment",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "osmo-ref-osmo-backend-worker-59848f9b87-k9685",
+            "pod_uid": "b60aec35-33eb-4399-8841-caa7eb4b8e15",
+            "workload_group": "apps",
+            "workload_kind": "Deployment",
+            "workload_name": "osmo-ref-osmo-backend-worker",
+            "workload_uid": "6c6ccd74-0bd9-49d5-9d08-35521c499fdc",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "deployment",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "sky-ref-api-server-68d784d6b-x5tm7",
+            "pod_uid": "39c8ba0a-99a4-4ad9-a5a0-911875ce6b77",
+            "workload_group": "apps",
+            "workload_kind": "Deployment",
+            "workload_name": "sky-ref-api-server",
+            "workload_uid": "42f9d80f-dab6-4d7c-aad9-e33cd7679d7d",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "pod",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "df8c436a2ee64248-275e9079d6834334",
+            "pod_uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+            "workload_kind": "Pod",
+            "workload_name": "df8c436a2ee64248-275e9079d6834334",
+            "workload_uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        },
+        {
+          "metric": {
+            "__name__": "karta_pod_workload_info",
+            "component": "pod",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "sky-ref-shared-a1b2c3d4-head",
+            "pod_uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+            "workload_kind": "Pod",
+            "workload_name": "sky-ref-shared-a1b2c3d4-head",
+            "workload_uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        }
+      ]
+    },
+    "osmo": {
+      "expression": "research:karta_pod_osmo_association{pod_name!=\"ref-lifecycle\"}",
+      "result": [
+        {
+          "metric": {
+            "__name__": "research:karta_pod_osmo_association",
+            "component": "pod",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "label_osmo_workflow_uuid": "df8c436a2ee642488e061aef2fc5e1f4",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "df8c436a2ee64248-275e9079d6834334",
+            "pod_uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+            "workload_kind": "Pod",
+            "workload_name": "df8c436a2ee64248-275e9079d6834334",
+            "workload_uid": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        }
+      ]
+    },
+    "sky": {
+      "expression": "research:karta_pod_sky_association{pod_name!=\"ref-lifecycle\"}",
+      "result": [
+        {
+          "metric": {
+            "__name__": "research:karta_pod_sky_association",
+            "component": "pod",
+            "instance": "127.0.0.1:18092",
+            "job": "karta-reference-exporter",
+            "label_skypilot_cluster_name": "sky-ref-shared-a1b2c3d4",
+            "namespace": "test-ref",
+            "observation_valid": "true",
+            "owner_resolution": "resolved",
+            "pod_name": "sky-ref-shared-a1b2c3d4-head",
+            "pod_uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+            "workload_kind": "Pod",
+            "workload_name": "sky-ref-shared-a1b2c3d4-head",
+            "workload_uid": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+            "workload_version": "v1"
+          },
+          "value": [
+            1792619391.77,
+            "1"
+          ]
+        }
+      ]
+    }
+  },
+  "checks": [
+    {
+      "platform": "osmo",
+      "namespace": "test-ref",
+      "podName": "df8c436a2ee64248-275e9079d6834334",
+      "podUID": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+      "workloadUID": "c9ca03ed-f9f0-4685-8d24-ae69a74620cd",
+      "association": "df8c436a2ee642488e061aef2fc5e1f4",
+      "allOriginalRootLabelsPreserved": true
+    },
+    {
+      "platform": "sky",
+      "namespace": "test-ref",
+      "podName": "sky-ref-shared-a1b2c3d4-head",
+      "podUID": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+      "workloadUID": "979c92ef-7b36-4716-84a3-6e3b564dcf18",
+      "association": "sky-ref-shared-a1b2c3d4",
+      "allOriginalRootLabelsPreserved": true
+    }
+  ],
+  "note": "Real Prometheus periodic scrapes and recording-rule evaluation through localhost port-forwards; one exporter and one KSM, no HA or federation claim."
+}

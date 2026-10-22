@@ -1,0 +1,1 @@
+kube_pod_labels{namespace="test-ref",pod="ref-lifecycle",uid="fb68ba26-455f-45ba-819e-3a5dbb371861"} 1

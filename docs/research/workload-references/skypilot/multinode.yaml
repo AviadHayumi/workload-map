@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+name: sky-ref-multinode
+num_nodes: 2
+resources:
+  infra: kubernetes/in-cluster
+  cpus: 0.25
+  memory: 1
+run: |
+  python3 - <<'PY'
+  import json
+  import os
+  import time
+  print(json.dumps({"event": "start", "rank": os.environ["SKYPILOT_NODE_RANK"], "task_id": os.environ.get("SKYPILOT_TASK_ID")}), flush=True)
+  time.sleep(120)
+  print("SKY_REF_MULTINODE_SUCCEEDED", flush=True)
+  PY
+
+config:
+  kubernetes:
+    pod_config:
+      metadata:
+        labels:
+          kai.scheduler/queue: osmo-pool-test-ref-karta-reference-test
+          runai/queue: osmo-pool-test-ref-karta-reference-test
+      spec:
+        schedulerName: runai-scheduler
+        containers:
+          - name: ray-node
+            env:
+              - name: SKYPILOT_RAY_METRICS_EXPORT_PORT
+                value: "9380"
+              - name: SKYPILOT_RAY_DASHBOARD_AGENT_LISTEN_PORT
+                value: "52365"
+              - name: SKYPILOT_RAY_RUNTIME_ENV_AGENT_PORT
+                value: "10002"

@@ -1,0 +1,209 @@
+[
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3"
+      }
+    },
+    "relation": "osmo-workflow",
+    "value": "77e449eedfdc4f9085f525811262825f",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3"
+      }
+    },
+    "relation": "osmo-group",
+    "value": "3017031336d54bdd8cafd38d744f5826",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3"
+      }
+    },
+    "relation": "osmo-task",
+    "value": "69b5048077da47dfb245854f709ef7ee",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3"
+      }
+    },
+    "relation": "osmo-attempt",
+    "value": "0",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-69b5048077da47df",
+        "uid": "009fe0aa-e0f2-412a-a4cf-74dbfcf00af3"
+      }
+    },
+    "relation": "podgroup",
+    "status": "absent"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20"
+      }
+    },
+    "relation": "osmo-workflow",
+    "value": "77e449eedfdc4f9085f525811262825f",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20"
+      }
+    },
+    "relation": "osmo-group",
+    "value": "3017031336d54bdd8cafd38d744f5826",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20"
+      }
+    },
+    "relation": "osmo-task",
+    "value": "a4750ab5d1b5454992367ef4732ac3cd",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20"
+      }
+    },
+    "relation": "osmo-attempt",
+    "value": "0",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "77e449eedfdc4f90-a4750ab5d1b54549",
+        "uid": "b849253b-7164-4825-a11f-957fdae15b20"
+      }
+    },
+    "relation": "podgroup",
+    "status": "absent"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b"
+      }
+    },
+    "relation": "osmo-workflow",
+    "value": "7a38b6926b9e4ed48e03bb959ddaa2e1",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b"
+      }
+    },
+    "relation": "osmo-group",
+    "value": "ae9d897dae66440491abf2b4d35941de",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b"
+      }
+    },
+    "relation": "osmo-task",
+    "value": "75a6aa25566742abb0e82e7a55f97938",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b"
+      }
+    },
+    "relation": "osmo-attempt",
+    "value": "0",
+    "status": "observed_metadata"
+  },
+  {
+    "pod": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "osmo-submitter-lab",
+        "name": "7a38b6926b9e4ed4-75a6aa25566742ab",
+        "uid": "91ee415b-777d-476b-81fd-8d40f4d7168b"
+      }
+    },
+    "relation": "podgroup",
+    "status": "absent"
+  }
+]

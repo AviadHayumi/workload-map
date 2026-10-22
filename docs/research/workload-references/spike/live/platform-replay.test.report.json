@@ -1,0 +1,31 @@
+{
+  "kind": "live_scrape_replay",
+  "kartaSource": "karta-platform.prom",
+  "ksmSource": "ksm-platform.prom",
+  "sourceSHA256": {
+    "karta-platform.prom": "a5806609189731831cc32d652ac75f8aacfacbdd3308c92ddae9b69526fb10b3",
+    "ksm-platform.prom": "51bb888cda5c4841cc0ce59415478069ae010403cb292bcd58ae818df19460df",
+    "sky-multinode-capture.json": "5d2941670c95b26ba5577e810cda5c5087cfccc20f8fe40868d40bb15d418533"
+  },
+  "matchedRows": {
+    "osmo": 0,
+    "sky": 2
+  },
+  "capturedPodRootChecks": [
+    {
+      "namespace": "test-ref",
+      "pod": "sky-ref-multinode-a1b2c3d4-head",
+      "podUID": "8b3d6cf9-8261-4be8-9a9a-c4dce976f572",
+      "workloadUID": "8b3d6cf9-8261-4be8-9a9a-c4dce976f572",
+      "ownerlessRootVerified": true
+    },
+    {
+      "namespace": "test-ref",
+      "pod": "sky-ref-multinode-a1b2c3d4-worker1",
+      "podUID": "0d6ebcec-0487-42b8-98c0-ec85cf7d5e28",
+      "workloadUID": "0d6ebcec-0487-42b8-98c0-ec85cf7d5e28",
+      "ownerlessRootVerified": true
+    }
+  ],
+  "note": "Actual captured samples replayed locally; this is not a running Prometheus scrape test."
+}

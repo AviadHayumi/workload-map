@@ -1,0 +1,8 @@
+{
+  "name": "karta-ref-group-2",
+  "readinessPassed": true,
+  "durationSeconds": {
+    "leader": 240,
+    "worker": 230
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "workflowID": "karta-ref-group-1",
+  "workflowUUID": "f3107982aaad4f30a3a3b364d898af4e",
+  "status": "FAILED_SERVER_ERROR",
+  "observedAt": "2026-10-21T21:49:39.775656+00:00",
+  "groups": [
+    {
+      "name": "pair",
+      "status": "FAILED_SERVER_ERROR",
+      "tasks": [
+        {
+          "name": "leader",
+          "status": "FAILED_SERVER_ERROR",
+          "retry_id": 0
+        },
+        {
+          "name": "worker",
+          "status": "FAILED_SERVER_ERROR",
+          "retry_id": 0
+        }
+      ]
+    }
+  ]
+}

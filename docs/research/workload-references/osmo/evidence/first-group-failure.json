@@ -1,0 +1,7 @@
+{
+  "workflowID": "karta-ref-group-1",
+  "status": "FAILED_SERVER_ERROR",
+  "kubernetesStatus": 500,
+  "failure": "etcdserver: request timed out during CreateGroup",
+  "retryPolicyChanged": false
+}

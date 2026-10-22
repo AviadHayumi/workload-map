@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "startedAt": "2026-10-21T21:49:25.353785+00:00",
+    "scope": "disposable test-ref/ref-lifecycle Pod",
+    "completedAt": "2026-10-21T21:49:27.590397+00:00"
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "namespace": "test-ref",
+        "name": "ref-lifecycle",
+        "uid": "fb68ba26-455f-45ba-819e-3a5dbb371861",
+        "labels": {
+          "skypilot-cluster-name": "ref-life-a"
+        },
+        "ownerReferences": []
+      }
+    }
+  ]
+}

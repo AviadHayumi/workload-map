@@ -1,0 +1,13 @@
+{
+  "kind": "live_lifecycle_stage",
+  "stage": "deleted",
+  "podUID": null,
+  "expectedAssociation": null,
+  "podAbsent": true,
+  "ksmSamples": 0,
+  "validKartaSamples": 0,
+  "pollAttempts": 1,
+  "startedAt": "2026-10-21T21:50:35.059342+00:00",
+  "completedAt": "2026-10-21T21:50:37.070250+00:00",
+  "note": "Verified eventual convergence after this operation; no atomic cross-informer timing guarantee."
+}

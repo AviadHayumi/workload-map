@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karta-ref-exporter
+  namespace: test-ref
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karta-ref-exporter-config
+  namespace: test-ref
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+data:
+  config.json: '{"excludeResourceRules":[],"ignoredOwnerKinds":[],"kartaDefinitionSource":{"catalog":{"enabled":true,"exclude":[],"include":["core-pod-v1","batch-job-v1","apps-deployment-v1"]},"cluster":{"enabled":false,"exclude":[],"include":[],"labelSelector":{}}},"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"test-ref"}},"objectSelector":{},"podSelector":{},"requiredKinds":["v1/Pod","batch/v1/Job","apps/v1/Deployment","apps/v1/ReplicaSet"],"resourceRules":[{"apiGroups":[""],"apiVersions":["v1"],"resources":["pods"]},{"apiGroups":["batch"],"apiVersions":["v1"],"resources":["jobs"]},{"apiGroups":["apps"],"apiVersions":["v1"],"resources":["deployments"]}]}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: karta-ref-exporter
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: karta-ref-exporter
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: karta-ref-exporter
+subjects:
+- kind: ServiceAccount
+  name: karta-ref-exporter
+  namespace: test-ref
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karta-ref-exporter
+  namespace: test-ref
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+spec:
+  type: ClusterIP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/component: exporter
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karta-ref-exporter
+  namespace: test-ref
+  labels:
+    helm.sh/chart: karta-0.0.0
+    app.kubernetes.io/name: karta
+    app.kubernetes.io/instance: karta-ref
+    app.kubernetes.io/version: 0.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karta
+      app.kubernetes.io/instance: karta-ref
+      app.kubernetes.io/component: exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: karta
+        app.kubernetes.io/instance: karta-ref
+        app.kubernetes.io/component: exporter
+      annotations:
+        checksum/config: 102133e5a8e04e600e363e905b525b16b8c662ae25f1e700a8daf272b7f638ce
+    spec:
+      serviceAccountName: karta-ref-exporter
+      securityContext:
+        runAsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: exporter
+        image: example.invalid/karta-reference-exporter:01352db5
+        imagePullPolicy: IfNotPresent
+        args:
+        - --config=/etc/karta/exporter/config.json
+        - --metrics-bind-address=:8080
+        - --metrics-exporter=prometheus
+        - --workload-phases=all
+        volumeMounts:
+        - name: config
+          mountPath: /etc/karta/exporter
+          readOnly: true
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      volumes:
+      - name: config
+        configMap:
+          name: karta-ref-exporter-config

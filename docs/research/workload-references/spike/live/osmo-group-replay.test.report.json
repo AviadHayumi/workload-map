@@ -1,0 +1,31 @@
+{
+  "kind": "live_scrape_replay",
+  "kartaSource": "karta-osmo-group.prom",
+  "ksmSource": "ksm-osmo-group.prom",
+  "sourceSHA256": {
+    "karta-osmo-group.prom": "55fd42b7d65f645464301013b5797dd22a708083ceb7601be8234d7b98b5af05",
+    "ksm-osmo-group.prom": "49a6be698bece085c58839b8ed05d7cc68fa64579f4d89e06610bd51bbd1a740",
+    "osmo-group-capture.json": "3ed270069714887fbc5a9d7a3c1dc5c049cc05a83328219c97afb172927effd0"
+  },
+  "matchedRows": {
+    "osmo": 2,
+    "sky": 0
+  },
+  "capturedPodRootChecks": [
+    {
+      "namespace": "test-ref",
+      "pod": "faa9dfbbaa0b4d00-875210e6c63f4d09",
+      "podUID": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+      "workloadUID": "f799452b-76d1-4d16-abd4-9a63f8e9d3ca",
+      "ownerlessRootVerified": true
+    },
+    {
+      "namespace": "test-ref",
+      "pod": "faa9dfbbaa0b4d00-b4ced59a832b4d85",
+      "podUID": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+      "workloadUID": "b7a39e23-b10a-4ffd-87f7-74426bc895cd",
+      "ownerlessRootVerified": true
+    }
+  ],
+  "note": "Actual captured samples replayed locally; this is not a running Prometheus scrape test."
+}

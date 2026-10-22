@@ -1,0 +1,17 @@
+{
+  "description": "Isolated test scheduling on a real control-plane node",
+  "configs": {
+    "spec": {
+      "tolerations": [
+        {
+          "key": "node-role.kubernetes.io/control-plane",
+          "effect": "NoSchedule",
+          "operator": "Exists"
+        }
+      ],
+      "nodeSelector": {
+        "node-role.kubernetes.io/control-plane": ""
+      }
+    }
+  }
+}

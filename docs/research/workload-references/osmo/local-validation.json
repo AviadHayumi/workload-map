@@ -1,0 +1,75 @@
+{
+  "chartSource": "ed59b69715e4ee6fff70bcd9d715106358a7205f",
+  "chartVersion": "1.3.1",
+  "appVersion": "6.3.1",
+  "helmRender": "passed",
+  "resources": [
+    {
+      "kind": "ServiceAccount",
+      "name": "osmo-ref-osmo-ref-listener",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "ServiceAccount",
+      "name": "osmo-ref-osmo-ref-worker",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "ClusterRole",
+      "name": "osmo-ref-listener",
+      "namespace": null
+    },
+    {
+      "kind": "ClusterRole",
+      "name": "osmo-ref-worker",
+      "namespace": null
+    },
+    {
+      "kind": "ClusterRoleBinding",
+      "name": "osmo-ref-listener",
+      "namespace": null
+    },
+    {
+      "kind": "ClusterRoleBinding",
+      "name": "osmo-ref-worker",
+      "namespace": null
+    },
+    {
+      "kind": "Role",
+      "name": "osmo-ref-listener-events",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "Role",
+      "name": "osmo-ref-worker",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "RoleBinding",
+      "name": "osmo-ref-listener-events",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "RoleBinding",
+      "name": "osmo-ref-worker",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "Deployment",
+      "name": "osmo-ref-osmo-backend-listener",
+      "namespace": "test-ref"
+    },
+    {
+      "kind": "Deployment",
+      "name": "osmo-ref-osmo-backend-worker",
+      "namespace": "test-ref"
+    }
+  ],
+  "namespacedObjectsRestrictedToTestRef": true,
+  "backendAndWorkloadNamespaceArgumentsVerified": true,
+  "requestYAMLMatchesJSON": true,
+  "captureOmitsSensitiveFields": true,
+  "captureRejectsOtherNamespaces": true,
+  "liveDeploymentVerified": false,
+  "liveSubmissionVerified": false
+}

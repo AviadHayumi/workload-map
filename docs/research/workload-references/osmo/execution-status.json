@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-22",
+  "context": "kmetric-playground-dev",
+  "namespace": "test-ref",
+  "status": "single-and-group-completed",
+  "reason": "Finite single and two-task group completed. Successful post-terminal namespace reads found no Pods, PodGroups or projected ConfigMaps for the four accepted isolated attempts.",
+  "newOSMOWorkloadsSubmitted": true,
+  "existingPoolChanged": false,
+  "newBackendInstalled": true,
+  "sourceSHA": "19b5170268bc2e221f2db9367f5893687b060864",
+  "legacyChartSourceSHA": "ed59b69715e4ee6fff70bcd9d715106358a7205f",
+  "liveVersionVerifiedThisRun": true,
+  "liveVersion": "6.3.1.3326e42b",
+  "retryTest": "skipped: existing max_retry_per_task is 0; shared policy unchanged",
+  "credentialSetup": "Dedicated synthetic principal with osmo-backend role, official token API, expiry 2026-10-23; token stored only in Kubernetes Secret.",
+  "credentialSourceReview": "Mounted-token read rejected by automatic review and not retried; supported API token issuance succeeded.",
+  "backendRegisteredNamespace": "test-ref",
+  "dedicatedPoolCreated": true,
+  "groupProjectionConfigured": true,
+  "submittedWorkflowIDs": [
+    "karta-ref-single-1",
+    "karta-ref-single-4",
+    "karta-ref-group-1",
+    "karta-ref-group-2"
+  ],
+  "freshTaskPodCapture": true,
+  "successfulWorkflowIDs": [
+    "karta-ref-single-4",
+    "karta-ref-group-2"
+  ],
+  "failedWorkflowIDs": [
+    "karta-ref-single-1",
+    "karta-ref-group-1"
+  ],
+  "groupProjectionTested": true,
+  "cleanupVerified": true,
+  "retainedResources": "Dedicated backend deployments, credential Secret, RBAC, test pool/templates, and KAI queues retained for the coordinated SkyPilot test.",
+  "imageDigest": "docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+}

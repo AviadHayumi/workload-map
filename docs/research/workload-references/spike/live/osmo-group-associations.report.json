@@ -1,0 +1,10 @@
+{
+  "kind": "live_snapshot_mapping",
+  "source": "osmo-group-capture.json",
+  "sourceSHA256": "3ed270069714887fbc5a9d7a3c1dc5c049cc05a83328219c97afb172927effd0",
+  "podCount": 2,
+  "metadataRelations": 8,
+  "resolvedTargetRows": 2,
+  "uniqueActualPodGroupUID": "2aa3ccfe-5937-447e-9f0e-307c2cf5104d",
+  "note": "Two real Pods associate with one real PodGroup, while the baseline exporter keeps two independent Pod roots."
+}

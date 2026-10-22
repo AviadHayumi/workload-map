@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+groups:
+  - name: metadata-associations
+    rules:
+      - record: research:osmo_pod_metadata
+        expr: |
+          max by (namespace, pod_uid, label_osmo_workflow_uuid) (
+            label_replace(
+              kube_pod_labels{label_osmo_workflow_uuid!="",uid!=""},
+              "pod_uid", "$1", "uid", "(.+)"
+            )
+          )
+      - record: research:karta_pod_osmo_association
+        expr: |
+          karta_pod_workload_info{observation_valid="true"}
+          * on (namespace, pod_uid) group_left(label_osmo_workflow_uuid)
+          (
+            research:osmo_pod_metadata
+            and on (namespace, pod_uid)
+            (count by (namespace, pod_uid) (research:osmo_pod_metadata) == 1)
+          )
+      - record: research:sky_pod_metadata
+        expr: |
+          max by (namespace, pod_uid, label_skypilot_cluster_name) (
+            label_replace(
+              kube_pod_labels{label_skypilot_cluster_name!="",uid!=""},
+              "pod_uid", "$1", "uid", "(.+)"
+            )
+          )
+      - record: research:karta_pod_sky_association
+        expr: |
+          karta_pod_workload_info{observation_valid="true"}
+          * on (namespace, pod_uid) group_left(label_skypilot_cluster_name)
+          (
+            research:sky_pod_metadata
+            and on (namespace, pod_uid)
+            (count by (namespace, pod_uid) (research:sky_pod_metadata) == 1)
+          )

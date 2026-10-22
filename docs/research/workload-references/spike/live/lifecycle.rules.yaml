@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+groups:
+  - name: disposable-lifecycle
+    rules:
+      - record: research:pod_lifecycle_metadata
+        expr: |
+          max by (namespace, pod_uid, label_skypilot_cluster_name) (
+            label_replace(
+              kube_pod_labels{label_skypilot_cluster_name!="",uid!=""},
+              "pod_uid", "$1", "uid", "(.+)"
+            )
+          )
+      - record: research:karta_pod_lifecycle_association
+        expr: |
+          karta_pod_workload_info{observation_valid="true"}
+          * on (namespace, pod_uid) group_left (label_skypilot_cluster_name)
+          (
+            research:pod_lifecycle_metadata
+            and on (namespace, pod_uid)
+            (count by (namespace, pod_uid) (research:pod_lifecycle_metadata) == 1)
+          )

@@ -1,0 +1,7 @@
+kube_pod_labels{namespace="test-ref",pod="karta-reference-ksm-68874d6d66-rvwkz",uid="d9c58518-a8a9-46e9-b9bc-fa46e72bcc0b"} 1
+kube_pod_labels{namespace="test-ref",pod="osmo-ref-osmo-backend-listener-65b745cb78-gflxf",uid="944f6a50-f445-4261-afc0-541598ef67dd"} 1
+kube_pod_labels{namespace="test-ref",pod="osmo-ref-osmo-backend-worker-59848f9b87-k9685",uid="b60aec35-33eb-4399-8841-caa7eb4b8e15"} 1
+kube_pod_labels{namespace="test-ref",pod="sky-ref-api-server-68d784d6b-x5tm7",uid="39c8ba0a-99a4-4ad9-a5a0-911875ce6b77"} 1
+kube_pod_labels{namespace="test-ref",pod="faa9dfbbaa0b4d00-875210e6c63f4d09",uid="f799452b-76d1-4d16-abd4-9a63f8e9d3ca",label_osmo_group_uuid="c60ec160a9954b4a82c5475def93f5be",label_osmo_task_uuid="875210e6c63f4d09b8379d209cc356df",label_osmo_workflow_uuid="faa9dfbbaa0b4d009ab7ef312f3d6444"} 1
+kube_pod_labels{namespace="test-ref",pod="faa9dfbbaa0b4d00-b4ced59a832b4d85",uid="b7a39e23-b10a-4ffd-87f7-74426bc895cd",label_osmo_group_uuid="c60ec160a9954b4a82c5475def93f5be",label_osmo_task_uuid="b4ced59a832b4d859898557da14a2ec4",label_osmo_workflow_uuid="faa9dfbbaa0b4d009ab7ef312f3d6444"} 1
+kube_pod_labels{namespace="test-ref",pod="karta-ref-exporter-749bb696dc-fxjfc",uid="68281fd9-47c4-4151-a5f9-4ca04151bee1"} 1

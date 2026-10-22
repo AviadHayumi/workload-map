@@ -1,0 +1,3 @@
+[
+  {"relation":"test-association","source":{"from":"label","key":"skypilot-cluster-name"}}
+]

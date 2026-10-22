@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+workflow:
+  name: karta-ref-retry
+  resources:
+    default:
+      cpu: 1
+      memory: 512Mi
+      storage: 1Gi
+      platform: reference-cpu
+  tasks:
+  - name: retry-worker
+    image: docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    command: [/bin/sh, -c]
+    args:
+    - >-
+      echo reference-retry-${OSMO_REFERENCE_RETRY:?retry label missing};
+      sleep 45;
+      if [ "$OSMO_REFERENCE_RETRY" = 0 ]; then exit 75; fi;
+      echo reference-retry-done
+    exitActions:
+      RESCHEDULE: "75"

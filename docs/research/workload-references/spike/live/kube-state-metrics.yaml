@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karta-reference-ksm
+  namespace: test-ref
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: karta-reference-ksm
+  namespace: test-ref
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: karta-reference-ksm
+  namespace: test-ref
+subjects:
+  - kind: ServiceAccount
+    name: karta-reference-ksm
+    namespace: test-ref
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: karta-reference-ksm
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karta-reference-ksm
+  namespace: test-ref
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karta-reference-ksm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: karta-reference-ksm
+    spec:
+      serviceAccountName: karta-reference-ksm
+      containers:
+        - name: kube-state-metrics
+          image: registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:37d841299325c23b56e5951176ce8ef317d537447c0f1b2d2437dddbb1f51165
+          args:
+            - --resources=pods
+            - --namespaces=test-ref
+            - --metric-labels-allowlist=pods=[osmo.workflow_uuid,osmo.group_uuid,osmo.task_uuid,skypilot-cluster-name,karta.test/association]
+          ports:
+            - name: metrics
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: [ALL]

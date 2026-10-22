@@ -1,0 +1,9 @@
+{
+  "provenance": {
+    "kind": "live_capture",
+    "startedAt": "2026-10-21T21:50:35.059342+00:00",
+    "scope": "disposable test-ref/ref-lifecycle Pod",
+    "completedAt": "2026-10-21T21:50:37.070250+00:00"
+  },
+  "pods": []
+}

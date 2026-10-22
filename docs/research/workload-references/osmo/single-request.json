@@ -1,0 +1,3 @@
+{
+  "file": "# SPDX-License-Identifier: Apache-2.0\n# Copyright (c) 2026 NVIDIA Corporation\n\nworkflow:\n  name: karta-ref-single\n  resources:\n    default:\n      cpu: 1\n      memory: 512Mi\n      storage: 1Gi\n      platform: reference-cpu\n  tasks:\n  - name: worker\n    image: docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac\n    command: [/bin/sh, -c]\n    args: [\"echo reference-single-start; sleep 90; echo reference-single-done\"]\n"
+}
