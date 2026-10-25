@@ -93,17 +93,18 @@ type watchKey struct {
 	Namespace string
 }
 type resourceWatch struct {
-	discover   bool
-	objects    map[objectKey]struct{}
-	key        watchKey
-	gvk        schema.GroupVersionKind
-	informer   cache.SharedIndexInformer
-	cancel     context.CancelFunc
-	ready      bool
-	generation uint64
-	failureKey string
-	err        error
-	verifiedAt time.Time
+	pendingRoots map[types.UID]discovery.ObjectRef
+	discover     bool
+	objects      map[objectKey]struct{}
+	key          watchKey
+	gvk          schema.GroupVersionKind
+	informer     cache.SharedIndexInformer
+	cancel       context.CancelFunc
+	ready        bool
+	generation   uint64
+	failureKey   string
+	err          error
+	verifiedAt   time.Time
 }
 type rootState struct {
 	dirty               map[types.UID]bool
@@ -447,6 +448,8 @@ func (r *Runtime) publishHealthLocked() {
 			evidence.Reason = failureReason(w.err)
 		} else if !w.ready {
 			evidence.Reason = store.ReasonAPIUnavailable
+		} else if _, err := r.deps.Inventory.Lookup(w.gvk); errors.Is(err, inventory.ErrInvalidDefinition) {
+			evidence.Reason = store.ReasonInvalidDefinition
 		}
 		if w.gvk == kartaGVK {
 			evidence.Dependencies = append(evidence.Dependencies, r.definitionKey)

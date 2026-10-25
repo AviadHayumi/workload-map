@@ -115,7 +115,8 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 			}
 		}
 	}
-	seenRoots := map[discovery.WatchRequest]bool{}
+	seenRoots := map[discovery.WatchRequest]watchKey{}
+	rootSources := map[types.UID]watchKey{}
 	for _, root := range roots {
 		namespace := root.Namespace
 		if r.config.NamespaceSelector == nil {
@@ -128,20 +129,25 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 		}
 		request := discovery.WatchRequest{GVK: root.GVK, Namespace: namespace}
 		requested[request] = true
-		if seenRoots[request] {
+		if key, found := seenRoots[request]; found {
+			rootSources[root.UID] = key
 			continue
 		}
-		seenRoots[request] = true
 		key, err := r.ensureWatch(ctx, root.GVK, namespace, false)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		desired[key] = true
+		seenRoots[request] = key
+		rootSources[root.UID] = key
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, root := range r.roots {
+	for uid, root := range r.roots {
+		if replacement, ok := rootSources[uid]; ok {
+			root.watch = replacement
+		}
 		requested[discovery.WatchRequest{GVK: root.ref.GVK, Namespace: root.watch.Namespace}] = true
 		desired[root.watch] = true
 	}
@@ -157,17 +163,42 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 		w.cancel()
 		delete(r.watches, key)
 		r.reader.mu.Lock()
-		delete(r.reader.activeKeys, w.failureKey)
-		for key := range w.objects {
-			if entry, ok := r.reader.objects[key]; ok {
-				r.deleteObjectLocked(refOf(entry.object))
-				delete(r.reader.objects, key)
-			}
-		}
+		r.retireWatchObjectsLocked(w)
 		r.reader.mu.Unlock()
 	}
 	r.publishHealthLocked()
 	return errors.Join(errs...)
+}
+
+// Retiring a representation does not retire a UID already assigned to another source.
+func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
+	delete(r.reader.activeKeys, w.failureKey)
+	r.deps.Publications.SetPublicationFailure(w.failureKey, store.ReasonAPIUnavailable)
+	for key := range w.objects {
+		entry, ok := r.reader.objects[key]
+		if !ok || entry.stream != w.key {
+			continue
+		}
+		ref := refOf(entry.object)
+		delete(r.reader.objects, key)
+		root := r.roots[ref.UID]
+		if root != nil && root.watch != w.key {
+			if replacement := r.watches[root.watch]; replacement != nil {
+				key := objectKey{GVK: replacement.gvk, Namespace: ref.Namespace, Name: ref.Name}
+				if observed, ok := r.reader.objects[key]; !ok || observed.object.GetUID() != ref.UID {
+					if replacement.pendingRoots == nil {
+						replacement.pendingRoots = map[types.UID]discovery.ObjectRef{}
+					}
+					replacement.pendingRoots[ref.UID] = ref
+					r.controlQueue.Add(queueKey{Operation: "verify", Watch: replacement.key})
+				}
+				r.rootQueue.Add(queueKey{Operation: "root", UID: ref.UID})
+				continue
+			}
+		}
+		r.deleteObjectLocked(ref)
+	}
+	r.deps.Publications.RetirePublicationFailure(w.failureKey)
 }
 
 func containsNamespace(values []string, value string) bool {
@@ -209,8 +240,10 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	w := &resourceWatch{discover: discover, objects: map[objectKey]struct{}{}, key: key, gvk: gvk, cancel: cancel, failureKey: fmt.Sprintf("watch:%s/%s:%d", key.Resource, key.Namespace, r.sequence)}
 	client := r.reader.clients.Dynamic.Resource(key.Resource).Namespace(key.Namespace)
 	lw := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (kruntime.Object, error) {
-			list, err := client.List(child, options)
+		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
+			requestCtx, cancel := context.WithTimeout(requestCtx, r.reader.options.RequestTimeout)
+			defer cancel()
+			list, err := client.List(requestCtx, options)
 			r.mu.Lock()
 			if r.watches[key] == w {
 				if err != nil {
@@ -223,15 +256,15 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 			r.mu.Unlock()
 			return list, err
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			source, err := client.Watch(child, options)
+		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			source, err := client.Watch(requestCtx, options)
 			if err != nil {
 				r.mu.Lock()
 				r.failWatchLocked(w, err)
 				r.mu.Unlock()
 				return nil, err
 			}
-			return r.monitorWatch(child, w, source), nil
+			return r.monitorWatch(requestCtx, w, source), nil
 		},
 	}
 	w.informer = cache.NewSharedIndexInformer(lw, &unstructured.Unstructured{}, 0, cache.Indexers{})
@@ -342,6 +375,12 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 		}
 	}
 	r.deps.Publications.SetPublicationFailure(w.failureKey, failureReason(err))
+	for uid, root := range r.roots {
+		if root.watch == w.key || w.gvk == podGVK {
+			root.fullRefresh = true
+			r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
+		}
+	}
 	r.publishHealthLocked()
 	if first {
 		r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
@@ -389,6 +428,7 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		}
 	} else {
 		w.objects[key] = struct{}{}
+		delete(w.pendingRoots, ref.UID)
 		r.reader.objects[key] = observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: r.config.Now().Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}}
 		if old.object != nil && old.object.GetResourceVersion() != ref.ResourceVersion {
 			if root := r.roots[r.podRoots[ref.UID]]; root != nil {
@@ -479,7 +519,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 	resourceVersion := ""
 	for {
 		requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
-		list, err := r.reader.clients.Metadata.Resource(key.Resource).Namespace(key.Namespace).List(requestCtx, options)
+		list, err := r.reader.listMetadata(requestCtx, key.Resource, key.Namespace, options)
 		cancel()
 		if err != nil {
 			r.mu.Lock()
@@ -552,6 +592,12 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		}
 		if w.discover || r.roots[ref.UID] != nil {
 			r.queue.Add(queueKey{Operation: "object", Object: objectKey, UID: ref.UID})
+		}
+	}
+	for uid, ref := range w.pendingRoots {
+		if _, found := refs[uid]; !found {
+			r.deleteObjectLocked(ref)
+			delete(w.pendingRoots, uid)
 		}
 	}
 	r.reader.mu.Unlock()

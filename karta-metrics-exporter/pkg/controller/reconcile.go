@@ -156,8 +156,22 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		return nil
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
+	var rootFailure error
+	if w := r.watches[state.watch]; w != nil {
+		rootFailure = w.err
+		if rootFailure == nil && !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)) {
+			rootFailure = discovery.ErrUnavailable
+		}
+	}
+	failedSources := map[string]error{}
+	for _, w := range r.watches {
+		if w.err != nil {
+			failedSources[w.failureKey] = w.err
+		}
+	}
 	previous := r.deps.Publications.Published(uid)
-	full := state.fullRefresh || previous == nil || state.publishedGeneration != generation || len(state.dirty) > store.PodPageSize
+	resolutionChanged := previous != nil && ((rootFailure != nil && previous.Workload.OwnerResolution != store.UnknownOwner) || (rootFailure == nil && previous.Workload.OwnerResolution == store.UnknownOwner))
+	full := resolutionChanged || state.fullRefresh || previous == nil || state.publishedGeneration != generation || len(state.dirty) > store.PodPageSize
 	dirty := state.dirty
 	state.dirty = map[types.UID]bool{}
 	state.fullRefresh = false
@@ -234,6 +248,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		return err
 	}
 	rootEvidence.Dependencies = append(slices.Clone(rootEvidence.Dependencies), fmt.Sprintf("root:%s:%d", uid, generation))
+	if rootFailure != nil {
+		rootEvidence.Reason = failureReason(rootFailure)
+	}
 	statusEvidence := rootEvidence
 	if selection.Definition != nil || definitionError != nil {
 		statusEvidence.Dependencies = append(slices.Clone(rootEvidence.Dependencies), definitionKey, kindDefinitionKey)
@@ -247,7 +264,10 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	record := &store.Publication{Workload: store.WorkloadRecord{UID: uid, Ref: store.ObjectRef{GVK: selectedRef.GVK, Namespace: selectedRef.Namespace, Name: selectedRef.Name, UID: uid, ResourceVersion: selectedRef.ResourceVersion}, OwnerResolution: store.OwnerResolution(resolution), CreatedTimestamp: object.GetCreationTimestamp().Unix()}, Creation: rootEvidence, Status: statusEvidence}
 	var factory *resource.ComponentFactory
 	var summary *instructions.StructureSummary
-	if selection.Definition != nil && definitionError == nil {
+	if rootFailure != nil {
+		record.Workload.OwnerResolution = store.UnknownOwner
+	}
+	if selection.Definition != nil && definitionError == nil && rootFailure == nil {
 		record.Workload.Karta = selection.Origin.Name
 		record.Workload.KartaSource = string(selection.Origin.Source)
 		factory, summary, err = prepareWorkload(selection, object)
@@ -298,6 +318,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			if previous != nil {
 				if row, found := previous.Pod(podUID); found {
 					row.Mapping.Reason = store.ReasonAPIUnavailable
+					row.Record.OwnerResolution = store.UnknownOwner
 					rows = append(rows, row)
 				}
 			}
@@ -306,13 +327,23 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		evidence := statusEvidence
 		evidence.Dependencies = append(slices.Clone(evidence.Dependencies), keys[podUID])
 		valid := true
+		var pathFailure error
 		for _, dependency := range path {
 			// Root updates are evaluated with their current selected representation.
 			if dependency.UID == uid {
 				continue
 			}
 			proof, proofErr := r.reader.evidence(dependency)
+			if proofErr == nil {
+				for _, key := range proof.Dependencies {
+					if cause := failedSources[key]; cause != nil {
+						proofErr = cause
+						break
+					}
+				}
+			}
 			if proofErr != nil {
+				pathFailure = proofErr
 				valid = false
 				r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: podUID})
 				break
@@ -346,8 +377,11 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			}
 		}
 		podRecord := cached.record
+		if !valid || podErrors[podUID] != nil || rootFailure != nil {
+			podRecord.OwnerResolution = store.UnknownOwner
+		}
 		if !valid {
-			evidence.Reason = store.ReasonAPIUnavailable
+			evidence.Reason = failureReason(pathFailure)
 			if cause := podErrors[podUID]; cause != nil {
 				evidence.Reason = failureReason(cause)
 			}

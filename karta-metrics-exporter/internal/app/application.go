@@ -56,7 +56,7 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 		return nil, err
 	}
 	if kubeConfig == nil {
-		return nil, errors.New("Kubernetes configuration is required")
+		return nil, errors.New("kubernetes configuration is required")
 	}
 	refresh, err := time.ParseDuration(cfg.RefreshInterval)
 	if err != nil {

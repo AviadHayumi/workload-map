@@ -58,7 +58,7 @@ func run() error {
 	defer stop()
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		return fmt.Errorf("Kubernetes configuration: %w", err)
+		return fmt.Errorf("kubernetes configuration: %w", err)
 	}
 	application, err := app.New(cfg, kubeConfig)
 	if err != nil {

@@ -216,7 +216,7 @@ func (r *Reader) fetchMetadata(ctx context.Context, ref discovery.ObjectRef) (*m
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
 	defer cancel()
-	object, err := r.clients.Metadata.Resource(mapping.Resource).Namespace(namespace).Get(requestCtx, ref.Name, metav1.GetOptions{})
+	object, err := r.getMetadata(requestCtx, mapping.Resource, namespace, ref.Name)
 	if err != nil {
 		return nil, err
 	}

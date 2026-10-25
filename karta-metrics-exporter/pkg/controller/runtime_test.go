@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -87,8 +88,9 @@ func testRuntime(resolver labelresolver.Resolver) (*Runtime, *metadatafake.FakeM
 }
 func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects ...*unstructured.Unstructured) *resourceWatch {
 	key := watchKey{Resource: gvk.GroupVersion().WithResource(resource)}
-	w := &resourceWatch{key: key, gvk: gvk, objects: map[objectKey]struct{}{}, ready: true, discover: true, failureKey: resource, verifiedAt: time.Now()}
+	w := &resourceWatch{key: key, gvk: gvk, objects: map[objectKey]struct{}{}, ready: true, discover: true, failureKey: "watch:" + key.Resource.String() + "/" + key.Namespace, verifiedAt: time.Now()}
 	r.watches[key] = w
+	r.reader.activeKeys[w.failureKey] = true
 	for _, o := range objects {
 		r.accept(w, o, false)
 	}
@@ -101,6 +103,12 @@ func seedRoot(r *Runtime, root *unstructured.Unstructured, pods ...*unstructured
 		state.paths[uid] = []discovery.ObjectRef{refOf(pod), refOf(root)}
 		state.podKeys[uid] = "pod:" + string(uid) + ":initial"
 		r.podRoots[uid] = root.GetUID()
+	}
+	for key, w := range r.watches {
+		if w.gvk == root.GroupVersionKind() {
+			state.watch = key
+			break
+		}
 	}
 	r.roots[root.GetUID()] = state
 	return state
@@ -242,5 +250,77 @@ var _ = Describe("Publication concurrency", func() {
 		runtime.config.RequiredKinds = []schema.GroupVersionKind{testRootGVK}
 		Expect(runtime.Ready()).To(BeFalse())
 	})
+
+	DescribeTable("retains failed ownership as unknown and restores it after recovery", func(ctx SpecContext, cause error, reason string) {
+		runtime, _, publications := testRuntime(nil)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		source := seedWatch(runtime, testRootGVK, "jobs", root)
+		seedWatch(runtime, podGVK, "pods", pod)
+		seedRoot(runtime, root, pod)
+		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+		runtime.mu.Lock()
+		runtime.failWatchLocked(source, cause)
+		runtime.mu.Unlock()
+		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+		record := publications.Published(root.GetUID())
+		Expect(record.Workload.OwnerResolution).To(Equal(store.UnknownOwner))
+		row, found := record.Pod(pod.GetUID())
+		Expect(found).To(BeTrue())
+		Expect(row.Record.OwnerResolution).To(Equal(store.UnknownOwner))
+		valid, failure := publications.Capture().Valid(row.Mapping)
+		Expect(valid).To(BeFalse())
+		Expect(failure).To(Equal(reason))
+		runtime.mu.Lock()
+		runtime.recoverWatchLocked(source)
+		runtime.mu.Unlock()
+		runtime.accept(source, root, false)
+		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+		record = publications.Published(root.GetUID())
+		Expect(record.Workload.OwnerResolution).To(Equal(store.Resolved))
+		row, _ = record.Pod(pod.GetUID())
+		Expect(row.Record.OwnerResolution).To(Equal(store.Resolved))
+	}, Entry("permission denial", apierrors.NewForbidden(schema.GroupResource{Group: "batch", Resource: "jobs"}, "", fmt.Errorf("denied")), store.ReasonPermissionDenied),
+		Entry("API failure", fmt.Errorf("API unavailable"), store.ReasonAPIUnavailable))
+	DescribeTable("preserves a root during selected-version handover until fresh absence is verified", func(ctx SpecContext, replacementHasRoot bool) {
+		runtime, metadata, publications := testRuntime(nil)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		old := seedWatch(runtime, testRootGVK, "jobs", root)
+		seedWatch(runtime, podGVK, "pods", pod)
+		state := seedRoot(runtime, root, pod)
+		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+		nextGVK := testRootGVK
+		nextGVK.Version = "v2"
+		nextRoot := root.DeepCopy()
+		nextRoot.SetGroupVersionKind(nextGVK)
+		next := seedWatch(runtime, nextGVK, "jobs")
+		if replacementHasRoot {
+			runtime.accept(next, nextRoot, false)
+		}
+		state.watch = next.key
+		state.ref.GVK = nextGVK
+		runtime.mu.Lock()
+		delete(runtime.watches, old.key)
+		runtime.reader.mu.Lock()
+		runtime.retireWatchObjectsLocked(old)
+		runtime.reader.mu.Unlock()
+		runtime.mu.Unlock()
+		Expect(runtime.roots[root.GetUID()]).To(BeIdenticalTo(state))
+		Expect(runtime.podRoots[pod.GetUID()]).To(Equal(root.GetUID()))
+		Expect(publications.Published(root.GetUID())).NotTo(BeNil())
+		runtime.accept(old, root, true)
+		Expect(runtime.roots[root.GetUID()]).To(BeIdenticalTo(state), "retired callbacks cannot remove a live UID")
+		if replacementHasRoot {
+			Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+			Expect(publications.Published(root.GetUID()).Workload.Ref.GVK).To(Equal(nextGVK))
+		} else {
+			Expect(next.pendingRoots).To(HaveKey(root.GetUID()))
+			metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+				return true, &metav1.List{ListMeta: metav1.ListMeta{ResourceVersion: "9"}}, nil
+			})
+			Expect(runtime.verifyWatch(ctx, next.key)).To(Succeed())
+			Expect(runtime.roots).NotTo(HaveKey(root.GetUID()))
+			Expect(publications.Published(root.GetUID())).To(BeNil())
+		}
+	}, Entry("replacement already observed the UID", true), Entry("replacement has not delivered its initial objects", false))
 
 })

@@ -76,7 +76,7 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 	var listErr error
 	for {
 		requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
-		page, err := r.clients.Metadata.Resource(group.Resource).Namespace(group.Namespace).List(requestCtx, options)
+		page, err := r.listMetadata(requestCtx, group.Resource, group.Namespace, options)
 		cancel()
 		if err != nil {
 			listErr = err

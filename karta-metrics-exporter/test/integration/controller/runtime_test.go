@@ -250,7 +250,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		seen.mu.Lock()
 		seen.deny = "/replicasets"
 		seen.mu.Unlock()
-		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`observation_valid="false"`))
+		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`observation_valid="false"`), ContainSubstring(`owner_resolution="unknown"`)))
 		Eventually(func() string { return scrape(url) }).Should(ContainSubstring(`reason="permission_denied"`))
 		seen.mu.Lock()
 		seen.deny = ""
@@ -380,7 +380,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		seen.mu.Lock()
 		seen.deny = "/kartas"
 		seen.mu.Unlock()
-		Eventually(status).Should(ContainSubstring(`observation_valid="false"`))
+		Eventually(status).Should(And(ContainSubstring(`observation_valid="false"`), ContainSubstring(`owner_resolution="resolved"`)))
 		Consistently(func() bool {
 			for _, line := range strings.Split(scrape(url), "\n") {
 				if strings.HasPrefix(line, "karta_workload_created_timestamp_seconds{") && strings.Contains(line, `workload_uid="`+string(root.UID)+`"`) {

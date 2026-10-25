@@ -16,12 +16,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
-	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	sigyaml "sigs.k8s.io/yaml"
+
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
+	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
