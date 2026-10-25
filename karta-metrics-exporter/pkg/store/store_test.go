@@ -137,6 +137,26 @@ var _ = Describe("Store", func() {
 		Expect(s.(*Store).failures).To(BeEmpty())
 	})
 
+	It("retires abandoned keys without clearing referenced publication or health failures", func() {
+		concrete := s.(*Store)
+		s.SetPublicationFailure("abandoned", ReasonAPIUnavailable)
+		concrete.RetirePublicationFailure("abandoned")
+		Expect(concrete.failures).NotTo(HaveKey("abandoned"))
+		s.SetPublicationFailure("root", ReasonPermissionDenied)
+		s.Publish(&Publication{Workload: WorkloadRecord{UID: "root"}, Status: evidence})
+		concrete.RetirePublicationFailure("root")
+		valid, _ := s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
+		s.RemovePublication("root")
+		concrete.RetirePublicationFailure("root")
+		valid, _ = s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.SetPublicationHealth(nil)
+		concrete.RetirePublicationFailure("root")
+		Expect(concrete.failures).To(BeEmpty())
+	})
+
 	It("keeps a health-only failure through replacement then retires it", func() {
 		s.SetPublicationFailure("root", ReasonAPIUnavailable)
 		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})

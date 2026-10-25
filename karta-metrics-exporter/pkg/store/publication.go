@@ -79,6 +79,17 @@ func (s *Store) SetPublicationFailure(key, reason string) {
 	}
 }
 
+// RetirePublicationFailure releases an abandoned generation key only when no
+// current publication or health record refers to it. Runtime must ensure that
+// future accepted publications will not reuse the retired generation.
+func (s *Store) RetirePublicationFailure(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failureRefs[key] == 0 {
+		delete(s.failures, key)
+	}
+}
+
 func (s *Store) SetPublicationHealth(health []HealthRecord) {
 	next := slices.Clone(health)
 	for i := range next {
