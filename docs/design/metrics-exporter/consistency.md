@@ -56,7 +56,7 @@ resource and namespace. A background metadata LIST seeds only the owners still
 needed by those Pods. GET workers continue while the LIST runs. Newer accepted
 reads, object changes or namespace withdrawal prevent an older batch from
 replacing current data. A failed batch leaves the ordinary GET path in charge.
-Later misses use GETs. No intermediate-owner watch is added.
+Later misses use GETs.
 
 Periodic refresh groups retained intermediate owners by API resource and
 namespace. Each group uses a paginated metadata LIST. Unrelated returned objects
@@ -158,10 +158,9 @@ func (p *Publication) WithPod(uid types.UID, replacement *PublishedPod) *Publica
 `WorkloadRecord` holds root identity, selected Karta, matching phases, creation
 time and status labels. `BuildPodPages` groups at most 256 `PublishedPod` rows
 per page. Each row pairs a `PodRecord` with mapping evidence. The Pod record holds
-its own namespace, UID, name, coordinates, owner resolution and labels. It also
-keeps the verified owner API version, which may differ from the version selected
-for Karta evaluation. These pages are immutable
-chunks that can be shared between publications.
+its own namespace, UID, name, coordinates, owner resolution and labels. The
+[publication contract](README.md#publish-and-collect) defines which owner GVK
+appears on each Pod row. These pages are immutable chunks shared between publications.
 
 `Publish` transfers immutable ownership. Callers must replace nested maps and
 slices rather than mutate them. Captured publications can outlive their current
@@ -225,10 +224,24 @@ missed deletions. Failed or incomplete reads cannot establish absence. Scope
 withdrawal removes affected rows, including Pods beneath a cluster-scoped root
 whose own namespace is empty.
 
-Failures appear in the `reason` label of `karta_exporter_observation_valid`.
-Resource health uses `scope="resource_type"` and emits 0 or 1. Workload health uses
-`scope="workload"` and emits failures with value 0. Retained Pod-info and status
-rows carry `observation_valid="false"`; they do not gain a reason label.
+Known-workload and collection failures appear in the `reason` label of
+`karta_exporter_observation_valid`.
+Resource health uses `scope="resource_type"` and emits 0 or 1. It identifies the
+resource with `namespace`, `resource_group`, `resource_version` and `resource_kind`.
+Its `workload_name` and `workload_uid` labels are empty.
+
+Workload health uses `scope="workload"` and adds the root name and UID. Collector
+combines `Publication.FailureReasons` with failed creation, status and Pod
+evidence. It emits one value-0 row with the highest-priority reason. A metadata
+read failure also produces resource-type health for the failed owner type, even
+when no root has been resolved.
+
+A malformed or cyclic owner chain can fail before any root is known. That Pod
+has no mapping or workload-health row. Pod collection can still be healthy:
+its watch succeeded, but no verified workload identity exists. Correcting the
+owner reference triggers resolution again.
+
+Retained Pod-info and status rows carry `observation_valid="false"`; they do not gain a reason label.
 The error categories are bounded:
 
 | Error | Action |
@@ -237,7 +250,7 @@ The error categories are bounded:
 | `ErrStale` | Discard superseded work and retry. |
 | `ErrPermissionDenied` | Report `permission_denied` for dependent evidence. |
 | `ErrUnavailable` | Report `api_unavailable`; expiry uses the same reason. |
-| `ErrUnresolvedOwner` | Report `unresolved_owner` for a missing or invalid owner path. |
+| `ErrUnresolvedOwner` | Invalidate a known mapping. Metadata-read failures also affect resource-type health. |
 | `ErrInvalidDefinition` | Report `invalid_definition`; do not use that interpretation. |
 | `ErrEvaluation` | Report `evaluation_failed` for the affected calculation. |
 
@@ -250,7 +263,12 @@ Detailed messages belong in diagnostics, not metric labels.
 sources, Pod coverage, namespace-selection coverage when configured, and every
 explicitly required kind. A supplemental root or ordinary selected-kind failure
 changes its resource health and dependent observations without blocking readiness
-for unrelated workloads.
+for unrelated workloads. A missing API for a required kind keeps `/readyz` false
+while discovery retries; it does not fail command startup.
+
+`/metrics` remains available before readiness. Before Runtime records any
+observations, Karta output can be empty. Once watches are registered, pending
+sources appear as invalid resource-type health with `reason="api_unavailable"`.
 
 One scrape calls `Capture` once. Store fixes the time, immutable publication
 references, copied health and failure state under its own lock. The callback uses

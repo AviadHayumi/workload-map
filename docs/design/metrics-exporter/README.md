@@ -97,9 +97,9 @@ cardinality limit would combine workload identities into an overflow series.
 Startup and shutdown have these ordering constraints:
 
 1. The command validates configuration, compiles labels and creates components.
-2. It binds the HTTP listener, then starts inventory, application workers and HTTP
-   serving concurrently. Runtime does not wait for inventory initialization.
-3. Application workers register collection before starting Runtime. `/readyz`
+2. It binds the HTTP listener, then starts inventory, `app.Run` and HTTP serving
+   concurrently. Runtime does not wait for inventory initialization.
+3. `app.Run` registers collection before starting Runtime. `/readyz`
    stays false until the [required sources and watches](consistency.md#readiness-and-collection)
    are ready. A scrape can happen before then.
 4. Shutdown cancels watches and workers and stops HTTP serving. Runtime finishes
@@ -118,8 +118,9 @@ result, err := discoverer.Get(ctx, discovery.ObjectRef{
 ```
 
 Discovery follows only controller owner references. It checks the UID at every
-step. A Karta on an intermediate object does not stop traversal. With the Pod
-and JobSet already watched, the reads and result are:
+step and rejects cycles, malformed controller references, multiple controller
+owners and paths longer than 1,024 objects. A Karta on an intermediate object
+does not stop traversal. With the Pod and JobSet already watched, the reads and result are:
 
 ```text
 cached Pod -> metadata GET Job train-workers-1 -> cached JobSet train
@@ -159,13 +160,16 @@ type WatchRequest struct {
 ```
 
 `OwnerResolution` has `resolved`, `ignored_owner` and `unknown` values. Discovery
-returns the first two on a completed walk. `unknown` marks retained metric
-ownership after a failed path; it is not a partially resolved Discovery result.
+returns the first two on a completed walk. `unknown` is used on a retained Pod
+metric after its owner path fails. It is not a partially resolved Discovery result.
 The [owner-boundary settings](../../karta-metrics-exporter/configuration.md#definition-sources-and-owner-boundaries)
 define ignored owners and Pod-root opt-in.
 
 Discovery has two replaceable dependencies: the object reader and inventory.
-Its reader contract is:
+After resolving the root, it asks inventory whether definition lookup is ready.
+It returns the resolved root even if that lookup fails. Runtime can establish
+root coverage, then check inventory again before evaluation. Discovery does not
+evaluate the definition or use it to stop traversal. Its reader contract is:
 
 ```go
 type ObjectReader interface {
@@ -200,10 +204,9 @@ adds supplemental coverage. Watches are shared by API resource and namespace.
 Cluster-scoped roots use an empty namespace. Pod-info keeps the Pod's own
 namespace, so one cluster root can contain Pods from several namespaces.
 
-For `Pod -> Job -> JobSet`, traversal requests Job metadata, not a new Job watch.
-A Job watch may already exist because Jobs are independently selected workloads.
-The current runtime caches full watched Pods and roots. Intermediate GETs keep
-metadata. Managed fields are removed from watched objects.
+Runtime caches full watched Pods and roots, with managed fields removed.
+Intermediate reads keep metadata. A Job may already be watched independently
+because its definition is selected.
 
 Object events enter an object-resolution queue. Resolved roots enter a root
 queue. Source synchronization and verification use a separate control queue.
@@ -334,9 +337,9 @@ contract are defined in the [resolver documentation](../../../karta-metrics-expo
 ## Publish and collect
 
 Runtime prepares one immutable publication per root UID. It checks accepted
-input versions, Runtime's local root change counter, selected definition and active evidence before
-saving. A zero-Pod root follows the same path with an empty Pod list. Store has
-separate write and capture interfaces:
+input versions, the local root change counter, selected definition and active
+evidence before saving. A zero-Pod root follows the same path with an empty Pod
+list. Store has separate write and capture interfaces:
 
 ```go
 type Writer interface {
@@ -358,25 +361,27 @@ define `Publication`, `HealthRecord` and `CapturedView`. Store owns its mutex an
 clock; Runtime does not bind an external lock. `Published(uid)` returns a
 read-only `*Publication`. A caller replaces one Pod with
 `publication.WithPod(uid, replacement)`, then calls `Publish` with that result.
-`WithPod` is a Publication method, not a Writer operation. Nil removes the Pod.
+A nil replacement removes the Pod.
 
 `PodRecord.WorkloadGVK` stores the verified owner GVK for each Pod when no Karta
 is selected. Pods can refer to the same root UID through different served API
 versions. A selected Karta supplies the common GVK instead. A zero value uses
-the publication root GVK, which keeps existing Store callers compatible.
+the publication root GVK.
 
 Collector construction and registration are separate:
 
 ```go
 registrar := otel.New()
 registration, err := registrar.Register(meter, publications)
-// Handle err. Unregister after Runtime has stopped.
 ```
+
+`app.Run` checks the registration error and unregisters after Runtime stops.
 
 One callback captures Store once and emits `karta_pod_workload_info`,
 `karta_workload_status`, `karta_workload_created_timestamp_seconds` and
-`karta_exporter_observation_valid`. It checks every observation against the captured time and failure map. Matching status phases
-emit 1 and the other supported phases emit 0. The phases are Initializing,
+`karta_exporter_observation_valid`. It checks every observation against the
+captured time and failure map. Matching status phases emit 1 and the other
+supported phases emit 0. The phases are Initializing,
 Running, Completed, Failed, Degraded, Suspended, Suspending, Resuming and
 Undefined. Verified positive creation timestamps are emitted separately.
 Custom labels apply only to Pod-info and status.

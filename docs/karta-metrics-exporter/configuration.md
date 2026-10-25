@@ -93,18 +93,19 @@ must match. An empty selector matches all objects. To select namespace names,
 use their `kubernetes.io/metadata.name` label.
 
 Namespace selection controls watch scope. All Pods in selected namespaces remain
-observed, even when `podSelector` hides some Pod rows. Intermediate owners are
-read as dependencies, not automatically watched because traversal reached them.
-Root watches cover selected definitions, `requiredKinds` and discovered roots.
+observed, even when `podSelector` hides some Pod rows. The
+[watch plan](../design/metrics-exporter/README.md#watches-and-queues) describes root
+coverage and intermediate-owner reads.
 
 Root selection happens after owner resolution. Excluding a JobSet also excludes
 its descendant Pod rows; it does not promote the Jobs below it. Status describes
-the root workload. Namespace
-withdrawal removes affected Pod rows even beneath a cluster-scoped root.
+the root workload. Generic roots without a Karta pass the same root filters.
+Namespace withdrawal removes affected Pod rows even beneath a cluster-scoped root.
 
 ### Definition sources and owner boundaries
 
-Empty includes allow all names; exclusions win. Cluster definitions must also
+Include and exclude names apply separately within each source. Empty includes
+allow all names; exclusions win. Cluster definitions must also
 match their label selector. The [inventory contract](../design/metrics-exporter/README.md#select-the-definition)
 defines source choice, ties and failures.
 
@@ -117,11 +118,11 @@ root. A missing Pod definition leaves both kinds of Pod roots out of workload me
 `ignoredOwnerKinds` contains exact slash-separated GVKs, such as
 `example.com/v1/Wrapper` or `v1/Node` for the core API group. Discovery
 stops before a matching owner and uses the last verified object below it as the
-root. A missing owner below that boundary still fails. A definition on an
-intermediate owner does not stop traversal by itself.
+root. A missing owner below that boundary still fails.
 
-`requiredKinds` uses the same slash-separated format. It starts coverage before Pods exist
-and makes that kind part of readiness. Ignoring an owner does not disable an
+`requiredKinds` uses the same slash-separated format. It starts coverage before
+Pods exist and makes that kind part of readiness. If its API is missing, readiness
+stays false while discovery retries. Ignoring an owner does not disable an
 independently required-kind check. Ordinary discovered-root failures remain
 scoped to their health rows and dependent metrics.
 
@@ -144,8 +145,8 @@ exporter:
 These fields select root API types, not owner dependencies or RBAC permissions.
 Excluding a root drops its Pod rows without promoting children to roots. A kind
 can remain in `requiredKinds` even when output filters exclude it; its watch and
-readiness check still apply. Empty `resourceRules` means no restriction. A root must match one configured inclusion
-and no exclusion, as well as its label selector. Group, version and plural resource
+readiness check still apply. Empty `resourceRules` means no restriction. A root
+must match one configured inclusion and no exclusion, as well as its label selector. Group, version and plural resource
 name must all match within a rule. Entries in each list are alternatives.
 `"*"` matches any value; `""` is the core API group. Every rule needs nonempty
 group, version and resource lists. Subresources are not supported.
@@ -167,11 +168,12 @@ labels and OTel scope labels are reserved. Known non-string expressions fail
 compilation; dynamic non-string results fail evaluation. The defaults are:
 
 ```yaml
-labelLimits:
-  costLimit: 10000
-  maxExpressionBytes: 4096
-  maxValueBytes: 1024
-  interruptCheckFrequency: 100
+exporter:
+  labelLimits:
+    costLimit: 10000
+    maxExpressionBytes: 4096
+    maxValueBytes: 1024
+    interruptCheckFrequency: 100
 ```
 
 The last field controls cancellation checks during CEL comprehensions. The
@@ -186,8 +188,9 @@ without the `exporter:` wrapper. Unknown keys and multiple YAML documents are
 rejected. For each setting, an explicit flag wins over its environment variable, which
 wins over the file value, which wins over the default. Rules and selectors stay in YAML.
 
-These runtime settings are available in the standalone file and command. The
-current Helm template uses their defaults:
+These runtime settings are available in the standalone file and command. Helm
+uses their defaults. The chart renders label rules and limits, definition sources,
+selectors, resource rules, ignored owners and required kinds into the config file:
 
 | YAML key | Flag | Environment variable | Default |
 | --- | --- | --- | --- |
@@ -200,7 +203,7 @@ current Helm template uses their defaults:
 | `apiBurst` | `--api-burst` | `KARTA_EXPORTER_API_BURST` | `40` |
 
 The worker count applies separately to object resolution and root publication.
-Source verification has its own workers. Kubernetes clients share the API rate
+Source verification uses two workers. Kubernetes clients share the API rate
 limit. Durations and worker/rate limits must be positive, and maximum age must
 exceed the refresh interval. A delayed refresh does not extend expired evidence.
 
