@@ -47,7 +47,7 @@ in the command; neither is implemented here.
 ## Develop a component
 
 Implement the interface in its package. Keep the component tests next to the
-implementation. Mocks are generated into `internal/scaffold/mocks` for the
+implementation. Use Ginkgo/Gomega, as in the SDK and operator. Mocks are generated into `internal/scaffold/mocks` for the
 scaffold and consumer tests:
 
 ```sh

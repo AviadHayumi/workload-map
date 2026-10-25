@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"testing"
+	"sync"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -19,7 +20,7 @@ const list = "[1,2,3,4,5,6,7,8,9,10]"
 
 var expensiveExpression = fmt.Sprintf("string(size(%[1]s.map(a, %[1]s.map(b, %[1]s.map(c, %[1]s.map(d, %[1]s.map(e, %[1]s.map(f, a+b+c+d+e+f))))))))", list)
 
-func TestEvaluateObject(t *testing.T) {
+var _ = Describe("evaluate object", func() {
 	for _, tc := range []struct{ name, expression, want string }{
 		{"annotation", `object.metadata.annotations["example.com/owner"]`, "alice"},
 		{"label", `object.metadata.labels["example.com/team"]`, "research"},
@@ -32,20 +33,20 @@ func TestEvaluateObject(t *testing.T) {
 		{"disabled", "", ""},
 		{"whitespace", " \n", ""},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		It(tc.name, func(specCtx SpecContext) {
 			evaluator, err := NewCompiler().Compile(Config{Expression: tc.expression})
-			require.NoError(t, err)
+			Expect(err).To(Succeed())
 			obj := labelObject()
 			before := obj.DeepCopy()
-			value, err := evaluator.Evaluate(t.Context(), obj)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, value)
-			require.Equal(t, before, obj)
+			value, err := evaluator.Evaluate(specCtx, obj)
+			Expect(err).To(Succeed())
+			Expect(value).To(Equal(tc.want))
+			Expect(obj).To(Equal(before))
 		})
 	}
-}
+})
 
-func TestEvaluationFailures(t *testing.T) {
+var _ = Describe("Evaluation failures", func() {
 	for _, tc := range []struct {
 		name, expression string
 		obj              *unstructured.Unstructured
@@ -56,25 +57,27 @@ func TestEvaluationFailures(t *testing.T) {
 		{"missing object", `object.kind`, nil, ErrMissingObject},
 		{"missing key", `object.metadata.labels["absent"]`, labelObject(), nil},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		It(tc.name, func(specCtx SpecContext) {
 			evaluator, err := NewCompiler().Compile(Config{Expression: tc.expression})
-			require.NoError(t, err)
-			value, err := evaluator.Evaluate(t.Context(), tc.obj)
-			require.Empty(t, value)
-			require.Error(t, err)
+			Expect(err).To(Succeed())
+			value, err := evaluator.Evaluate(specCtx, tc.obj)
+			Expect(value).To(BeEmpty())
+			Expect(err).To(HaveOccurred())
 			if tc.want != nil {
-				require.ErrorIs(t, err, tc.want)
+				Expect(err).To(MatchError(tc.want))
 			}
 		})
 	}
-	evaluator, err := NewCompiler().Compile(Config{Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`})
-	require.NoError(t, err)
-	value, err := evaluator.Evaluate(t.Context(), &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{}}})
-	require.NoError(t, err)
-	require.Empty(t, value)
-}
+	It("allows guards for missing optional fields", func(specCtx SpecContext) {
+		evaluator, err := NewCompiler().Compile(Config{Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`})
+		Expect(err).To(Succeed())
+		value, err := evaluator.Evaluate(specCtx, &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{}}})
+		Expect(err).To(Succeed())
+		Expect(value).To(BeEmpty())
+	})
+})
 
-func TestCompileFailures(t *testing.T) {
+var _ = Describe("compile failures", func() {
 	for _, tc := range []struct {
 		name string
 		cfg  Config
@@ -89,18 +92,18 @@ func TestCompileFailures(t *testing.T) {
 		{"negative expression bound", Config{Limits: Limits{MaxExpressionBytes: -1}}, ErrNegativeLimit},
 		{"negative value bound", Config{Limits: Limits{MaxValueBytes: -1}}, ErrNegativeLimit},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		It(tc.name, func() {
 			evaluator, err := NewCompiler().Compile(tc.cfg)
-			require.Error(t, err)
-			require.Nil(t, evaluator)
+			Expect(err).To(HaveOccurred())
+			Expect(evaluator).To(BeNil())
 			if tc.want != nil {
-				require.ErrorIs(t, err, tc.want)
+				Expect(err).To(MatchError(tc.want))
 			}
 		})
 	}
-}
+})
 
-func TestValueLimits(t *testing.T) {
+var _ = Describe("value limits", func() {
 	for _, tc := range []struct {
 		name        string
 		size, limit int
@@ -111,72 +114,80 @@ func TestValueLimits(t *testing.T) {
 		{"raised", DefaultMaxValueBytes + 1, 2 * DefaultMaxValueBytes, false},
 		{"boundary", 4, 4, false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		It(tc.name, func(specCtx SpecContext) {
 			evaluator, err := NewCompiler().Compile(Config{Expression: `object.value`, Limits: Limits{MaxValueBytes: tc.limit}})
-			require.NoError(t, err)
+			Expect(err).To(Succeed())
 			obj := &unstructured.Unstructured{Object: map[string]any{"value": strings.Repeat("a", tc.size)}}
-			value, err := evaluator.Evaluate(t.Context(), obj)
+			value, err := evaluator.Evaluate(specCtx, obj)
 			if tc.failed {
-				require.ErrorIs(t, err, ErrValueTooLong)
-				require.Empty(t, value)
+				Expect(err).To(MatchError(ErrValueTooLong))
+				Expect(value).To(BeEmpty())
 			} else {
-				require.NoError(t, err)
-				require.Len(t, value, tc.size)
+				Expect(err).To(Succeed())
+				Expect(value).To(HaveLen(tc.size))
 			}
 		})
 	}
-}
+})
 
-func TestCostLimits(t *testing.T) {
-	for _, limit := range []uint64{0, 1} {
-		evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: limit}})
-		require.NoError(t, err)
-		_, err = evaluator.Evaluate(t.Context(), labelObject())
-		require.ErrorContains(t, err, "cost limit")
-	}
-}
+var _ = Describe("cost limits", func() {
+	It("stops evaluation at the configured cost limit", func(specCtx SpecContext) {
+		for _, limit := range []uint64{0, 1} {
+			evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: limit}})
+			Expect(err).To(Succeed())
+			_, err = evaluator.Evaluate(specCtx, labelObject())
+			Expect(err).To(MatchError(ContainSubstring("cost limit")))
+		}
+	})
+})
 
-func TestCancellation(t *testing.T) {
-	for _, expression := range []string{"", `object.kind`} {
-		evaluator, err := NewCompiler().Compile(Config{Expression: expression})
-		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		_, err = evaluator.Evaluate(ctx, labelObject())
-		require.ErrorIs(t, err, context.Canceled)
-		ctx, cancel = context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		defer cancel()
-		_, err = evaluator.Evaluate(ctx, labelObject())
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-	}
-	for _, frequency := range []uint{0, 1, 1000} {
-		evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
-		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		timer := time.AfterFunc(5*time.Millisecond, cancel)
-		defer timer.Stop()
-		start := time.Now()
-		_, err = evaluator.Evaluate(ctx, labelObject())
-		require.ErrorIs(t, err, context.Canceled)
-		require.Less(t, time.Since(start), time.Second)
-	}
-}
+var _ = Describe("cancellation", func() {
+	It("honors canceled contexts, deadlines and evaluation interruptions", func(specCtx SpecContext) {
+		for _, expression := range []string{"", `object.kind`} {
+			evaluator, err := NewCompiler().Compile(Config{Expression: expression})
+			Expect(err).To(Succeed())
+			ctx, cancel := context.WithCancel(specCtx)
+			cancel()
+			_, err = evaluator.Evaluate(ctx, labelObject())
+			Expect(err).To(MatchError(context.Canceled))
+			ctx, cancel = context.WithDeadline(specCtx, time.Now().Add(-time.Second))
+			defer cancel()
+			_, err = evaluator.Evaluate(ctx, labelObject())
+			Expect(err).To(MatchError(context.DeadlineExceeded))
+		}
+		for _, frequency := range []uint{0, 1, 1000} {
+			evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
+			Expect(err).To(Succeed())
+			ctx, cancel := context.WithCancel(specCtx)
+			defer cancel()
+			timer := time.AfterFunc(5*time.Millisecond, cancel)
+			defer timer.Stop()
+			start := time.Now()
+			_, err = evaluator.Evaluate(ctx, labelObject())
+			Expect(err).To(MatchError(context.Canceled))
+			Expect(time.Since(start)).To(BeNumerically("<", time.Second))
+		}
+	})
+})
 
-func TestConcurrentEvaluation(t *testing.T) {
-	evaluator, err := NewCompiler().Compile(Config{Expression: `object.metadata.name`})
-	require.NoError(t, err)
-	for i := range 20 {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			t.Parallel()
-			obj := labelObject()
-			obj.SetName(fmt.Sprint(i))
-			value, err := evaluator.Evaluate(t.Context(), obj)
-			require.NoError(t, err)
-			require.Equal(t, fmt.Sprint(i), value)
-		})
-	}
-}
+var _ = Describe("Concurrent evaluation", func() {
+	It("shares one compiled evaluator across callers", func(ctx SpecContext) {
+		evaluator, err := NewCompiler().Compile(Config{Expression: `object.metadata.name`})
+		Expect(err).To(Succeed())
+		var workers sync.WaitGroup
+		for i := range 20 {
+			workers.Go(func() {
+				defer GinkgoRecover()
+				obj := labelObject()
+				obj.SetName(fmt.Sprint(i))
+				value, err := evaluator.Evaluate(ctx, obj)
+				Expect(err).To(Succeed())
+				Expect(value).To(Equal(fmt.Sprint(i)))
+			})
+		}
+		workers.Wait()
+	})
+})
 
 func labelObject() *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
