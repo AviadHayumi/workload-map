@@ -1,7 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Metrics exporter peer-review disposition
+# Historical metrics exporter peer-review disposition
+
+This records an earlier PoC. Results and decisions below apply to the cited
+revisions. See the [current design](metrics-exporter/README.md) and
+[verification guide](../../karta-metrics-exporter/README.md#verify).
 
 The final [KEP-0001](../keps/0001-metrics-exporter/README.md) governs these decisions. Opus 4.8 supplied the broad static review; it did not execute tests. GPT-6 Astra performed implementation and evidence-based triage. The first two broad Sonnet 5.5 responses were empty. A narrowed four-file Sonnet 5.5 review completed normally and reported no concrete correctness or concurrency findings in collector, server, store and store types. That limited result predates the scrape-concurrency limit, does not review the controller, and does not establish executed-test evidence.
 

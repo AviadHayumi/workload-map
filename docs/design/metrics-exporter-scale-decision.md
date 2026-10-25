@@ -1,7 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Metrics exporter scale decision
+# Historical metrics exporter scale decision
+
+This records an earlier PoC. Results and decisions below apply to the cited
+revisions. See the [current design](metrics-exporter/README.md) and
+[verification guide](../../karta-metrics-exporter/README.md#verify).
 
 The implementation keeps all requested workload and Pod identities, uses one
 OTel callback, and avoids a persistent cache of per-phase attributes. A local

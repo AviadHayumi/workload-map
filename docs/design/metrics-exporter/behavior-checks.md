@@ -1,9 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Exporter implementation: behavior checks
+# Historical PoC behavior checks
 
-The local PoC connects the command, informers, discovery, definition inventory, CEL extractor and OTel adapter. These checks exercise that implementation. Earlier data-structure experiments are not used as proof of the connected exporter.
+These results apply to the earlier PoC revisions named below. They do not describe
+the current interfaces, configuration or supported delivery modes. See the
+[current implementation](README.md) and [component verification](../../../karta-metrics-exporter/README.md#verify).
 
 ## Component and controller checks
 

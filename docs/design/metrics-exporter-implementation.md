@@ -6,7 +6,7 @@
 Historical audit of the earlier prototype. The metric contract, component layout
 and verification protocol below have since changed. See the current
 [implementation design](./metrics-exporter/README.md) and
-[behavior checks](./metrics-exporter/behavior-checks.md).
+[component verification](../../karta-metrics-exporter/README.md#verify).
 
 ## Contract and scope
 
