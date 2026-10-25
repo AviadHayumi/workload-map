@@ -67,7 +67,7 @@ instances, unsupported sharing, or an incomplete allocation inventory must not
 be classified as low activity. Allocation changes restart the evidence window.
 Multiple compute instances within one GPU instance are rejected.
 
-The [observer source](../../../../exporter/examples/workload-gpu-observer)
+The [observer source](../../examples/workload-gpu-observer)
 includes native full-GPU, MIG, and DRA paths and regression tests. The parent
 `observer-provenance.json` records the immutable deployed image and source hash.
 Use the observer README for image build instructions.

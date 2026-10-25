@@ -207,7 +207,7 @@ validated by these full-GPU tests.
 - `definitions.json`, `exporter.json`, `monitoring.json`, `dashboard.json`: Karta and monitoring configuration.
 - `native-servicemonitor.json`, `observer.json`: native DCGM integration.
 - `observer-provenance.json`: deployed native observer and source hash.
-- [Observer source and tests](../../../exporter/examples/workload-gpu-observer): native integration.
+- [Observer source and tests](../examples/workload-gpu-observer): native integration.
 
 The recurring GPU CronJob uses concurrencyPolicy Forbid, no retries, a
 15-minute execution deadline, one-hour TTL, and bounded history. GPU tests
@@ -633,7 +633,7 @@ Claim sharing across containers, init-container claims, opaque allocation
 configuration, and unsupported DRA modes are deliberately rejected.
 
 No Karta metric name, label, CRD field, or Helm value changed. The new code is
-in the [separate demo observer](../../../exporter/examples/workload-gpu-observer);
+in the [separate demo observer](../examples/workload-gpu-observer);
 the immutable deployed image and source hash are in
 `dra/observer-provenance.json`. The race-enabled observer tests passed,
 including existing full-GPU/MIG tests and new DRA negative cases.

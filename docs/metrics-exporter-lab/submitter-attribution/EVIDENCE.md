@@ -44,9 +44,9 @@ URLs or credentials are included. A source inspection is not a live test.
 Local repository links: [catalog](../../../pkg/catalog/catalog.go),
 [factory](../../../pkg/resource/component_factory.go),
 [tree](../../../pkg/tree/builder.go),
-[owner index](../../../exporter/pkg/owner/index.go),
-[owner lifecycle tests](../../../exporter/pkg/controller/ownership_test.go),
-[metric names](../../../exporter/pkg/collector/names.go).
+[owner index](https://github.com/AviadHayumi/workload-map/blob/01352db5c4be54b0b3eb6d53a0a04fb5faa34520/exporter/pkg/owner/index.go),
+[owner lifecycle tests](https://github.com/AviadHayumi/workload-map/blob/01352db5c4be54b0b3eb6d53a0a04fb5faa34520/exporter/pkg/controller/ownership_test.go),
+[metric names](https://github.com/AviadHayumi/workload-map/blob/01352db5c4be54b0b3eb6d53a0a04fb5faa34520/exporter/pkg/collector/names.go).
 
 ## Selected observations
 

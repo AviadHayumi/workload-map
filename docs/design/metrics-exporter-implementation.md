@@ -108,7 +108,7 @@ scrape time was 18.423 seconds and process peak RSS was 9.325 GB, including fixt
 and oracle work. That RSS is higher than the earlier 7.812 GB measurement; the
 optimization does not establish uniformly lower memory use. The default 1 GiB
 chart limit is insufficient for these 100,000-root scenarios. The [scale decision](metrics-exporter-scale-decision.md)
-and [raw results](../../exporter/test/scale/results/) record every timing, exact
+and [raw results](../metrics-exporter-lab/historical-poc/scale) record every timing, exact
 allocation/RSS value, runtime, source hash and deployment limit.
 
 Earlier failures remain evidence. The original full-object first Pod pass failed

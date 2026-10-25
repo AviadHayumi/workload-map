@@ -75,7 +75,7 @@ not bytes allocated per scrape, and not a container-memory recommendation.
 | 100,000 | 1 | 1,100,000 | 277.63 | 8.341 | 4357.2 | 126.4 | 4582.9 |
 | 100,000 | 10 | 2,000,000 | 558.03 | 18.423 | 9360.0 | 462.6 | 9324.7 |
 
-The [final raw results](../../exporter/test/scale/results/final-20261014-lifecycle/README.md)
+The [final raw results](../metrics-exporter-lab/historical-poc/scale/final-20261014-lifecycle/README.md)
 contain all three scrape durations, exact bytes, allocation counts, GC cycles,
 retained heap, exit statuses, and source/binary hashes. All nine cases include
 the final same-snapshot Pod/root confirmation and lifecycle changes. The
@@ -129,7 +129,7 @@ allocations to add to the table above.
 The short baseline CPU profile also showed substantial runtime GC and scheduling
 cost, with `gcDrain` at roughly 21% cumulative samples. It is diagnostic evidence,
 not a portable CPU budget. Raw profile-derived shares and source hashes are in
-[profile-summary.json](../../exporter/test/scale/results/profile-summary.json).
+[profile-summary.json](../metrics-exporter-lab/historical-poc/scale/profile-summary.json).
 
 ## Correctness and fresh verification
 
@@ -158,7 +158,7 @@ The Pod request totals contain one complete metadata pass and one complete
 full-object pass: 100 plus 100 pages for 100,000 Pods and 1,000 plus 1,000 pages
 for one million Pods. The tests asserted exact identities, values, resource-type
 coverage, metadata request counts, and zero unexpected requests. See the
-[health summary](../../exporter/test/scale/results/final-20261014-lifecycle/health-summary.json)
+[health summary](../metrics-exporter-lab/historical-poc/scale/final-20261014-lifecycle/health-summary.json)
 and raw logs for actual durations and counts. Initial sandbox attempts failed
 to open a loopback listener before constructing fixtures; those startup
 failures are retained and are not health-capacity observations.
@@ -173,14 +173,14 @@ The initial full-object first-Pod-pass implementation failed the unchanged
 60-second budget at 100,000 roots plus one million Pods. It completed 1,092 of
 2,101 required LISTs, then reported `api_unavailable`; verification returned
 after 62.188 seconds. This historical failure remains in
-[the health baseline](../../exporter/test/scale/results/health-baseline-100000-10.json).
+[the health baseline](../metrics-exporter-lab/historical-poc/scale/health-baseline-100000-10.json).
 
 The metadata first-pass optimization reads Pod metadata and indexes immutable
 snapshot Pod records by pointer. The fixture also encodes typed Pod lists
 directly, removing an artificial reflection conversion in the test API. The
 previous optimized run passed all 100,003 rows after 2,101 LISTs in 58.568 seconds,
 leaving only 1.432 seconds under the unchanged budget; it remains in
-[the earlier health result](../../exporter/test/scale/results/health-final-100000-10.json).
+[the earlier health result](../metrics-exporter-lab/historical-poc/scale/health-final-100000-10.json).
 Intermediate failures are retained. That fixture correction prevents attributing
 the full historical timing change solely to production code. The final lifecycle
 run supersedes the previous capacity observation for the current source revision;
@@ -223,4 +223,4 @@ results support implementation choices and explicit capacity limits, not a
 claim that the default deployment supports 100,000 workloads.
 
 Reproduction commands and opt-in controls are in the
-[scale harness guide](../../exporter/test/scale/README.md).
+[scale harness guide](https://github.com/AviadHayumi/workload-map/blob/01352db5c4be54b0b3eb6d53a0a04fb5faa34520/exporter/test/scale/README.md).

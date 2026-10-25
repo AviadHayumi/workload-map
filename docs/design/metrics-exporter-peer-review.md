@@ -80,7 +80,7 @@ zero issues and whitespace checks passed.
 
 Commit `02a613462995f11ac3825c6b3db7a7f51c485e0c` includes all fixes above.
 Root `make check` and `make -C exporter check` passed, including the complete
-exporter race suite and zero lint issues. The [live acceptance evidence](../../exporter/test/e2e/results/acceptance-2026-10-14.json)
+exporter race suite and zero lint issues. The [live acceptance evidence](../metrics-exporter-lab/historical-poc/e2e/acceptance-2026-10-14.json)
 records 21 workload cases, 21 faults and four transport checks on that production
 image. Later fixture corrections are recorded separately. The [scale decision](metrics-exporter-scale-decision.md)
 identifies the measured source and capacity limits. Static model reviews do not

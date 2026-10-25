@@ -66,7 +66,7 @@ not production identity-provider integration or that all principals are human.
 
 ## Configuration and limits
 
-The [example guide](../../../exporter/examples/submitter-attribution/README.md)
+The [example guide](../examples/submitter-attribution/README.md)
 explains both CEL examples, rollout behavior and queries. Generic extraction
 keys belong to configuration, not platform-specific code in Karta core.
 

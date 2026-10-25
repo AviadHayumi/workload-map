@@ -76,7 +76,7 @@ kubectl --context "$KARTA_CONTEXT" -n karta-metrics-poc \
 
 The exporter image and its digest are in `exporter.json`. The native observer
 image digest and source hash are in `observer-provenance.json`. The observer
-[source and regressions](../../../exporter/examples/workload-gpu-observer)
+[source and regressions](../examples/workload-gpu-observer)
 are included in this repository.
 The existing observer tests and added native tests passed with Go's race detector.
 No Karta public metric names, labels, or Helm value definitions were changed.

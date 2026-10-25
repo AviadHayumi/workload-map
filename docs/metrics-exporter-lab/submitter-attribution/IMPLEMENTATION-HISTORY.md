@@ -46,7 +46,7 @@ uploaded to NGC. CPU/sleep fixtures and fake GPU allocation do not test GPU work
 ## Use the implementation
 
 The executable configuration is
-[`exporter/examples/submitter-attribution/values.yaml`](../../../exporter/examples/submitter-attribution/values.yaml).
+[`exporter/examples/submitter-attribution/values.yaml`](../examples/submitter-attribution/values.yaml).
 From the repository root:
 
 ```sh

@@ -16,13 +16,17 @@ public metrics and Helm values unchanged.
 - [Complete playground setup](playground-dev/recreate/README.md): fake GPU
   allocation with native NVIDIA DCGM reading mock NVML, pinned operator inputs,
   controllable activity, and finite workload submission.
-- [Observer source and tests](../../exporter/examples/workload-gpu-observer):
+- [Observer source and tests](examples/workload-gpu-observer):
   Pod UID attribution, complete allocation checks, and low-activity windows.
 
 The physical GPU tests passed on two A100s on one worker. The observer reports
 low activity only after all assigned devices stay at or below 5% throughout
 180 seconds of valid observations. Missing evidence is Unknown. This does not
 establish application idleness, safe reclamation, or production scale.
+
+For the current exporter, use its [configuration guide](../karta-metrics-exporter/configuration.md)
+and [operator tests](../../karta-metrics-exporter/test/e2e/README.md). The setup
+bundles below preserve the earlier PoC and its configuration.
 
 ## Publication and evidence
 

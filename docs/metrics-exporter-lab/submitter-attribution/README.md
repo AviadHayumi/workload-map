@@ -31,7 +31,7 @@ unchanged. The earlier two companion submitter metrics are removed.
 | Read this | Purpose |
 | --- | --- |
 | [Implementation](IMPLEMENTATION.md) | Current contract, resolution, admission and validation |
-| [Examples](../../../exporter/examples/submitter-attribution/README.md) | Single CEL expression, complex key lists, Helm and queries |
+| [Examples](../examples/submitter-attribution/README.md) | Single CEL expression, complex key lists, Helm and queries |
 | [Fresh evidence](evidence/submitted-by/README.md) | Current requests, outputs, metrics, cleanup and checks |
 | [Implementation history](IMPLEMENTATION-HISTORY.md) | Earlier companion-metric prototype, fixes and original build scopes |
 | [Historical results](RESULTS.md) | Earlier installation and platform issues |
