@@ -359,7 +359,68 @@ class LoopbackAPI:
             self.server.server_close()
 
 
-def read_metrics(response, fixture, deadline=None):
+class ChurnIntervals:
+    """Only roots with emitted, not yet verified changes may be temporarily invalid."""
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.pending = {}
+        self.completed = collections.deque()
+
+    def begin(self, root, at):
+        with self.lock:
+            if root in self.pending:
+                raise AssertionError("change before previous publication acknowledgment")
+            self.pending[root] = at
+
+    def acknowledge(self, root, at):
+        with self.lock:
+            sent = self.pending.pop(root)
+            self.completed.append((root,sent,at))
+
+    def overlapping(self, start, end):
+        # One continuity reader calls this in increasing scrape-start order.
+        with self.lock:
+            while self.completed and self.completed[0][2] < start:
+                self.completed.popleft()
+            return {root for root,sent,ack in self.completed if sent <= end and ack >= start} | {root for root,sent in self.pending.items() if sent <= end}
+
+    def overdue(self, now, limit):
+        with self.lock:
+            return {root for root,sent in self.pending.items() if now-sent > limit}
+
+
+def verified_publication(publication, fixture, root, version):
+    if publication.get("resource_version") != version or publication.get("valid") is not True:
+        return False
+    workload = publication.get("workload", {})
+    if workload.get("UID") != f"job-{root}-g{fixture.generations.get(root,0)}" or not workload.get("HasStatus") or workload.get("CreatedTimestamp") != CREATED:
+        return False
+    expected_gvk = {"Group":"batch","Version":"v1","Kind":"Job"}
+    ref = workload.get("Ref",{})
+    if ref.get("GVK") != expected_gvk or ref.get("Namespace") != "scale" or ref.get("Name") != f"job-{root}":
+        return False
+    if workload.get("OwnerResolution") != "resolved" or workload.get("Karta") != "batch-job-v1" or workload.get("KartaSource") != "catalog" or workload.get("StatusLabels",{}).get("team") != TEAM:
+        return False
+    if workload.get("Phases") != ["Failed" if fixture.failed[root] else "Running"]:
+        return False
+    pods = publication.get("pods", {})
+    if len(pods) != fixture.pods:
+        return False
+    for pod in range(fixture.pods):
+        index = root*fixture.pods+pod
+        uid = f"pod-{root}-{pod}-g{fixture.generations.get(root,0)}"
+        observed = pods.get(uid,{})
+        record = observed.get("record",{})
+        expected = {"WorkloadGVK":expected_gvk,"UID":uid,"Name":f"pod-{root}-{pod}","Namespace":"scale","Component":"job","Instance":"","Group":"","OwnerResolution":"resolved"}
+        if observed.get("valid") is not True or any(record.get(key) != value for key,value in expected.items()):
+            return False
+        team = f"updated-team-{fixture.changed_pods[index]}" if index in fixture.changed_pods else TEAM
+        if record.get("Labels",{}).get("team") != team:
+            return False
+    return True
+
+
+def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
     seen_created = bytearray(fixture.roots)
     seen_status = [0] * fixture.roots
     seen_pods = bytearray(fixture.roots * fixture.pods)
@@ -367,6 +428,9 @@ def read_metrics(response, fixture, deadline=None):
     samples = {}
     errors = []
     health_resources = set()
+    invalid_status_roots = set()
+    invalid_health_roots = set()
+    validity = {}
     for number, raw in enumerate(response):
         if deadline is not None and number % 1024 == 0 and time.monotonic() > deadline:
             raise TimeoutError("independent oracle deadline exceeded")
@@ -386,12 +450,20 @@ def read_metrics(response, fixture, deadline=None):
             counts["wrong_labels"] += 1
             if len(errors) < 5:
                 errors.append(f"{name} labels={sorted(labels)}")
-        if labels.get("observation_valid") == "false":
+        identity = re.fullmatch(r"job-(\d+)-g(\d+)", labels.get("workload_uid", ""))
+        changing = identity is not None and int(identity[1]) in changing_roots and int(identity[2]) == fixture.generations.get(int(identity[1]),0)
+        invalid = labels.get("observation_valid") == "false"
+        if invalid and not changing:
             counts["invalid_rows"] += 1
             if len(errors) < 5:
                 errors.append(line[:1000])
         if name == "karta_exporter_observation_valid":
             counts["health_rows"] += 1
+            if changing and labels.get("scope") == "workload" and value == 0 and labels.get("reason") == "api_unavailable" and labels.get("workload_name") == f"job-{int(identity[1])}" and all(labels.get(key)==value for key,value in {"namespace":"scale","resource_group":"batch","resource_version":"v1","resource_kind":"Job"}.items()):
+                if int(identity[1]) in invalid_health_roots:
+                    counts["health_failures"] += 1
+                invalid_health_roots.add(int(identity[1]))
+                continue
             if value != 1 or labels.get("scope") != "resource_type" or labels.get("reason") != "none" or labels.get("workload_uid") or labels.get("workload_name"):
                 counts["health_failures"] += 1
                 if len(errors) < 5:
@@ -408,12 +480,18 @@ def read_metrics(response, fixture, deadline=None):
                 errors.append(line[:500])
             continue
         root = int(match[1])
+        if name in ("karta_workload_status", "karta_pod_workload_info"):
+            if root in validity and validity[root] != invalid:
+                counts["wrong_coordinates"] += 1
+            validity[root] = invalid
+            if name == "karta_workload_status" and invalid and changing:
+                invalid_status_roots.add(root)
         if labels.get("namespace") != "scale" or labels.get("workload_name") != f"job-{root}":
             counts["wrong_coordinates"] += 1
         if name in ("karta_workload_status", "karta_pod_workload_info"):
             if name == "karta_workload_status" and labels.get("team") != TEAM:
                 counts["wrong_team"] += 1
-            expected_labels = {"workload_group": "batch", "workload_version": "v1", "workload_kind": "Job", "owner_resolution": "resolved", "observation_valid": "true"}
+            expected_labels = {"workload_group": "batch", "workload_version": "v1", "workload_kind": "Job", "owner_resolution": "resolved", "observation_valid": "false" if invalid and changing else "true"}
             if any(labels.get(key) != expected for key, expected in expected_labels.items()):
                 counts["wrong_coordinates"] += 1
         if name == "karta_workload_created_timestamp_seconds":
@@ -453,8 +531,9 @@ def read_metrics(response, fixture, deadline=None):
             seen_pods[index] = 1
         else:
             counts["unexpected_family"] += 1
+    counts["health_failures"] += len(invalid_status_roots ^ invalid_health_roots)
     live = fixture.roots - sum(fixture.deleted)
-    counts["missing_created"] = live - sum(seen_created)
+    counts["missing_created"] = sum(not seen_created[root] and root not in invalid_status_roots for root in range(fixture.roots) if not fixture.deleted[root])
     counts["missing_pods"] = live * fixture.pods - sum(seen_pods)
     counts["missing_status_roots"] = sum(mask != 511 for index, mask in enumerate(seen_status) if not fixture.deleted[index])
     counts["missing_health"] = len({("scale", "", "v1", "Pod"), ("scale", "batch", "v1", "Job")} - health_resources)
@@ -528,10 +607,19 @@ def run(args):
     continuity_stop = None
     continuity_thread = None
 
+    diagnostic_traffic = collections.Counter()
+    diagnostic_lock = threading.Lock()
+
     def diagnostic(path="/stats", method="GET"):
         request=urllib.request.Request(f"http://127.0.0.1:{diagnostics_port}{path}", method=method)
+        request_started = time.monotonic()
         with urllib.request.urlopen(request,timeout=5) as response:
-            return json.load(response)
+            payload = response.read()
+        with diagnostic_lock:
+            diagnostic_traffic["requests"] += 1
+            diagnostic_traffic["response_bytes"] += len(payload)
+            diagnostic_traffic["http_seconds"] += time.monotonic()-request_started
+        return json.loads(payload)
 
 
     def monitor():
@@ -552,6 +640,8 @@ def run(args):
     monitor_thread=threading.Thread(target=monitor, daemon=True)
     monitor_thread.start()
 
+    churn_intervals = ChurnIntervals()
+
     def converge(name):
         stage_started = time.monotonic()
         stage = {"name": name, "scrapes": [], "api_before": fixture.snapshot()}
@@ -570,7 +660,9 @@ def run(args):
                         http_seconds = time.monotonic() - scrape_started
                         body.seek(0)
                         oracle_started = time.monotonic()
-                        last = read_metrics(body, fixture, oracle_started + args.oracle_seconds)
+                        changing = churn_intervals.overlapping(scrape_started, scrape_started+http_seconds) if name == "churn_continuity" else frozenset()
+                        last = read_metrics(body, fixture, oracle_started + args.oracle_seconds, changing)
+                        last["changing_roots"] = sorted(changing)
                         last["oracle_seconds"] = round(time.monotonic()-oracle_started,4)
                         last["http_seconds"] = round(http_seconds,4)
                 last["started_seconds"] = round(scrape_started-started,6)
@@ -637,12 +729,15 @@ def run(args):
                     raise RuntimeError("churn publication drain deadline exceeded")
                 if process.poll() is not None:
                     raise RuntimeError("exporter exited during sustained churn")
+                if churn_intervals.overdue(now,10 if args.pods>=10 else 5):
+                    raise RuntimeError("changed root did not recover a verified publication within the latency bound")
                 while now-churn_started < args.churn_seconds and now >= next_event:
                     root=emitted % pool
                     if root in pending:
                         break
                     if root not in pending:
                         sent=time.monotonic()
+                        churn_intervals.begin(root,sent)
                         fixture.change(root,change_pods=False)
                         pending[root]=(str(fixture.root_versions[root]),sent)
                         report["sustained_churn"]["emissions"].append({"root":root,"resource_version":str(fixture.root_versions[root]),"seconds":round(sent-started,6)})
@@ -661,7 +756,8 @@ def run(args):
                     for root,(version,sent) in list(pending.items()):
                         uid=f"job-{root}-g{fixture.generations.get(root,0)}"
                         publication=publications.get(uid,{})
-                        if publication.get("resource_version")==version and not publication.get("failure_reasons") and publication.get("status_reason","") in ("","none"):
+                        if verified_publication(publication,fixture,root,version):
+                            churn_intervals.acknowledge(root,observed)
                             latencies.append(observed-sent)
                             del pending[root]
                             report["sustained_churn"]["observed"]=len(latencies)
@@ -685,7 +781,7 @@ def run(args):
                 time.sleep(args.diagnostic_poll_seconds)
             latencies.sort()
             elapsed=time.monotonic()-churn_started
-            report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first diagnostic observation of exact published root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
+            report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first captured valid creation/status and current Pod mapping at exact root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
             converge("after_sustained_churn")
         churn_count = max(1, min(args.churn_roots, args.roots))
         if args.pods:
@@ -773,6 +869,9 @@ def run(args):
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
         report["peak_sampled_rss_bytes"] = max((sample["rss_bytes"] for sample in rss_samples), default=0)
         report["diagnostic_samples"] = diagnostic_samples
+        report["diagnostic_traffic"] = dict(diagnostic_traffic)
+        report["diagnostic_poll_seconds"] = args.diagnostic_poll_seconds
+        report["diagnostic_cost_scope"] = "wrapper CPU/RSS/TotalAlloc include diagnostic work; not separately attributed from concurrent production work"
         if diagnostics_port:
             report["unavailable_measurements"] = ["exact event-to-publication timestamp (diagnostic polling gives an upper bound)"]
         report["process_samples"] = rss_samples
@@ -804,7 +903,7 @@ def main():
     parser.add_argument("--churn-seconds", type=float, default=0)
     parser.add_argument("--churn-rate", type=float, default=100)
     parser.add_argument("--gc-sample-seconds", type=float, default=30)
-    parser.add_argument("--diagnostic-poll-seconds", type=float, default=0.01)
+    parser.add_argument("--diagnostic-poll-seconds", type=float, help="Default 250ms for >=10k roots or >=100k Pods; otherwise 10ms")
     parser.add_argument("--output", required=True)
     parser.add_argument("--roots", type=int, required=True)
     parser.add_argument("--pods", type=int, required=True)
@@ -821,6 +920,8 @@ def main():
     parser.add_argument("--delete-percent", type=int, default=10)
     parser.add_argument("--settle-seconds", type=int, default=30)
     args = parser.parse_args()
+    if args.diagnostic_poll_seconds is None:
+        args.diagnostic_poll_seconds = 0.25 if args.roots >= 10000 or args.roots*args.pods >= 100000 else 0.01
     if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0 or args.churn_seconds < 0 or args.churn_rate <= 0 or args.diagnostic_poll_seconds <= 0 or args.gc_sample_seconds <= 0 or args.quiet_seconds < 0 or args.continuity_seconds <= 0 or args.refresh_seconds < 0:
         parser.error("invalid scenario or safety bound; maximum 100k roots and 1m Pods")
     if (args.api_qps is not None and args.api_qps<=0) or (args.api_burst is not None and args.api_burst<=0) or (args.workers is not None and args.workers<1):

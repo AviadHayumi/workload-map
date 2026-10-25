@@ -21,11 +21,18 @@ Healthy WATCH delivery does not require a subsequent LIST to pass.
 Stages are cold start, steady scrapes, a single Pod label update, root/Pod churn,
 partial deletion, same-name recreation with new UIDs, delete-all and optional
 settling. The oracle rejects old UIDs after recreation and any workload rows
-after deletion. A steady or continuity scrape failure remains a failed run even
+after deletion. A steady or quiet scrape failure remains a failed run even
 after recovery. `--quiet-seconds` and `--continuity-seconds` check every periodic
 quiet scrape. Sustained churn first primes stable public phase values, then
 changes root resource versions while an independent periodic oracle checks all
-rows. `--refresh-seconds` sets an explicit refresh interval for bounded TTL
+rows. Only a root whose emitted-to-verified-acknowledgment interval overlaps the
+scrape may temporarily report coherent invalid rows. Its UID, coordinates,
+labels and phase values must still match. Invalid status requires matching
+workload health with reason `api_unavailable`; status and Pod validity must agree.
+Creation may be omitted while that root is invalid. Quiet roots remain fully
+valid, and the final scrape after churn requires all exact rows and valid proofs.
+A changed root that fails to recover within 5 seconds (10 seconds for dense
+cases) fails the run. `--refresh-seconds` sets an explicit refresh interval for bounded TTL
 regression runs. `--watch-faults` injects Pod WATCH EOF and Job WATCH 410 before
 checking reconnection and a fresh visible Pod update.
 
@@ -101,8 +108,14 @@ and maximum. Drain requires two diagnostic samples with zero queued and active
 work. Active work is observed queue starts minus completed durations. A saturated
 maintenance queue fails the drain gate even if current metric rows are correct.
 The harness records that failure and continues the lifecycle correctness stages.
-Publication polls read exact root resource versions from `Store.Published`; they do not scan
-or format the complete metric output.
+Publication polls take one `Store.Capture` and select at most 100 requested
+roots. They check creation, status and every Pod mapping against that same
+captured failure state and clock. The response includes the selected root and
+Pod records. The independent harness verifies the exact root version, UID,
+phase and current Pod identities, coordinates and labels before acknowledging.
+These polls do not format metrics, but Capture scans the publication set and
+selected Pod records add diagnostic CPU and response size, especially for the
+giant-root case. That overhead is included in reported latency.
 
 Sustained churn rotates through up to 100 independent roots. Each root has at
 most one pending event, so a later generation cannot falsely acknowledge an
@@ -110,9 +123,15 @@ older one. A slow publisher reduces achieved event rate. The report retains
 actual count and elapsed time. The count is compared with the exact scheduled count (30,000 events for 300 seconds at
 100 events/s). A scheduling boundary miss is visible in this performance gate;
 it does not erase a successful correctness check. Reported publication latency
-is an upper bound from just before event emission to the first matching diagnostic response.
+is an upper bound from just before event emission to the first verified diagnostic response.
 It includes polling and diagnostic transport. It is not an exact publication
 timestamp. Diagnostic traffic and CPU are part of the measured wrapper overhead.
+The default poll interval is 250 ms at 10k or more roots, or 100k or more Pods;
+smaller cases use 10 ms. Explicit overrides are recorded. Use the same cadence
+for matched cases. A 250 ms poll adds that sampling resolution plus request
+time to the observed latency bound. Reports include diagnostic request count,
+response bytes and cumulative HTTP time. Wrapper CPU and TotalAlloc include
+diagnostics; their exclusive cost is not separated from concurrent runtime work.
 
 During the final three minutes, explicit test GC requests sample retained heap
 at 30-second intervals and once after the last publication is observed. The
@@ -136,3 +155,21 @@ and submitter semantics differ from this harness. A small baseline smoke or an
 isolated Store benchmark is not a matched full-runtime performance comparison.
 The separate k8s-workload-discovery project is suitable for an ownership-walk
 comparison only; its full command has different publication semantics.
+
+## Churn oracle correction
+
+The earlier oracle required every churn scrape to remain valid even after an
+accepted root resourceVersion update. The runtime deliberately invalidates the
+old proof until it publishes the new verified result. The documented consistency
+contract permits that interval. The corrected oracle models those intervals
+explicitly; it does not allow invalid quiet roots or waive UID, phase or mapping
+checks. Root-version-only churn leaves public phase and label values unchanged,
+so the metric scrape alone cannot distinguish old and new versions. The exact
+version and evidence checks in the diagnostic acknowledgment provide that proof.
+
+Historical reports remain unchanged, including the earlier intermediate smoke
+failure and its unsampled reason. Those reports used the older oracle and
+version-only acknowledgment. Their latency values are not measurements of the
+new verified acknowledgment. Deterministic adversarial tests cover quiet-root
+invalidity, mixed validity, wrong UID, stale version, invalid proof and missing
+recovery. No historical failure was rewritten into a pass.

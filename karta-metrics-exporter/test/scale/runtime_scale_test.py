@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 
+import copy
 import io
 import json
 import unittest
@@ -8,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from runtime_scale import CREATED, PHASES, LoopbackAPI, read_metrics
+from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, read_metrics, verified_publication
 
 
 class APIFixtureTests(unittest.TestCase):
@@ -190,6 +191,49 @@ class OracleTests(unittest.TestCase):
         self.assertLessEqual(len(result["examples"]),5)
         result=self.check(self.exposition.replace('reason="none"','reason="unresolved_owner"'))
         self.assertIn("unresolved_owner",result["examples"][0])
+
+    def test_only_inflight_roots_may_be_coherently_invalid(self):
+        invalid="\n".join(line.replace('observation_valid="true"','observation_valid="false"') for line in self.exposition.splitlines() if not line.startswith("karta_workload_created_timestamp_seconds"))
+        invalid+='\nkarta_exporter_observation_valid{scope="workload",namespace="scale",resource_group="batch",resource_version="v1",resource_kind="Job",workload_name="job-0",workload_uid="job-0-g0",reason="api_unavailable"} 0\n'
+        read=lambda text, changing:read_metrics(io.BytesIO(text.encode()),self.fixture,changing_roots=changing)
+        self.assertTrue(read(invalid,{0})["complete"])
+        self.assertFalse(read(invalid,set())["complete"])
+        self.assertFalse(read(invalid,{1})["complete"])
+        self.assertFalse(read(invalid.replace("job-0-g0","job-0-g1"),{0})["complete"])
+        self.assertFalse(read(invalid.replace('phase="Running"} 1','phase="Running"} 0'),{0})["complete"])
+        mixed=invalid.replace('observation_valid="false"','observation_valid="true"',1)
+        self.assertFalse(read(mixed,{0})["complete"])
+        self.assertTrue(read(self.exposition,set())["complete"])
+
+    def test_inflight_intervals_end_only_after_ack_and_detect_never_recovery(self):
+        intervals=ChurnIntervals()
+        intervals.begin(0,10)
+        self.assertEqual(intervals.overlapping(9,11),{0})
+        self.assertEqual(intervals.overdue(16,5),{0})
+        intervals.acknowledge(0,17)
+        self.assertEqual(intervals.overlapping(16,18),{0})
+        self.assertEqual(intervals.overlapping(18,19),set())
+        self.assertEqual(intervals.overdue(20,5),set())
+        intervals.begin(1,20)
+        self.assertEqual(intervals.overlapping(20,21),{1})
+
+    def test_ack_rejects_stale_version_invalid_proof_and_wrong_pod(self):
+        p={"resource_version":"new","valid":True,"workload":{"UID":"job-0-g0","HasStatus":True,"CreatedTimestamp":CREATED,"Phases":["Running"]},"pods":{"pod-0-0-g0":{"valid":True,"record":{"UID":"pod-0-0-g0","Name":"pod-0-0","Namespace":"scale","Component":"job","Instance":"","Group":"","OwnerResolution":"resolved","Labels":{"team":"scale-team"}}}}}
+        gvk={"Group":"batch","Version":"v1","Kind":"Job"}
+        p["workload"].update({"Ref":{"GVK":gvk,"Namespace":"scale","Name":"job-0"},"OwnerResolution":"resolved","Karta":"batch-job-v1","KartaSource":"catalog","StatusLabels":{"team":"scale-team"}})
+        p["pods"]["pod-0-0-g0"]["record"]["WorkloadGVK"]=gvk
+        self.assertTrue(verified_publication(p,self.fixture,0,"new"))
+        self.assertFalse(verified_publication(p,self.fixture,0,"newer"))
+        bad=copy.deepcopy(p);bad["valid"]=False
+        self.assertFalse(verified_publication(bad,self.fixture,0,"new"))
+        bad=copy.deepcopy(p);bad["pods"]["pod-0-0-g0"]["record"]["UID"]="old-pod"
+        self.assertFalse(verified_publication(bad,self.fixture,0,"new"))
+        bad=copy.deepcopy(p);bad["pods"]["pod-0-0-g0"]["valid"]=False
+        self.assertFalse(verified_publication(bad,self.fixture,0,"new"))
+        bad=copy.deepcopy(p);bad["pods"]["pod-0-0-g0"]["record"]["Labels"]["team"]="stale"
+        self.assertFalse(verified_publication(bad,self.fixture,0,"new"))
+        bad=copy.deepcopy(p);bad["workload"]["Phases"]=["Failed"]
+        self.assertFalse(verified_publication(bad,self.fixture,0,"new"))
 
     def test_oracle_requires_visible_pod_update_and_rejects_old_generation(self):
         self.fixture.change_pod(0)

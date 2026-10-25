@@ -120,23 +120,36 @@ func (d diagnostic) handler() http.Handler {
 	})
 	mux.HandleFunc("/publications", func(w http.ResponseWriter, r *http.Request) {
 		uids := r.URL.Query()["uid"]
-		if len(uids) > 256 {
-			http.Error(w, "at most 256 UIDs", http.StatusBadRequest)
+		if len(uids) > 100 {
+			http.Error(w, "at most 100 UIDs", http.StatusBadRequest)
 			return
 		}
-		result := map[string]any{}
+		requested := make(map[types.UID]bool, len(uids))
 		for _, uid := range uids {
-			p := d.application.Components.Store.Published(types.UID(uid))
-			if p == nil {
+			requested[types.UID(uid)] = true
+		}
+		view := d.application.Components.Store.Capture()
+		result := map[string]any{}
+		for _, p := range view.Records {
+			if !requested[p.Workload.UID] {
 				continue
 			}
+			creationValid, _ := view.Valid(p.Creation)
+			statusValid := true
+			if p.Workload.HasStatus {
+				statusValid, _ = view.Valid(p.Status)
+			}
+			valid := creationValid && statusValid && len(p.FailureReasons) == 0
 			pods := map[string]any{}
-			for _, podUID := range r.URL.Query()["pod_uid"] {
-				if pod, ok := p.Pod(types.UID(podUID)); ok {
-					pods[podUID] = pod.Record.Labels
+			for _, page := range p.PodPages {
+				for _, pod := range page.Rows {
+					mappingValid, reason := view.Valid(pod.Mapping)
+					_, duplicate := pods[string(pod.Record.UID)]
+					valid = valid && mappingValid && !duplicate
+					pods[string(pod.Record.UID)] = map[string]any{"valid": mappingValid, "reason": reason, "record": pod.Record}
 				}
 			}
-			result[uid] = map[string]any{"resource_version": p.Workload.Ref.ResourceVersion, "pods": pods, "failure_reasons": p.FailureReasons, "status_reason": p.Status.Reason, "status_expires_at": p.Status.ExpiresAt}
+			result[string(p.Workload.UID)] = map[string]any{"resource_version": p.Workload.Ref.ResourceVersion, "valid": valid, "creation_valid": creationValid, "status_valid": statusValid, "workload": p.Workload, "pods": pods, "captured_at": view.At}
 		}
 		writeJSON(w, result)
 	})
