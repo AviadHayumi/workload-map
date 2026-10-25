@@ -281,6 +281,12 @@ The Pod querier reads the worker Pod's labels. It returns component
 `replicatedjob`, instance `workers` and group `1`. The JobSet's Completed
 condition produces the Completed phase independently of that Pod mapping.
 
+The SDK reuses compiled JQ programs for successful scalar queries. Each call still
+evaluates the current object with its own context and limits. Programs that return
+mutable values or fail are discarded. Assignments compile afresh. The cache has
+at most 256 expression keys, and GC can reclaim idle programs. Each program serves
+at most 16 calls.
+
 One root calculation shares its component factory and extracted instances among
 sibling Pods. Status and each mapping have separate results. An absent status
 definition produces no status rows. When status rules exist but none match,
