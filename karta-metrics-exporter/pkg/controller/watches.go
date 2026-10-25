@@ -416,6 +416,10 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	r.generation++
 	r.reader.mu.Lock()
 	old := r.reader.objects[key]
+	if deleted && old.object != nil && old.object.GetUID() != ref.UID {
+		r.reader.mu.Unlock()
+		return
+	}
 	if old.object != nil && old.object.GetUID() != ref.UID {
 		r.deleteObjectLocked(refOf(old.object))
 		delete(r.reader.objects, key)

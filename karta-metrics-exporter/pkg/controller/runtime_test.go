@@ -22,6 +22,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	metadatafake "k8s.io/client-go/metadata/fake"
 	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
@@ -115,6 +116,50 @@ func seedRoot(r *Runtime, root *unstructured.Unstructured, pods ...*unstructured
 }
 
 var _ = Describe("Publication concurrency", func() {
+	DescribeTable("ignores a deleted predecessor after its replacement was observed", func(ctx SpecContext, kind string, tombstone bool) {
+		runtime, _, publications := testRuntime(nil)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		rootWatch := seedWatch(runtime, testRootGVK, "jobs", root)
+		podWatch := seedWatch(runtime, podGVK, "pods", pod)
+		old, source := root, rootWatch
+		switch kind {
+		case "Pod":
+			old, source = pod, podWatch
+		case "Namespace":
+			old = testObject(namespaceGVK, "ns")
+			old.SetNamespace("")
+			source = seedWatch(runtime, namespaceGVK, "namespaces", old)
+		}
+		replacement := old.DeepCopy()
+		replacement.SetUID(old.GetUID() + "-replacement")
+		replacement.SetResourceVersion("2")
+		runtime.accept(source, replacement, false)
+		switch kind {
+		case "Job":
+			root = replacement
+		case "Pod":
+			pod = replacement
+		}
+		seedRoot(runtime, root, pod)
+		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
+		published := publications.Published(root.GetUID())
+		var event any = old
+		if tombstone {
+			event = cache.DeletedFinalStateUnknown{Key: old.GetName(), Obj: old}
+		}
+		runtime.accept(source, event, true)
+		current, found := runtime.reader.Cached(refOf(replacement))
+		Expect(found).To(BeTrue())
+		Expect(current.GetUID()).To(Equal(replacement.GetUID()))
+		Expect(source.objects).To(HaveKey(keyOf(refOf(replacement))))
+		Expect(publications.Published(root.GetUID())).To(BeIdenticalTo(published))
+		Expect(runtime.podRoots[pod.GetUID()]).To(Equal(root.GetUID()))
+		runtime.accept(source, replacement, true)
+		_, found = runtime.reader.Cached(refOf(replacement))
+		Expect(found).To(BeFalse(), "deletion of the current UID must still be applied")
+	}, Entry("root", "Job", false), Entry("root tombstone", "Job", true),
+		Entry("Pod", "Pod", false), Entry("Pod tombstone", "Pod", true),
+		Entry("namespace", "Namespace", false), Entry("namespace tombstone", "Namespace", true))
 	It("commits unaffected rows during Pod churn and replaces only the dirty mapping", func(ctx SpecContext) {
 		paused := &pausedLabels{entered: make(chan types.UID, 1), resume: make(chan struct{})}
 		runtime, _, publications := testRuntime(paused)
