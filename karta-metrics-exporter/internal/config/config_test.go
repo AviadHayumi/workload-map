@@ -4,6 +4,7 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var _ = Describe("config defaults and rules", func() {
@@ -142,6 +144,24 @@ var _ = Describe("runtime configuration", func() {
 		for _, body := range []string{"apiQPS: 0", "apiBurst: 0", "workers: 0", "maxAge: 1s", "resourceRules: [{apiGroups: [batch], apiVersions: [v1], resources: [jobs/status]}]", "requiredKinds: [{kind: Job}]"} {
 			_, err := loadConfig(body, nil)
 			Expect(err).To(HaveOccurred(), body)
+		}
+	})
+})
+
+var _ = Describe("public kind strings", func() {
+	It("parses core and grouped slash strings and preserves their JSON representation", func() {
+		cfg, err := loadConfig("ignoredOwnerKinds: [example.com/v1/Wrapper, v1/Node]\nrequiredKinds: [apps/v1/Deployment, v1/Node]", nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg.IgnoredOwnerKinds).To(Equal(Kinds{{Group: "example.com", Version: "v1", Kind: "Wrapper"}, {Version: "v1", Kind: "Node"}}))
+		Expect(cfg.RequiredKinds[0]).To(Equal(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}))
+		encoded, err := json.Marshal(cfg.IgnoredOwnerKinds)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(encoded)).To(Equal(`["example.com/v1/Wrapper","v1/Node"]`))
+	})
+	It("rejects missing segments and wildcard kinds", func() {
+		for _, value := range []string{"Node", "/v1/Node", "apps//Deployment", "apps/v1/", "apps/v1/Deployment/extra", "*/v1/Deployment", "apps/*/Deployment", "v1/*", "apps/v 1/Deployment"} {
+			_, err := loadConfig("requiredKinds: ['"+value+"']", nil)
+			Expect(err).To(HaveOccurred(), value)
 		}
 	})
 })

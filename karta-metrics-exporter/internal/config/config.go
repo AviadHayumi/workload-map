@@ -43,8 +43,8 @@ type Config struct {
 	ObjectSelector        *metav1.LabelSelector     `json:"objectSelector"`
 	PodSelector           *metav1.LabelSelector     `json:"podSelector"`
 	KartaDefinitionSource inventory.Config          `json:"kartaDefinitionSource"`
-	IgnoredOwnerKinds     []schema.GroupVersionKind `json:"ignoredOwnerKinds"`
-	RequiredKinds         []schema.GroupVersionKind `json:"requiredKinds"`
+	IgnoredOwnerKinds     Kinds                     `json:"ignoredOwnerKinds"`
+	RequiredKinds         Kinds                     `json:"requiredKinds"`
 	RefreshInterval       string                    `json:"refreshInterval"`
 	MaxAge                string                    `json:"maxAge"`
 	RequestTimeout        string                    `json:"requestTimeout"`
