@@ -1,365 +1,258 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Verification and publication details
+# Verification and publication
 
-The [implementation design](./README.md) explains the components and workload flow.
-This document describes how the controller handles overlapping events, API reads
-and metric collection. [KEP-0001](../../keps/0001-metrics-exporter/README.md)
-defines the public behavior.
+The [implementation design](README.md) follows one Pod through the components.
+This document explains what happens when an input changes during that work.
+The [KEP validity contract](../../keps/0001-metrics-exporter/README.md#reading-observation-validity)
+defines the metric meaning.
 
-<a id="definition-selection"></a>
+For example, Runtime starts mapping a Pod to JobSet `train`. An accepted Pod
+update changes its owner before the calculation finishes. The old calculation
+must not restore a valid row under `train`. Runtime invalidates the old Pod
+generation, resolves the new path and publishes only after checking its inputs.
 
-## Definition selection
+## Observations and evidence
 
-The catalog comes with the SDK version. Cluster definitions have a Kubernetes UID
-and resourceVersion, recorded in `Origin`.
+Runtime's reader keeps full watched Pods and workload objects. It shares immutable
+informer objects after removing managed fields. Intermediate owners fetched for
+traversal are cached as metadata. Discovery checks names, UIDs and resourceVersions
+before using an object. A matching name with a different UID is a replacement.
 
-The inventory and controller watch cluster Kartas independently. The inventory
-keeps definitions for lookup. The controller watches for changes that affect
-workloads. The inventory sends no notifications.
+Every published result has evidence:
 
-These watches can receive the same change at different times. The controller
-publishes results only when both agree on the selected definition:
-
-1. A Karta callback records the candidate under the publication lock. It includes
-   the target group/kind. Deletes use the UID, so a delayed delete cannot remove a
-   new Karta with the same name.
-2. If the selected definition changes, the controller removes its old status
-   and dependent Pod mappings, then queues affected roots before releasing the lock. Changes that
-   cannot affect selection leave the results in place.
-3. A worker calls inventory `Lookup` outside the lock and prepares the definition.
-   Errors or unfinished preparation do not mean that no definition exists.
-4. The controller checks the returned definition against its own observations.
-   This includes the source, filters, selection rules, target GVK and readiness
-   of enabled sources. A matching definition version alone is insufficient if
-   another candidate could win.
-5. If either watch is ahead, the worker retries until both agree. UID and
-   resourceVersion are compared for equality, never sorted.
-6. Under the lock, the controller checks that these inputs still match and saves
-   the selection. It also records confirmed absence when no definition applies.
-
-Every enabled source must initialize before the inventory can confirm absence.
-A failed source invalidates dependent results and prevents catalog fallback.
-An invalid selected definition returns an error. Recovery needs fresh API checks.
-
-The lock protects local state. It cannot turn separate caches or Kubernetes
-objects into one atomic API snapshot.
-
-### Definition changes and root watches
-
-A first selected definition starts full-object watches and evaluation for its
-root kind, including roots with no Pods. Selecting another root API version
-requires a watch and fresh verification of the same root UID. The controller
-replaces that lifetime's versioned output.
-
-If a selected Karta changes its target group/kind or version, the controller
-reconciles both the old and new selections and watches. When a definition is
-removed, metadata watches keep known generic roots available. This does not
-discover every unknown kind with no Pods. Restart rebuilds watches from selected
-definitions and observed owner chains.
-
-## API verification
-
-Discovery evaluates cached objects. The controller checks those objects against
-fresh paginated LISTs. Events queue a check immediately. Periodic checks also run
-when no events arrive.
-
-Object work, root work, verification and membership checks share one rate-limited
-queue. Verification runs separately from evaluation. A root worker uses the API
-results already available for its inputs.
-
-For each check, the controller:
-
-1. Records the current scope, watch, owners, selection and failures before the API call.
-2. Requests metadata with UID, resourceVersion and owner references. It leaves
-   resourceVersion unset for a most-recent read, rather than using `"0"`.
-3. Compares the returned UID and resourceVersion with the calculation's inputs
-   for the same group/version/resource (GVR). Matching metadata verifies the
-   full object held by the informer.
-4. Queues objects that differ. It leaves newer informer objects and valid checks
-   for unchanged objects in place.
-5. Saves the check only if the local state recorded before the call still matches.
-
-The saved result and its deadline are the verification evidence used at collection.
-Metadata requests fall back to full JSON only for HTTP 406 or 415. Other failures
-remain errors. Both response formats use the same checks.
-
-Owner checks are shared by namespace/resource or unresolved reference. Root and
-cluster-definition checks are also shared. The fixed catalog needs no renewal.
-Only one stream check runs at a time for each namespace/GVR. The worker pool
-bounds concurrent work. Each LIST reads its pages sequentially.
-
-Internal timings are:
-
-| Timing | Value |
-| --- | --- |
-| Periodic refresh | Queue checks every 45-60 seconds, with jitter. |
-| Evidence expiry | 120 seconds from the start of the fresh read. |
-| LIST page deadline | 30 seconds. |
-| WATCH lifetime | The controller's context. |
-
-These internal defaults are not Helm settings. Queue delays can postpone checks.
-A missed verification deadline makes the result invalid. A scrape, bookmark or successful delivery does not extend it.
-A normal WATCH close reconnects and keeps current evidence. A short empty WATCH
-or failed reconnect is a failure.
-
-A source or resource failure immediately invalidates results that depend on it.
-Checks started before that failure cannot clear it. Recovery starts a new round
-of checks. Repeated failures of the same type and scope are combined. Rapid
-object changes can prevent matching API reads and temporarily hide output.
-
-## Cached objects and Karta evaluation
-
-The controller records each object version when its callback runs. `InformerReader`
-returns a full object only when its UID and resourceVersion match that recorded
-version. It also rejects an informer object that has advanced ahead of its callback.
-This keeps a calculation from mixing an ownership path with a newer object body.
-
-The SDK chooses among Pod-producing components. It visits the root component,
-then children in definition order. A single candidate is selected directly.
-With several candidates, the first matching type selector wins. No candidate or
-no matching selector fails mapping.
-
-`Status` evaluates the root component without extracting scale. One evaluation
-batch shares root calculations across status and sibling Pod mappings. Periodic API
-checks queue root reconciliation and create a new evaluation batch. JQ runs
-again even on unchanged objects, including expressions that depend on time.
-
-### SDK calls and inherited group expressions
-
-Discovery calls `resource.NewComponentFactory(definition, accessor)` with the
-selected Karta. The accessor runs JQ against the full root object and caches
-extracted instance IDs within the batch. `NewPodQuerier(pod)` receives the full
-Pod. `InferPodComponent` returns the component name, `InferPodComponentInstance`
-returns its named instance, and `ExtractReplicaKey` returns the group key.
-Missing or undeclared required instances fail mapping.
-
-### LWS: inherit the group expression
-
-LWS defines a logical `group` containing Pod-producing `leader` and `worker` components. The group has no Kubernetes object or Pod template. Consider this worker:
-
-```yaml
-metadata:
-  labels:
-    leaderworkerset.sigs.k8s.io/worker-index: "1"
-    leaderworkerset.sigs.k8s.io/group-index: "2"
-  annotations:
-    leaderworkerset.sigs.k8s.io/leader-name: leader-2
+```go
+type Evidence struct {
+    ExpiresAt    time.Time
+    Reason       string
+    Dependencies []string
+}
 ```
 
-Its `leader-name` annotation matches the worker selector. A nonzero worker index alone does not select it. The leader selector matches `worker-index="0"`.
+Dependencies identify watch streams, metadata reads, definitions and local root
+or Pod generations. `CapturedView.Valid` checks an explicit reason first, then
+the captured dependency failures, then expiry. Zero expiry and the expiry instant
+are invalid. A mapping uses the earliest expiry among its required inputs.
+Root creation and status do not depend on unrelated Pod paths.
 
-The LWS definition has no named instances. Its `worker` component belongs to the logical `group`, which defines the replica key expression. Discovery uses the nearest such expression along the Karta's `ownerRef` links. These links describe Karta components, separately from Kubernetes ownership.
+A WATCH event gives Runtime a new observed object version. Periodic verification
+renews unchanged observations. Scrapes and watch bookmarks never renew evidence. Local generations detect changes already accepted
+by this exporter; they do not prove Kubernetes has no newer change.
 
-The expression runs on the same Pod and reads `group-index="2"`. The result is `{Component: "worker", Instance: "", Group: "2"}`. A missing expression gives an empty group. An extraction error fails mapping.
+## Reads and refresh
 
-For LWS status, `GetStatus(ctx)` matches `Running` when `.status.replicas` is
-positive and the ready and updated counts both match it.
+A cold intermediate-owner lookup performs a metadata GET. Concurrent callers
+share the request. The reader resolves API scope, so a cluster-scoped owner uses
+an empty namespace. It accepts the response only if its recorded local state is
+still current. If the API rejects metadata representation with HTTP 406 or 415,
+the reader retries the GET or LIST page as a full-object request and extracts its
+metadata. The same timeout, identity checks and expiry apply. Other errors do not
+trigger representation fallback.
 
-## Pod membership and pagination
+Periodic refresh groups retained intermediate owners by API resource and
+namespace. Each group uses a paginated metadata LIST. Unrelated returned objects
+are discarded. A complete result can confirm that a retained owner disappeared;
+a failed or partial result cannot. If LIST is forbidden or unauthorized, the
+reader refreshes retained owners with individual GETs, preserving GET-only owner
+permissions. Other LIST failures remain failures. There is no count threshold
+for switching between these paths.
 
-Submitter agreement needs every Pod belonging to the workload, including Pods
-hidden by `podSelector`. Reading only known Pods cannot detect a newly created Pod.
+Watched resources have separate periodic metadata verification. Runtime compares
+the returned UID and resourceVersion with the accepted informer observation for
+the same API representation. Matching metadata renews the full object's evidence.
+A mismatch invalidates the old result and queues work. A complete LIST can remove
+an object absent from that snapshot if no newer local event superseded it.
 
-The controller lists all Pods in a namespace once per verification round and
-shares that result across roots. It follows verified owner paths for every Pod,
-then compares each root's Pod UIDs with its observed membership. Paths that place
-a Pod outside a workload also need verification.
+LIST pages use a limit of 500. A page-chain resourceVersion change or repeated
+continuation token rejects the round. A request timeout bounds each GET or page.
+`ExpiresAt = readStart + maxAge`; an already over-age response cannot renew it. Reads started before a newer event, failure or scope
+change cannot replace that newer state.
 
-Pod creation, deletion, owner changes, and label or annotation changes invalidate
-this namespace check. Owner callbacks record the change under the publication lock,
-before workers resolve the new root. An unresolved Pod prevents renewal for the
-whole namespace. This can temporarily clear `submitted_by` for other workloads.
+Healthy WATCH delivery processes ordinary changes without a new LIST per event.
+Periodic verification still performs LISTs. Intermediate owner changes can remain
+unnoticed until refresh because traversal does not create intermediate watches.
+Queue and API delays can exceed the evidence deadline, which makes affected rows
+invalid until fresh verification succeeds.
 
-A status-only Pod change leaves membership unchanged. Its object verification
-still needs a matching resourceVersion. It can delay the next membership check
-without revoking the current one before expiry.
+The command defaults to a 45-second refresh interval, two-minute maximum age and
+30-second request timeout. The object and root worker counts and shared API rate limit
+bound concurrent work; see [runtime settings](../../karta-metrics-exporter/configuration.md#runtime-settings).
 
-Incomplete lists and expired continuation chains are rejected. Results from an
-old scope, watch or failure state are rejected too. Partial pages cannot prove
-membership or deletion. A complete list confirms absence only if the object's
-local state has not changed since the read began.
+## Definition agreement
 
-Membership expires at the earliest deadline among the Pod LIST and all owner
-checks used to classify the Pods. A new LIST cannot renew an older owner check.
-The result describes the Pod LIST snapshot. It does not prove that no later
-change exists. Relevant events invalidate it when the controller accepts them.
+The inventory and Runtime observe cluster Kartas independently. Inventory owns
+selection. Runtime uses its Karta watch to invalidate affected results and check
+that both observations agree. Their UIDs and resourceVersions are compared for
+equality, never sorted.
 
-Uncertain membership clears `submitted_by`. Separately verified mapping, status
-and creation time remain available. A missing owner can also invalidate the
-affected Pod's mapping.
+An accepted Karta change invalidates the affected group/kind interpretation and
+queues its roots. A worker obtains an inventory selection outside the Runtime
+guard. Before publication it checks the selected origin, GVK and relevant local
+generation again. Selection and absence use the [inventory contract](README.md#select-the-definition).
 
-## Controller errors and watch failures
+A changed target group/kind affects both the old and new selections. A changed
+API version needs coverage for that representation. Known generic roots retain
+coverage even without a definition.
 
-| Error | Result |
-| --- | --- |
-| `ErrPending` | Watch/source initialization produces no new result or failure reason. Unchanged existing results remain. |
-| `ErrPermissionDenied` | Mark dependent observations invalid with `permission_denied`. |
-| `ErrUnavailable` | Read/source failure or expiry reports `api_unavailable`. |
-| `ErrUnresolvedOwner` | Missing owner, wrong UID or invalid chain reports `unresolved_owner`. Retained ownership becomes `unknown`. |
-| `ErrInvalidDefinition` | Remove invalid interpretation and report `invalid_definition`. |
-| `ErrEvaluation` | Retain applicable affected results as invalid with `evaluation_failed`. |
-| `ErrStale` | Discard superseded work and retry. Preserve newer output. |
+## Concurrent publication
 
-The controller checks these wrapped sentinel errors with `errors.Is`. Cancellation remains a context error. Detailed error messages are not metric labels. Without an applicable earlier result, the exporter omits the affected identity, mapping or phase.
+Runtime has its own guard for accepted events and final publication checks.
+Store owns a separate mutex. Store never takes Runtime's guard. Collector takes
+only Store's lock while capturing; it formats metrics after releasing that lock.
 
-## Deletion and delayed events
+A root generation is Runtime's local change counter, not `metadata.generation`.
+A root worker snapshots that counter, the selected definition and relevant
+Pod paths. It evaluates JQ and CEL outside Runtime's guard. Before saving, it
+checks that the root still exists, its generation and definition agree, the root
+object version matches and required evidence keys remain active. A superseded
+result is discarded and retried.
 
-Confirmed deletion removes the UID and its verification evidence. Failed or
-partial reads cannot confirm deletion. A new UID at the same name is a different
-object.
+Each root queue key has one worker at a time. This also serializes use of that
+root's calculation cache and the read/replace/publish sequence. Store
+makes individual methods atomic, not a caller's multi-call operation. Other
+roots can progress concurrently.
 
-The controller remembers a deleted UID while a watch could still deliver an old
-callback for it. It keeps this guard until each relevant watch has processed the
-deletion or been replaced.
+A small Pod update rebuilds affected rows. Initial publication, root changes and
+full refresh use bulk page construction. Full expiry refresh still visits all
+rows and may allocate replacement pages. Unchanged immutable pages can be reused;
+this does not make a full refresh constant-time.
 
-Replacing a watch invalidates its old verification evidence. The controller
-stops the old generation, waits for the new store and initial callbacks to
-synchronize, and rejects callbacks from the old generation. An object missing from the new store is removed only after a
-complete most-recent LIST confirms its absence and its local state still matches.
+The stored types include:
 
-This applies to both the ownership API version and the version selected by the
-Karta. Once all relevant watches have caught up, the deletion guard can be removed.
-Earlier calculations remain invalid without retaining deleted UIDs forever.
+```go
+type Publication struct {
+    Workload       WorkloadRecord
+    Status         Evidence
+    Creation       Evidence
+    PodPages       []*PodPage
+    FailureReasons []string
+}
 
-## Publishing a calculation
+type CapturedView struct {
+    At       time.Time
+    Records  []*Publication
+    Health   []HealthRecord
+    failures map[string]string
+}
 
-`NewRuntime` binds the informer reader and publication store to one mutex.
-Object events, scope changes, definition changes and failures use this short
-publication lock. Discovery's lock is acquired after it. Discovery never calls
-back into the controller. Inventory lookups run outside the publication lock.
+type HealthRecord struct {
+    GVK       schema.GroupVersionKind
+    Namespace string
+    Evidence  Evidence
+}
 
-A worker records its inputs under the lock, then reads matching cache objects
-and evaluates JQ/CEL outside it. Verification comes from separate queued work.
-Before publishing, it takes the lock again and checks the objects, owner links,
-definition, scope, watch, membership and failures.
-
-If they still match, it replaces the result and its verification evidence in the
-same locked operation. Otherwise it discards the calculation and retries.
-`Discovery.IsCurrent` checks the discovery inputs recorded in `CapturedState`.
-A zero state value is invalid. The controller checks its own state as well. Checking and saving under separate locks would allow an update
-between them.
-
-### Retaining results after failure
-
-The [KEP's validity contract](../../keps/0001-metrics-exporter/README.md#reading-observation-validity)
-allows the exporter to retain earlier Pod mappings and status with
-`observation_valid="false"`. They must still belong to the same objects and
-selected definition.
-
-| Change | Stored result |
-| --- | --- |
-| Temporary failure | Keep the applicable last verified result as invalid. Ownership failure also sets `owner_resolution="unknown"`. |
-| Pod moves to another root | Remove the old association and clear submitter agreement for both roots. The Pod cannot remain valid under both. |
-| Selected definition is replaced or removed | Remove its coordinates and status. Independently verified root identity and creation time remain usable. |
-| Ordinary input update | Hide affected fields while recalculation is pending. Waiting in the queue is not a failure. |
-| Deletion or scope exit | Remove current series. |
-
-A later failure cannot restore a removed association or an old definition's
-results. Without an applicable earlier result, the exporter has no mapping or
-phase to retain. Invalid rows have an empty submitter value.
-
-Mapping and status have separate validity. The first collection after expiry
-marks retained rows invalid. Creation timestamps are omitted when unverified.
-A status-expression error alone does not remove a verified creation timestamp.
-
-## Memory and collection
-
-The store indexes records by root UID. Records are immutable. Updates replace
-the affected record without copying the global map.
-
-Pod rows are held in pages of at most 256 rows. A one-Pod change copies its page
-and the page-pointer array. Other pages stay shared. The record header holds
-status, submitter agreement and shared verification results. A definition change
-can require rebuilding every page.
-
-Row lookup scans a record's pages. Inserts, deletes and root moves use the same
-checked publication step. Nested maps and slices are immutable, so a collection
-can keep reading an older record while an update replaces it. Shared failure
-state can invalidate results without copying every record.
-
-Collection takes the publication lock to capture record pointers, verification
-evidence and one timestamp. It releases the lock before formatting metrics.
-All four metric families use that captured view for expiry and membership checks.
-Capture takes O(workloads + dependency-evidence nodes). The view is consistent
-within the exporter, not an atomic snapshot of Kubernetes.
-
-Discovery calculation caches and successful submitter evaluations may be evicted
-and recalculated. Active ownership links and unresolved references remain while
-their objects are in scope. Queue items are removed after successful processing
-and retried after errors. Informers hold full roots and Pods, with metadata for
-intermediate owners. Queues hold keys. Verification
-copies the needed metadata and releases each LIST page before reading the next.
-It does not retain pointers into the page.
-
-## Scope and readiness
-
-[Configuration](../../karta-metrics-exporter/configuration.md) defines the full
-settings. Namespace and Pod selectors default to all. Root filters default to
-none. Exclusions win. Cluster definitions are enabled by default; the catalog is
-disabled and excludes `core-pod-v1`. `ignoredOwnerKinds` and `requiredKinds` are
-empty by default.
-
-Root labels cannot filter child watches. Intermediate kinds need read
-permissions without explicit discovery entries. Resource rules use the selected
-Karta's API version, or check each observed root version separately when no
-Karta exists. Namespace and workload scope exits remove current rows. A failed
-scope refresh cannot add workloads.
-
-A failed kind invalidates only dependent results. Required kinds also affect
-readiness even when traversal ignores them. Optional-kind failures leave
-unrelated workloads running.
-
-## Submitter evaluation
-
-`submitterextractor.New(expression)` compiles CEL with a string result. Invalid
-expressions prevent startup. The extractor keeps a bounded cache of successful
-metadata results. Cancellation, evaluation limits and invalid output return
-errors. A status-only change can reuse a cached result because the input metadata
-has not changed.
-
-<a id="submitter-update-protection"></a>
-
-## Submitter update protection
-
-CREATE capture follows `submitterAdmission.matchConstraints` and
-`matchConditions`. A separate VAP and binding protect already captured identities
-on UPDATE:
-
-```yaml
-# UPDATE protection policy: matching fragment.
-matchConstraints:
-  resourceRules:
-    - operations: ["UPDATE"]
-      apiGroups: ["*"]
-      apiVersions: ["*"]
-      resources: ["*/*"] # Main resources and subresources.
-      scope: Namespaced
-matchConditions:
-  - name: already-captured
-    expression: >-
-      has(oldObject.metadata.annotations) &&
-      "karta.run.ai/submitted-by" in oldObject.metadata.annotations
-validations:
-  - expression: >-
-      has(object.metadata.annotations) &&
-      "karta.run.ai/submitted-by" in object.metadata.annotations &&
-      object.metadata.annotations["karta.run.ai/submitted-by"] ==
-      oldObject.metadata.annotations["karta.run.ai/submitted-by"]
-    message: "The recorded submitter cannot be changed or removed."
+func (v CapturedView) Valid(e Evidence) (bool, string)
+func (p *Publication) WithPod(uid types.UID, replacement *PublishedPod) *Publication
 ```
 
-The UPDATE binding has no namespace selector, object selector or CREATE capture
-condition. It also covers subresources that carry the annotation. The chart keeps
-this protection whenever VAP is served, even when capture is disabled. Removing
-it requires a separate administrator action.
+`WorkloadRecord` holds root identity, selected Karta, matching phases, creation
+time and status labels. `BuildPodPages` groups at most 256 `PublishedPod` rows
+per page. Each row
+pairs a `PodRecord` with mapping evidence. The Pod record holds its own namespace,
+UID, name, coordinates, owner resolution and labels. These pages are immutable
+chunks that can be shared between publications.
 
-Policies use `failurePolicy: Fail`. Validation bindings use `Deny`. Capture
-configuration is rejected when the required APIs are unavailable.
-[Configuration](../../karta-metrics-exporter/configuration.md) lists supported versions.
+`Publish` transfers immutable ownership. Callers must replace nested maps and
+slices rather than mutate them. Captured publications can outlive their current
+Store entries. Health input slices and their dependencies are copied at the Store
+boundary. The [Store README](../../../karta-metrics-exporter/pkg/store/) defines the
+helper invariants and their measured benchmark commands.
 
-## Metric reader configuration
+### Failure-key lifetime
 
-OTLP headers come from a Secret-backed environment variable. TLS files are
-mounted read-only. Secret changes require an exporter restart.
+For example, a Pod update fails its old local evidence key and creates a new
+one. The old row immediately becomes invalid. The new calculation uses the new
+key. Root and Pod generation keys retire after the same-root worker has committed
+or discarded its in-flight result. Metadata and definition keys can retire sooner
+because final active-key and selection checks reject obsolete work. Keys are
+opaque internal strings, not Kubernetes generations or metric labels.
+`RetirePublicationFailure` removes a key only when no current publication or
+health record refers to it.
+
+Store counts those references and retires a failed key when its last reference
+is removed. Active failing streams keep a health reference. A failure installed
+before any publication remains until explicitly cleared or retired. Replacing a
+publication adds new references before removing old ones. A captured view keeps
+its own failure map, so retirement cannot change an ongoing collection.
+
+## Updates, deletion and failure
+
+| Event | Result |
+| --- | --- |
+| Pod or root changes | Invalidate affected old evidence and queue recalculation. |
+| Pod moves to another root | Remove its old association and queue affected roots. |
+| Definition changes | Invalidate its previous interpretation and rebuild affected results. |
+| Owner read or root watch fails | Mark dependent evidence invalid and retry. |
+| Pod, root or selected namespace disappears | Remove its published rows and retire unused state. |
+| Same name returns with a new UID | Treat it as a new object; old work cannot restore the deleted UID. |
+
+An accepted newer object makes the previous evaluation unverified until Runtime
+recomputes it. The old row can remain with `observation_valid="false"` during
+that interval, even when the API is healthy. Final publication replaces it
+atomically. Evidence failures and expiry also mark retained rows invalid. An old
+row is kept only for the same root UID, Pod UID and compatible definition.
+Deleting those objects removes their rows. No prior result means there is no
+status or mapping to retain. Invalid creation evidence
+omits the timestamp and contributes a workload-health failure.
+
+An intermediate-owner GET returning NotFound fails that Pod's owner path. A
+compatible old mapping can remain invalid with unknown owner resolution until
+recovery or removal of its Pod/root. It is not treated as a confirmed Pod or root
+delete. An accepted delete of the published Pod or root removes its rows.
+
+Status, mapping and creation validity are separate. A status-expression error
+does not invalidate an independently verified creation time. A label-expression
+error removes the unavailable custom value or permits the next configured source;
+it does not erase base identity. Resolver errors remain visible to workload health
+even when a fallback supplies a value.
+
+Replacing a watch keeps the existing publication invalid under the retired
+watch evidence until a replacement observation is accepted. Old callbacks cannot
+delete a replacement UID. A fresh complete LIST can confirm that a known UID is
+absent; starting the replacement watch alone cannot. Complete relists reconcile
+missed deletions. Failed or incomplete reads cannot establish absence. Scope
+withdrawal removes affected rows, including Pods beneath a cluster-scoped root
+whose own namespace is empty.
+
+Failures appear in the `reason` label of `karta_exporter_observation_valid`.
+Resource health uses `scope="resource_type"` and emits 0 or 1. Workload health uses
+`scope="workload"` and emits failures with value 0. Retained Pod-info and status
+rows carry `observation_valid="false"`; they do not gain a reason label.
+The error categories are bounded:
+
+| Error | Action |
+| --- | --- |
+| `ErrPending` | Wait for source or watch initialization and retry. |
+| `ErrStale` | Discard superseded work and retry. |
+| `ErrPermissionDenied` | Report `permission_denied` for dependent evidence. |
+| `ErrUnavailable` | Report `api_unavailable`; expiry uses the same reason. |
+| `ErrUnresolvedOwner` | Report `unresolved_owner` for a missing or invalid owner path. |
+| `ErrInvalidDefinition` | Report `invalid_definition`; do not use that interpretation. |
+| `ErrEvaluation` | Report `evaluation_failed` for the affected calculation. |
+
+Callers use `errors.Is` on wrapped errors. Cancellation stays a context error.
+Detailed messages belong in diagnostics, not metric labels.
+
+## Readiness and collection
+
+`/healthz` reports process health. `/readyz` requires initialized definition
+sources, Pod coverage, namespace-selection coverage when configured, and every
+explicitly required kind. A supplemental root or ordinary selected-kind failure
+changes its resource health and dependent observations without blocking readiness
+for unrelated workloads.
+
+One scrape calls `Capture` once. Store fixes the time, immutable publication
+references, copied health and failure state under its own lock. The callback uses
+that view for all four families. It may finish an older view after a write; the
+next capture sees that write.
+
+Capture costs O(roots + health records + failure keys). Collection visits emitted
+series and their evidence dependencies. Removing a row removes it from the next
+snapshot, while backend history remains. These guarantees concern the exporter's
+local state, not an atomic snapshot of the Kubernetes API.
+
+[Component tests](../../../karta-metrics-exporter/README.md#verify), the
+[real-operator matrix](../../../karta-metrics-exporter/test/e2e/) and
+[modeled API measurements](../../../karta-metrics-exporter/test/scale/) provide
+separate evidence. Recorded results identify the tested revisions.

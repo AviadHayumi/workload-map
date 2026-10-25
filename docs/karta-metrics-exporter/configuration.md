@@ -3,246 +3,224 @@
 
 # Karta metrics exporter configuration
 
-Proposed configuration for [KEP-0001](../keps/0001-metrics-exporter/README.md).
-The exporter runs separately from the Karta controller. Helm configures its
-definitions, observation scope, configured labels and metric delivery.
+The exporter runs separately from the Karta operator. It reads Kubernetes objects
+and serves the [KEP metrics](../keps/0001-metrics-exporter/README.md) at `/metrics`.
+The same HTTP listener serves `/healthz` and `/readyz`.
 
 ## Helm values
 
+This example deploys only the exporter and selects catalog definitions:
+
 ```yaml
+operator:
+  enabled: false
 exporter:
-  enabled: true # Deploy the exporter; default false.
+  enabled: true
   image:
-    tag: "<exporter-tag>" # Exporter image version.
-  metricsExporter: prometheus # Default: prometheus. Set otlp for native push.
-  otlp: # Used only when metricsExporter is otlp.
-    protocol: http/protobuf # Or grpc.
-    endpoint: https://metrics.example.com:4318/v1/metrics
-    interval: 30s
-    timeout: 10s
-    headersSecretRef: {name: karta-otlp-auth, key: headers} # Optional.
-    tls: # Optional custom CA and mutual TLS.
-      caSecretRef: {name: karta-otlp-tls, key: ca.crt}
-      clientCertSecretRef: {name: karta-otlp-tls, key: tls.crt}
-      clientKeySecretRef: {name: karta-otlp-tls, key: tls.key}
+    tag: "<exporter-tag>"
   http:
-    port: 8080 # /healthz and /readyz; also /metrics in Prometheus mode.
-  rbac:
-    # Read workload roots and intermediate owners; the chart adds get/list/watch.
-    # This list replaces the defaults. Include every selected workload type and its owners.
-    workloadRules:
-      - apiGroups: ["apps"]
-        resources: ["deployments", "replicasets", "statefulsets"]
-      - apiGroups: ["batch"]
-        resources: ["jobs", "cronjobs"]
-      - apiGroups: ["jobset.x-k8s.io"]
-        resources: ["jobsets"]
-  # Definitions describe each workload type. Include/exclude lists use definition names.
+    port: 8080
   kartaDefinitionSource:
     catalog:
-      enabled: true # Built-in definitions; default false.
+      enabled: true
       include: []
-      exclude: [core-pod-v1] # Clear to opt into bare-Pod catalog attribution.
+      exclude: [core-pod-v1]
     cluster:
-      enabled: true # Cluster-installed Karta definitions; default true.
-      include: []
-      exclude: []
-      labelSelector: {} # Select cluster Karta definitions by their labels.
-  # Watch Pods and workload objects only in matching namespaces.
-  namespaceSelector: # Default null or {}: all namespaces.
-    matchExpressions:
-      - key: example.com/tenant # Include namespaces carrying this label.
-        operator: Exists
-      - key: kubernetes.io/metadata.name
-        operator: NotIn
-        values: [kube-system, karta-system] # Skip these system namespaces.
-  # Match the workload root's metadata.labels; keep owner dependencies watched.
-  objectSelector: # Default null or {}: all resolved workload roots.
-    matchExpressions:
-      - key: example.com/purpose
-        operator: NotIn
-        values: [reservation]
-  # Match each Pod's metadata.labels to select its exported row.
-  # All Pods in selected namespaces stay watched.
-  podSelector: # Default null or {}: all Pod attribution rows.
-    matchExpressions:
-      - key: example.com/purpose
-        operator: NotIn
-        values: [reservation]
-  resourceRules: [] # Limit root API types; empty means no restriction.
-  excludeResourceRules: [] # Exclusions take precedence.
-  # Stop before these GVKs; the last verified object below becomes the workload root.
-  ignoredOwnerKinds: # Default [].
-    - example.com/v1/PlatformWrapper
-  requiredKinds: [] # Optional expected APIs; failed checks mark dependent observations unhealthy.
-    # Example: ["jobset.x-k8s.io/v1alpha2/JobSet"]
-  labelRules: [] # Extra labels for Pod info and workload status.
-  labelLimits: # Bounds for each CEL evaluation.
-    costLimit: 10000
-    maxExpressionBytes: 4096
-    maxValueBytes: 1024
-    interruptCheckFrequency: 100
-  metrics:
-    workloadPhases: ["all"] # Emit every workload phase as a 0/1 series.
-  # Let Prometheus Operator discover and scrape the exporter.
+      enabled: false
+  namespaceSelector:
+    matchLabels:
+      example.com/tenant: research
+  objectSelector: {}
+  podSelector: {}
+  ignoredOwnerKinds: []
+  requiredKinds: [jobset.x-k8s.io/v1alpha2/JobSet]
+  rbac:
+    # Replaces the default workload list. Verbs are get/list/watch.
+    workloadRules:
+      - apiGroups: [apps]
+        resources: [deployments, replicasets, statefulsets]
+      - apiGroups: [batch]
+        resources: [jobs, cronjobs]
+      - apiGroups: [jobset.x-k8s.io]
+        resources: [jobsets]
+  labelRules:
+    - name: team
+      metrics: [karta_pod_workload_info, karta_workload_status]
+      sources: [workload]
+      expression: |
+        has(object.metadata.labels) && "example.com/team" in object.metadata.labels
+          ? object.metadata.labels["example.com/team"] : ""
   serviceMonitor:
-    enabled: true # Create the optional ServiceMonitor; default false.
-    interval: 30s # How often Prometheus scrapes metrics.
-    scrapeTimeout: 25s # Maximum duration of one scrape.
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 25s
 ```
 
-`exporter.enabled` defaults to `false`. The example enables it and the built-in
-catalog. `http.port` serves `/healthz` and `/readyz` in both delivery modes, plus
-`/metrics` in Prometheus mode. It also sets the container, probe and Service ports.
+The chart defaults are:
+
+| Setting under `exporter` | Default |
+| --- | --- |
+| `enabled` | `false` |
+| `http.port` | `8080` |
+| `replicaCount` | `1` |
+| `kartaDefinitionSource.catalog.enabled` | `false` |
+| `kartaDefinitionSource.catalog.exclude` | `[core-pod-v1]` |
+| `kartaDefinitionSource.cluster.enabled` | `true` |
+| Source `include` lists and cluster `exclude` | Empty |
+| `namespaceSelector`, `objectSelector`, `podSelector` | `{}` |
+| `ignoredOwnerKinds`, `requiredKinds`, `labelRules` | Empty |
+| `serviceMonitor.enabled` | `false` |
+
+An empty image tag uses the chart app version. `http.port` sets the process
+listener, probes and Service port. The optional ServiceMonitor requires its CRD
+and a Prometheus selector that selects it. Prometheus should scrape each exporter
+endpoint separately. The HTTP endpoint has no built-in authentication.
 
 ## Selection
 
-| Setting under `exporter` | Selects |
+| Setting | Input |
 | --- | --- |
-| `namespaceSelector` | Namespace labels; use the built-in `kubernetes.io/metadata.name` label with `In` to include names or `NotIn` to exclude them. |
-| `objectSelector` | Resolved workload roots by their labels. |
-| `podSelector` | Pods whose attribution rows are exported, using each Pod's labels. |
-| `resourceRules` / `excludeResourceRules` | Root API types, using group, version and plural resource name. Exclusions win. |
-| `kartaDefinitionSource.cluster.labelSelector` | Cluster Karta definitions by their labels. |
-| Definition-source `include` / `exclude` | Definition names. Empty includes mean all; exclusions win. |
+| `namespaceSelector` | Namespace labels |
+| `objectSelector` | Resolved root labels |
+| `podSelector` | Labels of each Pod whose row may be exported |
+| `kartaDefinitionSource.cluster.labelSelector` | Cluster Karta labels |
+| Source `include` / `exclude` | Karta definition names |
 
-Use [Kubernetes label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors)
-to match each object's own labels. All conditions must match; `NotIn` also matches
-missing labels.
+Selectors use Kubernetes `matchLabels` and `matchExpressions`. All conditions
+must match. An empty selector matches all objects. To select namespace names,
+use their `kubernetes.io/metadata.name` label.
 
-Namespace selection limits watches. All Pods and required owners in those
-namespaces stay watched, including Jobs owned by a JobSet.
+Namespace selection controls watch scope. All Pods in selected namespaces remain
+observed, even when `podSelector` hides some Pod rows. Intermediate owners are
+read as dependencies, not automatically watched because traversal reached them.
+Root watches cover selected definitions, `requiredKinds` and discovered roots.
 
-`objectSelector` selects workload roots. `podSelector` selects Pod rows; both must
-match for a Pod row to appear. Workload status covers the full workload; joined
-usage covers only included Pods. Excluding a root excludes its Pods too, without
-treating its children as new roots.
+Root selection happens after owner resolution. Excluding a JobSet also excludes
+its descendant Pod rows; it does not promote the Jobs below it. Status describes
+the root workload. Namespace
+withdrawal removes affected Pod rows even beneath a cluster-scoped root.
 
-Scope changes remove rows outside the selection. A failed refresh never expands
-the scope.
+### Definition sources and owner boundaries
+
+Empty includes allow all names; exclusions win. Cluster definitions must also
+match their label selector. The [inventory contract](../design/metrics-exporter/README.md#select-the-definition)
+defines source choice, ties and failures.
+
+To enable bare-Pod catalog attribution, enable the catalog, include `core-pod-v1`
+if using a nonempty include list, and set `catalog.exclude: []`. A selected
+cluster Pod definition also enables bare Pods. `objectSelector` applies to these
+roots too. The same rule applies when ignoring the first owner makes a Pod the
+root. A missing Pod definition leaves both kinds of Pod roots out of workload metrics.
+
+`ignoredOwnerKinds` contains exact slash-separated GVKs, such as
+`example.com/v1/Wrapper` or `v1/Node` for the core API group. Discovery
+stops before a matching owner and uses the last verified object below it as the
+root. A missing owner below that boundary still fails. A definition on an
+intermediate owner does not stop traversal by itself.
+
+`requiredKinds` uses the same slash-separated format. It starts coverage before Pods exist
+and makes that kind part of readiness. Ignoring an owner does not disable an
+independently required-kind check. Ordinary discovered-root failures remain
+scoped to their health rows and dependent metrics.
 
 ### Workload API types
+
+The chart and standalone config support root resource filters. Under Helm:
 
 ```yaml
 exporter:
   resourceRules:
-    - apiGroups: ["batch"]
-      apiVersions: ["v1"]
-      resources: ["jobs", "cronjobs"]
-    - apiGroups: ["jobset.x-k8s.io"]
-      apiVersions: ["*"]
-      resources: ["jobsets"]
+    - apiGroups: [batch]
+      apiVersions: [v1]
+      resources: [jobs, cronjobs]
   excludeResourceRules:
-    - apiGroups: ["batch"]
-      apiVersions: ["v1"]
-      resources: ["cronjobs"]
+    - apiGroups: [batch]
+      apiVersions: [v1]
+      resources: [cronjobs]
 ```
 
-A root matches its label selector, at least one inclusion rule when configured,
-and no exclusion rule. Group, version and resource must all match within a rule;
-list entries are alternatives. `"*"` matches any value; `""` is the core API group.
-Core Pods use group `""`, version `v1` and resource `pods`.
-
-The fields follow Kubernetes [MatchResources](https://kubernetes.io/docs/reference/kubernetes-api/definitions/match-resources-v1-admissionregistration/),
-without admission operations or subresources. Each supplied rule needs nonempty
-group, version and resource lists. Invalid selectors, malformed rules and unknown
-catalog names reject configuration. Other served API versions do not create
-duplicate observations.
-
-### Definition sources and owner boundaries
-
-Source filters apply before precedence. A selected cluster Karta overrides a
-selected catalog definition for the same group/kind. Disabled sources contribute
-none. Cluster definition names and their label selector must both match. Ties use
-oldest creation time, then name.
-
-The catalog excludes `core-pod-v1` by default. Clearing that exclusion, or selecting
-a cluster Pod Karta, enables bare-Pod workloads. `objectSelector` also applies to
-those roots.
-
-`ignoredOwnerKinds` stops the owner walk before an exact GVK. The last verified
-object below it becomes the root; missing owners below that boundary still fail.
-A Karta definition on an intermediate owner does not by itself stop the walk.
-An ignored owner can still be selected independently. `requiredKinds` checks
-remain active; failed checks invalidate dependent observations.
+These fields select root API types, not owner dependencies or RBAC permissions.
+Excluding a root drops its Pod rows without promoting children to roots. A kind
+can remain in `requiredKinds` even when output filters exclude it; its watch and
+readiness check still apply. Empty `resourceRules` means no restriction. A root must match one configured inclusion
+and no exclusion, as well as its label selector. Group, version and plural resource
+name must all match within a rule. Entries in each list are alternatives.
+`"*"` matches any value; `""` is the core API group. Every rule needs nonempty
+group, version and resource lists. Subresources are not supported.
 
 ## Configured labels
 
-`labelRules` adds named labels to `karta_pod_workload_info` and
-`karta_workload_status`. Each rule provides metric names, ordered sources and a
-CEL expression. Sources are `workload` and `pod`. Status rules cannot use `pod`.
-Expressions read the supplied full object through `object`; they do not call
-Kubernetes or mutate it. Guard optional fields with `has(...)`.
+`labelRules` adds labels to `karta_pod_workload_info` and `karta_workload_status`.
+Each rule names its metrics, ordered sources and CEL expression. `workload` means
+the full resolved root object. `pod` means that full Pod object and is allowed
+only for Pod-info rules. The expression reads the input as `object`.
 
-The command validates rule names, metric/source combinations and CEL at startup.
-The CEL evaluator is implemented. Resolver execution and exporting the resolved
-labels are still scaffold work.
+An empty result or error tries the next source. If no source returns a value,
+the label is absent. A successful fallback still retains previous source errors
+for health reporting. Updates replace values and remove empty ones. No label
+value is fixed for the lifetime of an object.
 
-The chart renders `labelRules` and `labelLimits` into the mounted config file.
-Rules default to `[]`. Limits default to 10000 cost units, 4096 expression bytes,
-1024 value bytes and a cancellation check every 100 comprehension iterations.
+Startup validates names, source/metric combinations and CEL. Built-in metric
+labels and OTel scope labels are reserved. Known non-string expressions fail
+compilation; dynamic non-string results fail evaluation. The defaults are:
 
-See the [evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
-for a complete example, flags, environment variables and precedence.
+```yaml
+labelLimits:
+  costLimit: 10000
+  maxExpressionBytes: 4096
+  maxValueBytes: 1024
+  interruptCheckFrequency: 100
+```
+
+The last field controls cancellation checks during CEL comprehensions. The
+[evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
+lists label flags and environment variables. The [resolver contract](../../karta-metrics-exporter/pkg/labelresolver/)
+describes error handling and bounded workload caching.
+
+## Runtime settings
+
+Outside Helm, pass `--config path.yaml`. The file contains exporter settings
+without the `exporter:` wrapper. Unknown keys and multiple YAML documents are
+rejected. For each setting, an explicit flag wins over its environment variable, which
+wins over the file value, which wins over the default. Rules and selectors stay in YAML.
+
+These runtime settings are available in the standalone file and command. The
+current Helm template uses their defaults:
+
+| YAML key | Flag | Environment variable | Default |
+| --- | --- | --- | --- |
+| Config path | `--config` | `KARTA_EXPORTER_CONFIG` | Empty |
+| `refreshInterval` | `--refresh-interval` | `KARTA_EXPORTER_REFRESH_INTERVAL` | `45s` |
+| `maxAge` | `--max-age` | `KARTA_EXPORTER_MAX_AGE` | `2m` |
+| `requestTimeout` | `--request-timeout` | `KARTA_EXPORTER_REQUEST_TIMEOUT` | `30s` |
+| `workers` | `--workers` | `KARTA_EXPORTER_WORKERS` | `2` |
+| `apiQPS` | `--api-qps` | `KARTA_EXPORTER_API_QPS` | `20` |
+| `apiBurst` | `--api-burst` | `KARTA_EXPORTER_API_BURST` | `40` |
+
+The worker count applies separately to object resolution and root publication.
+Source verification has its own workers. Kubernetes clients share the API rate
+limit. Durations and worker/rate limits must be positive, and maximum age must
+exceed the refresh interval. A delayed refresh does not extend expired evidence.
+
+`--kubeconfig` selects local credentials. In-cluster startup uses the mounted
+ServiceAccount. `--metrics-bind-address` defaults to `:8080`; a local run can use
+`127.0.0.1:8080`. This flag serves all three HTTP endpoints and has no standalone
+YAML key. Helm sets it from `exporter.http.port`. `--version` prints the binary version without starting clients.
 
 ## Metric delivery
 
-| Mode | Configuration | Requirements |
-| --- | --- | --- |
-| Prometheus pull | `metricsExporter: prometheus` | Prometheus scrapes `/metrics`. ServiceMonitor is optional. |
-| Native OTLP push | `metricsExporter: otlp` | An OTLP receiver; endpoint and protocol under `otlp`. |
-| Collector bridge | Prometheus mode, scraped by a Collector | The Collector forwards to the chosen backend. |
+The implemented delivery path is Prometheus pull through OTel instruments.
+Status phase output follows the [Collector contract](../design/metrics-exporter/README.md#publish-and-collect).
+Native OTLP delivery is deferred.
 
-Combined native pull and push is deferred. CPU, memory and GPU measurements come
-from other exporters; the [query guide](README.md) shows how to join them.
+An external OTel Collector can scrape `/metrics` and forward samples to a backend.
+That Collector owns its transport and authentication settings. CPU, memory and
+GPU measurements come from other exporters; the [query guide](README.md) shows
+how to join them with workload identity.
 
-### Prometheus
-
-![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../keps/0001-metrics-exporter/metrics-architecture.png)
-
-`serviceMonitor.enabled: true` creates a ServiceMonitor. Its CRD must be installed
-and the Prometheus selector must match it. The Prometheus Operator turns it into
-scrape configuration. Without the Operator, Prometheus uses its own scrape configuration.
-See [ServiceMonitor discovery](https://prometheus-operator.dev/docs/developer/getting-started/#using-servicemonitors).
-
-Prometheus discovers and scrapes each exporter endpoint separately. A single
-load-balanced Service address can hide conflicting observations during a rollout.
-Target identity remains available until query aggregation. The HTTP endpoint has
-no built-in authentication; access is restricted by network policy or an
-authenticated proxy.
-
-### Native OTLP
-
-In OTLP mode, `serviceMonitor.enabled` is `false`. An OTel periodic reader sends
-the current metric snapshot, including unchanged values, to `otlp.endpoint`.
-HTTP uses `POST /v1/metrics`; gRPC uses `MetricsService.Export`.
-For gRPC, the endpoint is `https://metrics.example.com:4317`, without `/v1/metrics`.
-
-`interval` and `timeout` accept positive whole-millisecond durations. The timeout
-bounds the collection/export cycle and the client request. Unsupported protocols,
-invalid durations and invalid endpoints reject startup.
-
-Authentication and TLS Secrets live in the exporter's namespace. The chart mounts
-only the referenced TLS keys read-only at `/etc/karta/otlp`. Kubernetes supplies
-the files; no PVC or Secrets API read permission is needed. Missing referenced
-Secrets or keys prevent startup.
-
-`headersSecretRef` supplies comma-separated `key=value` headers through a generated
-Secret-backed environment variable. HTTPS uses system trust by default. A custom
-CA is optional; mutual TLS requires both client certificate and key. Secret
-changes require an exporter restart. See [Secret projection](https://kubernetes.io/docs/concepts/storage/projected-volumes/)
-and [OTLP settings](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/).
-
-Removed objects stop appearing in exports. The backend needs expiry or stale-series
-handling; omission is not an immediate delete command. Delivery success does not
-certify observation validity. See the [OTLP gauge model](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#gauge).
-
-### Collector bridge
-
-An [OTel Collector](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/)
-can scrape `/metrics` and forward the samples. PromQL joins require a compatible
-query backend. The Collector and backend control label translation, deletion and
-freshness.
+The optional ServiceMonitor selects the exporter Service. Without Prometheus
+Operator, configure Prometheus to scrape the endpoints directly. The [consistency contract](../design/metrics-exporter/consistency.md#readiness-and-collection)
+defines row removal and snapshot visibility.
 
 ## Deployment and permissions
 
@@ -251,12 +229,10 @@ freshness.
 | `rbac.workloadRules` | Read access for workload kinds and intermediate owners. |
 | `resources` | CPU and memory requests/limits. |
 | `nodeSelector`, `tolerations`, `affinity` | Pod placement. |
-| `networkPolicy` | Access to the metrics endpoint. |
 
 The main Helm example includes `rbac.workloadRules`. These rules use API groups
 and plural resource names, as in Kubernetes RBAC. The chart supplies `get`, `list`
-and `watch`: read one owner, list existing objects and receive updates. API versions
-are selected by `resourceRules`, not RBAC.
+and `watch`: read one owner, list existing objects and receive updates. RBAC rules apply across the API versions of each resource.
 
 Include the root and every intermediate owner needed for attribution:
 
@@ -269,7 +245,7 @@ Include the root and every intermediate owner needed for attribution:
 
 The main example covers Deployments, StatefulSets, Jobs, CronJobs and JobSets.
 Keep permissions aligned with the selected definitions and API types, including
-intermediate owners. The list replaces the default workload rules. Pod, Namespace
+intermediate owners. The list replaces the [default workload rules](../../charts/karta/values.yaml). Pod, Namespace
 and enabled definition-source reads are
 separate built-in rules. Namespace reads are needed to evaluate namespace labels.
 Using an existing ServiceAccount does not disable the chart's role binding.
