@@ -184,6 +184,13 @@ class OracleTests(unittest.TestCase):
         self.assertFalse(self.check(self.exposition.replace('observation_valid="true"', 'observation_valid="false"'))["complete"])
         self.assertFalse(self.check(self.exposition + 'karta_exporter_observation_valid{scope="workload",reason="evaluation_failed"} 0\n')["complete"])
 
+    def test_invalid_examples_preserve_health_reasons_and_are_bounded(self):
+        result=self.check(self.exposition.replace('observation_valid="true"', 'observation_valid="false"'))
+        self.assertTrue(result["examples"])
+        self.assertLessEqual(len(result["examples"]),5)
+        result=self.check(self.exposition.replace('reason="none"','reason="unresolved_owner"'))
+        self.assertIn("unresolved_owner",result["examples"][0])
+
     def test_oracle_requires_visible_pod_update_and_rejects_old_generation(self):
         self.fixture.change_pod(0)
         self.assertFalse(self.check(self.exposition)["complete"])

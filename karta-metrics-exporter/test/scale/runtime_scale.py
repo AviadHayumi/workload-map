@@ -388,10 +388,14 @@ def read_metrics(response, fixture, deadline=None):
                 errors.append(f"{name} labels={sorted(labels)}")
         if labels.get("observation_valid") == "false":
             counts["invalid_rows"] += 1
+            if len(errors) < 5:
+                errors.append(line[:1000])
         if name == "karta_exporter_observation_valid":
             counts["health_rows"] += 1
             if value != 1 or labels.get("scope") != "resource_type" or labels.get("reason") != "none" or labels.get("workload_uid") or labels.get("workload_name"):
                 counts["health_failures"] += 1
+                if len(errors) < 5:
+                    errors.append(line[:1000])
             resource = (labels.get("namespace"), labels.get("resource_group"), labels.get("resource_version"), labels.get("resource_kind"))
             if resource in health_resources:
                 counts["health_failures"] += 1
@@ -569,6 +573,8 @@ def run(args):
                         last = read_metrics(body, fixture, oracle_started + args.oracle_seconds)
                         last["oracle_seconds"] = round(time.monotonic()-oracle_started,4)
                         last["http_seconds"] = round(http_seconds,4)
+                last["started_seconds"] = round(scrape_started-started,6)
+                last["finished_seconds"] = round(time.monotonic()-started,6)
                 last["response_headers_seconds"] = round(headers_seconds, 4)
                 last["scrape_seconds"] = round(time.monotonic() - scrape_started, 4)
                 stage["scrapes"].append(last)
@@ -619,6 +625,7 @@ def run(args):
             pending={}
             latencies=[]
             report["sustained_churn"] = {"requested_seconds":args.churn_seconds,"target_event_count":math.ceil(args.churn_seconds*args.churn_rate),"target_events_per_second":args.churn_rate,"emitted":0,"observed":0,"publication_upper_bounds_seconds":latencies}
+            report["sustained_churn"]["emissions"] = []
             emitted=0
             pool=min(100,args.roots)
             gc_samples=[]
@@ -638,6 +645,7 @@ def run(args):
                         sent=time.monotonic()
                         fixture.change(root,change_pods=False)
                         pending[root]=(str(fixture.root_versions[root]),sent)
+                        report["sustained_churn"]["emissions"].append({"root":root,"resource_version":str(fixture.root_versions[root]),"seconds":round(sent-started,6)})
                         emitted+=1
                         report["sustained_churn"]["emitted"]=emitted
                         report["sustained_churn"]["last_emission_seconds"]=now-churn_started

@@ -62,3 +62,46 @@ These earlier intermediate-owner fixtures also changed ReplicaSet resourceVersio
 when only its Job changed. The harness now assigns versions independently per
 object. Cold-start failures are unaffected. Treat earlier intermediate churn
 results as diagnostic evidence, not a faithful immutable-owner comparison.
+
+## Batched-refresh smoke checkpoint
+
+`direct-1000-v3.json.gz` and `intermediate-1000-v3.json.gz` use the same
+production runtime at `c40f5852`, with explicit QPS 20, burst 40, two workers,
+5-second refresh, 20 seconds quiet and 20 seconds churn at 100 events/s.
+Go binary build metadata confirms the actual source revision. The direct report's
+supplied revision field says `9afe1c5f`; the intervening `c40f5852` changed only
+the Dockerfile. Image builds and other checks were active on the host.
+
+The direct case passed in 49.50 seconds, with 2.84 seconds cold convergence.
+The intermediate case converged cold in 53.61 seconds. It made exactly 1,000
+intermediate metadata GETs during cold start, plus 20 metadata LIST pages.
+The full run made 1,001 GETs (including recreation) and 40 LIST pages, with no
+intermediate WATCH. Cold GET demand still dominates startup; batched refresh
+addresses maintenance rather than cold population. A direct-owner pass cannot
+establish intermediate-owner capacity.
+
+Both observed 2,000 of 2,000 churn events. Their p99 publication observation
+upper bounds were 26 ms and 32 ms; full queue drain was 38 ms and 48 ms.
+All heap and deletion checks passed. Neither is five-minute acceptance.
+The intermediate run failed the current strict continuity oracle because one
+churn scrape had one invalid root, then recovered within the next 0.57 seconds.
+Quiet scrapes stayed valid. All reconnect, update, recreation and cleanup stages
+subsequently converged. Raw evidence preserves the failure.
+
+`intermediate-1000-v3-reasons.json.gz` is one bounded repeat on the unchanged
+binary with 10 seconds quiet, 20 seconds churn and one-second oracle cadence.
+The harness adds bounded failed-row examples, scrape time bounds and root-event
+emission versions/times. It does not change acceptance rules. The repeat passed
+and did not reproduce the churn gap. It observed all 2,000 events with a 51 ms
+p99 upper bound and 49 ms drain; cold convergence was 53.00 seconds.
+
+The repeat captured `api_unavailable` invalidity during the explicit initial
+root change and Pod update. For example, the churn-baseline scrape at
+63.359794-63.535600 seconds reported that reason for `job-0-g0`; its Pod row
+retained resolved coordinates with `observation_valid="false"`. At this source
+revision, `acceptObject` calls `failPublicationLocked(..., discovery.ErrStale)`
+on an accepted root resourceVersion change, and `failureReason` maps that to
+`api_unavailable`. This supports distinguishing deliberate update invalidation
+from quiet-refresh continuity. It does not establish the reason for the earlier
+unsampled gap. No oracle rule was relaxed; contract interpretation remains open
+for that earlier failure. No 10k or 100k run followed these smokes.
