@@ -25,7 +25,14 @@ exclusions win. Selected cluster definitions take precedence over catalog ones.
 `New(config, source)` loads the bundled catalog. `Run(ctx)` maintains the cluster
 snapshot using the injected `ClusterSource` LIST and WATCH operations. A broken
 stream makes lookup unavailable until a fresh LIST and WATCH succeeds.
-`Selections()` returns an atomic snapshot for root watch planning. It does not
+`Lookup` reads elected cluster and catalog maps by group and kind. Elections and
+SDK validation run when the source snapshot changes. An invalid winner returns
+`ErrInvalidDefinition`; it never enables fallback to another definition.
+Unknown catalog include or exclude names fail construction.
+
+`Selections()` returns an atomic snapshot for root watch planning.
+`ClusterOrigins()` returns all filtered cluster identities, including unelected
+definitions, for equality comparison with an independent Karta watch. It does not
 notify consumers or start workload watches.
 
 Cluster definitions match by group and kind. The oldest creation timestamp wins;

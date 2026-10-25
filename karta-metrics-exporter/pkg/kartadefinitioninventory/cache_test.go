@@ -6,6 +6,7 @@ package kartadefinitioninventory
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,15 +22,20 @@ import (
 )
 
 type source struct {
+	mu     sync.Mutex
 	list   *v1alpha1.KartaList
 	stream *watch.RaceFreeFakeWatcher
 	err    error
 }
 
 func (s *source) List(context.Context, metav1.ListOptions) (*v1alpha1.KartaList, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.list.DeepCopy(), s.err
 }
 func (s *source) Watch(context.Context, metav1.ListOptions) (watch.Interface, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.stream, s.err
 }
 func TestInventory(t *testing.T) { RegisterFailHandler(Fail); RunSpecs(t, "Karta inventory") }
@@ -74,6 +80,13 @@ var _ = Describe("inventory snapshots", func() {
 		a, b, c := definition("b", 1), definition("a", 1), definition("c", 2)
 		s.list.Items = []v1alpha1.Karta{*a, *b, *c}
 		start(Config{Cluster: ClusterConfig{Enabled: true}, Catalog: CatalogConfig{Enabled: true}})
+		origins, err := i.ClusterOrigins()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(origins).To(HaveLen(3))
+		Expect(origins[0].Name).To(Equal("a"))
+		origins[0].Name = "mutated"
+		againOrigins, _ := i.ClusterOrigins()
+		Expect(againOrigins[0].Name).To(Equal("a"))
 		selection, err := i.Lookup(gvk)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(selection.Origin).To(Equal(Origin{Source: SourceCluster, Name: "a", UID: "a", ResourceVersion: "12"}))
@@ -96,6 +109,8 @@ var _ = Describe("inventory snapshots", func() {
 		_, err = i.Lookup(gvk)
 		Expect(errors.Is(err, ErrPending)).To(BeTrue())
 		_, err = i.Selections()
+		Expect(errors.Is(err, ErrPending)).To(BeTrue())
+		_, err = i.ClusterOrigins()
 		Expect(errors.Is(err, ErrPending)).To(BeTrue())
 	})
 	It("falls back on confirmed absence with catalog-only provenance", func() {
@@ -125,6 +140,79 @@ var _ = Describe("inventory snapshots", func() {
 		s.stream.Stop()
 		Eventually(func() bool { _, err := i.Lookup(gvk); return errors.Is(err, ErrUnavailable) }).Should(BeTrue())
 	})
+	It("rejects unknown catalog includes and exclusions at construction", func() {
+		for _, config := range []Config{{Catalog: CatalogConfig{Include: []string{"not-in-catalog"}}}, {Catalog: CatalogConfig{Exclude: []string{"not-in-catalog"}}}} {
+			_, err := New(config, nil)
+			Expect(err).To(MatchError(ContainSubstring("unknown catalog definition")))
+		}
+	})
+	It("keeps an invalid elected definition from falling back", func() {
+		bad, good := definition("invalid", 1), definition("valid", 2)
+		bad.Spec.StructureDefinition.RootComponent.Name = ""
+		s.list.Items = []v1alpha1.Karta{*bad, *good}
+		var err error
+		i, err = New(Config{Cluster: ClusterConfig{Enabled: true}, Catalog: CatalogConfig{Enabled: true}}, s)
+		Expect(err).NotTo(HaveOccurred())
+		ctx, c := context.WithCancel(context.Background())
+		cancel = c
+		done = make(chan error, 1)
+		go func() { done <- i.Run(ctx) }()
+		Eventually(func() bool { _, err := i.Lookup(gvk); return errors.Is(err, ErrInvalidDefinition) }).Should(BeTrue())
+		_, first := i.Lookup(gvk)
+		_, second := i.Lookup(gvk)
+		Expect(first).To(BeIdenticalTo(second))
+		s.stream.Delete(bad)
+		Eventually(func() string { v, _ := i.Lookup(gvk); return v.Origin.Name }).Should(Equal("valid"))
+	})
+	It("exposes initial LIST failure instead of catalog fallback", func() {
+		s.err = errors.New("source failed")
+		var err error
+		i, err = New(Config{Cluster: ClusterConfig{Enabled: true}, Catalog: CatalogConfig{Enabled: true}}, s)
+		Expect(err).NotTo(HaveOccurred())
+		ctx, c := context.WithCancel(context.Background())
+		cancel = c
+		done = make(chan error, 1)
+		go func() { done <- i.Run(ctx) }()
+		Eventually(func() bool {
+			v, err := i.Lookup(gvk)
+			_, originErr := i.ClusterOrigins()
+			return v.Definition == nil && errors.Is(originErr, ErrUnavailable) && errors.Is(err, ErrUnavailable) && errors.Is(err, s.err)
+		}).Should(BeTrue())
+	})
+	It("publishes complete relist snapshots during simultaneous reads", func() {
+		old := definition("old", 1)
+		s.list.Items = []v1alpha1.Karta{*old}
+		start(Config{Cluster: ClusterConfig{Enabled: true}})
+		var readers sync.WaitGroup
+		stopReaders := make(chan struct{})
+		defer func() { close(stopReaders); readers.Wait() }()
+		for range 8 {
+			readers.Go(func() {
+				defer GinkgoRecover()
+				for {
+					select {
+					case <-stopReaders:
+						return
+					default:
+					}
+					v, err := i.Lookup(gvk)
+					if err == nil {
+						Expect(v.Definition).NotTo(BeNil())
+						Expect(v.Origin.Name).To(BeElementOf("old", "new"))
+					}
+					_, _ = i.Selections()
+				}
+			})
+		}
+		oldStream := s.stream
+		s.mu.Lock()
+		s.list = &v1alpha1.KartaList{Items: []v1alpha1.Karta{*definition("new", 2)}}
+		s.stream = watch.NewRaceFreeFake()
+		s.mu.Unlock()
+		oldStream.Stop()
+		Eventually(func() string { v, _ := i.Lookup(gvk); return v.Origin.Name }, 3*time.Second).Should(Equal("new"))
+	})
+
 	It("skips disabled sources", func() {
 		var err error
 		i, err = New(Config{}, nil)

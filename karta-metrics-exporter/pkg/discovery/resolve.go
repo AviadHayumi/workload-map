@@ -119,6 +119,8 @@ func readError(err error) error {
 	switch {
 	case errors.Is(err, ErrPending), errors.Is(err, inventory.ErrPending):
 		return fmt.Errorf("%w: %w", ErrPending, err)
+	case errors.Is(err, inventory.ErrInvalidDefinition):
+		return fmt.Errorf("%w: %w", ErrInvalidDefinition, err)
 	case errors.Is(err, ErrStale):
 		return err
 	case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err), errors.Is(err, ErrPermissionDenied):

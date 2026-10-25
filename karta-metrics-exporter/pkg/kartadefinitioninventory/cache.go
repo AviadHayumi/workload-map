@@ -33,11 +33,19 @@ type Inventory struct {
 	config   Config
 	selector labels.Selector
 	cluster  map[string]*v1alpha1.Karta
-	catalog  []*v1alpha1.Karta
+	catalog  map[schema.GroupKind]cachedSelection
+	selected map[schema.GroupKind]cachedSelection
 	source   ClusterSource
 	err      error
 	running  bool
 }
+
+type cachedSelection struct {
+	selection Selection
+	err       error
+}
+
+var ErrInvalidDefinition = errors.New("invalid Karta definition")
 
 var ErrPending = errors.New("Karta inventory not synchronized")
 var ErrUnavailable = errors.New("Karta inventory unavailable")
@@ -61,13 +69,25 @@ func New(config Config, source ClusterSource) (*Inventory, error) {
 			return nil, errors.New("cluster source required")
 		}
 	}
+	known := make(map[string]bool)
+	for _, k := range catalog.List() {
+		known[k.Name] = true
+	}
+	for _, name := range append(slices.Clone(config.Catalog.Include), config.Catalog.Exclude...) {
+		if !known[name] {
+			return nil, fmt.Errorf("unknown catalog definition %q", name)
+		}
+	}
+	definitions := make(map[string]*v1alpha1.Karta)
 	if config.Catalog.Enabled {
 		for _, k := range catalog.List() {
 			if selected(k.Name, config.Catalog.Include, config.Catalog.Exclude) {
-				i.catalog = append(i.catalog, k)
+				definitions[k.Name] = k
 			}
 		}
 	}
+	i.catalog = elect(definitions, SourceCatalog)
+	i.selected = make(map[schema.GroupKind]cachedSelection)
 	return i, nil
 }
 
@@ -85,33 +105,43 @@ func (i *Inventory) lookup(gvk schema.GroupVersionKind) (Selection, error) {
 	if i.err != nil {
 		return Selection{}, i.err
 	}
-	var chosen *v1alpha1.Karta
-	source := SourceCluster
-	for _, k := range i.cluster {
-		if catalog.RootKey(k).GroupKind() != gvk.GroupKind() {
+	entry, ok := i.selected[gvk.GroupKind()]
+	if !ok {
+		entry = i.catalog[gvk.GroupKind()]
+	}
+	if entry.err != nil {
+		return Selection{}, entry.err
+	}
+	result := entry.selection
+	if result.Definition != nil {
+		result.Definition = result.Definition.DeepCopy()
+	}
+	return result, nil
+}
+
+func elect(definitions map[string]*v1alpha1.Karta, source Source) map[schema.GroupKind]cachedSelection {
+	winners := make(map[schema.GroupKind]*v1alpha1.Karta)
+	for _, k := range definitions {
+		key := catalog.RootKey(k).GroupKind()
+		chosen := winners[key]
+		if chosen == nil || k.CreationTimestamp.Before(&chosen.CreationTimestamp) || (k.CreationTimestamp.Equal(&chosen.CreationTimestamp) && k.Name < chosen.Name) {
+			winners[key] = k
+		}
+	}
+	result := make(map[schema.GroupKind]cachedSelection, len(winners))
+	for key, k := range winners {
+		if err := v1alpha1.NewKartaValidator(k).Validate(); err != nil {
+			result[key] = cachedSelection{err: fmt.Errorf("%w: %s: %w", ErrInvalidDefinition, k.Name, err)}
 			continue
 		}
-		if chosen == nil || k.CreationTimestamp.Before(&chosen.CreationTimestamp) || (k.CreationTimestamp.Equal(&chosen.CreationTimestamp) && k.Name < chosen.Name) {
-			chosen = k
+		origin := Origin{Source: source, Name: k.Name}
+		if source == SourceCluster {
+			origin.UID = k.UID
+			origin.ResourceVersion = k.ResourceVersion
 		}
+		result[key] = cachedSelection{selection: Selection{Definition: k, GVK: catalog.RootKey(k), Origin: origin}}
 	}
-	if chosen == nil {
-		source = SourceCatalog
-		for _, k := range i.catalog {
-			if catalog.RootKey(k).GroupKind() == gvk.GroupKind() && (chosen == nil || k.Name < chosen.Name) {
-				chosen = k
-			}
-		}
-	}
-	if chosen == nil {
-		return Selection{}, nil
-	}
-	origin := Origin{Source: source, Name: chosen.Name}
-	if source == SourceCluster {
-		origin.UID = chosen.UID
-		origin.ResourceVersion = chosen.ResourceVersion
-	}
-	return Selection{Definition: chosen.DeepCopy(), GVK: catalog.RootKey(chosen), Origin: origin}, nil
+	return result
 }
 
 // Run maintains a complete snapshot. A failed stream hides the old snapshot until
@@ -165,6 +195,7 @@ func (i *Inventory) stream(ctx context.Context) error {
 	}
 	i.mu.Lock()
 	i.cluster = snapshot
+	i.selected = elect(snapshot, SourceCluster)
 	i.err = nil
 	i.mu.Unlock()
 	for {
@@ -198,6 +229,7 @@ func (i *Inventory) stream(ctx context.Context) error {
 					delete(i.cluster, k.Name)
 				}
 			}
+			i.selected = elect(i.cluster, SourceCluster)
 			i.mu.Unlock()
 		}
 	}
@@ -211,13 +243,11 @@ func (i *Inventory) Selections() ([]Selection, error) {
 		return nil, i.err
 	}
 	keys := make(map[schema.GroupKind]schema.GroupVersionKind)
-	for _, k := range i.cluster {
-		gvk := catalog.RootKey(k)
-		keys[gvk.GroupKind()] = gvk
+	for key := range i.selected {
+		keys[key] = schema.GroupVersionKind{Group: key.Group, Kind: key.Kind}
 	}
-	for _, k := range i.catalog {
-		gvk := catalog.RootKey(k)
-		keys[gvk.GroupKind()] = gvk
+	for key := range i.catalog {
+		keys[key] = schema.GroupVersionKind{Group: key.Group, Kind: key.Kind}
 	}
 	result := make([]Selection, 0, len(keys))
 	for _, gvk := range keys {
@@ -231,4 +261,20 @@ func (i *Inventory) Selections() ([]Selection, error) {
 	}
 	slices.SortFunc(result, func(a, b Selection) int { return strings.Compare(a.GVK.String(), b.GVK.String()) })
 	return result, nil
+}
+
+// ClusterOrigins reports the filtered cluster snapshot for comparison with an
+// independent observer. Resource versions are opaque equality tokens.
+func (i *Inventory) ClusterOrigins() ([]Origin, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if i.err != nil {
+		return nil, i.err
+	}
+	origins := make([]Origin, 0, len(i.cluster))
+	for _, k := range i.cluster {
+		origins = append(origins, Origin{Source: SourceCluster, Name: k.Name, UID: k.UID, ResourceVersion: k.ResourceVersion})
+	}
+	slices.SortFunc(origins, func(a, b Origin) int { return strings.Compare(a.Name, b.Name) })
+	return origins, nil
 }
