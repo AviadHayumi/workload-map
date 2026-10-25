@@ -109,6 +109,18 @@ var _ = Describe("operator workloads", Serial, func() {
 				rawRoot, err := json.MarshalIndent(current, "", "  ")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(os.WriteFile(filepath.Join(outputDir, "pod-default-root.json"), rawRoot, 0600)).To(Succeed())
+				Eventually(ctx, func() bool {
+					rows, _, err := scrape(ctx)
+					if err != nil {
+						return false
+					}
+					for _, row := range rows {
+						if row.family == "karta_exporter_observation_valid" && row.value == 1 && row.labels["scope"] == "resource_type" && row.labels["namespace"] == namespace.GetName() && row.labels["resource_group"] == "" && row.labels["resource_version"] == "v1" && row.labels["resource_kind"] == "Pod" {
+							return true
+						}
+					}
+					return false
+				}, time.Minute, time.Second).Should(BeTrue(), "Pod observation must be healthy before checking absence")
 				Consistently(ctx, func() error {
 					rows, raw, err := scrape(ctx)
 					if err != nil {
