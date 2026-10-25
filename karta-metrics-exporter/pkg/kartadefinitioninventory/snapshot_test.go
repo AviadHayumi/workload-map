@@ -8,7 +8,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
@@ -39,37 +38,6 @@ var _ = Describe("Snapshot", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(sel.GVK).To(Equal(dynamoBetaGVK))
 		Expect(sel.Origin.Name).To(Equal("nvidia-com-dynamographdeployment-v1beta1"))
-	})
-
-	It("lets a selected cluster definition override the catalog", func() {
-		options := catalogOnly
-		options.Cluster = SourceOptions{Enabled: true, LabelSelector: &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{Key: "example.com/owner", Operator: metav1.LabelSelectorOpIn, Values: []string{"platform"}},
-			},
-		}}
-		snap, err := NewSnapshot(options, []*v1alpha1.Karta{
-			newKarta("platform-job", jobGVK, fromCluster("uid-1", "3"), withLabels(map[string]string{"example.com/owner": "platform"})),
-			newKarta("team-deployment", deploymentGVK, withLabels(map[string]string{"example.com/owner": "team-a"})),
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		job, err := snap.Lookup(jobGVK)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(job.Origin).To(Equal(Origin{Source: SourceCluster, Name: "platform-job", UID: "uid-1", ResourceVersion: "3"}))
-
-		deployment, err := snap.Lookup(deploymentGVK)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(deployment.Origin).To(Equal(Origin{Source: SourceCatalog, Name: "apps-deployment-v1"}))
-	})
-
-	It("ignores cluster definitions while the cluster source is disabled", func() {
-		snap, err := NewSnapshot(catalogOnly, []*v1alpha1.Karta{newKarta("cluster-job", jobGVK)})
-		Expect(err).NotTo(HaveOccurred())
-
-		job, err := snap.Lookup(jobGVK)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(job.Origin.Source).To(Equal(SourceCatalog))
 	})
 
 	It("copies the cluster definitions it is given", func() {

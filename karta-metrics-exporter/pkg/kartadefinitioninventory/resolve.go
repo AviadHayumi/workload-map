@@ -35,8 +35,8 @@ type candidate struct {
 	validate  func() error
 }
 
-// sourceFilter selects by include name OR label selector, everything when both
-// are empty; exclude wins.
+// sourceFilter selects a definition when its name is included and its labels
+// match; an empty list or selector allows all, and exclude wins.
 type sourceFilter struct {
 	enabled  bool
 	include  sets.Set[string]
@@ -87,12 +87,11 @@ func admit(definitions []*v1alpha1.Karta, filter sourceFilter) (map[schema.Group
 	if !filter.enabled {
 		return byKind, nil
 	}
-	hasSelector := filter.selector != nil && !filter.selector.Empty()
-	selectsAll := filter.include.Len() == 0 && !hasSelector
 	var unkeyable []string
 	for _, k := range definitions {
-		selected := selectsAll || filter.include.Has(k.Name) || (hasSelector && filter.selector.Matches(labels.Set(k.Labels)))
-		if !selected || filter.exclude.Has(k.Name) {
+		included := filter.include.Len() == 0 || filter.include.Has(k.Name)
+		matches := filter.selector == nil || filter.selector.Matches(labels.Set(k.Labels))
+		if !included || !matches || filter.exclude.Has(k.Name) {
 			continue
 		}
 		gvk := catalog.RootKey(k)

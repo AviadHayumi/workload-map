@@ -23,8 +23,8 @@ type Options struct {
 	Cluster SourceOptions
 }
 
-// SourceOptions selects by Include OR LabelSelector, everything when both are
-// empty; Exclude wins.
+// SourceOptions selects a definition when its name is in Include and its labels
+// match LabelSelector; an empty list or selector allows all, and Exclude wins.
 type SourceOptions struct {
 	Enabled bool
 	Include []string

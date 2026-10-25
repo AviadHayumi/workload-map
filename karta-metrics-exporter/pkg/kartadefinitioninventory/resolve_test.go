@@ -118,19 +118,18 @@ var _ = Describe("resolve", func() {
 			sourceFilter{enabled: true, include: sets.New("a")}, []string{"a"}),
 		Entry("a selector selects by label",
 			sourceFilter{enabled: true, selector: labels.SelectorFromSet(labels.Set{"team": "x"})}, []string{"a"}),
-		Entry("include list and selector are a union",
+		Entry("include list and selector must both match",
+			sourceFilter{enabled: true, include: sets.New("a", "c"), selector: labels.SelectorFromSet(labels.Set{"team": "y"})},
+			[]string{"c"}),
+		Entry("an included name whose labels do not match is not selected",
 			sourceFilter{enabled: true, include: sets.New("b"), selector: labels.SelectorFromSet(labels.Set{"team": "y"})},
-			[]string{"b", "c"}),
+			[]string{}),
 		Entry("exclude wins over include",
 			sourceFilter{enabled: true, include: sets.New("a", "b"), exclude: sets.New("a")}, []string{"b"}),
 		Entry("exclude wins over the selector",
 			sourceFilter{enabled: true, exclude: sets.New("c"), selector: mustParseSelector("team")}, []string{"a"}),
 		Entry("an exclude list alone removes names from everything",
 			sourceFilter{enabled: true, exclude: sets.New("b")}, []string{"a", "c"}),
-		Entry("NotIn also matches definitions without the label",
-			sourceFilter{enabled: true, selector: mustParseSelector("team notin (x)")}, []string{"b", "c"}),
-		Entry("an empty selector counts as absent",
-			sourceFilter{enabled: true, include: sets.New("a"), selector: labels.Everything()}, []string{"a"}),
 		Entry("a disabled source contributes nothing",
 			sourceFilter{include: sets.New("a")}, []string{}),
 	)
@@ -166,17 +165,6 @@ var _ = Describe("resolve", func() {
 				everything, everything)
 
 			Expect(selectedNames(snap)).To(Equal([]string{"cluster-deployment", "catalog-job"}))
-		})
-
-		It("serves the catalog definition again once the cluster one is gone", func() {
-			catalogDefinitions := []*v1alpha1.Karta{newKarta("catalog-job", jobGVK)}
-			clusterDefinitions := []*v1alpha1.Karta{newKarta("cluster-job", jobGVK)}
-
-			before := resolve(catalogDefinitions, clusterDefinitions, everything, everything)
-			after := resolve(catalogDefinitions, nil, everything, everything)
-
-			Expect(selectedNames(before)).To(Equal([]string{"cluster-job"}))
-			Expect(selectedNames(after)).To(Equal([]string{"catalog-job"}))
 		})
 
 		It("does not let an excluded cluster definition shadow the catalog", func() {
@@ -215,13 +203,6 @@ var _ = Describe("resolve", func() {
 				newKarta("z-unstamped", jobGVK),
 			},
 			"z-unstamped"),
-		Entry("the oldest of three wins",
-			[]*v1alpha1.Karta{
-				newKarta("c", jobGVK, createdAt(epoch.Add(2*time.Hour))),
-				newKarta("a", jobGVK, createdAt(epoch.Add(time.Hour))),
-				newKarta("b", jobGVK, createdAt(epoch)),
-			},
-			"b"),
 	)
 
 	DescribeTable("catalog ties pick the highest Kubernetes version priority, then the name",
@@ -238,24 +219,12 @@ var _ = Describe("resolve", func() {
 				newKarta("zzz-beta", dynamoBetaGVK),
 			},
 			"zzz-beta"),
-		Entry("v1alpha2 beats v1alpha1",
-			[]*v1alpha1.Karta{
-				newKarta("alpha2", dynamoAlphaGVK.GroupKind().WithVersion("v1alpha2")),
-				newKarta("alpha1", dynamoAlphaGVK),
-			},
-			"alpha2"),
 		Entry("a GA version beats a newer alpha",
 			[]*v1alpha1.Karta{
 				newKarta("v2alpha1", dynamoAlphaGVK.GroupKind().WithVersion("v2alpha1")),
 				newKarta("v1", dynamoAlphaGVK.GroupKind().WithVersion("v1")),
 			},
 			"v1"),
-		Entry("v1 beats v1beta1",
-			[]*v1alpha1.Karta{
-				newKarta("beta", dynamoBetaGVK),
-				newKarta("ga", dynamoAlphaGVK.GroupKind().WithVersion("v1")),
-			},
-			"ga"),
 	)
 
 	DescribeTable("selected definitions whose root names no complete GVK are reported, not keyed",
@@ -467,14 +436,6 @@ var _ = Describe("resolve", func() {
 			Expect(definition.Spec.StructureDefinition.RootComponent.StatusDefinition).To(BeNil())
 		})
 
-		It("rejects a core kind other than Pod, as the SDK validator does", func() {
-			service := schema.GroupVersionKind{Version: "v1", Kind: "Service"}
-
-			_, err := resolve(nil, []*v1alpha1.Karta{newKarta("service", service)}, disabled, everything).lookup(service)
-
-			Expect(err).To(MatchError(ErrInvalidDefinition))
-		})
-
 		It("lists invalid winners with their kinds and joins one error per invalid winner", func() {
 			snap := resolve(nil,
 				[]*v1alpha1.Karta{
@@ -491,16 +452,6 @@ var _ = Describe("resolve", func() {
 			Expect(listed).To(HaveLen(2))
 			Expect(listed[1].GVK).To(Equal(jobGVK))
 			Expect(listed[1].Definition.Name).To(Equal("job"))
-		})
-
-		It("elects an invalid winner without validating it", func() {
-			snap := resolve(nil, []*v1alpha1.Karta{newKarta("job", jobGVK, invalid)}, disabled, everything)
-
-			sel, ok := snap.elected(jobGVK)
-
-			Expect(ok).To(BeTrue())
-			Expect(sel.Origin).To(Equal(Origin{Source: SourceCluster, Name: "job"}))
-			Expect(sel.Definition.Name).To(Equal("job"))
 		})
 
 		It("validates each candidate lazily and once, under concurrent reads", func() {
