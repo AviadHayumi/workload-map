@@ -106,9 +106,15 @@ var _ = Describe("operator workloads", Serial, func() {
 				return nil
 			}, 10*time.Minute, 2*time.Second).Should(Succeed())
 			if test.name == "pod" && !includeBarePods {
+				rawRoot, err := json.MarshalIndent(current, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(outputDir, "pod-default-root.json"), rawRoot, 0600)).To(Succeed())
 				Consistently(ctx, func() error {
 					rows, raw, err := scrape(ctx)
 					if err != nil {
+						return err
+					}
+					if err := os.WriteFile(filepath.Join(outputDir, "pod-default-excluded.prom"), raw, 0600); err != nil {
 						return err
 					}
 					for _, row := range rows {
@@ -116,7 +122,7 @@ var _ = Describe("operator workloads", Serial, func() {
 							return fmt.Errorf("bare Pod is published despite the default catalog exclusion")
 						}
 					}
-					return os.WriteFile(filepath.Join(outputDir, "pod-default-excluded.prom"), raw, 0600)
+					return nil
 				}, 10*time.Second, time.Second).Should(Succeed())
 				AddReportEntry("verified", "bare Pod excluded by default")
 				return
