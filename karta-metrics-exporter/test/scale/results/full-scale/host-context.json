@@ -1,0 +1,9 @@
+{
+  "recorded_at_utc": "2026-10-25T20:03:44.346442+00:00",
+  "host_memory_bytes": 51539607552,
+  "swap": "total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
+  "disk_free_bytes": 47073644544,
+  "kind_nodes": "exporter-e2e-worker: Exited (137) 50 minutes ago\nexporter-e2e-control-plane: Exited (137) 50 minutes ago\nexporter-e2e-worker2: Exited (137) 50 minutes ago",
+  "gomaxprocs": 4,
+  "concurrency_context": "Parent confirmed no concurrent tests, builds, Docker operations or other benchmarks after binary capture; reviewers read source only."
+}
