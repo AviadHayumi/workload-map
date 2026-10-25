@@ -37,6 +37,25 @@ exporter:
       # Comprehension iterations between cancellation checks during one
       # evaluation. Must be greater than 0.
       interruptCheckFrequency: 100
+  # Karta definitions describe each workload type. Rendered verbatim into the
+  # exporter's config file. include and exclude take definition names and
+  # exclude wins. A definition is selected when its name is included or its
+  # labels match labelSelector, or always when both are empty.
+  kartaDefinitionSource:
+    # Built-in definitions shipped with the exporter. Unknown names fail startup.
+    catalog:
+      enabled: false
+      include: []
+      # core-pod-v1 would make every bare Pod a workload of its own.
+      exclude: [core-pod-v1]
+    # Karta objects in the cluster. A selected one replaces the built-in
+    # definition for the same group and kind. Grants the exporter read access
+    # to Kartas.
+    cluster:
+      enabled: true
+      include: []
+      exclude: []
+      labelSelector: {}
 
 # Overrides for resource names. Rarely needed.
 fullnameOverride: ""

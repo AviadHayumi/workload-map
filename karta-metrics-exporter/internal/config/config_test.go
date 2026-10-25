@@ -11,7 +11,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
 )
 
@@ -238,5 +240,86 @@ var _ = Describe("config loading", func() {
 			return nil
 		}),
 		Entry("unknown flag", func() []string { return []string{"--submitter-unknown", "1"} }),
+	)
+})
+
+var _ = Describe("Karta definition sources", func() {
+	It("defaults to the inventory's defaults", func() {
+		cfg, err := loadWithArgs()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.KartaDefinitionSource.Options()).To(Equal(kartadefinitioninventory.DefaultOptions()))
+	})
+
+	It("keeps the default catalog exclude when the file only enables the catalog", func() {
+		cfg, err := loadWithArgs("--config", writeConfig("kartaDefinitionSource:\n  catalog:\n    enabled: true\n"))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.KartaDefinitionSource.Catalog).To(Equal(DefinitionSourceConfig{Enabled: true, Exclude: []string{"core-pod-v1"}}))
+		Expect(cfg.KartaDefinitionSource.Cluster.Enabled).To(BeTrue())
+	})
+
+	It("clears the default catalog exclude with an empty list", func() {
+		cfg, err := loadWithArgs("--config", writeConfig("kartaDefinitionSource:\n  catalog:\n    enabled: true\n    exclude: []\n"))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.KartaDefinitionSource.Catalog.Exclude).To(BeEmpty())
+	})
+
+	It("reads the file as Helm renders it and converts the label selector", func() {
+		cfg, err := loadWithArgs("--config", writeConfig(`kartaDefinitionSource:
+  catalog:
+    enabled: true
+    include: []
+    exclude:
+    - core-pod-v1
+  cluster:
+    enabled: true
+    include:
+    - platform-job
+    exclude: []
+    labelSelector:
+      matchLabels:
+        example.com/owner: platform
+      matchExpressions:
+      - key: example.com/tier
+        operator: NotIn
+        values:
+        - experimental
+`))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.KartaDefinitionSource.Options()).To(Equal(kartadefinitioninventory.Options{
+			Catalog: kartadefinitioninventory.SourceOptions{Enabled: true, Include: []string{}, Exclude: []string{"core-pod-v1"}},
+			Cluster: kartadefinitioninventory.SourceOptions{
+				Enabled: true,
+				Include: []string{"platform-job"},
+				Exclude: []string{},
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"example.com/owner": "platform"},
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{Key: "example.com/tier", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"experimental"}},
+					},
+				},
+			},
+		}))
+	})
+
+	It("keeps an empty selector, which the inventory treats as no selector", func() {
+		cfg, err := loadWithArgs("--config", writeConfig("kartaDefinitionSource:\n  cluster:\n    enabled: true\n    labelSelector: {}\n"))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.KartaDefinitionSource.Options().Cluster.LabelSelector).To(Equal(&metav1.LabelSelector{}))
+		_, err = kartadefinitioninventory.NewSnapshot(cfg.KartaDefinitionSource.Options(), nil)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	DescribeTable("rejects a mistyped key",
+		func(content string) {
+			_, err := loadWithArgs("--config", writeConfig(content))
+			Expect(err).To(MatchError(ContainSubstring("not found")))
+		},
+		Entry("in a source", "kartaDefinitionSource:\n  cluster:\n    exlude: [a]\n"),
+		Entry("in a selector, such as the JSON-only spelling", "kartaDefinitionSource:\n  cluster:\n    labelSelector:\n      matchlabels: {a: b}\n"),
 	)
 })

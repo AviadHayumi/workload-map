@@ -14,7 +14,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 )
@@ -61,11 +65,39 @@ func run() error {
 		return fmt.Errorf("invalid submitter configuration: %w", err)
 	}
 
+	options := cfg.KartaDefinitionSource.Options()
+	var client dynamic.Interface
+	if options.Cluster.Enabled {
+		// Falls back to the in-cluster service account when no kubeconfig is found.
+		restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{}).ClientConfig()
+		if err != nil {
+			return fmt.Errorf("kubernetes client configuration: %w", err)
+		}
+		if client, err = dynamic.NewForConfig(restConfig); err != nil {
+			return fmt.Errorf("kubernetes client: %w", err)
+		}
+	}
+	inventory, err := kartadefinitioninventory.New(client, options)
+	if err != nil {
+		return fmt.Errorf("invalid Karta definition sources: %w", err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	inventoryDone := make(chan error, 1)
+	go func() { inventoryDone <- inventory.Run(ctx) }()
 	slog.Info("Karta metrics exporter scaffold started; metrics collection is not implemented",
-		"version", version.String(), "submitterExtraction", submitterextractor.IsEnabled(extractor))
-	<-ctx.Done()
+		"version", version.String(), "submitterExtraction", submitterextractor.IsEnabled(extractor),
+		"catalogDefinitions", options.Catalog.Enabled, "clusterDefinitions", options.Cluster.Enabled)
+	select {
+	case <-ctx.Done():
+		err = <-inventoryDone
+	case err = <-inventoryDone:
+	}
+	if err != nil {
+		return fmt.Errorf("karta definition inventory: %w", err)
+	}
 	slog.Info("Karta metrics exporter stopped")
 	return nil
 }

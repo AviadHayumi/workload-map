@@ -12,11 +12,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
 )
 
@@ -38,7 +41,8 @@ var errMultipleDocuments = errors.New("must contain a single YAML document")
 // Config is the exporter configuration. It is read from the YAML file named by
 // --config. A flag, or its environment variable, overrides the file when set.
 type Config struct {
-	Attribution AttributionConfig `yaml:"attribution" json:"attribution"`
+	Attribution           AttributionConfig           `yaml:"attribution" json:"attribution"`
+	KartaDefinitionSource KartaDefinitionSourceConfig `yaml:"kartaDefinitionSource" json:"kartaDefinitionSource"`
 }
 
 type AttributionConfig struct {
@@ -54,6 +58,32 @@ type AttributionLimits struct {
 	MaxExpressionBytes      int    `yaml:"maxExpressionBytes" json:"maxExpressionBytes"`
 	MaxIdentityBytes        int    `yaml:"maxIdentityBytes" json:"maxIdentityBytes"`
 	InterruptCheckFrequency uint   `yaml:"interruptCheckFrequency" json:"interruptCheckFrequency"`
+}
+
+// KartaDefinitionSourceConfig is read from the file only: its lists and
+// selectors do not fit a flag or an environment variable.
+type KartaDefinitionSourceConfig struct {
+	Catalog DefinitionSourceConfig `yaml:"catalog" json:"catalog"`
+	Cluster DefinitionSourceConfig `yaml:"cluster" json:"cluster"`
+}
+
+type DefinitionSourceConfig struct {
+	Enabled       bool           `yaml:"enabled" json:"enabled"`
+	Include       []string       `yaml:"include" json:"include"`
+	Exclude       []string       `yaml:"exclude" json:"exclude"`
+	LabelSelector *LabelSelector `yaml:"labelSelector" json:"labelSelector"`
+}
+
+// LabelSelector mirrors metav1.LabelSelector, whose fields carry no YAML tags.
+type LabelSelector struct {
+	MatchLabels      map[string]string          `yaml:"matchLabels" json:"matchLabels"`
+	MatchExpressions []LabelSelectorRequirement `yaml:"matchExpressions" json:"matchExpressions"`
+}
+
+type LabelSelectorRequirement struct {
+	Key      string   `yaml:"key" json:"key"`
+	Operator string   `yaml:"operator" json:"operator"`
+	Values   []string `yaml:"values" json:"values"`
 }
 
 var defaultAttributionLimits = AttributionLimits{
@@ -145,7 +175,14 @@ func NewLoader(fs *flag.FlagSet, getenv func(string) string) *Loader {
 // and then the flags, so a flag wins. Empty or whitespace-only values count as unset. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	cfg := Config{Attribution: AttributionConfig{Limits: defaultAttributionLimits}}
+	defaults := kartadefinitioninventory.DefaultOptions()
+	cfg := Config{
+		Attribution: AttributionConfig{Limits: defaultAttributionLimits},
+		KartaDefinitionSource: KartaDefinitionSourceConfig{
+			Catalog: DefinitionSourceConfig{Enabled: defaults.Catalog.Enabled, Exclude: slices.Clone(defaults.Catalog.Exclude)},
+			Cluster: DefinitionSourceConfig{Enabled: defaults.Cluster.Enabled},
+		},
+	}
 
 	if path := l.value(configSetting); path != "" {
 		data, err := os.ReadFile(path)
@@ -195,4 +232,21 @@ func (l *Loader) value(s setting) string {
 		return v
 	}
 	return l.getenv(s.env)
+}
+
+// Options converts the file settings; the inventory validates them.
+func (c KartaDefinitionSourceConfig) Options() kartadefinitioninventory.Options {
+	convert := func(s DefinitionSourceConfig) kartadefinitioninventory.SourceOptions {
+		o := kartadefinitioninventory.SourceOptions{Enabled: s.Enabled, Include: s.Include, Exclude: s.Exclude}
+		if s.LabelSelector != nil {
+			o.LabelSelector = &metav1.LabelSelector{MatchLabels: s.LabelSelector.MatchLabels}
+			for _, r := range s.LabelSelector.MatchExpressions {
+				o.LabelSelector.MatchExpressions = append(o.LabelSelector.MatchExpressions, metav1.LabelSelectorRequirement{
+					Key: r.Key, Operator: metav1.LabelSelectorOperator(r.Operator), Values: r.Values,
+				})
+			}
+		}
+		return o
+	}
+	return kartadefinitioninventory.Options{Catalog: convert(c.Catalog), Cluster: convert(c.Cluster)}
 }

@@ -434,9 +434,17 @@ vet-exporter: ## go vet the exporter module
 lint-exporter: golangci-lint ## Lint the exporter module
 	cd karta-metrics-exporter && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
 
+.PHONY: test-exporter-unit
+test-exporter-unit: ## Run the exporter unit tests with the race detector (no envtest binaries required)
+	cd karta-metrics-exporter && go test -race ./cmd/... ./internal/... ./pkg/...
+
+.PHONY: test-exporter-integration
+test-exporter-integration: envtest ## Run the exporter envtest suite (downloads control-plane binaries)
+	cd karta-metrics-exporter && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -race ./test/integration/...
+
 .PHONY: test-exporter
-test-exporter: ## Run the exporter module tests
-	cd karta-metrics-exporter && go test ./...
+test-exporter: test-exporter-unit test-exporter-integration ## Run the exporter unit and envtest suites
 
 .PHONY: build-exporter
 build-exporter: $(LOCALBIN) ## Build the karta-metrics-exporter binary for the host OS/arch
