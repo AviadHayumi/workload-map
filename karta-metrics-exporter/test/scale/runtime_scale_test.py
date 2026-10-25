@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 
+import ast
 import copy
+import inspect
 import io
 import json
 import threading
 import time
 import unittest
+from unittest import mock
+from types import SimpleNamespace
+import runtime_scale
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -310,8 +315,6 @@ class OracleTests(unittest.TestCase):
         self.assertTrue(self.check(updated.replace("-g0","-g1").replace("updated-team-2", f"updated-team-{self.fixture.changed_pods[0]}"))["complete"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CollectionGateTests(unittest.TestCase):
@@ -390,3 +393,68 @@ class CollectionGateTests(unittest.TestCase):
         samples[0]["completed_at"]=130
         samples[-1]["completed_at"]=320
         self.assertFalse(heap_window(samples,300)[2])
+
+
+class ConvergeWiringTests(unittest.TestCase):
+    def test_response_read_and_close_exclude_gc_but_oracle_does_not(self):
+        # Execute the actual nested function without starting an exporter process.
+        tree=ast.parse(inspect.getsource(runtime_scale.run))
+        node=next(n for n in tree.body[0].body if isinstance(n,ast.FunctionDef) and n.name=="converge")
+        read_entered,close_entered,oracle_entered=(threading.Event() for _ in range(3))
+        release_read,release_close,release_oracle=(threading.Event() for _ in range(3))
+        gc_entered=threading.Event()
+        gate=CollectionGate()
+        errors=[]
+        class Response:
+            sent=False
+            def __enter__(self): return self
+            def read(self, size):
+                if self.sent: return b""
+                self.sent=True
+                read_entered.set()
+                if not release_read.wait(2): raise TimeoutError("read barrier")
+                return b"fixture"
+            def __exit__(self, *args):
+                close_entered.set()
+                if not release_close.wait(2): raise TimeoutError("close barrier")
+        def oracle(body, *args):
+            self.assertEqual(body.read(),b"fixture")
+            oracle_entered.set()
+            if not release_oracle.wait(2): raise TimeoutError("oracle barrier")
+            return {"complete":True,"counts":{}}
+        namespace=dict(vars(runtime_scale),args=SimpleNamespace(stage_seconds=5,scrape_seconds=2,oracle_seconds=2,poll_seconds=0.001),
+                       fixture=SimpleNamespace(snapshot=lambda:{"requests":{}}),report={"stages":[]},
+                       process=SimpleNamespace(poll=lambda:None,pid=0),limit=[],metrics_port=1,
+                       diagnostics_port=None,started=time.monotonic(),collection_gate=gate,
+                       churn_intervals=ChurnIntervals(),read_metrics=oracle,
+                       process_usage=lambda pid:{"rss_bytes":0},print=lambda *a,**kw:None)
+        exec(compile(ast.Module(body=[node],type_ignores=[]),"actual_converge","exec"),namespace)
+        def converge():
+            try: namespace["converge"]("churn_continuity")
+            except Exception as exc: errors.append(exc)
+        worker=threading.Thread(target=converge)
+        gc=threading.Thread(target=lambda:gate.run(gc_entered.set))
+        with mock.patch.object(runtime_scale.urllib.request,"urlopen",return_value=Response()):
+            worker.start()
+            try:
+                self.assertTrue(read_entered.wait(1))
+                gc.start()
+                self.assertFalse(gc_entered.wait(0.02))
+                release_read.set()
+                self.assertTrue(close_entered.wait(1))
+                self.assertFalse(gc_entered.wait(0.02))
+                release_close.set()
+                self.assertTrue(oracle_entered.wait(1))
+                self.assertTrue(gc_entered.wait(1))
+                self.assertTrue(worker.is_alive())
+            finally:
+                release_read.set(); release_close.set(); release_oracle.set()
+                worker.join(2)
+                if gc.ident is not None: gc.join(2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(errors,[])
+        self.assertTrue(namespace["report"]["stages"][0]["scrapes"][0]["complete"])
+
+
+if __name__ == "__main__":
+    unittest.main()
