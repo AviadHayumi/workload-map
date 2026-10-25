@@ -9,10 +9,11 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 ## Current evidence
 
-- [100k-root zero-Pod candidates](results/full-scale/README.md): earlier runs
-  failed scheduling. The reconnect-fix repeat verified all 30,000 events but
-  failed one workload-health reason check and the sampled heap-growth gate.
-  All failures remain available; the one-Pod case was not started.
+- [100k-root zero-Pod candidates](results/full-scale/README.md): the latest
+  protocol-2 repeat passed correctness, all 30,000 verified events and all other
+  measured gates, but failed heap growth at 10.12% against the unchanged 5% gate.
+  Earlier scheduling, health-reason and sampling failures remain available.
+  The one-Pod case was not started.
 
 - [Verified 1k-root smokes](results/smoke/README.md#corrected-oracle-and-verified-acknowledgment):
   direct and intermediate ownership passed bounded lifecycle and 20-second churn

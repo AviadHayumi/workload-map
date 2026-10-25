@@ -180,3 +180,49 @@ allocations can therefore affect these samples. This is a comparability issue
 to investigate, not proof of a persistent cache leak or permission to waive the
 gate. The result remains failed. Post-delete forced-GC HeapAlloc was 92,887,032
 bytes and passed recovery. No one-Pod measurement followed.
+
+## Protocol 2 repeat
+
+`941b33a6-100000-0.json.gz` and its compressed log record clean source
+`941b33a6a2d4076782161b463a523abac253ec0a`, including producer fix `4153bed4`
+and measurement protocol 2. Binary SHA256 is
+`192c7d5bc8bd6aedeebcd94fc99aa04ca91f129373d37c1ed790e215c2966426`.
+Host context confirms all four kind nodes stopped and zero swap. All workload,
+API budgets and thresholds remain unchanged; sampling/drain protocol differences
+are declared in the harness guide. The earlier failures are not reclassified.
+
+Correctness passed with zero continuity gaps and all lifecycle stages completed
+in 789.668 seconds. Full acceptance failed the unchanged 5% heap-growth gate,
+despite exit status zero and `complete: true`. Every other measured gate passed:
+
+| Measurement | Result |
+| --- | --- |
+| Cold convergence | 45.7887 s |
+| Peak sampled RSS | 6,357,401,600 bytes |
+| Emitted / verified events | 30,000 / 30,000 |
+| Actual emission rate | 99.99908/s |
+| Publication p99 / max upper bound | 0.70915 / 1.10928 s |
+| Maximum scheduling lateness | 0.68501 s |
+| Queue drain after ACK/window completion | 1.42609 s |
+| Actual GC sampling coverage | 208.11872 s |
+| Post-delete HeapAlloc | 102,328,936 bytes |
+
+All HTTP and oracle timing gates passed. The post-GC samples were outside
+client metrics HTTP requests, as required by protocol 2:
+
+| Actual completion, churn seconds | HeapAlloc bytes |
+| --- | ---: |
+| 92.2527 | 777671720 |
+| 120.3300 | 858908088 |
+| 150.3724 | 789287328 |
+| 180.2403 | 843237024 |
+| 221.2986 | 856618704 |
+| 247.3161 | 861317960 |
+| 273.9211 | 778604440 |
+| 300.3714 | 856388584 |
+
+The first-to-last ratio is +10.122%, above 5%. The sequence oscillates and
+returns near baseline at 273.921 seconds; this alone does not identify the
+retained allocations or establish a leak. Runtime work and diagnostics can
+still overlap these GC requests. No alternative baseline or threshold was
+substituted. Full acceptance remains failed, and the one-Pod run was not started.
