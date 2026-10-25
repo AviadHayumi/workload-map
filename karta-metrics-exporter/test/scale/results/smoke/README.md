@@ -155,3 +155,8 @@ a 2,000-event schedule over 20 seconds. The old scheduler could drop a final
 due tick when diagnostic polling resumed after the wall-clock boundary. The
 failed gate remains in the unchanged report. Twenty seconds also remains below
 the five-minute acceptance duration.
+
+`scheduler-debug.json.gz` verifies the independent fixed-count emitter on the
+immutable `33d292fb` binary: ten roots, two seconds and 20 scheduled/verified
+events. All bounded correctness and scheduler checks passed. This is a thread
+and diagnostic integration check, not a sustained-rate acceptance result.

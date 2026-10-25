@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, read_metrics, verified_publication
+from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, FixedSchedule, read_metrics, verified_publication
 
 
 class APIFixtureTests(unittest.TestCase):
@@ -152,6 +152,42 @@ class APIFixtureTests(unittest.TestCase):
         job=self.get("/apis/batch/v1/namespaces/scale/jobs/job-0")
         job_event=next(obj for _,resource,event,obj in self.fixture.events if resource=="jobs" and event=="ADDED")
         self.assertEqual(job,job_event)
+
+
+class SchedulerTests(unittest.TestCase):
+    def test_last_due_tick_is_not_dropped_at_duration_boundary(self):
+        schedule=FixedSchedule(0.03,100,1)
+        self.assertEqual(schedule.target,3)
+        self.assertEqual(schedule.record(0),(0,0))
+        self.assertFalse(schedule.due(0.009))
+        self.assertEqual(schedule.record(0.01),(0.01,0))
+        self.assertTrue(schedule.due(0.030001))
+        scheduled,lateness=schedule.record(0.030001)
+        self.assertEqual(scheduled,0.02)
+        self.assertAlmostEqual(lateness,0.010001)
+        self.assertEqual(schedule.emitted,3)
+        self.assertFalse(schedule.due(10))
+
+    def test_pending_root_backpressure_never_advances_or_fabricates_ticks(self):
+        schedule=FixedSchedule(1,100,1)
+        self.assertFalse(schedule.due(0.5,blocked=True))
+        self.assertEqual(schedule.emitted,0)
+        self.assertEqual(schedule.record(0.5),(0,0.5))
+        self.assertEqual(schedule.emitted,1)
+        self.assertFalse(schedule.due(0.7,blocked=True))
+        self.assertEqual(schedule.emitted,1)
+
+    def test_long_stalls_fail_before_a_catchup_burst(self):
+        schedule=FixedSchedule(300,100,1)
+        self.assertEqual(schedule.target,30000)
+        schedule.record(0)
+        with self.assertRaisesRegex(RuntimeError,"lateness"):
+            schedule.due(1.02)
+        self.assertEqual(schedule.emitted,1)
+        with self.assertRaisesRegex(RuntimeError,"lateness"):
+            schedule.due(1.02,blocked=True)
+        with self.assertRaises(AssertionError):
+            FixedSchedule(1,100,1).record(-0.1)
 
 
 class OracleTests(unittest.TestCase):

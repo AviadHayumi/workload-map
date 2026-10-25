@@ -117,12 +117,28 @@ These polls do not format metrics, but Capture scans the publication set and
 selected Pod records add diagnostic CPU and response size, especially for the
 giant-root case. That overhead is included in reported latency.
 
-Sustained churn rotates through up to 100 independent roots. Each root has at
-most one pending event, so a later generation cannot falsely acknowledge an
-older one. A slow publisher reduces achieved event rate. The report retains
-actual count and elapsed time. The count is compared with the exact scheduled count (30,000 events for 300 seconds at
-100 events/s). A scheduling boundary miss is visible in this performance gate;
-it does not erase a successful correctness check. Reported publication latency
+Sustained churn uses an independent paced emitter and rotates through up to 100
+roots. Event `i` is scheduled at `i/rate`, for an exact target of 30,000 events
+over 300 seconds at 100 events/s. Diagnostic HTTP calls and forced exporter GC
+do not block that emitter. Each root has at most one pending event, so a later
+generation cannot falsely acknowledge an older one. The emitter waits for that
+root's verified acknowledgment before changing it again.
+
+A final due tick is not discarded merely because a poll resumes just beyond
+the requested duration. The harness still observes the full requested window.
+It records each scheduled and actual offset, lateness, actual emission span
+and throughput. There is no zero-tolerance emission-duration gate. Exact event
+count and verified publication recovery remain independent requirements.
+
+Before the large runs, the scheduling lateness limit is declared as one second
+(`--max-scheduling-lateness-seconds`). This is one complete rotation of the
+100-root pool at 100 events/s. Exceeding it fails the run before a large catch-up
+burst; it does not waive exporter backpressure or publication latency limits.
+The limit and actual maximum lateness are recorded. The earlier 1,999-event
+report is retained unchanged. Deterministic tests cover the final boundary,
+pending-root backpressure and long stalls.
+
+Reported publication latency
 is an upper bound from just before event emission to the first verified diagnostic response.
 It includes polling and diagnostic transport. It is not an exact publication
 timestamp. Diagnostic traffic and CPU are part of the measured wrapper overhead.

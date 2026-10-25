@@ -359,6 +359,28 @@ class LoopbackAPI:
             self.server.server_close()
 
 
+class FixedSchedule:
+    def __init__(self, seconds, rate, lateness_limit):
+        self.target = math.ceil(seconds*rate)
+        self.rate = rate
+        self.lateness_limit = lateness_limit
+        self.emitted = 0
+
+    def due(self, elapsed, blocked=False):
+        if self.emitted >= self.target or elapsed < self.emitted/self.rate:
+            return False
+        if elapsed-self.emitted/self.rate > self.lateness_limit:
+            raise RuntimeError("emitter exceeded the scheduling lateness limit")
+        return not blocked
+
+    def record(self, elapsed):
+        if not self.due(elapsed):
+            raise AssertionError("event emitted before its scheduled offset")
+        scheduled = self.emitted/self.rate
+        self.emitted += 1
+        return scheduled, elapsed-scheduled
+
+
 class ChurnIntervals:
     """Only roots with emitted, not yet verified changes may be temporarily invalid."""
     def __init__(self):
@@ -606,6 +628,8 @@ def run(args):
     diagnostic_samples = []
     continuity_stop = None
     continuity_thread = None
+    emission_stop = threading.Event()
+    emission_thread = None
 
     diagnostic_traffic = collections.Counter()
     diagnostic_lock = threading.Lock()
@@ -713,55 +737,80 @@ def run(args):
             continuity_thread=threading.Thread(target=continuity,daemon=True)
             continuity_thread.start()
             churn_started=time.monotonic()
-            next_event=churn_started
             pending={}
             latencies=[]
             report["sustained_churn"] = {"requested_seconds":args.churn_seconds,"target_event_count":math.ceil(args.churn_seconds*args.churn_rate),"target_events_per_second":args.churn_rate,"emitted":0,"observed":0,"publication_upper_bounds_seconds":latencies}
             report["sustained_churn"]["emissions"] = []
-            emitted=0
+            schedule=FixedSchedule(args.churn_seconds,args.churn_rate,args.max_scheduling_lateness_seconds)
+            emission_condition=threading.Condition()
+            emission_done=threading.Event()
+            emission_errors=[]
+            report["sustained_churn"]["scheduling_lateness_limit_seconds"]=args.max_scheduling_lateness_seconds
+            report["sustained_churn"]["max_scheduling_lateness_seconds"]=0
             pool=min(100,args.roots)
             gc_samples=[]
             report["sustained_churn"]["gc_samples"]=gc_samples
             next_gc=churn_started+max(0,args.churn_seconds-180)
-            while time.monotonic()-churn_started < args.churn_seconds or pending:
+            def emit_changes():
+                try:
+                    while schedule.emitted < schedule.target and not emission_stop.is_set():
+                        with emission_condition:
+                            sent=time.monotonic()
+                            root=schedule.emitted % pool
+                            if not schedule.due(sent-churn_started,root in pending):
+                                delay=max(0.001,min(0.05,churn_started+schedule.emitted/args.churn_rate-sent))
+                                emission_condition.wait(timeout=delay)
+                                continue
+                            scheduled,lateness=schedule.record(sent-churn_started)
+                            churn_intervals.begin(root,sent)
+                            fixture.change(root,change_pods=False)
+                            pending[root]=(str(fixture.root_versions[root]),sent)
+                            report["sustained_churn"]["emissions"].append({"root":root,"resource_version":str(fixture.root_versions[root]),"seconds":round(sent-started,6),"scheduled_seconds":scheduled,"lateness_seconds":lateness})
+                            report["sustained_churn"]["emitted"]=schedule.emitted
+                            report["sustained_churn"]["last_emission_seconds"]=sent-churn_started
+                            report["sustained_churn"]["max_scheduling_lateness_seconds"]=max(report["sustained_churn"]["max_scheduling_lateness_seconds"],lateness)
+                except Exception as exc:
+                    emission_errors.append(str(exc))
+                    report["sustained_churn"]["scheduler_error"]=str(exc)
+                finally:
+                    emission_done.set()
+
+            emission_thread=threading.Thread(target=emit_changes,daemon=True)
+            emission_thread.start()
+            while not emission_done.is_set() or pending or time.monotonic()-churn_started < args.churn_seconds:
                 now=time.monotonic()
+                if emission_errors:
+                    raise RuntimeError(emission_errors[0])
                 if now-churn_started >= args.churn_seconds+args.stage_seconds:
                     raise RuntimeError("churn publication drain deadline exceeded")
                 if process.poll() is not None:
                     raise RuntimeError("exporter exited during sustained churn")
                 if churn_intervals.overdue(now,10 if args.pods>=10 else 5):
                     raise RuntimeError("changed root did not recover a verified publication within the latency bound")
-                while now-churn_started < args.churn_seconds and now >= next_event:
-                    root=emitted % pool
-                    if root in pending:
-                        break
-                    if root not in pending:
-                        sent=time.monotonic()
-                        churn_intervals.begin(root,sent)
-                        fixture.change(root,change_pods=False)
-                        pending[root]=(str(fixture.root_versions[root]),sent)
-                        report["sustained_churn"]["emissions"].append({"root":root,"resource_version":str(fixture.root_versions[root]),"seconds":round(sent-started,6)})
-                        emitted+=1
-                        report["sustained_churn"]["emitted"]=emitted
-                        report["sustained_churn"]["last_emission_seconds"]=now-churn_started
-                        next_event+=1/args.churn_rate
-                        now=time.monotonic()
                 if now >= next_gc and now-churn_started < args.churn_seconds:
                     gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(now-churn_started,4)))
                     next_gc+=args.gc_sample_seconds
-                if pending:
-                    query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in pending])
+                with emission_condition:
+                    pending_snapshot=dict(pending)
+                if pending_snapshot:
+                    query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in pending_snapshot])
                     publications=diagnostic("/publications?"+query)
                     observed=time.monotonic()
-                    for root,(version,sent) in list(pending.items()):
-                        uid=f"job-{root}-g{fixture.generations.get(root,0)}"
-                        publication=publications.get(uid,{})
-                        if verified_publication(publication,fixture,root,version):
-                            churn_intervals.acknowledge(root,observed)
-                            latencies.append(observed-sent)
-                            del pending[root]
-                            report["sustained_churn"]["observed"]=len(latencies)
+                    with emission_condition:
+                        for root,(version,sent) in pending_snapshot.items():
+                            uid=f"job-{root}-g{fixture.generations.get(root,0)}"
+                            publication=publications.get(uid,{})
+                            if verified_publication(publication,fixture,root,version):
+                                churn_intervals.acknowledge(root,observed)
+                                latencies.append(observed-sent)
+                                del pending[root]
+                                report["sustained_churn"]["observed"]=len(latencies)
+                        emission_condition.notify_all()
                 time.sleep(args.diagnostic_poll_seconds)
+            emission_thread.join(timeout=1)
+            if emission_errors:
+                raise RuntimeError(emission_errors[0])
+            emitted=schedule.emitted
             report["sustained_churn"]["emission_and_observation_seconds"]=time.monotonic()-churn_started
             report["sustained_churn"]["observed_events_per_elapsed_second"]=len(latencies)/report["sustained_churn"]["emission_and_observation_seconds"]
             gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(time.monotonic()-churn_started,4)))
@@ -845,6 +894,9 @@ def run(args):
         report["complete"] = False
         report["failure"] = str(exc)
     finally:
+        emission_stop.set()
+        if emission_thread is not None:
+            emission_thread.join(timeout=2)
         stop.set()
         if continuity_stop is not None:
             continuity_stop.set()
@@ -861,6 +913,14 @@ def run(args):
         report["returncode"] = process.returncode
         completed = [scrape for stage in report["stages"] for scrape in stage["scrapes"] if scrape.get("complete")]
         report["measured_gates"] = {"http_scrapes_under_25s": bool(completed) and all(scrape["http_seconds"] <= 25 for scrape in completed), "oracle_under_deadline": bool(completed) and all(scrape["oracle_seconds"] <= args.oracle_seconds for scrape in completed)}
+        if "sustained_churn" in report:
+            churn=report["sustained_churn"]
+            events=churn["emissions"]
+            span=events[-1]["seconds"]-events[0]["seconds"] if len(events)>1 else 0
+            churn["actual_emission_span_seconds"]=span
+            churn["actual_emission_events_per_second"]=(len(events)-1)/span if span else None
+            report["measured_gates"]["sustained_churn_event_count"]=churn["emitted"]==churn["target_event_count"]
+            report["measured_gates"]["scheduler_lateness"]=not churn.get("scheduler_error") and churn["max_scheduling_lateness_seconds"]<=churn["scheduling_lateness_limit_seconds"]
         if "sustained_churn" in report and "drain_seconds" in report["sustained_churn"]:
             churn=report["sustained_churn"]
             report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= (10 if args.pods>=10 else 5),"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= (60 if args.pods>=10 else 30),"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
@@ -902,6 +962,7 @@ def main():
     parser.add_argument("--diagnostics", action="store_true", help="Binary is the test/scale/cmd wrapper")
     parser.add_argument("--churn-seconds", type=float, default=0)
     parser.add_argument("--churn-rate", type=float, default=100)
+    parser.add_argument("--max-scheduling-lateness-seconds", type=float, default=1, help="Fail instead of catch-up bursts after a longer emitter stall")
     parser.add_argument("--gc-sample-seconds", type=float, default=30)
     parser.add_argument("--diagnostic-poll-seconds", type=float, help="Default 250ms for >=10k roots or >=100k Pods; otherwise 10ms")
     parser.add_argument("--output", required=True)
@@ -922,7 +983,7 @@ def main():
     args = parser.parse_args()
     if args.diagnostic_poll_seconds is None:
         args.diagnostic_poll_seconds = 0.25 if args.roots >= 10000 or args.roots*args.pods >= 100000 else 0.01
-    if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0 or args.churn_seconds < 0 or args.churn_rate <= 0 or args.diagnostic_poll_seconds <= 0 or args.gc_sample_seconds <= 0 or args.quiet_seconds < 0 or args.continuity_seconds <= 0 or args.refresh_seconds < 0:
+    if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0 or args.churn_seconds < 0 or args.churn_rate <= 0 or args.max_scheduling_lateness_seconds <= 0 or args.diagnostic_poll_seconds <= 0 or args.gc_sample_seconds <= 0 or args.quiet_seconds < 0 or args.continuity_seconds <= 0 or args.refresh_seconds < 0:
         parser.error("invalid scenario or safety bound; maximum 100k roots and 1m Pods")
     if (args.api_qps is not None and args.api_qps<=0) or (args.api_burst is not None and args.api_burst<=0) or (args.workers is not None and args.workers<1):
         parser.error("explicit API budgets and worker counts must be positive")
