@@ -41,7 +41,7 @@ var _ = Describe("Prometheus pull collection", func() {
 		now = time.Unix(100, 0)
 		s = store.New(store.Options{Now: func() time.Time { return now }})
 		evidence := store.Evidence{ExpiresAt: now.Add(time.Minute), Dependencies: []string{"root"}}
-		p = &store.Publication{Workload: store.WorkloadRecord{UID: "root", Ref: store.ObjectRef{Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running", "Degraded"}, CreatedTimestamp: 50}, Status: evidence, Creation: evidence, PodPages: []*store.PodPage{{Rows: []store.PublishedPod{{Record: store.PodRecord{UID: "pod", Name: "worker", OwnerResolution: store.Resolved}, Mapping: evidence}}}}}
+		p = &store.Publication{Workload: store.WorkloadRecord{UID: "root", Ref: store.ObjectRef{Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running", "Degraded"}, CreatedTimestamp: 50}, Status: evidence, Creation: evidence, PodPages: []*store.PodPage{{Rows: []store.PublishedPod{{Record: store.PodRecord{UID: "pod", Namespace: "ns", Name: "worker", OwnerResolution: store.Resolved}, Mapping: evidence}}}}}
 		registry := prom.NewRegistry()
 		reader, err := exporter.New(exporter.WithRegisterer(registry), exporter.WithoutTargetInfo(), exporter.WithoutScopeInfo())
 		Expect(err).NotTo(HaveOccurred())
@@ -88,6 +88,35 @@ var _ = Describe("Prometheus pull collection", func() {
 				Expect(line).To(HaveSuffix(expected))
 			}
 		}
+	})
+	It("keeps Pod namespaces distinct beneath a cluster-scoped root", func() {
+		p.Workload.Ref.Namespace = ""
+		p.Workload.Ref.GVK = schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "ClusterWorkload"}
+		a := p.PodPages[0].Rows[0]
+		a.Record.Namespace = "team-a"
+		b := a
+		b.Record.UID = "pod-b"
+		b.Record.Namespace = "team-b"
+		p.PodPages = store.BuildPodPages([]store.PublishedPod{a, b}, nil)
+		s.Publish(p)
+		output := scrape()
+		Expect(strings.Count(output, MetricPodWorkloadInfo+"{")).To(Equal(2))
+		for _, line := range strings.Split(output, "\n") {
+			if strings.HasPrefix(line, MetricPodWorkloadInfo+"{") {
+				if strings.Contains(line, `pod_uid="pod-b"`) {
+					Expect(line).To(ContainSubstring(`namespace="team-b"`))
+				} else {
+					Expect(line).To(ContainSubstring(`namespace="team-a"`))
+				}
+			} else if strings.HasPrefix(line, MetricWorkloadStatus+"{") {
+				Expect(line).To(ContainSubstring(`namespace=""`))
+			}
+		}
+		s.Publish(p.WithPod(a.Record.UID, nil))
+		output = scrape()
+		Expect(strings.Count(output, MetricPodWorkloadInfo+"{")).To(Equal(1))
+		Expect(output).NotTo(ContainSubstring(`namespace="team-a"`))
+		Expect(output).To(ContainSubstring(`namespace="team-b"`))
 	})
 	It("preserves built-in identity and keeps custom labels off creation and health", func() {
 		p.Workload.StatusLabels = map[string]string{"namespace": "wrong", "team": "status"}

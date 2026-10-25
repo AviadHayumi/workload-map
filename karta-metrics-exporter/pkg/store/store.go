@@ -69,6 +69,7 @@ const (
 )
 
 type PodRecord struct {
+	Namespace       string
 	UID             types.UID
 	Name            string
 	Component       string

@@ -137,7 +137,7 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 					reason = failureReason(reason, failure)
 				}
 				podRoot := ref
-				values := []string{podRoot.Namespace, podRoot.Name, podRoot.GVK.Group, podRoot.GVK.Version, podRoot.GVK.Kind, string(workload.UID), string(pod.OwnerResolution), pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Group, strconv.FormatBool(valid)}
+				values := []string{pod.Namespace, podRoot.Name, podRoot.GVK.Group, podRoot.GVK.Version, podRoot.GVK.Kind, string(workload.UID), string(pod.OwnerResolution), pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Group, strconv.FormatBool(valid)}
 				c.podInfo.observe(observer, 1, pod.Labels, values...)
 			}
 		}

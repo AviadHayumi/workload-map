@@ -247,6 +247,16 @@ var _ = Describe("Pod pages", func() {
 		Expect(BuildPodPages(rows, p)[0]).To(BeIdenticalTo(p.PodPages[0]))
 	})
 
+	It("does not reuse a page when a Pod namespace changes", func() {
+		rows := []PublishedPod{{Record: PodRecord{UID: "one", Namespace: "team-a"}}}
+		p := &Publication{PodPages: BuildPodPages(rows, nil)}
+		rows[0].Record.Namespace = "team-b"
+		pages := BuildPodPages(rows, p)
+		Expect(pages[0]).NotTo(BeIdenticalTo(p.PodPages[0]))
+		Expect(pages[0].Rows[0].Record.Namespace).To(Equal("team-b"))
+		Expect(p.PodPages[0].Rows[0].Record.Namespace).To(Equal("team-a"))
+	})
+
 	It("copies only changed pages and never reorders the input", func() {
 		rows := make([]PublishedPod, PodPageSize+1)
 		for i := range rows {
