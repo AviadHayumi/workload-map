@@ -9,11 +9,10 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 ## Current evidence
 
-- [100k-root zero-Pod candidate](results/full-scale/README.md): cold and quiet
-  checks passed, but both the initial and scheduled-renewal candidates failed
-  the predeclared scheduler limit. The repeat reached 212 seconds of churn
-  before a root-queue backlog. Both failures remain available; the one-Pod
-  case was not started.
+- [100k-root zero-Pod candidates](results/full-scale/README.md): earlier runs
+  failed scheduling. The reconnect-fix repeat verified all 30,000 events but
+  failed one workload-health reason check and the sampled heap-growth gate.
+  All failures remain available; the one-Pod case was not started.
 
 - [Verified 1k-root smokes](results/smoke/README.md#corrected-oracle-and-verified-acknowledgment):
   direct and intermediate ownership passed bounded lifecycle and 20-second churn

@@ -129,3 +129,54 @@ that counter unchanged. `AddRateLimited` also delegates to `AddAfter`. Therefore
 recorded ready-queue depth surge is separate evidence; raw counters are retained.
 The small stale-reconnect reproduction returns HTTP 200 followed by an in-stream
 ERROR 410. It does not establish an HTTP 410 response while opening the stream.
+
+## Reconnect-fix repeat
+
+`17be01f1-100000-0.json.gz` and its matching compressed log record clean source
+`17be01f1c344d2dca885db9355d45f8a51fc2f15`. Binary SHA256 is
+`973d47851f09c24c61bbddb773e35aa577112e90eeb9345d1c4bcd93aa1ee687`.
+The matching host-context file records all four kind nodes stopped and no swap.
+No acceptance gate, API budget or modeled expiration behavior changed.
+
+This run completed every lifecycle stage in 771.618 seconds but failed overall.
+Cold convergence took 45.4056 seconds and peak RSS was 6,368,772,096 bytes.
+All 30,000 events were emitted and verified over the full 300-second window.
+Actual emission throughput was 99.99996 events/s. Verified publication p99 was
+0.7902 seconds, maximum 1.3646 seconds, scheduler lateness at most 0.4883 seconds,
+and queue drain 12.757 seconds. HTTP/oracle timing and deletion recovery passed.
+These measurements do not override the two failures below.
+
+One churn continuity scrape, process time 378.451-399.695 seconds, returned:
+
+```text
+karta_exporter_observation_valid{namespace="scale",reason="unresolved_owner",resource_group="batch",resource_kind="Job",resource_version="v1",scope="workload",workload_name="job-78",workload_uid="job-78-g0"} 0
+```
+
+Root 78 was intentionally changing. The oracle permits temporary invalidity
+with `api_unavailable`, but rejected this `unresolved_owner` reason. This was
+workload health, not resource-type health. A later scrape recovered; the one
+continuity gap remains a failed correctness result.
+
+The forced-GC heap-growth gate also failed: 861,982,360 to 2,297,551,072 bytes,
+a 166.54% increase. Sample timing matters for diagnosis:
+
+| Churn seconds | HeapAlloc bytes | Concurrent full metrics HTTP |
+| --- | ---: | --- |
+| 120.1753 | 861982360 | No |
+| 150.1483 | 787472752 | No |
+| 180.2142 | 772033664 | No |
+| 210.2312 | 841708584 | No |
+| 240.1201 | 1802442008 | Yes |
+| 270.0247 | 3511967464 | Yes |
+| 300.9061 | 2297551072 | Yes |
+
+All sampled ready queues were empty. The last GC overlaps process time
+562.264-573.487 seconds of metrics HTTP work; the first is outside metrics HTTP.
+`/gc` calls `runtime.GC()` then reads `MemStats.HeapAlloc`. It does not expose
+HeapInuse or a normalized HeapLive metric. GC/ACK requests are sequential within
+the churn thread, but the independent metrics scrape and monitor can overlap.
+The diagnostic lock protects traffic counters only. Reachable collection
+allocations can therefore affect these samples. This is a comparability issue
+to investigate, not proof of a persistent cache leak or permission to waive the
+gate. The result remains failed. Post-delete forced-GC HeapAlloc was 92,887,032
+bytes and passed recovery. No one-Pod measurement followed.
