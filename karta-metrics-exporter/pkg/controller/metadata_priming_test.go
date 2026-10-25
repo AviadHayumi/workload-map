@@ -225,22 +225,22 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 			w := seedWatch(r, testRootGVK, "jobs")
 			changed := owner.DeepCopy()
 			changed.SetResourceVersion("2")
-			r.accept(w, changed, false)
+			r.acceptEvent(w, changed, false)
 		case "uid":
 			changed := pod.DeepCopy()
 			changed.SetResourceVersion("2")
 			refs := changed.GetOwnerReferences()
 			refs[0].UID = "replacement"
 			changed.SetOwnerReferences(refs)
-			r.accept(pw, changed, false)
+			r.acceptEvent(pw, changed, false)
 		case "prune":
-			r.accept(pw, pod, true)
+			r.acceptEvent(pw, pod, true)
 			r.pruneMetadata()
 		case "namespace":
 			ns := testObject(namespaceGVK, "ns")
 			ns.SetNamespace("")
 			ns.SetResourceVersion("2")
-			r.accept(nw, ns, false)
+			r.acceptEvent(nw, ns, false)
 		}
 		close(resume)
 		Eventually(done).Should(Receive(Succeed()))

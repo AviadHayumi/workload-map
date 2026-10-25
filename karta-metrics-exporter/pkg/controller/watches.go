@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -25,6 +26,17 @@ import (
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
+
+// Provenance stays outside Kubernetes fields and follows informer copies.
+type sourceObject struct {
+	*unstructured.Unstructured
+	sequence  uint64
+	expiresAt time.Time
+}
+
+func (o *sourceObject) DeepCopyObject() kruntime.Object {
+	return &sourceObject{Unstructured: o.DeepCopy(), sequence: o.sequence, expiresAt: o.expiresAt}
+}
 
 type watchedStream struct {
 	source watch.Interface
@@ -282,13 +294,13 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 			return r.monitorWatch(requestCtx, w, source), nil
 		},
 	}
-	w.informer = cache.NewSharedIndexInformer(lw, &unstructured.Unstructured{}, 0, cache.Indexers{})
+	w.informer = cache.NewSharedIndexInformer(lw, &sourceObject{}, 0, cache.Indexers{})
 	if err := w.informer.SetTransform(func(object any) (any, error) {
-		body, ok := object.(*unstructured.Unstructured)
+		body, ok := object.(*sourceObject)
 		if !ok {
-			return object, nil
+			return nil, fmt.Errorf("unexpected informer object %T", object)
 		}
-		copy := body.DeepCopy()
+		copy := body.DeepCopyObject().(*sourceObject)
 		copy.SetManagedFields(nil)
 		copy.SetGroupVersionKind(gvk)
 		return copy, nil
@@ -308,6 +320,7 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	r.watches[key] = w
 	r.reader.mu.Lock()
 	r.trackWatchVersion(gvk, 1)
+	r.reader.watchStateLocked(watchReadScope{gvk: gvk, namespace: key.Namespace})
 	r.reader.activeKeys[w.failureKey] = true
 	r.reader.mu.Unlock()
 	r.wg.Add(1)
@@ -340,15 +353,9 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	readSequence := r.sequence
 	r.reader.mu.Lock()
 	readerSequence := r.reader.sequence
+	started := r.config.Now()
 	scope := watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}
-	if r.reader.watchReads == nil {
-		r.reader.watchReads = map[watchReadScope]*watchReadState{}
-	}
-	read := r.reader.watchReads[scope]
-	if read == nil || read.retired {
-		read = &watchReadState{invalidated: map[objectKey]ownershipInvalidation{}}
-		r.reader.watchReads[scope] = read
-	}
+	read := r.reader.watchStateLocked(scope)
 	read.readers++
 	r.reader.mu.Unlock()
 	r.mu.Unlock()
@@ -360,7 +367,6 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		}
 		r.reader.mu.Unlock()
 	}()
-	started := r.config.Now()
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
 	defer cancel()
 	list, err := r.reader.clients.Dynamic.Resource(w.key.Resource).Namespace(w.key.Namespace).List(requestCtx, options)
@@ -392,7 +398,14 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		w.verifiedAt = started
 		w.verifiedRead = readSequence
 	}
-	return list, err
+	if err != nil {
+		return nil, err
+	}
+	result := &metav1.List{ListMeta: metav1.ListMeta{ResourceVersion: list.GetResourceVersion(), Continue: list.GetContinue(), RemainingItemCount: list.GetRemainingItemCount()}}
+	for i := range list.Items {
+		result.Items = append(result.Items, kruntime.RawExtension{Object: &sourceObject{Unstructured: &list.Items[i], sequence: readerSequence, expiresAt: started.Add(r.config.MaxAge)}})
+	}
+	return result, nil
 }
 
 func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source watch.Interface) watch.Interface {
@@ -425,6 +438,13 @@ func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source wat
 						r.failWatchLocked(w, cause)
 					}
 					r.mu.Unlock()
+				}
+				if object, ok := event.Object.(*unstructured.Unstructured); ok {
+					r.reader.mu.RLock()
+					sequence := r.reader.sequence
+					expiresAt := r.config.Now().Add(r.config.MaxAge)
+					r.reader.mu.RUnlock()
+					event.Object = &sourceObject{Unstructured: object, sequence: sequence, expiresAt: expiresAt}
 				}
 				select {
 				case <-child.Done():
@@ -490,10 +510,11 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	if tombstone, ok := value.(cache.DeletedFinalStateUnknown); ok {
 		value = tombstone.Obj
 	}
-	object, ok := value.(*unstructured.Unstructured)
+	source, ok := value.(*sourceObject)
 	if !ok {
 		return
 	}
+	object := source.Unstructured
 	ref := refOf(object)
 	key := keyOf(ref)
 	r.mu.Lock()
@@ -505,6 +526,22 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	r.generation++
 	r.reader.mu.Lock()
 	old := r.reader.objects[key]
+	staleRead := !r.config.Now().Before(source.expiresAt)
+	if read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]; read != nil {
+		fence := read.invalidated[key]
+		staleRead = staleRead || (fence.uid == ref.UID && source.sequence < fence.sequence)
+	}
+	newerProof := old.object != nil && r.config.Now().Before(old.evidence.ExpiresAt)
+	for _, proof := range old.evidence.Dependencies {
+		if !r.reader.activeKeys[proof] {
+			newerProof = false
+		}
+	}
+	if staleRead && (deleted || newerProof || (old.object != nil && old.object.GetUID() != ref.UID)) {
+		r.reader.mu.Unlock()
+		r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
+		return
+	}
 	if deleted && old.object != nil && old.object.GetUID() != ref.UID {
 		r.reader.mu.Unlock()
 		return
@@ -531,7 +568,7 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	} else {
 		w.objects[key] = struct{}{}
 		delete(w.pendingRoots, ref.UID)
-		entry := observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: r.config.Now().Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}}
+		entry := observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: source.expiresAt, Dependencies: []string{w.failureKey}}}
 		if old.object != nil && old.object.GetUID() == ref.UID && old.object.GetResourceVersion() == ref.ResourceVersion {
 			entry.proofKey, entry.invalidated = old.proofKey, old.invalidated
 			if old.evidence.ExpiresAt.IsZero() {
@@ -542,12 +579,10 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		} else {
 			r.reader.retireObjectProofLocked(old)
 		}
-		if read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]; read != nil {
-			if fence, found := read.invalidated[key]; found && fence.uid == ref.UID {
-				entry.invalidated = fence.sequence
-				entry.evidence = store.Evidence{}
-				r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
-			}
+		if staleRead {
+			r.reader.retireObjectProofLocked(old)
+			entry.evidence = store.Evidence{}
+			r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
 		}
 		r.reader.objects[key] = entry
 		if !r.terminalOwnerBoundary(object) {
@@ -740,9 +775,6 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
 		} else {
-			if read != nil {
-				delete(read.invalidated, objectKey)
-			}
 			entry.evidence = store.Evidence{ExpiresAt: w.verifiedAt.Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}
 			if entry.proofKey != "" {
 				if !r.reader.activeKeys[entry.proofKey] {
@@ -763,13 +795,6 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		}
 		if w.discover || r.roots[ref.UID] != nil {
 			r.queue.Add(queueKey{Operation: "object", Object: objectKey, UID: ref.UID})
-		}
-	}
-	if read != nil {
-		for objectKey, fence := range read.invalidated {
-			if _, found := refs[fence.uid]; !found && fence.sequence <= readerSequence {
-				delete(read.invalidated, objectKey)
-			}
 		}
 	}
 	for uid, ref := range w.pendingRoots {

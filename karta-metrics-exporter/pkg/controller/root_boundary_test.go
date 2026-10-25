@@ -141,7 +141,7 @@ var _ = Describe("Accepted root boundaries", func() {
 		second.objects = map[objectKey]struct{}{}
 		r.watches[second.key] = &second
 		r.trackWatchVersion(testRootGVK, 1)
-		r.accept(&second, root, false)
+		r.acceptEvent(&second, root, false)
 		r.mu.Lock()
 		delete(r.watches, first.key)
 		r.reader.mu.Lock()

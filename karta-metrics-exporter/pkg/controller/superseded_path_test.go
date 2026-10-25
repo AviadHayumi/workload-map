@@ -55,7 +55,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		changed := root.DeepCopy()
 		changed.SetResourceVersion("2")
 		ownedBy(changed, parent)
-		r.accept(w, changed, false)
+		r.acceptEvent(w, changed, false)
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, nil, apierrors.NewForbidden(w.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
@@ -93,7 +93,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(state.cached).To(BeEmpty())
 		Expect(state.labelFailures).To(HaveKey(pod.GetUID()))
-		r.accept(pw, pod, true)
+		r.acceptEvent(pw, pod, true)
 		state.fullRefresh = true
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(state.labelFailures).To(BeEmpty())
@@ -140,7 +140,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		changed := canonical.DeepCopy()
 		changed.SetResourceVersion("2")
 		ownedBy(changed, parent)
-		r.accept(cw, changed, false)
+		r.acceptEvent(cw, changed, false)
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, nil, apierrors.NewForbidden(cw.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
@@ -228,7 +228,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		corrected := pod.DeepCopy()
 		corrected.SetResourceVersion("2")
 		ownedBy(corrected, root)
-		r.accept(pw, corrected, false)
+		r.acceptEvent(pw, corrected, false)
 		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(corrected)), UID: corrected.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		record := publications.Published(root.GetUID())
@@ -257,7 +257,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		ownedBy(pod, alias)
 		cw := seedWatch(r, testRootGVK, "jobs", canonical)
 		if !retire {
-			r.accept(cw, parent, false)
+			r.acceptEvent(cw, parent, false)
 		}
 		aw := seedWatch(r, v2, "jobs", alias)
 		seedWatch(r, podGVK, "pods", pod)
@@ -275,7 +275,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		changed := canonical.DeepCopy()
 		changed.SetResourceVersion("2")
 		ownedBy(changed, parent)
-		r.accept(cw, changed, false)
+		r.acceptEvent(cw, changed, false)
 		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(Succeed())
 		Expect(r.roots).NotTo(HaveKey(canonical.GetUID()))
 		if retire {
@@ -295,7 +295,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		updatedAlias := alias.DeepCopy()
 		updatedAlias.SetResourceVersion("2")
 		ownedBy(updatedAlias, parent)
-		r.accept(aw, updatedAlias, false)
+		r.acceptEvent(aw, updatedAlias, false)
 		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, parent.GetUID())).To(Succeed())
 		record := publications.Published(parent.GetUID())

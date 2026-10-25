@@ -26,6 +26,8 @@ import (
 
 // Reader shares accepted watch objects with discovery and caches metadata GETs.
 type Reader struct {
+	watchNow        func() time.Time
+	watchMaxAge     time.Duration
 	watchReads      map[watchReadScope]*watchReadState
 	ignoredOwners   []schema.GroupVersionKind
 	versions        versionCounts
@@ -59,8 +61,9 @@ type watchReadState struct {
 }
 
 type ownershipInvalidation struct {
-	sequence uint64
-	uid      types.UID
+	expiresAt time.Time
+	sequence  uint64
+	uid       types.UID
 }
 
 type metadataFailure struct {
@@ -115,7 +118,7 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.TTL < 0 || options.RequestTimeout < 0 {
 		return nil, errors.New("reader durations must be positive")
 	}
-	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, pending: map[objectKey]chan struct{}{}, priming: map[objectKey]uint64{}, failures: map[objectKey]metadataFailure{}, observed: map[objectKey]uint64{}, activeKeys: map[string]bool{}}, nil
+	return &Reader{watchNow: options.Now, watchMaxAge: options.TTL, clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, pending: map[objectKey]chan struct{}{}, priming: map[objectKey]uint64{}, failures: map[objectKey]metadataFailure{}, observed: map[objectKey]uint64{}, activeKeys: map[string]bool{}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
@@ -293,6 +296,15 @@ func (r *Reader) expireMetadata() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := r.options.Now()
+	if r.watchNow != nil {
+		for _, read := range r.watchReads {
+			for key, fence := range read.invalidated {
+				if !r.watchNow().Before(fence.expiresAt) {
+					delete(read.invalidated, key)
+				}
+			}
+		}
+	}
 	for key, failure := range r.failures {
 		if !now.Before(failure.expires) {
 			delete(r.failures, key)
@@ -424,7 +436,7 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		for _, namespace := range []string{key.Namespace, ""} {
 			if read := r.watchReads[watchReadScope{gvk: gvk, namespace: namespace}]; read != nil {
 				r.sequence++
-				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, uid: uid}
+				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, uid: uid, expiresAt: r.watchNow().Add(r.watchMaxAge)}
 			}
 		}
 		if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {
@@ -476,4 +488,16 @@ func (r *Reader) retireObjectProofLocked(entry observation) {
 		r.publications.SetPublicationFailure(entry.proofKey, store.ReasonUnresolvedOwner)
 		r.publications.RetirePublicationFailure(entry.proofKey)
 	}
+}
+
+func (r *Reader) watchStateLocked(scope watchReadScope) *watchReadState {
+	if r.watchReads == nil {
+		r.watchReads = map[watchReadScope]*watchReadState{}
+	}
+	read := r.watchReads[scope]
+	if read == nil || read.retired {
+		read = &watchReadState{invalidated: map[objectKey]ownershipInvalidation{}}
+		r.watchReads[scope] = read
+	}
+	return read
 }

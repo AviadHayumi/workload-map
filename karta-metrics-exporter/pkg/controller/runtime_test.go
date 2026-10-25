@@ -93,10 +93,11 @@ func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects
 	r.watches[key] = w
 	r.reader.mu.Lock()
 	r.trackWatchVersion(gvk, 1)
+	r.reader.watchStateLocked(watchReadScope{gvk: gvk, namespace: key.Namespace})
 	r.reader.activeKeys[w.failureKey] = true
 	r.reader.mu.Unlock()
 	for _, o := range objects {
-		r.accept(w, o, false)
+		r.acceptEvent(w, o, false)
 	}
 	return w
 }
@@ -136,7 +137,7 @@ var _ = Describe("Publication concurrency", func() {
 		replacement := old.DeepCopy()
 		replacement.SetUID(old.GetUID() + "-replacement")
 		replacement.SetResourceVersion("2")
-		runtime.accept(source, replacement, false)
+		runtime.acceptEvent(source, replacement, false)
 		switch kind {
 		case "Job":
 			root = replacement
@@ -150,14 +151,14 @@ var _ = Describe("Publication concurrency", func() {
 		if tombstone {
 			event = cache.DeletedFinalStateUnknown{Key: old.GetName(), Obj: old}
 		}
-		runtime.accept(source, event, true)
+		runtime.acceptEvent(source, event, true)
 		current, found := runtime.reader.Cached(refOf(replacement))
 		Expect(found).To(BeTrue())
 		Expect(current.GetUID()).To(Equal(replacement.GetUID()))
 		Expect(source.objects).To(HaveKey(keyOf(refOf(replacement))))
 		Expect(publications.Published(root.GetUID())).To(BeIdenticalTo(published))
 		Expect(runtime.podRoots[pod.GetUID()]).To(Equal(root.GetUID()))
-		runtime.accept(source, replacement, true)
+		runtime.acceptEvent(source, replacement, true)
 		_, found = runtime.reader.Cached(refOf(replacement))
 		Expect(found).To(BeFalse(), "deletion of the current UID must still be applied")
 	}, Entry("root", "Job", false), Entry("root tombstone", "Job", true),
@@ -183,7 +184,7 @@ var _ = Describe("Publication concurrency", func() {
 		updated := original.DeepCopy()
 		updated.SetResourceVersion("2")
 		updated.SetLabels(map[string]string{"team": "changed"})
-		runtime.accept(podsWatch, updated, false)
+		runtime.acceptEvent(podsWatch, updated, false)
 		Expect(state.generation).To(BeZero(), "a Pod change must not discard the whole root build")
 		close(paused.resume)
 		Eventually(completed).Should(Receive(Succeed()))
@@ -230,7 +231,7 @@ var _ = Describe("Publication concurrency", func() {
 		Eventually(entered).Should(BeClosed())
 		changed := busy.DeepCopy()
 		changed.SetResourceVersion("2")
-		runtime.accept(stream, changed, false)
+		runtime.acceptEvent(stream, changed, false)
 		close(resume)
 		Eventually(completed).Should(Receive(Succeed()))
 		proof, err := runtime.reader.evidence(refOf(quiet))
@@ -321,7 +322,7 @@ var _ = Describe("Publication concurrency", func() {
 		runtime.mu.Lock()
 		runtime.recoverWatchLocked(source)
 		runtime.mu.Unlock()
-		runtime.accept(source, root, false)
+		runtime.acceptEvent(source, root, false)
 		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
 		record = publications.Published(root.GetUID())
 		Expect(record.Workload.OwnerResolution).To(Equal(store.Resolved))
@@ -342,7 +343,7 @@ var _ = Describe("Publication concurrency", func() {
 		nextRoot.SetGroupVersionKind(nextGVK)
 		next := seedWatch(runtime, nextGVK, "jobs")
 		if replacementHasRoot {
-			runtime.accept(next, nextRoot, false)
+			runtime.acceptEvent(next, nextRoot, false)
 		}
 		state.watch = next.key
 		state.ref.GVK = nextGVK
@@ -355,7 +356,7 @@ var _ = Describe("Publication concurrency", func() {
 		Expect(runtime.roots[root.GetUID()]).To(BeIdenticalTo(state))
 		Expect(runtime.podRoots[pod.GetUID()]).To(Equal(root.GetUID()))
 		Expect(publications.Published(root.GetUID())).NotTo(BeNil())
-		runtime.accept(old, root, true)
+		runtime.acceptEvent(old, root, true)
 		Expect(runtime.roots[root.GetUID()]).To(BeIdenticalTo(state), "retired callbacks cannot remove a live UID")
 		if replacementHasRoot {
 			Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
@@ -372,3 +373,20 @@ var _ = Describe("Publication concurrency", func() {
 	}, Entry("replacement already observed the UID", true), Entry("replacement has not delivered its initial objects", false))
 
 })
+
+// Test events enter through the same provenance-bearing production accept path.
+func (r *Runtime) acceptEvent(w *resourceWatch, value any, deleted bool) {
+	if tombstone, ok := value.(cache.DeletedFinalStateUnknown); ok {
+		value = tombstone.Obj
+	}
+	if source, ok := value.(*sourceObject); ok {
+		r.accept(w, source, deleted)
+		return
+	}
+	object, ok := value.(*unstructured.Unstructured)
+	Expect(ok).To(BeTrue())
+	r.reader.mu.RLock()
+	sequence := r.reader.sequence
+	r.reader.mu.RUnlock()
+	r.accept(w, &sourceObject{Unstructured: object, sequence: sequence, expiresAt: r.config.Now().Add(r.config.MaxAge)}, deleted)
+}
