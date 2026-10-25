@@ -445,7 +445,7 @@ test-exporter-unit: ## Run exporter unit and chart tests without a Kubernetes AP
 .PHONY: test-exporter-integration
 test-exporter-integration: envtest ## Run exporter integration tests against a real Kubernetes API server
 	cd karta-metrics-exporter && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		go test -tags=integration ./test/integration/...
+		go test -tags=integration ./pkg/discovery ./pkg/kartadefinitioninventory ./test/integration/...
 
 .PHONY: test-exporter
 test-exporter: test-exporter-unit test-exporter-integration ## Run exporter unit, chart and envtest suites
