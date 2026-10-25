@@ -7,7 +7,7 @@ The exporter publishes workload identity, workload state and observation health.
 Karta definitions interpret the workload APIs; the exporter follows Kubernetes
 controller ownership to select the highest described root. It does not collect
 GPU, CPU or memory usage. Consumers join those existing measurements with the
-identity series. The public contract is [KEP-0001](../keps/0001-metrics-exporter/README.md).
+identity series. The public contract is [KEP-0001](keps/0001-metrics-exporter/README.md).
 
 ## Deploy
 

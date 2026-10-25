@@ -13,7 +13,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/submitterextractor"
-	"github.com/dsx-ai-factory/workload-map/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

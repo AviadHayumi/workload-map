@@ -16,7 +16,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/submitterextractor"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

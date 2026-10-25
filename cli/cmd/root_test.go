@@ -16,6 +16,11 @@ import (
 // returns nil; a bare parent command would only print help.
 func execute(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	// Config is read from the environment, so an ambient ~/.karta/config.yaml
+	// would otherwise decide the outcome.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(configEnvVar, "")
+
 	cmd := NewRootCommand()
 	cmd.AddCommand(&cobra.Command{
 		Use:  "noop",
@@ -34,7 +39,7 @@ func TestRootHelp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--help returned error: %v", err)
 	}
-	for _, want := range []string{"--kubeconfig", "--output", "workload", "definition"} {
+	for _, want := range []string{"--kubeconfig", "--output", "get", "definition"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help output missing %q\n%s", want, out)
 		}

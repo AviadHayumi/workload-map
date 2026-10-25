@@ -3,7 +3,7 @@
 
 # Metrics exporter acceptance
 
-The acceptance runner checks the [metrics exporter KEP](../keps/0001-metrics-exporter/README.md)
+The acceptance runner checks the [metrics exporter KEP](keps/0001-metrics-exporter/README.md)
 against real Kubernetes resources and operator-created ownership chains. It uses Python 3's
 standard library and kubectl. The existing [e2e provisioner](../hack/e2e/README.md) installs
 the workload operators. The runner does not install or upgrade those operators.

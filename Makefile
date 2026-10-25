@@ -1,164 +1,593 @@
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
 
-# Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/bin
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
+PROJECT_DIR := $(shell dirname "$(abspath $(lastword $(MAKEFILE_LIST)))")
 
-CLI_LOCALBIN ?= $(shell pwd)/cli/bin
-CLI_LOCALBIN_ABS := $(abspath $(CLI_LOCALBIN))
-$(CLI_LOCALBIN_ABS):
-	mkdir -p $@
+# The modules reach the library through replace directives, never a workspace.
+# The go command also searches parent directories for a go.work, so turn it off
+# for every recipe rather than let one outside the checkout change the build.
+export GOWORK := off
+
+# One output directory for build artifacts and downloaded tools.
+LOCALBIN ?= $(PROJECT_DIR)/bin
 
 # Version stamping. CI overrides VERSION with the scheme in push-artifacts.yaml
 # (tag v1.2.3 -> 1.2.3, main -> 0.0.0-main-<sha>).
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-main")
+VERSION ?= $(shell git describe --tags --always --dirty --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo "0.0.0-main")
+# Freeze the fallback once so image variables do not rerun it per recipe.
+VERSION := $(VERSION)
 
-VERSION_PKG := github.com/dsx-ai-factory/workload-map/pkg/version
-LDFLAGS     := -ldflags "-X $(VERSION_PKG).version=$(VERSION)"
+VERSION_PKG := github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version
+GO_LDFLAGS  := -X $(VERSION_PKG).version=$(VERSION)
+LDFLAGS     := -ldflags "$(GO_LDFLAGS)"
 
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+# The component inventory every aggregate fans out over.
+COMPONENTS := lib cli operator exporter karta-wasm release-helper
+
+# Every Go module in the repo. The tidy target fans out over this rather than
+# COMPONENTS because an untidy manifest in a module that ships no
+# binary (the examples, the e2e fixtures) still breaks a downstream `go get`.
+GO_MODULES := karta/sdk cli karta-wasm operator karta-metrics-exporter test/e2e hack/imagelock \
+	docs/examples/quickstart docs/examples/controller-runtime \
+	hack/e2e/operators/nim/image
+
 KARTA_CHART_DIR := $(PROJECT_DIR)/charts/karta
 KARTA_CRDS_DIR := $(KARTA_CHART_DIR)/crds
 
 HELM_CHART_VERSION ?= 0.0.1
 
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
-GO_LICENCE_DETECTOR ?= $(LOCALBIN)/go-licence-detector
+# Tool versions. Override on the command line, e.g.
+#   make lint GOLANGCI_LINT_VERSION=v2.15.0
+# The "# renovate:" comments let Renovate bump the version on the next line.
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION       ?= v2.15.0
+# renovate: datasource=go depName=sigs.k8s.io/controller-tools
+CONTROLLER_TOOLS_VERSION    ?= v0.23.0
+# renovate: datasource=go depName=go.elastic.co/go-licence-detector
+GO_LICENCE_DETECTOR_VERSION ?= v0.11.1
+ENVTEST_VERSION             ?= release-0.23
+# renovate: datasource=go depName=github.com/goreleaser/goreleaser/v2
+GORELEASER_VERSION          ?= v2.18.3
+# Kubernetes control-plane (apiserver, etcd, kubectl) version envtest downloads.
+ENVTEST_K8S_VERSION         ?= 1.31.0
 
-# Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.16.5
-GO_LICENCE_DETECTOR_VERSION ?= v0.10.0
-# GOLANGCI_LINT_VERSION is defined in hack/tools.mk (shared with operator/Makefile).
-include hack/tools.mk
-PATH := $(abspath $(LOCALBIN)):$(PATH)
+# Tool binaries, all installed into the single LOCALBIN. The version is part of
+# the filename, and therefore part of make's target name, so bumping a version
+# above asks for a path that does not exist yet and the tool is reinstalled. An
+# unversioned name lets an old binary satisfy a new pin without a word.
+CONTROLLER_GEN      ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
+GOLANGCI_LINT       ?= $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
+GO_LICENCE_DETECTOR ?= $(LOCALBIN)/go-licence-detector-$(GO_LICENCE_DETECTOR_VERSION)
+ENVTEST             ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
+GORELEASER          ?= $(LOCALBIN)/goreleaser-$(GORELEASER_VERSION)
 
-.PHONY: manifests
-manifests: controller-gen ## Generate CRD manifests
-	$(CONTROLLER_GEN) crd paths="./pkg/..." output:crd:artifacts:config=$(KARTA_CRDS_DIR)
+GOLANGCI_LINT_FLAGS ?= $(if $(VERBOSE),-v)
 
-.PHONY: generate
-generate: controller-gen ## Generate DeepCopy methods
-	$(CONTROLLER_GEN) object paths="./pkg/..."
+# Container image settings (defaults for ghcr.io/dsx-ai-factory/workload-map OSS publishing).
+# Override any component from the command line, e.g.:
+#   make operator-image IMAGE_TAG=v1.2.3
+#   make operator-image IMAGE_REGISTRY=ghcr.io/myorg/karta
+IMAGE_REGISTRY ?= ghcr.io/dsx-ai-factory/workload-map
+IMAGE_NAME     ?= karta-operator
+IMAGE_TAG      ?= $(VERSION)
+IMAGE_REPOSITORY ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME)
 
-.PHONY: generate-mocks
-generate-mocks: ## Generate mocks using go generate
-	go generate ./pkg/...
+CONTAINER_TOOL ?= docker
+BUILD_ARGS     ?=
+DIST_DIR       ?= $(PROJECT_DIR)/dist
+# Where make install-cli puts kli. make install-cli-local uses $(HOME)/.local/bin instead.
+PREFIX         ?= /usr/local
+BINDIR         ?= $(PREFIX)/bin
+RELEASE_HELPER_DIR := $(PROJECT_DIR)/hack/release
+
+# Architectures for build-operator-all and operator-image-buildx-push.
+PLATFORMS ?= linux/amd64 linux/arm64
+
+empty :=
+space := $(empty) $(empty)
+comma := ,
+PLATFORMS_CSV = $(subst $(space),$(comma),$(PLATFORMS))
+
+.DEFAULT_GOAL := help
+
+##@ Aggregates
+
+.PHONY: fmt
+fmt: $(addprefix fmt-,$(COMPONENTS)) ## Format every component (rewrites files)
+
+.PHONY: fmt-check
+fmt-check: $(addprefix fmt-check-,$(COMPONENTS)) ## Check formatting without modifying files
+
+.PHONY: vet
+vet: $(addprefix vet-,$(COMPONENTS)) ## go vet every component
+
+.PHONY: lint
+lint: $(addprefix lint-,$(COMPONENTS)) ## Lint every component (read-only, never rewrites files)
 
 .PHONY: test
-test: generate-mocks ## Run tests with mock generation
-	go test ./...
+test: $(addprefix test-,$(COMPONENTS)) ## Test every component
 
-lint-go: golangci-lint
-	echo "Running golangci linter"
-	$(GOLANGCI_LINT) run -v -c .golangci.yml
-.PHONY: lint-go
+.PHONY: check
+check: $(addprefix check-,$(COMPONENTS)) ## Everything CI runs for Go. Run this before pushing
 
-fmt-go:
-	go fmt ./...
-.PHONY: fmt-go
+.PHONY: build
+build: build-cli build-operator build-exporter ## Build every binary into bin/ (the library has no artifact)
 
-vet-go:
-	go vet ./...
-.PHONY: vet-go
+# Keeps the pinned tools and envtest assets in bin/; clean-all removes them too.
+# The output directories can be overridden and are deleted recursively, so refuse
+# any that is not a subdirectory of the repository. clean-all runs this check too.
+.PHONY: clean
+clean: ## Remove build outputs, coverage profiles, and release and plugin artifacts
+	@for dir in "$(LOCALBIN)" "$(DIST_DIR)" "$(IMAGE_LOCK_OUT_DIR)"; do \
+		case "$$dir/" in \
+			*/./*|*/../*) ;; \
+			"$(PROJECT_DIR)"/?*/) continue ;; \
+		esac; \
+		echo "refusing to clean $$dir: not a directory inside $(PROJECT_DIR)" >&2; \
+		exit 1; \
+	done
+	rm -fv "$(LOCALBIN)/kli" "$(LOCALBIN)/karta-operator" "$(LOCALBIN)/karta-operator-amd64" "$(LOCALBIN)/karta-operator-arm64" "$(LOCALBIN)/karta-metrics-exporter"
+	rm -fv "$(LOCALBIN)"/*-tidy.mod "$(LOCALBIN)"/*-tidy.sum "$(LOCALBIN)"/*-license.mod "$(LOCALBIN)"/*-license.sum "$(LOCALBIN)"/*deps.json
+	rm -fv operator/cover-unit.out operator/cover-integration.out
+	rm -fv karta-wasm/karta.wasm karta-wasm/wasm_exec.js
+	rm -fv hack/imagelock/imagelock hack/release/release
+	rm -fv "$(PROJECT_DIR)"/karta-*.tgz
+	rm -rfv "$(DIST_DIR)" "$(IMAGE_LOCK_OUT_DIR)" headlamp-plugin/dist "$(PROJECT_DIR)/.artifacts"
 
-lint: fmt-go vet-go lint-go 
-.PHONY: lint
+# setup-envtest leaves its asset directories read-only, which blocks rm -rf without the chmod.
+# node_modules is removed without -v: it holds tens of thousands of files.
+.PHONY: clean-all
+clean-all: clean ## Run clean, then also remove bin/ (tools, envtest assets) and headlamp-plugin/node_modules
+	[ ! -d "$(LOCALBIN)" ] || chmod -R u+w "$(LOCALBIN)"
+	rm -rfv "$(LOCALBIN)"
+	@[ ! -d headlamp-plugin/node_modules ] || echo "removing headlamp-plugin/node_modules"
+	rm -rf headlamp-plugin/node_modules
+
+.PHONY: install-cli
+install-cli: build-cli ## Install kli into BINDIR (default /usr/local/bin) and load its completion from your bash or zsh rc file
+	install -d "$(BINDIR)"
+	install -m 0755 "$(LOCALBIN)/kli" "$(BINDIR)/kli"
+	hack/kli-completion.sh install "$(LOCALBIN)/kli" "$(BINDIR)/kli"
+	@case ":$$PATH:" in *":$(BINDIR):"*) ;; *) echo "warning: $(BINDIR) is not on PATH" >&2 ;; esac
+
+.PHONY: uninstall-cli
+uninstall-cli: ## Remove kli from BINDIR and stop loading its completion from your bash or zsh rc file
+	rm -fv "$(BINDIR)/kli"
+	hack/kli-completion.sh uninstall
+
+.PHONY: install-cli-local
+install-cli-local: ## Run install-cli into $HOME/.local/bin, which needs no root
+	$(MAKE) install-cli BINDIR="$(HOME)/.local/bin"
+
+.PHONY: uninstall-cli-local
+uninstall-cli-local: ## Run uninstall-cli against $HOME/.local/bin
+	$(MAKE) uninstall-cli BINDIR="$(HOME)/.local/bin"
+
+##@ Library (karta/sdk module)
+
+.PHONY: fmt-lib
+fmt-lib: ## Format the library module
+	cd karta/sdk && go fmt ./...
+
+.PHONY: fmt-check-lib
+fmt-check-lib: ## Check library formatting without modifying files
+	@set -e; \
+	cd karta/sdk; \
+	dirs="$$(go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-lib
+vet-lib: ## go vet the library module
+	cd karta/sdk && go vet ./...
+
+.PHONY: lint-lib
+lint-lib: golangci-lint ## Lint the library module (set VERBOSE=1 for -v)
+	cd karta/sdk && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-lib
+test-lib: lib-generate-mocks ## Run the library tests, plus the offline e2e recorder tests
+	cd karta/sdk && go test ./...
+	cd test/e2e && go test ./recorder/...
+
+# The library is the one published module, so a replace in it would break every
+# consumer's `go get`. The other modules carry one on purpose.
+.PHONY: modules-check-lib
+modules-check-lib: ## Fail if the library go.mod carries a replace or exclude directive
+	cd $(RELEASE_HELPER_DIR) && go run . check-publishable --modfile $(PROJECT_DIR)/karta/sdk/go.mod
+
+.PHONY: check-lib
+check-lib: fmt-check-lib vet-lib lint-lib modules-check-lib validate verify-recordings test-lib test-replay ## Full library presubmit
+
+##@ Karta WASM (karta-wasm module)
+
+.PHONY: fmt-karta-wasm
+fmt-karta-wasm: ## Format the karta-wasm module
+	go -C karta-wasm fmt ./...
+
+.PHONY: fmt-check-karta-wasm
+fmt-check-karta-wasm: ## Check karta-wasm formatting without modifying files
+	@set -e; \
+	unformatted="$$(gofmt -l karta-wasm)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-karta-wasm
+vet-karta-wasm: ## go vet the karta-wasm module (host and js builds)
+	go -C karta-wasm vet ./...
+	cd karta-wasm && GOOS=js GOARCH=wasm go vet ./...
+
+.PHONY: lint-karta-wasm
+lint-karta-wasm: golangci-lint ## Lint the karta-wasm module
+	cd karta-wasm && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-karta-wasm
+test-karta-wasm: ## Run the karta-wasm module tests on the host
+	go -C karta-wasm test ./...
+
+.PHONY: check-karta-wasm
+check-karta-wasm: fmt-check-karta-wasm vet-karta-wasm lint-karta-wasm test-karta-wasm ## Full karta-wasm presubmit
+
+##@ Release helper (nested module)
+
+.PHONY: fmt-release-helper
+fmt-release-helper: ## Format the release helper module
+	cd hack/release && go fmt ./...
+
+.PHONY: fmt-check-release-helper
+fmt-check-release-helper: ## Check release helper formatting without modifying files
+	@set -e; \
+	cd hack/release; \
+	dirs="$$(go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-release-helper
+vet-release-helper: ## go vet the release helper module
+	cd hack/release && go vet ./...
+
+.PHONY: lint-release-helper
+lint-release-helper: golangci-lint ## Lint the release helper module
+	cd hack/release && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-release-helper
+test-release-helper: ## Test the release helper module
+	cd hack/release && go test ./...
+
+.PHONY: modules-check-release-helper
+modules-check-release-helper: ## Verify release helper module metadata is tidy and complete
+	cd $(RELEASE_HELPER_DIR) && go mod tidy -diff
+	cd $(RELEASE_HELPER_DIR) && go mod verify
+
+.PHONY: check-release-helper
+check-release-helper: fmt-check-release-helper vet-release-helper lint-release-helper modules-check-release-helper test-release-helper ## Full release helper presubmit
+
+##@ CLI
+
+.PHONY: fmt-cli
+fmt-cli: ## Format the CLI module
+	cd cli && go fmt ./...
+
+.PHONY: fmt-check-cli
+fmt-check-cli: ## Check CLI formatting without modifying files
+	@set -e; \
+	cd cli; \
+	dirs="$$(go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-cli
+vet-cli: ## go vet the CLI module
+	cd cli && go vet ./...
+
+.PHONY: lint-cli
+lint-cli: golangci-lint ## Lint the CLI module
+	cd cli && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-cli
+test-cli: ## Run the CLI unit tests
+	cd cli && go test ./...
+
+.PHONY: build-cli
+build-cli: goreleaser $(LOCALBIN) ## Build the karta CLI binary into bin/
+	VERSION=$(VERSION) $(GORELEASER) build --snapshot --clean --single-target --id karta --output $(LOCALBIN)/kli
+
+.PHONY: cli-verify-version
+cli-verify-version: build-cli ## Assert the CLI binary reports the stamped version
+	@set -e; \
+	out="$$($(LOCALBIN)/kli --version)"; \
+	echo "$$out"; \
+	[ "$$out" = "$(VERSION)" ] || { \
+		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
+
+.PHONY: install-cli-completion
+install-cli-completion: build-cli ## Build kli and load its completion (of the installed kli if present) from your bash or zsh rc file
+	hack/kli-completion.sh install "$(LOCALBIN)/kli" "$(BINDIR)/kli"
+
+.PHONY: install-cli-completion-local
+install-cli-completion-local: ## Run install-cli-completion, preferring the kli in $HOME/.local/bin
+	$(MAKE) install-cli-completion BINDIR="$(HOME)/.local/bin"
+
+.PHONY: uninstall-cli-completion
+uninstall-cli-completion: ## Stop loading kli completion from your bash or zsh rc file
+	hack/kli-completion.sh uninstall
+
+.PHONY: modules-check-cli modules-check-operator modules-check-exporter
+modules-check-cli: MODULE := cli
+modules-check-operator: MODULE := operator
+modules-check-exporter: MODULE := karta-metrics-exporter
+modules-check-cli modules-check-operator modules-check-exporter: ## Verify the module's requirements are tidy
+	cd $(MODULE) && go mod tidy -diff
+
+.PHONY: check-cli
+check-cli: fmt-check-cli vet-cli lint-cli test-cli modules-check-cli cli-verify-version ## Full CLI presubmit
+
+##@ Operator
+
+.PHONY: fmt-operator
+fmt-operator: ## Format the operator module
+	cd operator && go fmt ./...
+
+.PHONY: fmt-check-operator
+fmt-check-operator: ## Check operator formatting without modifying files
+	@set -e; \
+	cd operator; \
+	dirs="$$(go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-operator
+vet-operator: ## go vet the operator module
+	cd operator && go vet ./...
+
+.PHONY: lint-operator
+lint-operator: golangci-lint ## Lint the operator module
+	cd operator && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-operator-unit
+test-operator-unit: ## Run the operator unit tests (no envtest binaries required)
+	cd operator && go test -coverprofile=cover-unit.out ./pkg/... ./cmd/...
+
+.PHONY: test-operator-integration
+test-operator-integration: envtest ## Run the operator envtest suite (downloads control-plane binaries)
+	cd operator && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -coverprofile=cover-integration.out ./test/integration/...
+
+.PHONY: test-operator
+test-operator: test-operator-unit test-operator-integration ## Run the operator unit and envtest suites
+
+.PHONY: check-operator
+check-operator: fmt-check-operator vet-operator lint-operator modules-check-operator build-operator-e2e test-operator operator-version-smoke ## Full operator presubmit
+
+.PHONY: build-operator
+build-operator: $(LOCALBIN) ## Build the karta-operator binary for the host OS/arch
+	cd operator && go build -trimpath $(LDFLAGS) -o $(LOCALBIN)/karta-operator ./cmd
+
+.PHONY: operator-version-smoke
+operator-version-smoke: build-operator ## Verify the operator reports the stamped version
+	@set -e; \
+	out="$$($(LOCALBIN)/karta-operator --version)"; \
+	echo "$$out"; \
+	[ "$$out" = "$(VERSION)" ] || { \
+		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
+
+.PHONY: build-operator-linux-amd64
+build-operator-linux-amd64: $(LOCALBIN) ## Cross-compile the operator for linux/amd64
+	cd operator && GOOS=linux GOARCH=amd64 go build -trimpath $(LDFLAGS) -o $(LOCALBIN)/karta-operator-amd64 ./cmd
+
+.PHONY: build-operator-linux-arm64
+build-operator-linux-arm64: $(LOCALBIN) ## Cross-compile the operator for linux/arm64
+	cd operator && GOOS=linux GOARCH=arm64 go build -trimpath $(LDFLAGS) -o $(LOCALBIN)/karta-operator-arm64 ./cmd
+
+.PHONY: build-operator-all
+build-operator-all: build-operator-linux-amd64 build-operator-linux-arm64 ## Cross-compile the operator for all supported platforms
+
+# The operator image builds on the Go its go.mod asks for; the golang image does
+# not fetch a newer toolchain (GOTOOLCHAIN=local), so a stale pin fails the build.
+OPERATOR_GO_VERSION := $(shell awk '/^go /{print $$2; exit}' operator/go.mod)
+
+.PHONY: operator-image
+operator-image: ## Build the operator image for the host arch
+	$(CONTAINER_TOOL) build $(BUILD_ARGS) \
+		--build-arg TARGETARCH=$(shell go env GOARCH) \
+		--build-arg GO_VERSION=$(OPERATOR_GO_VERSION) \
+		--build-arg GO_LDFLAGS="$(GO_LDFLAGS)" \
+		--tag $(IMAGE_REPOSITORY):$(IMAGE_TAG) \
+		-f operator/Dockerfile \
+		.
+
+.PHONY: operator-image-push
+operator-image-push: ## Push the operator image
+	$(CONTAINER_TOOL) push $(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+.PHONY: operator-image-buildx-push
+operator-image-buildx-push: ## Build and push a multi-arch operator image via BuildKit (requires Docker)
+	@[ "$(CONTAINER_TOOL)" = "docker" ] || { echo "Error: operator-image-buildx-push requires CONTAINER_TOOL=docker (got '$(CONTAINER_TOOL)')" >&2; exit 1; }
+	$(CONTAINER_TOOL) buildx build $(BUILD_ARGS) \
+		--platform $(PLATFORMS_CSV) \
+		--build-arg GO_VERSION=$(OPERATOR_GO_VERSION) \
+		--build-arg GO_LDFLAGS="$(GO_LDFLAGS)" \
+		--provenance=false --sbom=false \
+		--tag $(IMAGE_REPOSITORY):$(IMAGE_TAG) \
+		-f operator/Dockerfile \
+		--push \
+		.
+
+##@ Metrics exporter
+
+.PHONY: fmt-exporter
+fmt-exporter: ## Format the exporter module
+	cd karta-metrics-exporter && go fmt ./...
+
+.PHONY: fmt-check-exporter
+fmt-check-exporter: ## Check exporter formatting without modifying files
+	@set -e; \
+	cd karta-metrics-exporter; \
+	dirs="$$(go list -f '{{.Dir}}' ./...)"; \
+	unformatted="$$(gofmt -l $$dirs)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-exporter
+vet-exporter: ## go vet the exporter module
+	cd karta-metrics-exporter && go vet ./...
+
+.PHONY: lint-exporter
+lint-exporter: golangci-lint ## Lint the exporter module
+	cd karta-metrics-exporter && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: exporter-generate-mocks
+exporter-generate-mocks: ## Regenerate exporter interface mocks with pinned Mockery
+	cd karta-metrics-exporter && go run github.com/vektra/mockery/v3@v3.8.1 --config .mockery.yaml
+
+.PHONY: test-exporter
+test-exporter: ## Run the exporter module tests
+	cd karta-metrics-exporter && go test ./...
+
+.PHONY: build-exporter
+build-exporter: $(LOCALBIN) ## Build the karta-metrics-exporter binary for the host OS/arch
+	cd karta-metrics-exporter && go build -trimpath $(LDFLAGS) -o $(LOCALBIN)/karta-metrics-exporter ./cmd
+
+.PHONY: exporter-version-smoke
+exporter-version-smoke: build-exporter ## Verify the exporter reports the stamped version
+	@set -e; \
+	out="$$($(LOCALBIN)/karta-metrics-exporter --version)"; \
+	echo "$$out"; \
+	[ "$$out" = "$(VERSION)" ] || { \
+		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
+
+.PHONY: check-exporter
+check-exporter: fmt-check-exporter vet-exporter lint-exporter modules-check-exporter test-exporter exporter-version-smoke ## Full exporter presubmit
+
+EXPORTER_GO_VERSION := $(shell awk '/^go /{print $$2; exit}' karta-metrics-exporter/go.mod)
+EXPORTER_IMAGE_REPOSITORY ?= $(IMAGE_REGISTRY)/karta-metrics-exporter
+
+.PHONY: exporter-image
+exporter-image: ## Build the exporter image for the host arch
+	$(CONTAINER_TOOL) build $(BUILD_ARGS) \
+		--build-arg TARGETARCH=$(shell go env GOARCH) \
+		--build-arg GO_VERSION=$(EXPORTER_GO_VERSION) \
+		--build-arg GO_LDFLAGS="$(GO_LDFLAGS)" \
+		--tag $(EXPORTER_IMAGE_REPOSITORY):$(IMAGE_TAG) \
+		-f karta-metrics-exporter/Dockerfile \
+		.
+
+##@ Release
+
+.PHONY: goreleaser-check
+goreleaser-check: goreleaser ## Validate the GoReleaser configuration
+	$(GORELEASER) check
+
+.PHONY: release-build
+release-build: build-cli build-operator ## Build both executable definitions for the current runner architecture
+
+.PHONY: release-snapshot
+release-snapshot: goreleaser release-validate ## Build the complete release locally without publishing
+	VERSION=$(VERSION) $(GORELEASER) release --snapshot --clean
+
+.PHONY: release-verify
+release-verify: ## Verify the CLI archives, stamped executable versions, and Homebrew cask in dist/
+	cd $(RELEASE_HELPER_DIR) && go run . verify-artifacts --dist $(DIST_DIR) --version $(VERSION)
+
+# REQUIRE_TAGS=1 also requires vX.Y.Z and karta/sdk/vX.Y.Z at HEAD. The release
+# workflow sets it so a missing library tag fails the run before the operator
+# image and Helm chart are published; local snapshots leave it unset.
+.PHONY: release-validate
+release-validate: ## Validate VERSION and that the library module is publishable (REQUIRE_TAGS=1 to also check the release tags)
+	cd $(RELEASE_HELPER_DIR) && go run . validate-release --root $(PROJECT_DIR) --version $(VERSION) $(if $(REQUIRE_TAGS),--require-tags)
+
+.PHONY: release
+release: goreleaser ## Publish a guarded release from the vX.Y.Z tag (karta/sdk/vX.Y.Z must point to the same commit)
+	@set -eu; \
+	[ -n "$${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required" >&2; exit 1; }; \
+	status="$$(git status --porcelain)"; \
+	[ -z "$$status" ] || { echo "the working tree must be clean" >&2; exit 1; }; \
+	tag="$$(git describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"; \
+	printf '%s\n' "$$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "current ref is not a vX.Y.Z tag" >&2; exit 1; }; \
+	[ "$${tag#v}" = "$(VERSION)" ] || { echo "VERSION $(VERSION) must be $${tag#v} (the tag without the leading v)" >&2; exit 1; }; \
+	(cd $(RELEASE_HELPER_DIR) && go run . validate-release --root $(PROJECT_DIR) --version $(VERSION) --require-tags); \
+	GORELEASER_CURRENT_TAG="$$tag" VERSION=$(VERSION) $(GORELEASER) release --clean
+
+##@ Headlamp plugin
+
+.PHONY: karta-wasm
+karta-wasm: ## Build the WASM engine module (used by the Headlamp plugin)
+	cd karta-wasm && GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o karta.wasm .
+	rm -f karta-wasm/wasm_exec.js
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" karta-wasm/wasm_exec.js
+
+.PHONY: headlamp-plugin-build
+headlamp-plugin-build: karta-wasm ## Build the Headlamp plugin (requires Node.js >= 22)
+	npm --prefix headlamp-plugin ci
+	npm --prefix headlamp-plugin run lint
+	npm --prefix headlamp-plugin run tsc
+	npm --prefix headlamp-plugin run test
+	npm --prefix headlamp-plugin run build
+
+##@ Code generation
+
+.PHONY: lib-manifests
+lib-manifests: controller-gen ## Generate CRD manifests
+	cd karta/sdk && $(CONTROLLER_GEN) crd paths="./pkg/..." output:crd:artifacts:config=$(KARTA_CRDS_DIR)
+
+.PHONY: lib-generate
+lib-generate: controller-gen ## Generate DeepCopy methods
+	cd karta/sdk && $(CONTROLLER_GEN) object paths="./pkg/..."
+
+.PHONY: lib-generate-mocks
+lib-generate-mocks: ## Generate mocks using go generate
+	cd karta/sdk && go generate ./pkg/...
 
 .PHONY: generate-samples
-generate-samples: ## Regenerate docs/catalog/ from pkg/catalog
-	go run ./hack/gen-samples
+generate-samples: ## Regenerate docs/catalog/ from karta/sdk/pkg/catalog
+	cd karta/sdk && go run ./hack/gen-samples
 
-.PHONY: validate
-validate: generate manifests generate-mocks generate-licenses generate-samples
-	@test -z "$$(git status --porcelain)" || { git status --porcelain; \
-		echo "generated files are stale or untracked; run the generators and commit"; exit 1; }
-
-.PHONY: install-crd
-install-crd: manifests ## Install CRDs into the cluster
-	kubectl apply --server-side -f $(KARTA_CRDS_DIR)
-
-.PHONY: uninstall-crd
-uninstall-crd: ## Uninstall CRDs from the cluster
-	kubectl delete -f $(KARTA_CRDS_DIR) --ignore-not-found
-
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	@[ -f "$(CONTROLLER_GEN)" ] || { \
-	set -e; \
-	echo "Downloading controller-gen@$(CONTROLLER_TOOLS_VERSION)" ;\
-	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION) ;\
-	}
-
-.PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
-	@set -e; \
-	echo "Downloading golangci-lint@$(GOLANGCI_LINT_VERSION)"; \
-	tmp=$$(mktemp); \
-	trap 'rm -f "$$tmp"' EXIT; \
-	curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 https://golangci-lint.run/install.sh -o "$$tmp"; \
-	sh "$$tmp" -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION)
-
-.PHONY: go-licence-detector
-go-licence-detector: $(GO_LICENCE_DETECTOR) ## Download go-licence-detector locally if necessary.
-$(GO_LICENCE_DETECTOR): $(LOCALBIN)
-	@[ -f "$(GO_LICENCE_DETECTOR)" ] || { \
-	set -e; \
-	echo "Downloading go-licence-detector@$(GO_LICENCE_DETECTOR_VERSION)" ;\
-	GOBIN=$(LOCALBIN) go install go.elastic.co/go-licence-detector@$(GO_LICENCE_DETECTOR_VERSION) ;\
-	}
-
+# go mod download skips a module replaced by a local directory, so the library
+# itself never lands in the CLI, WASM or exporter inventories.
 .PHONY: generate-licenses
-generate-licenses: go-licence-detector ## Regenerate NOTICE and THIRD_PARTY_LICENSES from current dependencies.
+generate-licenses: tidy go-licence-detector ## Regenerate NOTICE and THIRD_PARTY_LICENSES from current dependencies
 	@set -eu; \
 	echo "Generating NOTICE and THIRD_PARTY_LICENSES files from current dependencies using go-licence-detector"; \
-	go mod download -json > $(LOCALBIN)/root-deps.json; \
+	(cd karta/sdk && go mod download -json) > $(LOCALBIN)/karta-deps.json; \
 	(cd cli && go mod download -json) > $(LOCALBIN)/cli-deps.json; \
-	python3 hack/merge-go-deps.py $(LOCALBIN)/root-deps.json $(LOCALBIN)/cli-deps.json > $(LOCALBIN)/deps.json; \
+	(cd karta-wasm && go mod download -json) > $(LOCALBIN)/karta-wasm-deps.json; \
+	(cd karta-metrics-exporter && go mod download -json) > $(LOCALBIN)/exporter-deps.json; \
+	python3 hack/merge-go-deps.py $(LOCALBIN)/karta-deps.json $(LOCALBIN)/cli-deps.json $(LOCALBIN)/karta-wasm-deps.json $(LOCALBIN)/exporter-deps.json > $(LOCALBIN)/deps.json; \
 	$(GO_LICENCE_DETECTOR) -in $(LOCALBIN)/deps.json \
 		-noticeTemplate=hack/licenses/notice.tpl \
 		-noticeOut=NOTICE \
 		-depsTemplate=hack/licenses/third_party_licenses.tpl \
 		-depsOut=THIRD_PARTY_LICENSES; \
-	$(MAKE) -C exporter generate-licenses GO_LICENCE_DETECTOR="$(abspath $(GO_LICENCE_DETECTOR))"; \
 	echo "Done"
 
-.PHONY: download-dependencies
-download-dependencies:
-	go mod download
-
-##@ CLI
-
-.PHONY: cli-build
-cli-build: $(CLI_LOCALBIN_ABS) ## Build the karta CLI binary.
-	cd cli && go build -trimpath $(LDFLAGS) -o $(CLI_LOCALBIN_ABS)/karta .
-
-.PHONY: cli-verify-version
-cli-verify-version: cli-build ## Assert the CLI binary reports the stamped version.
+.PHONY: tidy
+tidy: ## Run go mod tidy in every module (rewrites go.mod and go.sum)
 	@set -e; \
-	out="$$($(CLI_LOCALBIN_ABS)/karta --version)"; \
-	echo "$$out"; \
-	[ "$$out" = "$(VERSION)" ] || { \
-		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
+	for module in $(GO_MODULES); do \
+		(cd $$module && go mod tidy); \
+	done
 
-.PHONY: cli-test
-cli-test: ## Run the CLI unit tests.
-	cd cli && go test ./...
+.PHONY: validate
+# status is captured into a variable rather than tested inline, so that a git
+# that cannot run is a hard error. Inline, a failing git yields empty output and
+# the emptiness check passes, reporting success having verified nothing.
+validate: tidy lib-generate lib-manifests lib-generate-mocks exporter-generate-mocks generate-licenses generate-samples ## Fail if any generated or module manifest is stale or untracked
+	@set -e; \
+	status="$$(git status --porcelain)"; \
+	test -z "$$status" || { echo "$$status"; \
+		echo "generated files or module manifests are stale or untracked; run the generators and commit"; exit 1; }
 
-.PHONY: cli-lint
-cli-lint: golangci-lint ## Lint the CLI module.
-	cd cli && $(GOLANGCI_LINT) run -c $(PROJECT_DIR)/.golangci.yml
+.PHONY: download-dependencies
+download-dependencies: ## Pre-warm the module cache for the library module
+	cd karta/sdk && go mod download
 
-.PHONY: check
-check: download-dependencies validate test cli-test cli-lint cli-verify-version
+##@ CRDs
+
+.PHONY: install-crd
+install-crd: lib-manifests ## Install CRDs into the cluster
+	kubectl apply --server-side -f $(KARTA_CRDS_DIR)
+
+.PHONY: uninstall-crd
+uninstall-crd: ## Uninstall CRDs from the cluster
+	kubectl delete -f $(KARTA_CRDS_DIR) --ignore-not-found
 
 ##@ Helm
 
@@ -175,8 +604,9 @@ helm-lint: ## Lint the helm chart
 CRD_CONFIGMAP_MAX_BYTES ?= 1000000
 
 .PHONY: helm-validate
-helm-validate: exporter-rules-test ## Validate the chart renders and the CRD ConfigMap fits in etcd
+helm-validate: ## Validate the chart renders and the CRD ConfigMap fits in etcd
 	helm template $(KARTA_CHART_DIR)
+	helm template $(KARTA_CHART_DIR) --set global.fipsMode=only
 	@set -e; tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; helm template $(KARTA_CHART_DIR) -s templates/hooks/pre/crd-upgrader-configmap.yaml > "$$tmp"; s=$$(wc -c < "$$tmp"); echo "crd-upgrader ConfigMap: $$s bytes (max $(CRD_CONFIGMAP_MAX_BYTES))"; test $$s -le $(CRD_CONFIGMAP_MAX_BYTES) || { echo "error: CRD ConfigMap is $$s bytes, over the $(CRD_CONFIGMAP_MAX_BYTES) limit; it must fit in a single ~1 MiB etcd object"; exit 1; }
 
 .PHONY: exporter-rules-test
@@ -207,30 +637,166 @@ image-lock-verify: ## Fail if the chart renders a container image the lock gener
 image-lock-test: ## Run the image-lock generator unit tests
 	cd hack/imagelock && go test ./...
 
+##@ Commit attribution
+
+COMMIT_BASE ?= origin/main
+COMMIT_HEAD ?= HEAD
+
+.PHONY: commit-attribution-check
+commit-attribution-check: commit-attribution-validate ## Check commit attribution (COMMIT_BASE=origin/main COMMIT_HEAD=HEAD)
+	bash hack/commit-attribution/check-commit-attribution.sh "$(COMMIT_BASE)" "$(COMMIT_HEAD)"
+
+.PHONY: commit-attribution-validate
+commit-attribution-validate: ## Validate the commit attribution checker
+	bash hack/commit-attribution/check-commit-attribution_validate.sh
+
 ##@ E2E
 
 # Cluster name for the e2e targets. Override to run isolated clusters in parallel,
 # e.g. make e2e-up CLUSTER_NAME=shard-a WORKLOADS="jobset kuberay"
 CLUSTER_NAME ?= karta-e2e
+# record-e2e records whatever cluster kubectl currently points at - a kind cluster from
+# e2e-up or any cluster of your own (it only needs Karta installed). An explicit KUBECONFIG
+# wins; otherwise a named kind cluster (CLUSTER_NAME=...) switches to its own kubeconfig file,
+# matching hack/e2e/up.sh, so parallel clusters do not race on the shared current-context.
+ifneq ($(strip $(KUBECONFIG)),)
+E2E_KUBECONFIG := KUBECONFIG=$(KUBECONFIG)
+else ifneq ($(CLUSTER_NAME),karta-e2e)
+E2E_KUBECONFIG := KUBECONFIG=$(HOME)/.kube/kind-$(CLUSTER_NAME).kubeconfig
+endif
+# Overall go-test timeout for the online suite; override for a quick subset, e.g. E2E_TIMEOUT=10m.
+E2E_TIMEOUT ?= 30m
+
+# Select cases by operator with the same WORKLOADS list as e2e-up: record-e2e WORKLOADS="batch-job"
+# records just the batch-job case (a comma is OR in ginkgo label filters). E2E_LABELS overrides it
+# with a raw ginkgo label expression.
+E2E_LABELS ?= $(subst $(space),$(comma),$(strip $(filter-out all,$(WORKLOADS))))
+
+# FLOW="scaled" narrows a record to one flow by name (focuses the spec with that title);
+# without WORKLOADS it matches that flow name across all workload types.
+ifneq ($(strip $(FLOW)),)
+E2E_FOCUS := $(strip $(FLOW))
+endif
+
+.PHONY: test-replay
+test-replay: ## Replay the recorded fixtures through Karta offline (no cluster)
+	cd test/e2e && go build ./...
+	cd test/e2e && go test ./replay_tests/...
+
+# Defaults and accepted values live in hack/e2e/global.env.
+KARTA_WEBHOOK_MODE ?= auto
+CERT_MANAGER ?= auto
 
 # Pick which operators to install:
 #   make e2e-up                          # everything
 #   make e2e-up WORKLOADS="jobset lws"   # a subset - one provision, deps resolved once
+#   make e2e-up WORKLOADS=none           # base only, no workload operators
 .PHONY: e2e-up
-e2e-up: ## Provision a kind cluster + operators (WORKLOADS="jobset kuberay" for a subset, or "all"; CLUSTER_NAME=<name> for an isolated parallel cluster)
-	CLUSTER_NAME=$(CLUSTER_NAME) ./hack/e2e/up.sh $(WORKLOADS)
+e2e-up: ## Provision a kind cluster + operators (WORKLOADS=<list>|all|none; KARTA_WEBHOOK_MODE=auto|cert-manager|disabled; CLUSTER_NAME for a parallel cluster)
+	CLUSTER_NAME=$(CLUSTER_NAME) \
+	KARTA_WEBHOOK_MODE=$(KARTA_WEBHOOK_MODE) \
+	CERT_MANAGER=$(CERT_MANAGER) \
+	./hack/e2e/up.sh $(WORKLOADS)
+
+# Overall go-test timeout for the operator suite. Separate from E2E_TIMEOUT, which
+# caps the much longer workload-recording run.
+E2E_OPERATOR_TIMEOUT ?= 15m
+
+# Deliberately absent from check-operator: it needs a cluster, and check must not.
+.PHONY: test-operator-e2e
+# The e2e package is behind a build tag, so vet, golangci-lint and the unit tests all
+# skip it. Compiling with no spec selected type checks it without needing a cluster.
+.PHONY: build-operator-e2e
+build-operator-e2e: ## Compile the operator e2e suite without running it (no cluster needed)
+	cd operator && go test -tags e2e -run '^$$' ./test/e2e/...
+
+test-operator-e2e: ## Run the operator e2e against the current cluster (KARTA_WEBHOOK_MODE must match the one e2e-up installed; CLUSTER_NAME for a named one)
+	CLUSTER_NAME=$(CLUSTER_NAME) KARTA_WEBHOOK_MODE=$(KARTA_WEBHOOK_MODE) $(E2E_KUBECONFIG) ./hack/e2e/karta-operator/test.sh
 
 .PHONY: e2e-down
 e2e-down: ## Tear down the e2e cluster (set CLUSTER_NAME for a named one)
 	CLUSTER_NAME=$(CLUSTER_NAME) ./hack/e2e/down.sh
 
-# The e2e shell scripts to shellcheck: the provisioner, teardown, the shared
-# helpers, and every per-operator install.sh/verify.sh.
+# The recorder's own unit tests run first: they take a second, and a broken recorder
+# should fail here rather than minutes into a live cluster run.
+.PHONY: record-e2e
+record-e2e: ## Record the fixtures against the current cluster - kind from e2e-up or your own (WORKLOADS="pod" a subset, FLOW="running" one flow, CLUSTER_NAME for a named kind cluster)
+	@if [ "$(strip $(WORKLOADS))" = "none" ]; then \
+		echo "record-e2e: WORKLOADS=none selects no cases"; exit 2; fi
+	cd test/e2e && go test -count=1 ./recorder
+	cd test/e2e && CLUSTER_NAME=$(CLUSTER_NAME) $(E2E_KUBECONFIG) go test -count=1 -v -timeout $(E2E_TIMEOUT) ./flows $(if $(E2E_FOCUS)$(E2E_LABELS),-args $(if $(E2E_FOCUS),-ginkgo.focus="$(E2E_FOCUS)") $(if $(E2E_LABELS),-ginkgo.label-filter="$(E2E_LABELS)"))
+
+.PHONY: verify-recordings
+verify-recordings: ## Fail if any recorded fixture ended with succeeded false (re-record it clean before pushing)
+	@test -d test/e2e/recorded_data || { echo "no test/e2e/recorded_data dir"; exit 1; }
+	@bad=$$(grep -rlE '^  succeeded: false' test/e2e/recorded_data --include='*.yaml'); \
+	if [ -n "$$bad" ]; then echo "recordings that did not succeed:"; echo "$$bad"; exit 1; fi; \
+	echo "all recordings succeeded"
+
+# The e2e shell scripts to shellcheck: the provisioner, teardown, the karta-operator
+# scripts, the shared helpers, and every per-operator install.sh/verify.sh.
 E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh \
+	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \
 	$(wildcard hack/e2e/operators/*/install.sh) \
 	$(wildcard hack/e2e/operators/*/verify.sh)
 
 .PHONY: lint-shell
-lint-shell: ## shellcheck the e2e shell scripts (-x follows sourced files)
-	shellcheck -x $(E2E_SHELL)
+lint-shell: ## shellcheck the e2e and commit attribution scripts (-x follows sourced files)
+	shellcheck -x $(E2E_SHELL) hack/commit-attribution/*.sh
+
+##@ Tools
+
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+.PHONY: controller-gen
+controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
+$(CONTROLLER_GEN): | $(LOCALBIN)
+	@set -e; \
+	echo "Downloading controller-gen@$(CONTROLLER_TOOLS_VERSION)"; \
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION); \
+	mv $(LOCALBIN)/controller-gen $@
+
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCI_LINT): | $(LOCALBIN)
+	@set -e; \
+	echo "Downloading golangci-lint@$(GOLANGCI_LINT_VERSION)"; \
+	tmp=$$(mktemp); \
+	trap 'rm -f "$$tmp"' EXIT; \
+	curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 https://golangci-lint.run/install.sh -o "$$tmp"; \
+	sh "$$tmp" -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION); \
+	mv $(LOCALBIN)/golangci-lint $@
+
+.PHONY: go-licence-detector
+go-licence-detector: $(GO_LICENCE_DETECTOR) ## Download go-licence-detector locally if necessary.
+$(GO_LICENCE_DETECTOR): | $(LOCALBIN)
+	@set -e; \
+	echo "Downloading go-licence-detector@$(GO_LICENCE_DETECTOR_VERSION)"; \
+	GOBIN=$(LOCALBIN) go install go.elastic.co/go-licence-detector@$(GO_LICENCE_DETECTOR_VERSION); \
+	mv $(LOCALBIN)/go-licence-detector $@
+
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
+$(ENVTEST): | $(LOCALBIN)
+	@set -e; \
+	echo "Downloading setup-envtest@$(ENVTEST_VERSION)"; \
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION); \
+	mv $(LOCALBIN)/setup-envtest $@
+
+.PHONY: goreleaser
+goreleaser: $(GORELEASER) ## Download the pinned GoReleaser OSS binary locally
+$(GORELEASER): | $(LOCALBIN)
+	@set -e; \
+	echo "Downloading goreleaser@$(GORELEASER_VERSION)"; \
+	GOTOOLCHAIN=auto GOBIN=$(LOCALBIN) go install github.com/goreleaser/goreleaser/v2@$(GORELEASER_VERSION); \
+	mv $(LOCALBIN)/goreleaser $@
+
+##@ Help
+
+.PHONY: help
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} \
+	/^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-28s\033[0m %s\n", $$1, $$2 } \
+	/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)

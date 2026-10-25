@@ -1,12 +1,25 @@
-# Karta
+# Workload-Map (formerly Karta)
+
+> **Repository move and rename notice:** On September 10, 2026, this repository
+> moved from the run-ai GitHub organization to
+> `dsx-ai-factory/karta`. On September 15, 2026, the project was renamed from
+> Karta to Workload-Map to align with DSX OS naming conventions, and the
+> repository moved again to
+> [`dsx-ai-factory/workload-map`](https://github.com/dsx-ai-factory/workload-map).
+> Existing repository URLs and standard Git operations continue to work through
+> GitHub redirects. The Go module path has also moved to
+> `github.com/dsx-ai-factory/workload-map`; update any pinned `go get` or import
+> paths, GitHub Actions, webhooks, or other automation that reference
+> `run-ai/karta` or `dsx-ai-factory/karta`. After v0.2.x the library moves again,
+> into the nested module `github.com/dsx-ai-factory/workload-map/karta/sdk`.
 
 **A standard way to describe the structure of any Kubernetes workload type.**
 
-[![CI](https://github.com/run-ai/karta/actions/workflows/ci.yaml/badge.svg)](https://github.com/run-ai/karta/actions/workflows/ci.yaml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/run-ai/karta.svg)](https://pkg.go.dev/github.com/run-ai/karta)
-[![Go Report Card](https://goreportcard.com/badge/github.com/run-ai/karta)](https://goreportcard.com/report/github.com/run-ai/karta)
-[![Latest release](https://img.shields.io/github/v/release/run-ai/karta)](https://github.com/run-ai/karta/releases)
-[![License](https://img.shields.io/github/license/run-ai/karta)](LICENSE)
+[![CI](https://github.com/dsx-ai-factory/workload-map/actions/workflows/ci.yaml/badge.svg)](https://github.com/dsx-ai-factory/workload-map/actions/workflows/ci.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dsx-ai-factory/workload-map/karta/sdk.svg)](https://pkg.go.dev/github.com/dsx-ai-factory/workload-map/karta/sdk)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dsx-ai-factory/workload-map)](https://goreportcard.com/report/github.com/dsx-ai-factory/workload-map)
+[![Latest release](https://img.shields.io/github/v/release/dsx-ai-factory/workload-map)](https://github.com/dsx-ai-factory/workload-map/releases)
+[![License](https://img.shields.io/github/license/dsx-ai-factory/workload-map)](LICENSE)
 
 Karta lets you define a portable, declarative blueprint for any Kubernetes workload - whether it's a simple Deployment, a distributed PyTorchJob, or a custom CRD. Controllers and platforms can then use that blueprint to inspect, modify, and manage workloads without hard-coding knowledge of each type.
 
@@ -79,7 +92,7 @@ spec:
 
 The groups, roles, replica counts, GPU requests, and status conditions are all in there, but nested in fields that only LeaderWorkerSet-aware code knows how to find. RayCluster, JobSet, and every other workload type nests the same information differently.
 
-With the pre-built [LeaderWorkerSet Karta definition](docs/samples/lws.yaml), any tool can resolve that object and its live pods into a uniform structural view:
+With the pre-built [LeaderWorkerSet Karta definition](docs/catalog/leaderworkerset-x-k8s-io-leaderworkerset-v1.yaml), any tool can resolve that object and its live pods into a uniform structural view:
 
 ![Workload tree derived from the LeaderWorkerSet: demo (Running, 4 pods, 32 GPUs, gang scheduled per group) with two groups, each 2/2 ready with a leader pod and a worker pod at 8 GPUs each, resolved to their nodes](docs/assets/lws-workload-tree.svg)
 
@@ -87,17 +100,50 @@ The structure in this view comes from Karta path expressions: the group, leader,
 
 ## Quick Start
 
+### Install the CLI
+
+Install `kli` with Homebrew on macOS or Linux. This repository is its own tap,
+so add it by URL once, then install by full name:
+
+```bash
+brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
+brew install dsx-ai-factory/kli/kli
+```
+
+The URL is required because the short form of `brew tap` only resolves
+repositories named `homebrew-<name>`. Installing by full name also makes
+Homebrew trust this one cask, which it requires for any tap it does not
+maintain. `brew upgrade kli` installs later releases.
+
+Each release also publishes prebuilt `kli` archives for Linux and macOS on
+amd64 and arm64, with a `checksums.txt` manifest, on the
+[GitHub Releases page](https://github.com/dsx-ai-factory/workload-map/releases).
+To install without Homebrew, download the archive for your platform, check it
+against `checksums.txt`, and put the `kli` executable on your `PATH`.
+
+Run `kli --version` to print the release version. `go install` is not a
+supported way to install the CLI.
+
+See the [CLI Guide](docs/CLI%20Guide.md) for shell completion and for installing
+from a clone with make.
+
 ### Install the CRD
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/run-ai/karta/main/charts/karta/crds/run.ai_kartas.yaml
+kubectl apply -f https://raw.githubusercontent.com/dsx-ai-factory/workload-map/main/charts/karta/crds/run.ai_kartas.yaml
 ```
 
 ### Use the Go library
 
 ```bash
-go get github.com/run-ai/karta@latest
+go get github.com/dsx-ai-factory/workload-map/karta/sdk@latest
 ```
+
+The library lives in the `karta/sdk/` module. Releases up to v0.2.x published it as
+`github.com/dsx-ai-factory/workload-map`. To move to the new path, require
+`github.com/dsx-ai-factory/workload-map/karta/sdk` and rewrite imports from
+`github.com/dsx-ai-factory/workload-map/pkg/...` to
+`github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/...`.
 
 ### Define a Karta
 
@@ -150,7 +196,7 @@ spec:
 ### Extract workload information
 
 ```go
-import "github.com/run-ai/karta/pkg/resource"
+import "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 
 // Create a factory from your Karta and workload object
 factory := resource.NewComponentFactoryFromObject(karta, jobSetObject)
@@ -210,6 +256,7 @@ Karta supports any workload type. The following are pre-built and tested Karta d
 | RayJob | Ray |
 | RayService | Ray |
 | InferenceService | KServe |
+| LLMInferenceService | KServe |
 | Knative Service | Knative |
 | MPIJob | Kubeflow |
 | NIM Service | NVIDIA |
@@ -218,6 +265,7 @@ Karta supports any workload type. The following are pre-built and tested Karta d
 | Milvus | Milvus |
 | DynamoGraphDeployment | NVIDIA Dynamo |
 | PodCliqueSet | Grove |
+| Sandbox | Kubernetes Agent Sandbox |
 
 See [`docs/catalog/`](docs/catalog/) for the full Karta definitions.
 
@@ -242,23 +290,28 @@ See [ADOPTERS.md](ADOPTERS.md) for the full list of adopters. If you use Karta, 
 
 ## Documentation
 
+- [Roadmap](ROADMAP.md) - Where Karta is headed, in Now / Next / Later horizons
+- [Changelog](CHANGELOG.md) - Notable changes per release
+- [CLI Guide](docs/CLI%20Guide.md) - Installing `kli`, shell completion, and the install make targets
 - [Technical Guide](docs/Technical%20Guide.md) - Full Karta spec, path syntax (jq), validation rules
 - [Webhook Certificates](docs/Webhook%20Certificates.md) - Webhook cert modes (auto self-signed or manual) and how to wire cert-manager
+- [FIPS 140-3](docs/FIPS.md) - Running the operator with Go's FIPS 140-3 crypto module
+- [Dependency Updates](docs/Dependency%20Updates.md) - How Renovate keeps dependencies current and how to test a configuration change
 - [Karta definitions](docs/catalog/) - Real-world Karta definitions for common workload types
 - [Runnable examples](docs/examples/) - Offline quickstart and an installable controller-runtime example
-- [API Reference](https://pkg.go.dev/github.com/run-ai/karta) - Go package documentation
+- [API Reference](https://pkg.go.dev/github.com/dsx-ai-factory/workload-map) - Go package documentation
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute (DCO required)
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards and expectations
 
 ## Community
 
-Have a question, an idea, or want to show what you built with Karta? Join the conversation in [GitHub Discussions](https://github.com/run-ai/karta/discussions). For bugs and feature requests, [open an issue](https://github.com/run-ai/karta/issues). Discussions and issues are the channels maintainers monitor; expect an initial response within 5 business days, usually sooner.
+Have a question, an idea, or want to show what you built with Karta? Join the conversation in [GitHub Discussions](https://github.com/dsx-ai-factory/workload-map/discussions). For bugs and feature requests, [open an issue](https://github.com/dsx-ai-factory/workload-map/issues). Discussions and issues are the channels maintainers monitor; expect an initial response within 5 business days, usually sooner.
 
-New to the project? Introduce yourself in Discussions - what you are building and which workload types you care about. Good entry points are issues labeled [good first issue](https://github.com/run-ai/karta/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) and [help wanted](https://github.com/run-ai/karta/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22), and [CONTRIBUTING.md](CONTRIBUTING.md) covers the development workflow end to end.
+New to the project? Introduce yourself in Discussions - what you are building and which workload types you care about. Good entry points are issues labeled [good first issue](https://github.com/dsx-ai-factory/workload-map/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) and [help wanted](https://github.com/dsx-ai-factory/workload-map/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22), and [CONTRIBUTING.md](CONTRIBUTING.md) covers the development workflow end to end.
 
 ## Status
 
-Karta is in active development (pre-1.0). The API may change between minor versions. We welcome feedback and contributions - please [open an issue](https://github.com/run-ai/karta/issues) or [start a discussion](https://github.com/run-ai/karta/discussions).
+Karta is in active development (pre-1.0). The API may change between minor versions. We welcome feedback and contributions - please [open an issue](https://github.com/dsx-ai-factory/workload-map/issues) or [start a discussion](https://github.com/dsx-ai-factory/workload-map/discussions).
 
 ## Third-Party Software
 

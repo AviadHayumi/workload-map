@@ -3,7 +3,7 @@
 
 package collector
 
-import "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+import "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 
 const (
 	MetricPodWorkloadInfo          = "karta_pod_workload_info"

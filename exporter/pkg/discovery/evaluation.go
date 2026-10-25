@@ -14,11 +14,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/kartadefinitioninventory"
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/pkg/instructions"
-	"github.com/dsx-ai-factory/workload-map/pkg/jq"
-	"github.com/dsx-ai-factory/workload-map/pkg/jq/execution"
-	"github.com/dsx-ai-factory/workload-map/pkg/resource"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/instructions"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq/execution"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 type evaluationCache struct {

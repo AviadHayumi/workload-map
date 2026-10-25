@@ -3,7 +3,7 @@
 
 # Metrics exporter peer-review disposition
 
-The final [KEP-0001](../../keps/0001-metrics-exporter/README.md) governs these decisions. Opus 4.8 supplied the broad static review; it did not execute tests. GPT-6 Astra performed implementation and evidence-based triage. The first two broad Sonnet 5.5 responses were empty. A narrowed four-file Sonnet 5.5 review completed normally and reported no concrete correctness or concurrency findings in collector, server, store and store types. That limited result predates the scrape-concurrency limit, does not review the controller, and does not establish executed-test evidence.
+The final [KEP-0001](../keps/0001-metrics-exporter/README.md) governs these decisions. Opus 4.8 supplied the broad static review; it did not execute tests. GPT-6 Astra performed implementation and evidence-based triage. The first two broad Sonnet 5.5 responses were empty. A narrowed four-file Sonnet 5.5 review completed normally and reported no concrete correctness or concurrency findings in collector, server, store and store types. That limited result predates the scrape-concurrency limit, does not review the controller, and does not establish executed-test evidence.
 
 | Finding | Disposition | Evidence and action |
 | --- | --- | --- |

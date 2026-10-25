@@ -12,7 +12,6 @@ metadata:
   labels:
     {{- include "karta.labels" . | nindent 4 }}
 webhooks:
-  {{- if not .Values.operator.webhookOnly }}
   - name: mkarta.run.ai
     admissionReviewVersions: ["v1"]
     failurePolicy: Fail
@@ -34,5 +33,4 @@ webhooks:
         namespace: {{ .Release.Namespace }}
         path: /mutate-run-ai-v1alpha1-karta
         port: 443
-  {{- end }}
 {{- end -}}

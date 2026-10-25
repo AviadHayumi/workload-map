@@ -46,17 +46,19 @@ const defaultStabilityReads = 10
 // lock. Classification is fail-closed: a repository missing here stops the
 // release, so every new image must be added on purpose before it can ship.
 var knownImages = map[string]string{
-	"ghcr.io/dsx-ai-factory/workload-map/karta-operator": "operator",
-	"ghcr.io/dsx-ai-factory/workload-map/karta-exporter": "exporter",
-	"registry.k8s.io/kubectl":                            "crd-upgrader",
+	"ghcr.io/dsx-ai-factory/workload-map/karta-exporter":         "exporter",
+	"ghcr.io/dsx-ai-factory/workload-map/karta-operator":         "operator",
+	"ghcr.io/dsx-ai-factory/workload-map/karta-metrics-exporter": "metrics-exporter",
+	"registry.k8s.io/kubectl":                                    "crd-upgrader",
 }
 
 // selfImages classifies the project's own images by basename so a fork can
 // publish them under its own registry namespace. Third-party images stay
 // exact-match only.
 var selfImages = map[string]string{
-	"karta-operator": "operator",
-	"karta-exporter": "exporter",
+	"karta-exporter":         "exporter",
+	"karta-operator":         "operator",
+	"karta-metrics-exporter": "metrics-exporter",
 }
 
 var sha256Digest = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -150,7 +152,7 @@ func parseFlags(args []string) (options, error) {
 		return nil
 	})
 	var setArgs []string
-	flags.Func("set", "helm --set override, repeatable (applied after the built-in toggles)", func(v string) error {
+	flags.Func("set", "helm --set override, repeatable (exporter enablement and release tag are enforced)", func(v string) error {
 		setArgs = append(setArgs, v)
 		return nil
 	})
@@ -230,6 +232,15 @@ func renderChart(opts options) ([]byte, error) {
 	}
 	for _, override := range opts.setArgs {
 		args = append(args, "--set", override)
+	}
+	for _, override := range opts.setArgs {
+		args = append(args, "--set", override)
+	}
+
+	// Include the optional exporter even when a caller disables it or changes its tag.
+	args = append(args, "--set", "exporter.enabled=true")
+	if opts.version != "" {
+		args = append(args, "--set", "exporter.image.tag="+opts.version)
 	}
 
 	helm := exec.Command(opts.helmBin, args...)

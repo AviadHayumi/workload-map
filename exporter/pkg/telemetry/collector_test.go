@@ -15,7 +15,7 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/collector"
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 	otlpcollector "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"

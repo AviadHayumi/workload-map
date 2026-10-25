@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"os"
 
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 	"github.com/dsx-ai-factory/workload-map/operator/pkg"
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/pkg/version"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 var scheme = runtime.NewScheme()
@@ -55,8 +54,6 @@ func run() error {
 		leaderElectionID     string
 		printVersion         bool
 		webhookOpts          webhookOptions
-		submitterSource      string
-		webhookOnly          bool
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
@@ -70,8 +67,6 @@ func run() error {
 	flag.BoolVar(&printVersion, "version", false,
 		"Print the operator version and exit.")
 
-	flag.BoolVar(&webhookOnly, "webhook-only", false, "Serve only the submitter webhook; do not reconcile Karta definitions.")
-	flag.StringVar(&submitterSource, "submitter-identity-source", "", "Enable original submitter admission with this identity authority. Requires webhook TLS and scoped webhook configuration.")
 	webhookOpts.bindFlags(flag.CommandLine)
 
 	zapOpts := zap.Options{Development: false}
@@ -91,13 +86,6 @@ func run() error {
 
 	if webhookOpts.enable && !pkg.ValidCertMode(webhookOpts.certMode) {
 		return fmt.Errorf("invalid --webhook-cert-mode %q (want auto or manual)", webhookOpts.certMode)
-	}
-
-	if submitterSource != "" && !webhookOpts.enable {
-		return fmt.Errorf("submitter admission requires --enable-webhook")
-	}
-	if webhookOnly && submitterSource == "" {
-		return fmt.Errorf("--webhook-only requires --submitter-identity-source")
 	}
 
 	certOpts := webhookOpts.certOptions()
@@ -145,21 +133,16 @@ func run() error {
 		}
 	}
 
-	if !webhookOnly {
-		if err = pkg.NewReconciler(mgr.GetClient(), mgr.GetEventRecorder(pkg.ControllerName)).SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("setup karta reconciler: %w", err)
-		}
+	if err = pkg.NewReconciler(mgr.GetClient(), mgr.GetEventRecorder(pkg.ControllerName)).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setup karta reconciler: %w", err)
 	}
-	if webhookOpts.enable && !webhookOnly {
+
+	if webhookOpts.enable {
 		if err = pkg.SetupWebhookWithManager(mgr); err != nil {
 			return fmt.Errorf("setup karta webhook: %w", err)
 		}
 	}
 
-	if submitterSource != "" {
-		mgr.GetWebhookServer().Register("/mutate-submitter", &admission.Webhook{Handler: &pkg.SubmitterAdmission{Source: submitterSource}})
-		mgr.GetWebhookServer().Register("/validate-submitter", &admission.Webhook{Handler: &pkg.SubmitterAdmission{Source: submitterSource, Validate: true}})
-	}
 	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		return fmt.Errorf("register healthz: %w", err)
 	}

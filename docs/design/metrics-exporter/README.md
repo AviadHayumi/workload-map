@@ -555,5 +555,5 @@ sets divide it.
 - Discovery resolves cluster-scoped roots, but the controller omits their Pod-info, status and creation rows. Resource-type health is separate. Cluster-scoped output still needs a KEP decision.
 - Detailed reconciliation logging is not implemented in the PoC.
 
-[kep]: ../../../keps/0001-metrics-exporter/README.md
+[kep]: ../../keps/0001-metrics-exporter/README.md
 [configuration]: ../../karta-metrics-exporter/configuration.md

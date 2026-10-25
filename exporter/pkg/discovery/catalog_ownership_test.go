@@ -8,8 +8,8 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/pkg/catalog/kartas"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

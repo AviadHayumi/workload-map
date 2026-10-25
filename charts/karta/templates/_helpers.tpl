@@ -71,46 +71,32 @@ must match the --webhook-service-name flag passed to the operator.
 {{- end -}}
 
 {{/*
-Exporter resource names and labels. The exporter is a separate workload with
-its own ServiceAccount; it never shares the operator's RBAC.
+Resolves and validates global.fipsMode, returning "off", "on", or "only". The
+value lives under global rather than scoped to this chart, so an umbrella
+chart embedding karta as a dependency can drive it with one flag alongside
+its other components. An unquoted on/off/yes/no/true/false in values.yaml
+parses as a YAML 1.1 boolean, so that case is coerced before validating.
+Included from both deployment.yaml and crd-upgrader-job.yaml, since
+deployment.yaml renders nothing when operator.enabled=false (CRD-only
+install) and crd-upgrader-job.yaml reads fipsMode independently of that flag.
 */}}
+{{- define "karta.fipsMode" -}}
+{{- $fipsMode := (.Values.global).fipsMode | default "off" -}}
+{{- if kindIs "bool" $fipsMode -}}
+  {{- $fipsMode = ternary "on" "off" $fipsMode -}}
+{{- end -}}
+{{- if not (has $fipsMode (list "off" "on" "only")) -}}
+  {{- fail (printf "global.fipsMode must be one of: off, on, only (got %v)" $fipsMode) -}}
+{{- end -}}
+{{- $fipsMode -}}
+{{- end -}}
+
 {{- define "karta.exporter.fullname" -}}
-{{- if .Values.exporter.fullnameOverride -}}
-{{- .Values.exporter.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-exporter" .Chart.Name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
+{{ printf "%s-metrics-exporter" (.Values.fullnameOverride | default .Chart.Name | trunc 46 | trimSuffix "-") }}
 {{- end -}}
 
-{{- define "karta.exporter.labels" -}}
-{{ include "karta.labels" . }}
-app.kubernetes.io/component: exporter
-{{- end -}}
-
+{{/* Exporter labels use a distinct name to avoid matching operator selectors. */}}
 {{- define "karta.exporter.selectorLabels" -}}
-{{ include "karta.selectorLabels" . }}
-app.kubernetes.io/component: exporter
-{{- end -}}
-
-{{- define "karta.exporter.serviceAccountName" -}}
-{{- if .Values.exporter.serviceAccount.create -}}
-{{- include "karta.exporter.fullname" . -}}
-{{- else -}}
-{{- required "exporter.serviceAccount.name is required when exporter.serviceAccount.create is false" .Values.exporter.serviceAccount.name -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "karta.exporter.attributionEnabled" -}}
-{{- if or (hasKey .Values.exporter.attribution "enabled") (hasKey .Values.exporter.attribution "rules") -}}
-{{- fail "exporter.attribution supports submittedByExpression only" -}}
-{{- end -}}
-{{- if trim .Values.exporter.attribution.submittedByExpression -}}true{{- else -}}false{{- end -}}
-{{- end -}}
-
-{{- define "karta.exporter.identityConfig" -}}
-{{- dict "submittedByExpression" .Values.exporter.attribution.submittedByExpression | toJson -}}
-{{- end -}}
-
-{{- define "karta.exporter.config" -}}
-{{- pick .Values.exporter "kartaDefinitionSource" "namespaceSelector" "objectSelector" "podSelector" "resourceRules" "excludeResourceRules" "ignoredOwnerKinds" "requiredKinds" | toJson -}}
+app.kubernetes.io/name: {{ printf "%s-metrics-exporter" .Chart.Name | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}

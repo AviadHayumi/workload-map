@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
+
 # Contributing to karta
 
 Thank you for your interest in contributing to karta! This document provides guidelines and instructions for contributing to this project.
@@ -76,6 +79,12 @@ For more information about the DCO, please visit: https://developercertificate.o
 3. Every pull request must reference at least one open GitHub issue in its description. This ensures that all changes are tracked and linked to project requirements or bug reports.
 4. For major changes, please open an issue first to discuss the proposed changes
 
+### Design Proposals
+
+For changes that need design agreement before implementation, follow the
+[Karta Enhancement Proposal process](docs/keps/README.md). It describes when to write
+one and provides a template.
+
 ### Development Environment Setup
 
 Karta is a Go project. To set up a local environment:
@@ -88,20 +97,89 @@ cd karta
 # 2. Build the packages (uses the Go version pinned in go.mod)
 go build ./...
 
-# 3. Run the full check pipeline (codegen, manifests, licenses, and tests) -
-#    this is the same target CI runs
+# 3. Run the full check pipeline (fmt, vet, lint, codegen, manifests,
+#    licenses, and tests for every component) - the same target CI runs
 make check
 
-# 4. Lint the Go code and the Helm chart
-make lint
+# 4. Lint the Helm chart
 make helm-lint
 make helm-validate
 ```
 
-CI runs `make check` along with `golangci-lint` and the Helm `lint`/`validate`
-steps on every pull request. Running `make check` and `make lint` locally first
-is the fastest way to catch issues before pushing. If you only need a quick test
-pass, `make test` runs the tests and mock generation on their own.
+`make check` is the complete Go presubmit for the library, CLI, operator,
+Karta WASM module, and release helper, and CI runs it verbatim. CI covers the
+Helm chart, air-gap image lock, and shell scripts in separate steps, so run
+those targets too before pushing if you touched them.
+
+There is one Makefile, at the repository root. Bare targets act on every
+component, and a component suffix narrows them:
+
+```bash
+make test              # every Go component, including the release helper
+make test-cli          # just the CLI
+make check-operator    # operator checks, e2e compilation, tests, and version smoke
+make help              # every target, grouped
+```
+
+`make build-operator` writes a binary for the host OS and architecture to
+`bin/karta-operator`. The operator version smoke test runs that host binary on
+every supported development host. The operator e2e suite is compiled during
+`make check`; its live cluster run remains a separate target.
+
+There is no Go workspace. The library is the `karta/sdk/` module, and the CLI,
+operator, and other modules reach it through a relative `replace` directive in
+their own `go.mod`. Run Go commands from a module's directory, for example
+`cd karta && go test ./pkg/...`. The root `go.mod` only marks the library's old
+module path as deprecated and has no packages.
+
+`make lint` never rewrites your files. `make fmt` and the per-component
+`fmt-*` targets are the only ones that reformat, and nothing depends on them.
+
+### Commit Messages
+
+Commit messages follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```text
+<type>(<scope>): <short description>
+
+[optional body]
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`. When picking a scope, match an existing one from `git log`. Combine the format with the DCO sign-off described above:
+
+```bash
+git commit -s -m "fix(api): validate status mapping expressions before applying them"
+```
+
+### Commit Attribution
+
+Commit co-author trailers identify human contributors. Do not add AI tools as
+co-authors. Human `Co-authored-by` trailers and the required human `Signed-off-by`
+trailer remain valid. AI-assisted contributions are allowed; this check does not
+detect or prohibit AI use.
+
+CI rejects parsed `Co-authored-by` trailers
+containing Claude, ChatGPT, Copilot, Codex, Devin, Cursor, Gemini, or Anthropic,
+case-insensitively. Merge, revert, and fixup commit messages are checked too.
+This is name matching, not an identity lookup. Unlisted names are outside the
+rule's scope. Normal prose mentioning these tools is allowed.
+
+PRs and updates to existing branches check the supplied base-to-head range.
+For a new branch push, GitHub supplies an all-zero base. CI then checks only
+commits not already on the repository's default branch. Creating a release
+branch does not recheck inherited history. Locally, this fallback uses
+`refs/remotes/origin/main`; set `COMMIT_DEFAULT_BRANCH` to use another ref.
+An unavailable base ref fails the check rather than skipping validation.
+
+Run the same check locally:
+
+```bash
+make commit-attribution-check COMMIT_BASE=origin/main COMMIT_HEAD=HEAD
+```
+
+If it fails, remove the AI co-author line from each reported commit message.
+Keep human attribution and DCO sign-offs. A new commit does not repair an earlier
+commit's message.
 
 ### Making Changes
 
@@ -138,6 +216,94 @@ pass, `make test` runs the tests and mock generation on their own.
   expected window, please leave a comment to nudge the maintainers, or mention
   it in the related issue.
 
+## Catalog Definitions
+
+A new catalog definition ships with a recorded flow. The recording is how the
+path is seen: it drives a real workload through the states the definition maps
+and stores every CR the operator wrote, and the replay suite then proves the
+definition reads each recorded frame on every CI run. A definition without a
+recording is a claim; the recording is the evidence.
+
+Adding one means, in order:
+
+1. The builder under `karta/sdk/pkg/catalog/kartas/`, registered in
+   `karta/sdk/pkg/catalog/catalog.go`, then `make generate-samples` for the generated
+   file under `docs/catalog/`. Never hand-edit the generated file. Add the
+   workload to the Pre-built Karta Definitions table in `README.md`, unless it
+   is a Kubernetes builtin (apps, batch, core): the table lists operator-backed
+   kinds only.
+2. A flow under `test/e2e/flows/` with its workload manifests under
+   `test/e2e/flows/testdata/<workload>/`. See `test/e2e/recorder/README.md`.
+   - Flow: record every mapped state, and each spec value a rule branches on
+     (a StatefulSet's `OnDelete`, paused, a partition, a restart policy), that
+     the kind's webhook accepts and a kind cluster can reach. Name the rest
+     unproven in the builder comment. When the definition can suspend a
+     running workload, one flow fires the suspend action from Running; a CR
+     created suspended does not prove it. State predicates read the CR's own
+     fields, never Karta; `AddState` order decides only a frame two
+     predicates match, least to most advanced.
+   - Manifests: pin image tags, declare resource requests and limits, set
+     `namespace: default` (the recorder overrides it), set
+     `automountServiceAccountToken: false` unless the pods call the API
+     server, and name objects `karta-e2e-<workload>-<flow>`.
+   - Install: if the operator is new or its install needs new pieces, follow
+     Adding an operator in `hack/e2e/README.md` (`install.sh`, `verify.sh`,
+     `smoke.yaml`, the version pin in `global.env`, `ALL_WORKLOADS` and
+     `version_of` in `up.sh`) so `make e2e-up` still provisions everything. A
+     new kind for an operator already installed keeps its directory, pin, and
+     `up.sh` entries; it extends any flag in `install.sh` that gates which
+     kinds the controller serves and adds a `<kind>-smoke.yaml` plus a
+     `run_smoke` line in `verify.sh`. A Kubernetes builtin needs none of
+     this.
+   - Naming: the operator directory takes the upstream project's short name
+     (`kuberay`, `spark-operator`). `Fixture.Operator` in the flow must equal
+     that directory name; that is how the recording is filed under the
+     operator version. The operator name is also the first `Label`; add the
+     kind as a second label when the operator ships several kinds. A builtin
+     has no directory: `Fixture.Operator` equals the first `Label`, and the
+     second label is `builtin`. Name the testdata directory and the
+     `<workload>` in object names after the kind in lowercase (`mpijob`,
+     `rayjob`; `pytorch` is a legacy name); single-kind operators may use the
+     operator name (`nim`). When the kind collides with a builtin or another
+     catalog entry (a Volcano `Job`), use the upstream short name (`vcjob`)
+     for the label, the directory, the object names, and the root component
+     name alike.
+3. The recorded fixtures from a live run, committed under
+   `test/e2e/recorded_data/<operator>/<version>/<kartaName>/`:
+
+   ```sh
+   make e2e-up CLUSTER_NAME=<name> WORKLOADS=<operator>
+   make record-e2e CLUSTER_NAME=<name> WORKLOADS=<operator>
+   ```
+
+   A non-default `CLUSTER_NAME` keeps the run on its own kubeconfig, so the
+   shared current-context is never switched. Use the same `CLUSTER_NAME` on
+   both commands: the recorder reads
+   `hack/e2e/operators/.installed-versions-<cluster>` to pick the version
+   directory, and without it files the fixtures under the Kubernetes version.
+   The fixtures already committed sit under `v1.34.0`; new ones go under the
+   operator's `version_of` string from `hack/e2e/up.sh`, which can be
+   composite (`v1.9.0+mpiv0.8.2` for kubeflow). For a new kind on an operator
+   that ships several, pass the kind label to `record-e2e`
+   (`WORKLOADS=tfjob`) so the sibling flows are not re-recorded. A Kubernetes
+   builtin has no operator: run `e2e-up` with `WORKLOADS=none` (`up.sh`
+   rejects other names) and `record-e2e` with the flow label; its fixtures
+   land under the cluster's Kubernetes version.
+   `FLOW=<name>` (or `FLOW="<a>|<b>"`) re-records only those flows, which is
+   the normal loop after a failure in a flow or its manifest. A change to a
+   status rule or a predicate re-records every flow of the kind. Fixtures are
+   recorder output and carry no SPDX header. `phases` lists the flow
+   predicates that matched a frame. In a new fixture, every state frame after
+   the controller's first status write should list one; the frames before it
+   read Undefined and match none, which is normal. Two mean the predicates
+   overlap, and since they mirror the status rules, karta-verify on that frame
+   shows whether the rules overlap too.
+4. `make test-replay` and `make verify-recordings` green. `make lint-shell`
+   green, and `GOWORK=off go vet ./...` and `gofmt -l .` clean in `test/e2e`;
+   `make check` covers none of these three. Commit the new files before
+   `make check`: the `validate` target treats untracked files as stale
+   generator output.
+
 ## Versioning
 
 `charts/karta/Chart.yaml` keeps `version` and `appVersion` as placeholders (`0.0.0`). The values that actually get published are computed by the [push-artifacts workflow](.github/workflows/push-artifacts.yaml) and overridden at `helm package` time:
@@ -145,7 +311,7 @@ pass, `make test` runs the tests and mock generation on their own.
 | Trigger | Published `version` and `appVersion` |
 |---|---|
 | Push to `main` (dev build) | `0.0.0-main-<short-sha>` |
-| Tag push (release) | the tag (e.g. tag `v1.2.3` → `1.2.3`) |
+| Published GitHub Release | the release's tag (e.g. tag `v1.2.3` -> `1.2.3`) |
 
 Consumers pin a specific release by chart `version` (which equals the tag), e.g. `version: 1.2.3` in the consumer's `Chart.yaml` dependency entry.
 
@@ -153,14 +319,15 @@ This is the same model used by [ai-dynamo/grove](https://github.com/ai-dynamo/gr
 
 ### Releasing
 
-```bash
-git tag v1.2.3
-git push origin v1.2.3
-```
+A release publishes the GitHub Release for `vX.Y.Z` from the merged commit,
+which creates the `vX.Y.Z` tag and starts the release workflow; once its checks
+pass, the workflow tags the `karta/sdk/` library module as `karta/sdk/vX.Y.Z` on
+the same commit. The two tags, local snapshot, guarded release command,
+Homebrew cask pull request, credentials, and recovery procedure are documented
+in [RELEASE.md](RELEASE.md).
 
-Pushing the tag triggers `push-artifacts.yaml`, which publishes `oci://ghcr.io/run-ai/karta/karta:1.2.3` with both `version` and `appVersion` set to `1.2.3`, and creates a corresponding GitHub release.
-
-No release-prep PR or `Chart.yaml` bump is needed - the tag is the source of truth.
+No `Chart.yaml` bump is needed. The release tag remains the source of truth for
+the published chart version and app version.
 
 ## Code of Conduct
 

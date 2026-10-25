@@ -5,7 +5,7 @@
 
 The [implementation design](./README.md) explains the components and workload flow.
 This document describes how the controller handles overlapping events, API reads
-and metric collection. [KEP-0001](../../../keps/0001-metrics-exporter/README.md)
+and metric collection. [KEP-0001](../../keps/0001-metrics-exporter/README.md)
 defines the public behavior.
 
 <a id="definition-selection"></a>
@@ -243,7 +243,7 @@ between them.
 
 ### Retaining results after failure
 
-The [KEP's validity contract](../../../keps/0001-metrics-exporter/README.md#reading-observation-validity)
+The [KEP's validity contract](../../keps/0001-metrics-exporter/README.md#reading-observation-validity)
 allows the exporter to retain earlier Pod mappings and status with
 `observation_valid="false"`. They must still belong to the same objects and
 selected definition.

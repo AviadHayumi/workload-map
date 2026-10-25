@@ -8,7 +8,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
 func gather(t *testing.T, s Capturer, options Options) map[string][]*dto.Metric {

@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/dsx-ai-factory/workload-map/pkg/catalog/kartas"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
 
 func TestResolveAcceptedOwnerBeforeInitialSync(t *testing.T) {

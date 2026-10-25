@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	inventory "github.com/dsx-ai-factory/workload-map/exporter/pkg/kartadefinitioninventory"
-	"github.com/dsx-ai-factory/workload-map/pkg/catalog/kartas"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
 
 func TestReplacementCoverageRetiresAbsentObjects(t *testing.T) {

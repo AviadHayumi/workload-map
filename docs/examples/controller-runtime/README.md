@@ -64,6 +64,9 @@ and writes them with plain `GetPodTemplateSpec` / `UpdatePodTemplateSpec` calls.
 - [kind](https://kind.sigs.k8s.io/), `kubectl`, `docker`
 - Go (only to build the image)
 
+This example is a standalone module. Its local `replace` directive selects the
+repository library in `karta/sdk/`, so the image is built from the repository root.
+
 ## Run it on Kind
 
 From the repository root.

@@ -20,7 +20,7 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
 	"github.com/dsx-ai-factory/workload-map/exporter/test/scale"
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
 // These fixtures measure publication and exposition, not informer or cluster capacity.

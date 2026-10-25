@@ -3,9 +3,11 @@
 # Copyright (c) 2026 NVIDIA Corporation
 #
 # Provision a local kind cluster for the Karta e2e suite: builds and deploys the
-# Karta operator, installs the base dependencies (cert-manager, fake-gpu-operator),
-# and installs the selected upstream workload operators, smoke-testing each one as
-# it installs. Run with --help for usage; see hack/e2e/README.md for the details.
+# Karta operator, installs the base dependencies (fake-gpu-operator, plus
+# cert-manager when something needs it), and installs the selected upstream workload
+# operators, smoke-testing each one as it installs. KARTA_WEBHOOK_MODE picks which
+# webhook and serving-cert arrangement Karta is installed with.
+# Run with --help for usage; see hack/e2e/README.md for the details.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -26,14 +28,14 @@ if [ -z "${KUBECONFIG:-}" ] && [ "${CLUSTER_NAME}" != "${DEFAULT_CLUSTER}" ]; th
   mkdir -p "$(dirname "${KUBECONFIG}")"
   export KUBECONFIG
 fi
-# The per-operator install.sh/verify.sh run as subprocesses; export the context
-# they need so they inherit it (version pins come from global.env via _common.sh).
-export CLUSTER_NAME IMAGE REPO_ROOT
+# karta-operator/ and operators/<name>/ each run install.sh and verify.sh as
+# subprocesses; export what they need (version pins come from global.env).
+export CLUSTER_NAME IMAGE REPO_ROOT KARTA_WEBHOOK_MODE
 
 # Workload operators selectable on the command line, in canonical install order:
 # a dependency always appears before its dependents (knative before kserve,
 # grove before dynamo).
-ALL_WORKLOADS=(lws jobset kuberay kubeflow knative kserve milvus grove dynamo nim)
+ALL_WORKLOADS=(lws jobset kuberay kubeflow knative kserve milvus grove dynamo nim agent-sandbox)
 
 # deps_of <workload> prints the workload operators that must be installed first.
 deps_of() {
@@ -56,6 +58,7 @@ version_of() {
     grove) echo "${GROVE_VERSION}" ;;
     dynamo) echo "${DYNAMO_VERSION}" ;;
     nim) echo "${NIM_OPERATOR_VERSION}" ;;
+    agent-sandbox) echo "${AGENT_SANDBOX_VERSION}" ;;
     *) echo "?" ;;
   esac
 }
@@ -64,9 +67,14 @@ usage() {
   cat >&2 <<EOF
 Usage: $0 [--list] [workload...]
   No workload args (or "all") installs everything. Named args install the base
-  plus only those workload operators (and their dependencies).
+  plus only those workload operators (and their dependencies). "none" installs
+  the base only, which is what the operator e2e wants.
   Workloads: ${ALL_WORKLOADS[*]}
   --list    print the resolved install plan and exit
+
+Environment (see hack/e2e/global.env):
+  KARTA_WEBHOOK_MODE  auto | cert-manager | disabled   (default auto)
+  CERT_MANAGER        auto | true | false              (default auto)
 EOF
 }
 
@@ -127,14 +135,6 @@ install_fake_gpu() {
     --set computeDomainDraPlugin.enabled=true --wait --timeout 3m >/dev/null
 }
 
-install_karta() {
-  kubectl apply --server-side -f "${REPO_ROOT}/charts/karta/crds/"
-  helm upgrade -i karta "${REPO_ROOT}/charts/karta" -n karta-system --create-namespace \
-    --set image.repository="${IMAGE%:*}" --set image.tag="${IMAGE##*:}" \
-    --set resources.limits.memory="${KARTA_OPERATOR_MEMORY}" >/dev/null
-  rollout_wait karta-system deploy/karta-operator 120s
-}
-
 # --- selectable workload operators -------------------------------------------
 
 # run_operator <name>: run the operator's standalone install.sh then verify.sh,
@@ -177,6 +177,9 @@ run_operator() {
   # Ungrouped, so the outcome is visible without expanding the group above.
   echo "==> ${name}: ready (install ${idur}s, smoke ${smoke})"
   summary "| :white_check_mark: | ${name} | ${ver} | ${idur}s | ${smoke} |"
+  # The e2e flows file each recording under the installed operator version. Per cluster,
+  # like the kubeconfig, so parallel clusters with different versions cannot mix.
+  echo "${name}=${ver}" >> "${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
 }
 
 main() {
@@ -193,14 +196,24 @@ main() {
 
   # "all" is an alias for every workload (same as passing no args). Guard the
   # expansion so bare "up.sh" does not trip set -u on the empty array (bash 3.2).
+  local base_only=false
   if [ "${#requested[@]}" -gt 0 ]; then
+    for w in "${requested[@]}"; do
+      if [ "$w" = "none" ]; then
+        [ "${#requested[@]}" -eq 1 ] ||
+          { echo "error: \"none\" cannot be combined with other workloads" >&2; usage; exit 2; }
+        base_only=true
+      fi
+    done
     for w in "${requested[@]}"; do
       [ "$w" = "all" ] && { requested=("${ALL_WORKLOADS[@]}"); break; }
     done
   fi
 
   local selected=()
-  if [ "${#requested[@]}" -eq 0 ]; then
+  if [ "${base_only}" = true ]; then
+    selected=()
+  elif [ "${#requested[@]}" -eq 0 ]; then
     selected=("${ALL_WORKLOADS[@]}")
   else
     for w in "${requested[@]}"; do
@@ -215,20 +228,65 @@ main() {
 
   # Build the ordered plan by walking the canonical order and keeping selected ones.
   local plan=()
-  for w in "${ALL_WORKLOADS[@]}"; do
-    if printf '%s\n' "${selected[@]}" | grep -qxF "$w"; then plan+=("$w"); fi
+  if [ "${#selected[@]}" -gt 0 ]; then
+    for w in "${ALL_WORKLOADS[@]}"; do
+      if printf '%s\n' "${selected[@]}" | grep -qxF "$w"; then plan+=("$w"); fi
+    done
+  fi
+
+  case "${KARTA_WEBHOOK_MODE}" in
+    auto | cert-manager | disabled) ;;
+    *)
+      echo "error: unknown KARTA_WEBHOOK_MODE '${KARTA_WEBHOOK_MODE}' (want: auto, cert-manager, disabled)" >&2
+      exit 2
+      ;;
+  esac
+
+  local cert_manager_needed_by=""
+  [ "${KARTA_WEBHOOK_MODE}" = "cert-manager" ] && cert_manager_needed_by="KARTA_WEBHOOK_MODE=cert-manager"
+  for w in ${plan[@]+"${plan[@]}"}; do
+    if [ "$w" = "kserve" ]; then
+      cert_manager_needed_by="${cert_manager_needed_by:+${cert_manager_needed_by}, }operator ${w}"
+    fi
   done
+  local install_cm=false
+  case "${CERT_MANAGER}" in
+    auto) [ -n "${cert_manager_needed_by}" ] && install_cm=true ;;
+    true) install_cm=true ;;
+    false)
+      if [ -n "${cert_manager_needed_by}" ]; then
+        echo "error: CERT_MANAGER=false but cert-manager is required by: ${cert_manager_needed_by}" >&2
+        exit 2
+      fi
+      ;;
+    *)
+      echo "error: unknown CERT_MANAGER '${CERT_MANAGER}' (want: auto, true, false)" >&2
+      exit 2
+      ;;
+  esac
 
   if [ "$plan_only" = true ]; then
-    echo "base: kind cluster, cert-manager, fake-gpu-operator, karta"
+    echo "base: kind cluster, fake-gpu-operator, karta (webhook: ${KARTA_WEBHOOK_MODE})"
+    if [ "${install_cm}" = true ]; then
+      echo "cert-manager: yes (${cert_manager_needed_by:-CERT_MANAGER=true})"
+    else
+      echo "cert-manager: no"
+    fi
     if [ "${#plan[@]}" -gt 0 ]; then echo "workloads: ${plan[*]}"; else echo "workloads: (none)"; fi
     exit 0
   fi
 
   require_tools
   group "build image + kind cluster"; setup_cluster; endgroup
-  group "cert-manager ${CERT_MANAGER_VERSION}"; install_cert_manager; endgroup
+  if [ "${install_cm}" = false ] && kubectl get namespace cert-manager >/dev/null 2>&1; then
+    warn "cert-manager is already on ${CLUSTER_NAME}; not installing it does not remove it"
+  fi
+  if [ "${install_cm}" = true ]; then
+    group "cert-manager ${CERT_MANAGER_VERSION}"; install_cert_manager; endgroup
+  fi
   group "fake-gpu-operator ${FAKE_GPU_VERSION}"; install_fake_gpu; endgroup
+  # Fresh provision, fresh version list (gitignored; read by the e2e flows).
+  : > "${OPERATORS_DIR}/.installed-versions-${CLUSTER_NAME}"
   if [ "${#plan[@]}" -gt 0 ]; then
     summary "## E2E install: ${CLUSTER_NAME}"
     summary ""
@@ -236,9 +294,12 @@ main() {
     summary "|---|---|---|---|---|"
     for w in "${plan[@]}"; do run_operator "$w"; done
   fi
-  group "karta operator"; install_karta; endgroup
+  group "karta operator"
+  bash "${REPO_ROOT}/hack/e2e/karta-operator/install.sh" || { endgroup; fail "karta install failed"; exit 1; }
+  bash "${REPO_ROOT}/hack/e2e/karta-operator/verify.sh" || { endgroup; fail "karta smoke failed"; exit 1; }
+  endgroup
 
-  echo "==> environment ready (cluster: ${CLUSTER_NAME})."
+  echo "==> environment ready (cluster: ${CLUSTER_NAME}, webhook: ${KARTA_WEBHOOK_MODE})."
   if [ "${CLUSTER_NAME}" != "${DEFAULT_CLUSTER}" ]; then
     echo "    this cluster has its own kubeconfig: ${KUBECONFIG}"
     echo "    export KUBECONFIG=${KUBECONFIG} to use kubectl against it"

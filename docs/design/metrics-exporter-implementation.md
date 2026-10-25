@@ -10,7 +10,7 @@ and verification protocol below have since changed. See the current
 
 ## Contract and scope
 
-[KEP-0001](../../keps/0001-metrics-exporter/README.md) governs the public metric
+[KEP-0001](../keps/0001-metrics-exporter/README.md) governs the public metric
 names, labels and Helm values. This audit compares the implementation with the
 complete exporter prototype at `ef7eec03`. The target is 100,000 workloads.
 Synthetic capacity measurements and live operator acceptance are separate gates.

@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "karta.labels" . | nindent 4 }}
 rules:
-  {{- if not .Values.operator.webhookOnly }}
   # Reconcile Karta CRs and update their status
   - apiGroups: ["run.ai"]
     resources: ["kartas"]
@@ -27,7 +26,6 @@ rules:
   - apiGroups: [ "events.k8s.io" ]
     resources: [ "events" ]
     verbs: [ "create", "patch", "update" ]
-  {{- end }}
   {{- if and .Values.webhook.enabled (eq .Values.webhook.cert.provisionMode "auto") }}
 
   # The self-signed cert rotator patches the caBundle onto the webhook configs

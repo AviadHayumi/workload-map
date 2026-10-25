@@ -16,10 +16,15 @@ hack/e2e/
   down.sh               tear the cluster down (and its kubeconfig for named clusters)
   global.env            single source of truth for versions and runtime defaults
   kind-config.yaml      kind cluster shape (1 control-plane + 2 workers)
-  operators/
+  karta-operator/       the system under test
+    install.sh          standalone: installs Karta in the selected webhook route
+    verify.sh           standalone: smoke-tests it via run_smoke
+    smoke.yaml          the throwaway Karta the smoke test applies
+    test.sh             runs the operator e2e against the current cluster
+  operators/            the upstream workload operators it exercises
     _common.sh          shared helpers + GitHub Actions logging, sourced by every script
     <name>/
-      install.sh        standalone: installs the operator (run as a subprocess)
+      install.sh        standalone: installs that workload operator (a subprocess)
       verify.sh         standalone: smoke-tests it via run_smoke
       smoke.yaml        the throwaway workload the smoke test applies
       <config>.yaml     optional co-located config (e.g. grove/values.yaml)
@@ -31,13 +36,16 @@ hack/e2e/
 make e2e-up                          # base + all operators
 make e2e-up WORKLOADS="jobset lws"   # base + a subset (one provision, deps resolved once)
 make e2e-up WORKLOADS="jobset"       # base + a single operator
+make e2e-up WORKLOADS=none           # base only, no workload operators
 make e2e-down                        # tear down
 ./hack/e2e/up.sh --list dynamo       # print the resolved plan and exit (dynamo pulls grove)
+./hack/e2e/up.sh --list none         # print the base-only plan and exit
 ```
 
-The always-on base is the kind cluster, cert-manager, the fake-gpu-operator, and
-the Karta operator. Selecting a subset keeps a run light. Dependencies are added
-automatically: kserve pulls knative, dynamo pulls grove.
+The base is the kind cluster, the fake-gpu-operator, and the Karta operator.
+Selecting a subset keeps a run light, and `none` keeps only the base, which is what
+the operator e2e wants. Dependencies are added automatically: kserve pulls
+knative, dynamo pulls grove.
 
 ## How up.sh runs an operator
 
@@ -61,6 +69,9 @@ pins in one step. Available helpers:
 - `run_smoke <manifest> <target> <wait-expr> [timeout] [ns]` - apply a throwaway
   resource, wait for the state, delete it. Used by every verify.sh.
 - `preload_image <src-ref> <local-tag>` - pull an image and load it into kind.
+  With Docker Desktop's containerd image store, `kind load docker-image` can fail
+  on a multi-arch image with `ctr: content digest ... not found`. Skip the preload
+  then and let the nodes pull the pinned image.
 - `build_and_load_image <context-dir> <local-tag>` - build an image and load it.
 - `ensure_secret <ns> <name> <k=v>...` - idempotently create/update a secret.
 - Logging: `group`/`endgroup`, `notice`/`warn`/`fail`, `summary`. When to use each
@@ -90,13 +101,17 @@ Install side (this directory):
    main "$@"
    ```
 
+   Apply upstream manifests with `kubectl apply --server-side` (plus
+   `--force-conflicts` for a reused cluster). Large CRDs exceed the annotation
+   size limit of a client-side apply.
+
 2. Create `operators/<name>/smoke.yaml` (a throwaway workload) and
    `operators/<name>/verify.sh`:
 
    ```sh
    #!/usr/bin/env bash
    # SPDX + copyright, set -euo pipefail, MODULE_DIR, source ../_common.sh
-   run_smoke "${MODULE_DIR}/smoke.yaml" "<kind>/<name>-smoke" "<wait-expr>" "<timeout>" default
+   run_smoke "${MODULE_DIR}/smoke.yaml" "<plural>.<group>/<name>-smoke" "<wait-expr>" "<timeout>" default
    ```
 
    `<wait-expr>` is passed to `kubectl wait --for=`, so both `condition=Ready` and

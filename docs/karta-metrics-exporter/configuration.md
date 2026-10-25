@@ -3,9 +3,9 @@
 
 # Karta metrics exporter configuration
 
-Proposed configuration for [KEP-0001](../../keps/0001-metrics-exporter/README.md).
+Proposed configuration for [KEP-0001](../keps/0001-metrics-exporter/README.md).
 The exporter runs separately from the Karta controller. Helm configures its
-definitions, observation scope and metric delivery.
+definitions, observation scope, configured labels and metric delivery.
 
 ## Helm values
 
@@ -76,6 +76,12 @@ exporter:
     - example.com/v1/PlatformWrapper
   requiredKinds: [] # Optional expected APIs; failed checks mark dependent observations unhealthy.
     # Example: ["jobset.x-k8s.io/v1alpha2/JobSet"]
+  labelRules: [] # Extra labels for Pod info and workload status.
+  labelLimits: # Bounds for each CEL evaluation.
+    costLimit: 10000
+    maxExpressionBytes: 4096
+    maxValueBytes: 1024
+    interruptCheckFrequency: 100
   metrics:
     workloadPhases: ["all"] # Emit every workload phase as a 0/1 series.
   # Let Prometheus Operator discover and scrape the exporter.
@@ -98,7 +104,7 @@ catalog. `http.port` serves `/healthz` and `/readyz` in both delivery modes, plu
 | `podSelector` | Pods whose attribution rows are exported, using each Pod's labels. |
 | `resourceRules` / `excludeResourceRules` | Root API types, using group, version and plural resource name. Exclusions win. |
 | `kartaDefinitionSource.cluster.labelSelector` | Cluster Karta definitions by their labels. |
-| Definition-source `include` / `exclude` | Definition names. Names and label selection are combined below; exclusions win. |
+| Definition-source `include` / `exclude` | Definition names. Empty includes mean all; exclusions win. |
 
 Use [Kubernetes label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors)
 to match each object's own labels. All conditions must match; `NotIn` also matches
@@ -147,9 +153,8 @@ duplicate observations.
 
 Source filters apply before precedence. A selected cluster Karta overrides a
 selected catalog definition for the same group/kind. Disabled sources contribute
-none. Within each source, a name inclusion or a nonempty label selector selects
-a candidate. When both are empty, all candidates match. Exclusions win. Cluster
-ties use oldest creation time, then name.
+none. Cluster definition names and their label selector must both match. Ties use
+oldest creation time, then name.
 
 The catalog excludes `core-pod-v1` by default. Clearing that exclusion, or selecting
 a cluster Pod Karta, enables bare-Pod workloads. `objectSelector` also applies to
@@ -158,62 +163,27 @@ those roots.
 `ignoredOwnerKinds` stops the owner walk before an exact GVK. The last verified
 object below it becomes the root; missing owners below that boundary still fail.
 A Karta definition on an intermediate owner does not by itself stop the walk.
-An ignored owner can still be selected independently and emit its own status
-and creation time. Use root exclusion rules to remove that output. `requiredKinds` checks
+An ignored owner can still be selected independently. `requiredKinds` checks
 remain active; failed checks invalidate dependent observations.
 
-## Submitter admission
+## Configured labels
 
-`submitterAdmission` captures direct Kubernetes callers. Exporter CEL extraction
-is configured separately, as shown in [Who submitted the workload](../../keps/0001-metrics-exporter/README.md#who-submitted-the-workload).
+`labelRules` adds named labels to `karta_pod_workload_info` and
+`karta_workload_status`. Each rule provides metric names, ordered sources and a
+CEL expression. Sources are `workload` and `pod`. Status rules cannot use `pod`.
+Expressions read the supplied full object through `object`; they do not call
+Kubernetes or mutate it. Guard optional fields with `has(...)`.
 
-Capture uses `MutatingAdmissionPolicy` and `ValidatingAdmissionPolicy` with their
-bindings. Both run in the API server without a Karta operator. MAP is
-[stable in Kubernetes 1.36+](https://kubernetes.io/docs/reference/access-authn-authz/mutating-admission-policy/);
-[1.34-1.35 requires beta feature/API enablement](https://v1-35.docs.kubernetes.io/docs/reference/access-authn-authz/mutating-admission-policy/).
-VAP is [stable since 1.30](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/).
-The chart rejects capture if required APIs are unavailable.
+The command validates rule names, metric/source combinations and CEL at startup.
+The CEL evaluator is implemented. Resolver execution and exporting the resolved
+labels are still scaffold work.
 
-This example captures Deployments and Jobs in opted-in namespaces:
+The chart renders `labelRules` and `labelLimits` into the mounted config file.
+Rules default to `[]`. Limits default to 10000 cost units, 4096 expression bytes,
+1024 value bytes and a cancellation check every 100 comprehension iterations.
 
-```yaml
-submitterAdmission:
-  enabled: true
-  matchConstraints:
-    namespaceSelector:
-      matchLabels:
-        karta.run.ai/capture-submitter: "true"
-      matchExpressions:
-        - key: kubernetes.io/metadata.name
-          operator: NotIn
-          values: [kube-system, karta-system]
-    resourceRules:
-      - operations: ["CREATE"]
-        apiGroups: ["apps"]
-        apiVersions: ["v1"]
-        resources: ["deployments"]
-        scope: Namespaced
-      - operations: ["CREATE"]
-        apiGroups: ["batch"]
-        apiVersions: ["v1"]
-        resources: ["jobs"]
-        scope: Namespaced
-    excludeResourceRules: []
-  matchConditions: [] # Optional CEL conditions on the admission request.
-```
-
-Capture follows [native Kubernetes matching](https://github.com/kubernetes/kubernetes/blob/v1.36.0/staging/src/k8s.io/api/admissionregistration/v1/types.go#L554-L642).
-Rules select namespaced CREATE requests. Exclusions win and all conditions must
-pass. An empty namespace selector matches all namespaces. Direct Pod capture uses
-group `""`, version `v1`, resource `pods`. These settings do not filter exporter watches.
-
-Mutation fills a missing `karta.run.ai/submitted-by` annotation. Within capture
-scope, CREATE validation rejects a supplied value that differs from the caller.
-Captured identity must stay protected from UPDATE overrides or removal, including
-after capture scope narrows. The UPDATE matching rules are defined in the
-[implementation design](../design/metrics-exporter/consistency.md#submitter-update-protection).
-Administrators control namespace labels and policy settings. Policies use
-`failurePolicy: Fail`; validation bindings use `validationActions: [Deny]`.
+See the [evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
+for a complete example, flags, environment variables and precedence.
 
 ## Metric delivery
 
@@ -228,7 +198,7 @@ from other exporters; the [query guide](README.md) shows how to join them.
 
 ### Prometheus
 
-![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../../keps/0001-metrics-exporter/metrics-architecture.png)
+![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../keps/0001-metrics-exporter/metrics-architecture.png)
 
 `serviceMonitor.enabled: true` creates a ServiceMonitor. Its CRD must be installed
 and the Prometheus selector must match it. The Prometheus Operator turns it into

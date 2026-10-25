@@ -3,7 +3,7 @@ module github.com/dsx-ai-factory/workload-map/exporter
 go 1.26.3
 
 require (
-	github.com/dsx-ai-factory/workload-map v0.0.0
+	github.com/dsx-ai-factory/workload-map/karta/sdk v0.0.0
 	github.com/google/cel-go v0.26.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
@@ -90,4 +90,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 )
 
-replace github.com/dsx-ai-factory/workload-map => ../
+replace github.com/dsx-ai-factory/workload-map/karta/sdk => ../karta/sdk/

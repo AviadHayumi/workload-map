@@ -21,6 +21,10 @@ spec:
       inCluster:
         values:
           mode: standalone
+          # Milvus publishes this MinIO release for anonymous pulls.
+          image:
+            repository: docker.io/milvusdb/minio
+            tag: RELEASE.2024-12-18T13-15-44Z
           resources:
             requests:
               memory: 256Mi

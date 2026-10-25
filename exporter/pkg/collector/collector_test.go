@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/dsx-ai-factory/workload-map/exporter/pkg/store"
-	"github.com/dsx-ai-factory/workload-map/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
 var fixtureTime = time.Date(2026, time.October, 20, 0, 0, 0, 0, time.UTC)

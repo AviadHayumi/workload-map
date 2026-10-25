@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# yaml-language-server: $schema=https://raw.githubusercontent.com/goreleaser/goreleaser/v2.18.1/www/static/schema.json
+
+version: 2
+project_name: karta
+
+# Follow the workflow's repository, so a fork releases to itself.
+env:
+  - RELEASE_REPOSITORY={{ envOrDefault "GITHUB_REPOSITORY" "dsx-ai-factory/workload-map" }}
+
+builds:
+  - id: karta
+    dir: cli
+    main: ./cmd/kli
+    binary: kli
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    ldflags:
+      - -X github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version.version={{ .Env.VERSION }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: karta
+    ids:
+      - karta
+    formats:
+      - tar.gz
+    name_template: "karta_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    strip_binary_directory: true
+    # Pinned time and owner, so any rebuild of a tag is byte-identical.
+    files:
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+          owner: root
+          group: root
+      - src: NOTICE
+        info:
+          mtime: "{{ .CommitDate }}"
+          owner: root
+          group: root
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
+          owner: root
+          group: root
+      - src: THIRD_PARTY_LICENSES
+        info:
+          mtime: "{{ .CommitDate }}"
+          owner: root
+          group: root
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+      owner: root
+      group: root
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+  ids:
+    - karta
+
+source:
+  enabled: false
+
+sboms:
+  - disable: true
+
+# The tap is this repository:
+#   brew tap dsx-ai-factory/kli https://github.com/dsx-ai-factory/workload-map
+#   brew install dsx-ai-factory/kli/kli
+homebrew_casks:
+  - name: kli
+    ids:
+      - karta
+    binaries:
+      - kli
+    url:
+      template: "https://github.com/{{ .Env.RELEASE_REPOSITORY }}/releases/download/v{{ .Version }}/{{ .ArtifactName }}"
+    homepage: "https://github.com/{{ .Env.RELEASE_REPOSITORY }}"
+    description: Workload-aware visibility for any Kubernetes workload type
+    commit_msg_template: |-
+      build(release): update the kli cask to {{ .Version }}
+
+      Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+    # Despite the name, this only omits the committer, so GitHub signs the
+    # GITHUB_TOKEN commit as github-actions[bot]. The sign-off is for dco.
+    commit_author:
+      use_github_app_token: true
+    repository:
+      owner: "{{ dir .Env.RELEASE_REPOSITORY }}"
+      name: "{{ base .Env.RELEASE_REPOSITORY }}"
+      branch: "kli-cask/{{ .Version }}"
+      pull_request:
+        enabled: true
+    # Gatekeeper will not run the unnotarized kli while it is quarantined.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/kli"]
+        end
+      end
+
+release:
+  github:
+    owner: "{{ dir .Env.RELEASE_REPOSITORY }}"
+    name: "{{ base .Env.RELEASE_REPOSITORY }}"
+  ids:
+    - karta
+  # A maintainer publishes the GitHub Release, with notes from CHANGELOG.md, and
+  # that publication starts the release workflow. GoReleaser then finds the
+  # release by its tag, keeps those notes, and uploads the archives into it.
+  mode: keep-existing
+  replace_existing_artifacts: true
+  include_meta: false
+  preflight:
+    fail_on_error: true
+
+snapshot:
+  version_template: "{{ .Env.VERSION }}"
+
+changelog:
+  sort: asc
