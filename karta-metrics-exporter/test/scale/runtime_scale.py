@@ -12,6 +12,7 @@ import argparse
 import base64
 import collections
 import contextlib
+from fractions import Fraction
 import hashlib
 import http.server
 import json
@@ -361,7 +362,9 @@ class LoopbackAPI:
 
 class FixedSchedule:
     def __init__(self, seconds, rate, lateness_limit):
-        self.target = math.ceil(seconds*rate)
+        if not math.isfinite(rate) or rate <= 0 or not math.isfinite(seconds) or seconds < 0:
+            raise ValueError("duration must be finite and nonnegative; rate must be finite and positive")
+        self.target = math.ceil(Fraction(str(seconds))*Fraction(str(rate)))
         self.rate = rate
         self.lateness_limit = lateness_limit
         self.emitted = 0
@@ -587,6 +590,8 @@ def run(args):
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
     report["source_revision"] = args.source_revision
+    report["publication_latency_limit_seconds"] = args.publication_latency_seconds
+    report["queue_drain_limit_seconds"] = args.queue_drain_seconds
     report["binary_build_info"] = subprocess.run(["go", "version", "-m", str(binary)], capture_output=True, text=True, check=False).stdout
     fixture = LoopbackAPI(args.roots, args.pods, args.page_size, intermediate=not args.direct_owner)
     report["topology"] = "Job->Pod" if args.direct_owner else "Job->ReplicaSet->Pod"
@@ -739,9 +744,9 @@ def run(args):
             churn_started=time.monotonic()
             pending={}
             latencies=[]
-            report["sustained_churn"] = {"requested_seconds":args.churn_seconds,"target_event_count":math.ceil(args.churn_seconds*args.churn_rate),"target_events_per_second":args.churn_rate,"emitted":0,"observed":0,"publication_upper_bounds_seconds":latencies}
-            report["sustained_churn"]["emissions"] = []
             schedule=FixedSchedule(args.churn_seconds,args.churn_rate,args.max_scheduling_lateness_seconds)
+            report["sustained_churn"] = {"requested_seconds":args.churn_seconds,"target_event_count":schedule.target,"target_events_per_second":args.churn_rate,"emitted":0,"observed":0,"publication_upper_bounds_seconds":latencies}
+            report["sustained_churn"]["emissions"] = []
             emission_condition=threading.Condition()
             emission_done=threading.Event()
             emission_errors=[]
@@ -785,7 +790,7 @@ def run(args):
                     raise RuntimeError("churn publication drain deadline exceeded")
                 if process.poll() is not None:
                     raise RuntimeError("exporter exited during sustained churn")
-                if churn_intervals.overdue(now,10 if args.pods>=10 else 5):
+                if churn_intervals.overdue(now,args.publication_latency_seconds):
                     raise RuntimeError("changed root did not recover a verified publication within the latency bound")
                 if now >= next_gc and now-churn_started < args.churn_seconds:
                     gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(now-churn_started,4)))
@@ -825,7 +830,7 @@ def run(args):
                 starts=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".queue_latency_seconds"))
                 finishes=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".work_duration_seconds"))
                 queue_idle_samples=queue_idle_samples+1 if queue_stats and depth==0 and starts==finishes else 0
-                if time.monotonic()-churn_started > args.churn_seconds+(60 if args.pods>=10 else 30):
+                if time.monotonic()-churn_started > args.churn_seconds+args.queue_drain_seconds:
                     break
                 time.sleep(args.diagnostic_poll_seconds)
             latencies.sort()
@@ -923,7 +928,7 @@ def run(args):
             report["measured_gates"]["scheduler_lateness"]=not churn.get("scheduler_error") and churn["max_scheduling_lateness_seconds"]<=churn["scheduling_lateness_limit_seconds"]
         if "sustained_churn" in report and "drain_seconds" in report["sustained_churn"]:
             churn=report["sustained_churn"]
-            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= (10 if args.pods>=10 else 5),"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= (60 if args.pods>=10 else 30),"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
+            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= args.publication_latency_seconds,"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= args.queue_drain_seconds,"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
         if "post_delete_heap_gate" in report:
             report["measured_gates"]["delete_all_heap"] = report["post_delete_heap_gate"]
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
@@ -961,7 +966,9 @@ def main():
     parser.add_argument("--watch-faults", action="store_true")
     parser.add_argument("--diagnostics", action="store_true", help="Binary is the test/scale/cmd wrapper")
     parser.add_argument("--churn-seconds", type=float, default=0)
-    parser.add_argument("--churn-rate", type=float, default=100)
+    parser.add_argument("--churn-rate", type=float, default=100, help="Positive events/s; fractional rates are preserved")
+    parser.add_argument("--publication-latency-seconds", type=float, help="Predeclared verified-publication bound; default 5s, or 10s for >=10 Pods/root")
+    parser.add_argument("--queue-drain-seconds", type=float, help="Predeclared drain bound; default 30s, or 60s for >=10 Pods/root")
     parser.add_argument("--max-scheduling-lateness-seconds", type=float, default=1, help="Fail instead of catch-up bursts after a longer emitter stall")
     parser.add_argument("--gc-sample-seconds", type=float, default=30)
     parser.add_argument("--diagnostic-poll-seconds", type=float, help="Default 250ms for >=10k roots or >=100k Pods; otherwise 10ms")
@@ -981,6 +988,12 @@ def main():
     parser.add_argument("--delete-percent", type=int, default=10)
     parser.add_argument("--settle-seconds", type=int, default=30)
     args = parser.parse_args()
+    if args.publication_latency_seconds is None:
+        args.publication_latency_seconds = 10 if args.pods>=10 else 5
+    if args.queue_drain_seconds is None:
+        args.queue_drain_seconds = 60 if args.pods>=10 else 30
+    if any(not math.isfinite(value) or value <= 0 for value in (args.churn_rate,args.publication_latency_seconds,args.queue_drain_seconds)):
+        parser.error("rate, publication latency and queue drain bounds must be finite and positive")
     if args.diagnostic_poll_seconds is None:
         args.diagnostic_poll_seconds = 0.25 if args.roots >= 10000 or args.roots*args.pods >= 100000 else 0.01
     if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0 or args.churn_seconds < 0 or args.churn_rate <= 0 or args.max_scheduling_lateness_seconds <= 0 or args.diagnostic_poll_seconds <= 0 or args.gc_sample_seconds <= 0 or args.quiet_seconds < 0 or args.continuity_seconds <= 0 or args.refresh_seconds < 0:

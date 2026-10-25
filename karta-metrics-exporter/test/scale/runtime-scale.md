@@ -87,6 +87,26 @@ host. A missing measurement leaves its gate unverified.
 reports observed performance limits. A short smoke run cannot satisfy the
 five-minute churn duration gate.
 
+## Giant-root workload
+
+The giant-root case is one Job with 100,000 Pods. It emits 0.05 root updates/s,
+one every 20 seconds, for 300 seconds and exactly 15 verified acknowledgments.
+This measures whole-root invalidation and rebuilding of 100,000 Pod mappings.
+It does not establish throughput equivalent to 100 independently changing roots/s.
+
+Use `--roots 1 --pods 100000 --churn-seconds 300 --churn-rate 0.05`
+with `--publication-latency-seconds 15 --queue-drain-seconds 30`.
+The predeclared bounds are verified publication p99 <=15 seconds, drain <=30
+seconds, RSS <=8 GiB, cold start <=180 seconds, HTTP <=25 seconds and oracle
+<=60 seconds. Set `--max-rss-mib 8192 --stage-seconds 180 --oracle-seconds 60`;
+the wrapper receives GOMEMLIMIT=6144MiB (6 GiB). Diagnostic polling stays at
+250 ms and scheduler lateness at one second. Existing quiet correctness,
+final three-minute heap growth and deletion/heap recovery gates remain in force.
+Each root still has at most one pending update. Fractional rates are preserved;
+exact decimal duration/rate multiplication determines the target event count.
+The explicit latency/drain options are recorded in every result. Their defaults
+remain 5/30 seconds for 0/1 Pod and 10/60 seconds for dense independent roots.
+
 ## Test diagnostics wrapper
 
 `test/scale/cmd` calls production `app.New` and `Application.Serve`. It adds a

@@ -155,6 +155,30 @@ class APIFixtureTests(unittest.TestCase):
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_fractional_giant_root_rate_emits_exactly_fifteen_events(self):
+        schedule=FixedSchedule(300,0.05,1)
+        self.assertEqual(schedule.target,15)
+        for index in range(15):
+            offset=index*20
+            if index:
+                self.assertFalse(schedule.due(offset-0.001))
+            self.assertEqual(schedule.record(offset),(offset,0))
+        self.assertFalse(schedule.due(300))
+
+    def test_decimal_rate_does_not_add_a_rounded_boundary_event(self):
+        self.assertEqual(FixedSchedule(100,0.07,1).target,7)
+        for rate in (0,-1,float("nan"),float("inf")):
+            with self.assertRaises(ValueError):
+                FixedSchedule(300,rate,1)
+
+    def test_fractional_rate_preserves_pending_guard_and_lateness_bound(self):
+        schedule=FixedSchedule(300,0.05,1)
+        schedule.record(0)
+        self.assertFalse(schedule.due(20,blocked=True))
+        with self.assertRaisesRegex(RuntimeError,"lateness"):
+            schedule.due(21.001,blocked=True)
+        self.assertEqual(schedule.emitted,1)
+
     def test_last_due_tick_is_not_dropped_at_duration_boundary(self):
         schedule=FixedSchedule(0.03,100,1)
         self.assertEqual(schedule.target,3)
