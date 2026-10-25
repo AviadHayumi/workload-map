@@ -10,7 +10,12 @@ import (
 )
 
 func TestValidateConfig(t *testing.T) {
-	base := LabelRule{Name: "team", Metrics: []string{"karta_pod_workload_info"}, Sources: []Source{SourceWorkload, SourcePod}, Expression: `object.metadata.labels["team"]`}
+	base := LabelRule{
+		Name:       "team",
+		Metrics:    []string{"karta_pod_workload_info"},
+		Sources:    []Source{SourceWorkload, SourcePod},
+		Expression: `object.metadata.labels["team"]`,
+	}
 	require.NoError(t, ValidateConfig(Config{}))
 	require.NoError(t, ValidateConfig(Config{Rules: []LabelRule{base}}))
 	status := base

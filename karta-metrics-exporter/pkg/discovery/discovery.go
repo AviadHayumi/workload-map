@@ -15,18 +15,21 @@ import (
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 )
 
+// Discoverer resolves an object to its top owner without starting watches.
 type Discoverer interface {
 	Get(context.Context, ObjectRef) (Result, error)
 }
 
+// Result includes the resolved workload and root watches the caller may need.
 type Result struct {
 	Workload        *GenericWorkload
 	MissingCoverage []WatchRequest
 }
 
+// GenericWorkload describes ownership independently of a Karta definition.
 type GenericWorkload struct {
 	Root       ObjectRef
-	Path       []ObjectRef
+	Path       []ObjectRef // Input object first, root last.
 	Resolution OwnerResolution
 }
 
@@ -51,9 +54,15 @@ const (
 	UnknownOwner OwnerResolution = "unknown"
 )
 
+// ObjectReader reads cached objects and fetches metadata on a cache miss.
 type ObjectReader interface {
 	Cached(ObjectRef) (*unstructured.Unstructured, bool)
 	GetMetadata(context.Context, ObjectRef) (*metav1.PartialObjectMetadata, error)
+}
+
+type Dependencies struct {
+	Reader    ObjectReader
+	Inventory inventory.Interface
 }
 
 var (
@@ -65,8 +74,3 @@ var (
 	ErrEvaluation        = errors.New("karta evaluation failed")
 	ErrStale             = errors.New("discovery inputs changed")
 )
-
-type Dependencies struct {
-	Reader    ObjectReader
-	Inventory inventory.Interface
-}

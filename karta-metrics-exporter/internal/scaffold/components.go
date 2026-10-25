@@ -23,6 +23,19 @@ import (
 
 var ErrNotImplemented = errors.New("exporter component is not implemented")
 
+// Keep generated mocks checked against their contracts even before implementations exist.
+var (
+	_ labelevaluator.Compiler  = (*mocks.LabelCompiler)(nil)
+	_ collector.Registrar      = (*mocks.Registrar)(nil)
+	_ inventory.Interface      = (*mocks.Inventory)(nil)
+	_ discovery.Discoverer     = (*mocks.Discovery)(nil)
+	_ discovery.ObjectReader   = (*mocks.ObjectReader)(nil)
+	_ labelevaluator.Evaluator = (*mocks.LabelEvaluator)(nil)
+	_ labelresolver.Resolver   = (*mocks.LabelResolver)(nil)
+	_ store.Interface          = (*mocks.Store)(nil)
+	_ controller.Runner        = (*mocks.Runtime)(nil)
+)
+
 // New is the temporary composition root. Replace the factories here as components land.
 func New(labelConfig labelresolver.Config) app.Components {
 	definitions := newInventory(inventory.Config{})
@@ -31,7 +44,9 @@ func New(labelConfig labelresolver.Config) app.Components {
 	labels := newLabelResolver(labelConfig, labelresolver.Dependencies{Compiler: newCompiler()})
 	publications := newStore(store.Options{})
 	runtime := newRuntime(controller.Dependencies{
-		Discovery: ownership, Inventory: definitions, Labels: labels,
+		Discovery:    ownership,
+		Inventory:    definitions,
+		Labels:       labels,
 		Publications: publications,
 	})
 	return app.Components{Runtime: runtime, Store: publications, Registrar: newRegistrar()}
@@ -94,16 +109,3 @@ func newRegistrar() collector.Registrar {
 		})
 	return m
 }
-
-// Keep generated mocks checked against their contracts even before implementations exist.
-var (
-	_ labelevaluator.Compiler  = (*mocks.LabelCompiler)(nil)
-	_ collector.Registrar      = (*mocks.Registrar)(nil)
-	_ inventory.Interface      = (*mocks.Inventory)(nil)
-	_ discovery.Discoverer     = (*mocks.Discovery)(nil)
-	_ discovery.ObjectReader   = (*mocks.ObjectReader)(nil)
-	_ labelevaluator.Evaluator = (*mocks.LabelEvaluator)(nil)
-	_ labelresolver.Resolver   = (*mocks.LabelResolver)(nil)
-	_ store.Interface          = (*mocks.Store)(nil)
-	_ controller.Runner        = (*mocks.Runtime)(nil)
-)

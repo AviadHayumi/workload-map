@@ -15,16 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func labelObject() *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "batch/v1", "kind": "Job",
-		"metadata": map[string]any{"name": "train", "namespace": "team-a",
-			"labels":      map[string]any{"example.com/team": "research"},
-			"annotations": map[string]any{"example.com/owner": "alice"}},
-		"spec":   map[string]any{"schedulerName": "example-scheduler", "parallelism": int64(2)},
-		"status": map[string]any{"phase": "Running"},
-	}}
-}
+const list = "[1,2,3,4,5,6,7,8,9,10]"
+
+var expensiveExpression = fmt.Sprintf("string(size(%[1]s.map(a, %[1]s.map(b, %[1]s.map(c, %[1]s.map(d, %[1]s.map(e, %[1]s.map(f, a+b+c+d+e+f))))))))", list)
 
 func TestEvaluateObject(t *testing.T) {
 	for _, tc := range []struct{ name, expression, want string }{
@@ -44,7 +37,7 @@ func TestEvaluateObject(t *testing.T) {
 			require.NoError(t, err)
 			obj := labelObject()
 			before := obj.DeepCopy()
-			value, err := evaluator.Evaluate(context.Background(), obj)
+			value, err := evaluator.Evaluate(t.Context(), obj)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, value)
 			require.Equal(t, before, obj)
@@ -66,7 +59,7 @@ func TestEvaluationFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			evaluator, err := NewCompiler().Compile(Config{Expression: tc.expression})
 			require.NoError(t, err)
-			value, err := evaluator.Evaluate(context.Background(), tc.obj)
+			value, err := evaluator.Evaluate(t.Context(), tc.obj)
 			require.Empty(t, value)
 			require.Error(t, err)
 			if tc.want != nil {
@@ -76,7 +69,7 @@ func TestEvaluationFailures(t *testing.T) {
 	}
 	evaluator, err := NewCompiler().Compile(Config{Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`})
 	require.NoError(t, err)
-	value, err := evaluator.Evaluate(context.Background(), &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{}}})
+	value, err := evaluator.Evaluate(t.Context(), &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{}}})
 	require.NoError(t, err)
 	require.Empty(t, value)
 }
@@ -122,7 +115,7 @@ func TestValueLimits(t *testing.T) {
 			evaluator, err := NewCompiler().Compile(Config{Expression: `object.value`, Limits: Limits{MaxValueBytes: tc.limit}})
 			require.NoError(t, err)
 			obj := &unstructured.Unstructured{Object: map[string]any{"value": strings.Repeat("a", tc.size)}}
-			value, err := evaluator.Evaluate(context.Background(), obj)
+			value, err := evaluator.Evaluate(t.Context(), obj)
 			if tc.failed {
 				require.ErrorIs(t, err, ErrValueTooLong)
 				require.Empty(t, value)
@@ -134,15 +127,11 @@ func TestValueLimits(t *testing.T) {
 	}
 }
 
-const list = "[1,2,3,4,5,6,7,8,9,10]"
-
-var expensiveExpression = fmt.Sprintf("string(size(%[1]s.map(a, %[1]s.map(b, %[1]s.map(c, %[1]s.map(d, %[1]s.map(e, %[1]s.map(f, a+b+c+d+e+f))))))))", list)
-
 func TestCostLimits(t *testing.T) {
 	for _, limit := range []uint64{0, 1} {
 		evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: limit}})
 		require.NoError(t, err)
-		_, err = evaluator.Evaluate(context.Background(), labelObject())
+		_, err = evaluator.Evaluate(t.Context(), labelObject())
 		require.ErrorContains(t, err, "cost limit")
 	}
 }
@@ -151,11 +140,11 @@ func TestCancellation(t *testing.T) {
 	for _, expression := range []string{"", `object.kind`} {
 		evaluator, err := NewCompiler().Compile(Config{Expression: expression})
 		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err = evaluator.Evaluate(ctx, labelObject())
 		require.ErrorIs(t, err, context.Canceled)
-		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		ctx, cancel = context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		defer cancel()
 		_, err = evaluator.Evaluate(ctx, labelObject())
 		require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -163,7 +152,7 @@ func TestCancellation(t *testing.T) {
 	for _, frequency := range []uint{0, 1, 1000} {
 		evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
 		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		timer := time.AfterFunc(5*time.Millisecond, cancel)
 		defer timer.Stop()
@@ -177,14 +166,25 @@ func TestCancellation(t *testing.T) {
 func TestConcurrentEvaluation(t *testing.T) {
 	evaluator, err := NewCompiler().Compile(Config{Expression: `object.metadata.name`})
 	require.NoError(t, err)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			t.Parallel()
 			obj := labelObject()
 			obj.SetName(fmt.Sprint(i))
-			value, err := evaluator.Evaluate(context.Background(), obj)
+			value, err := evaluator.Evaluate(t.Context(), obj)
 			require.NoError(t, err)
 			require.Equal(t, fmt.Sprint(i), value)
 		})
 	}
+}
+
+func labelObject() *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "batch/v1", "kind": "Job",
+		"metadata": map[string]any{"name": "train", "namespace": "team-a",
+			"labels":      map[string]any{"example.com/team": "research"},
+			"annotations": map[string]any{"example.com/owner": "alice"}},
+		"spec":   map[string]any{"schedulerName": "example-scheduler", "parallelism": int64(2)},
+		"status": map[string]any{"phase": "Running"},
+	}}
 }

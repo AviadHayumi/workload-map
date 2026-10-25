@@ -11,16 +11,19 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 )
 
+// Resolver evaluates label rules for the requested metrics and source objects.
 type Resolver interface {
 	Resolve(context.Context, Input) ([]ResolvedMetricLabels, error)
 }
 
+// Input supplies the root workload and, for Pod metrics, the individual Pod.
 type Input struct {
 	Metrics  []string
 	Workload *unstructured.Unstructured
 	Pod      *unstructured.Unstructured
 }
 
+// ResolvedMetricLabels holds values and evaluation errors keyed by label name.
 type ResolvedMetricLabels struct {
 	Metric string
 	Labels map[string]string

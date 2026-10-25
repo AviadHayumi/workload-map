@@ -15,6 +15,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
+// Components supplies the runtime, publication store and metric registration.
 type Components struct {
 	Runtime   controller.Runner
 	Store     store.Interface

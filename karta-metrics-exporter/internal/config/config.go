@@ -20,6 +20,27 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 )
 
+// Loader resolves the configuration from the file, environment variables and flags.
+type Loader struct {
+	flags     map[string]*string
+	lookupEnv func(string) (string, bool)
+	flagSet   *flag.FlagSet
+}
+
+// Config is the exporter configuration. It is read from the YAML file named by
+// --config. A flag, or its environment variable, overrides the file when set.
+type Config struct {
+	LabelRules  []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
+	LabelLimits labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
+}
+
+// setting is one configuration value with its flag and environment variable.
+// apply parses the raw value into the label limits.
+type setting struct {
+	flag, env, usage string
+	apply            func(*labelevaluator.Limits, string) error
+}
+
 const (
 	flagConfig                  = "config"
 	flagCostLimit               = "label-cost-limit"
@@ -34,25 +55,11 @@ var errZeroInterruptCheckFrequency = errors.New("labelLimits.interruptCheckFrequ
 
 var errMultipleDocuments = errors.New("must contain a single YAML document")
 
-// Config is the exporter configuration. It is read from the YAML file named by
-// --config. A flag, or its environment variable, overrides the file when set.
-type Config struct {
-	LabelRules  []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
-	LabelLimits labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
-}
-
 var defaultLabelLimits = labelevaluator.Limits{
 	CostLimit:               labelevaluator.DefaultCostLimit,
 	MaxExpressionBytes:      labelevaluator.DefaultMaxExpressionBytes,
 	MaxValueBytes:           labelevaluator.DefaultMaxValueBytes,
 	InterruptCheckFrequency: labelevaluator.DefaultInterruptCheckFrequency,
-}
-
-// setting is one configuration value with its flag and environment variable.
-// apply parses the raw value into the label limits.
-type setting struct {
-	flag, env, usage string
-	apply            func(*labelevaluator.Limits, string) error
 }
 
 var configSetting = setting{flag: flagConfig, env: "KARTA_EXPORTER_CONFIG", usage: "Path to the exporter YAML config file."}
@@ -99,13 +106,6 @@ var labelSettings = []setting{
 			return err
 		},
 	},
-}
-
-// Loader resolves the configuration from the file, environment variables and flags.
-type Loader struct {
-	flags     map[string]*string
-	lookupEnv func(string) (string, bool)
-	flagSet   *flag.FlagSet
 }
 
 // NewLoader registers the configuration flags on fs. Each flag can also be set

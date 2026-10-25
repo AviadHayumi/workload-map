@@ -22,7 +22,11 @@ var reservedLabels = map[string]bool{
 
 // ValidateConfig checks rule structure without compiling or evaluating expressions.
 func ValidateConfig(cfg Config) error {
-	seen := make(map[string]bool)
+	type metricLabel struct {
+		metric string
+		label  string
+	}
+	seen := make(map[metricLabel]bool)
 	for i, rule := range cfg.Rules {
 		if !labelName.MatchString(rule.Name) || strings.HasPrefix(rule.Name, "__") || reservedLabels[rule.Name] {
 			return fmt.Errorf("labelRules[%d]: invalid or reserved label name %q", i, rule.Name)
@@ -47,7 +51,7 @@ func ValidateConfig(cfg Config) error {
 			default:
 				return fmt.Errorf("labelRules[%d]: unsupported metric %q", i, metric)
 			}
-			key := metric + "/" + rule.Name
+			key := metricLabel{metric: metric, label: rule.Name}
 			if seen[key] {
 				return fmt.Errorf("labelRules[%d]: duplicate label %q for %s", i, rule.Name, metric)
 			}

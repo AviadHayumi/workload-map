@@ -13,6 +13,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+type celEvaluator struct {
+	program       cel.Program
+	maxValueBytes int
+}
+
+type compiler struct{}
+
+type disabledEvaluator struct{}
+
 const (
 	// DefaultMaxExpressionBytes bounds the configured expression before compilation.
 	DefaultMaxExpressionBytes = 4096
@@ -37,16 +46,10 @@ var (
 	ErrNegativeLimit = errors.New("label limits must not be negative")
 )
 
-type celEvaluator struct {
-	program       cel.Program
-	maxValueBytes int
+// NewCompiler returns a compiler with bounded CEL evaluation.
+func NewCompiler() Compiler {
+	return compiler{}
 }
-
-type compiler struct{}
-
-type disabledEvaluator struct{}
-
-func NewCompiler() Compiler { return compiler{} }
 
 // Compile compiles the CEL expression once and returns an evaluator for it.
 // An empty expression returns an empty value. Dynamic result types are checked
