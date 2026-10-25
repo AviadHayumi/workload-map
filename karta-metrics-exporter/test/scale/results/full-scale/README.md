@@ -3,6 +3,18 @@
 
 # Full-scale candidate measurements
 
+## Latest outcomes
+
+| Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
+| --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness 0ed1594b | 3 | 100k roots / 1 Pod | FAIL: emitter scheduling delay at 232 s churn | 178.716 s | 7.441 GB | Partial max 2.319 s; full p99 unverified |
+| f868589a | 2 | 100k roots / 1 Pod | FAIL: hot-root rotation scheduling | 155.748 s | 7.552 GB | Full window unverified |
+| 535c5e93 | 2 | 100k roots / 0 Pods | PASS: every applicable gate | 47.924 s | 6.302 GB | p99 upper bound 0.919 s |
+
+GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
+where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
+established. Earlier raw results and their interpretations remain below.
+
 ## 100k roots with no Pods: churn failure
 
 `8e51df56-100000-0.json.gz` uses clean candidate source
@@ -325,3 +337,39 @@ intermediate GETs remained 842 and LIST pages reached 1,800. Exact per-request
 start/end times were not instrumented. The successful continuity response was
 followed by a diagnostic connection error during failure shutdown; that error
 does not establish a separate API outage. No gates were changed.
+
+## Protocol 3 hierarchy: emitter scheduling failure
+
+The immutable runtime remains `f868589a334e917dee0cfb4e1d258e28bb94a19a`, binary
+SHA256 `ff1ac2def810610706ca4d4fcee7bfbc32ddd0900a58408aeedf022ec7d32b17`.
+Harness `0ed1594ba65aed04767d4b37421afbe324db1735` uses protocol 3's 750 hot roots,
+7.5-second rotation and complete ACK rounds in batches of at most 100 UIDs.
+Rates, count targets, publication limits, memory limits and API budgets are
+unchanged. This is a declared load-shape correction, not a reclassification of
+protocol-2 results. Matching compressed JSON/log and host context are retained.
+
+Cold convergence passed narrowly at 178.7163 seconds, followed by valid steady
+and quiet checks. Churn ran for 232.4642 seconds before the explicit failure
+`emitter scheduling delay`. It emitted 23,146 events and verified 23,128, leaving
+18 pending. This was not pending-publication rotation exhaustion. Full-duration
+and event-count gates failed; final p99, drain, heap and cleanup remain unverified.
+Partial maximum verified publication latency was 2.31943 seconds, below five
+seconds. Peak RSS was 7,440,531,456 bytes. No dense run followed.
+
+No large exporter backlog appeared near failure: root/object ready queues were
+zero, and source depth rose to three. No WATCH expiration counter was recorded.
+The last three ACK rounds handled 20, 23 and 27 pending roots, with round times
+29-51 ms. Across the run, maximum ACK-round time was 0.15293 seconds. Batch/round
+records and rejection categories are preserved in the result.
+
+Emitter lateness was about 3 ms at scheduled churn second 230, then 233 ms at
+231 and 991 ms at 231.45. The largest individual emission gap across the run
+was 57.1 ms, so the final delay accumulated rather than one one-second pause.
+The last metrics HTTP interval was process time 648.754-668.038 seconds; its
+Python oracle ran 668.038-679.236, overlapping failure near 677.160 seconds.
+Exporter CPU samples were only 15-44% near the final delay, with empty root and
+object queues. These observations support investigation of fixture/oracle
+scheduling contention, not an exporter-capacity conclusion. Harness CPU/GIL
+was not profiled, so exact attribution remains unproven. The one-second limit
+remains failed and unchanged. The last forced GC completed at process time
+668.618 seconds, before lateness accumulated near the end of the oracle.

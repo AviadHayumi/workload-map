@@ -9,11 +9,10 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 ## Current evidence
 
-- [Current 100k-root outcomes](results/full-scale/README.md): source `535c5e93`
-  passed every zero-Pod gate. Its one-Pod hierarchy run passed cold/quiet checks
-  but failed sustained-churn scheduling. The later `f868589a` hierarchy repeat
-  also failed scheduling with a smaller root-only backlog. Earlier failures
-  remain preserved.
+- [Current 100k-root outcomes](results/full-scale/README.md): `535c5e93` passed
+  every protocol-2 zero-Pod gate. The latest protocol-3 one-Pod run on `f868589a`
+  failed emitter scheduling after 232 seconds, with exporter queues near empty.
+  Full hierarchy acceptance is unproven; all earlier failures remain preserved.
 
 - [Optional heap-profile diagnosis](results/heap-diagnostic/a52b1216/README.md):
   a separate short run reproduces heap oscillation with 13 sampled profiles.
