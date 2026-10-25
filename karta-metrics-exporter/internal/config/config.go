@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -278,8 +279,11 @@ func (cfg Config) Validate() error {
 	if err != nil || timeout <= 0 {
 		return errors.New("requestTimeout must be a positive duration")
 	}
-	if cfg.APIQPS <= 0 || cfg.APIBurst <= 0 {
-		return errors.New("apiQPS and apiBurst must be positive")
+	if cfg.APIQPS <= 0 || math.IsNaN(float64(cfg.APIQPS)) || math.IsInf(float64(cfg.APIQPS), 0) {
+		return errors.New("apiQPS must be finite and positive")
+	}
+	if cfg.APIBurst <= 0 {
+		return errors.New("apiBurst must be positive")
 	}
 	if cfg.Workers <= 0 {
 		return errors.New("workers must be positive")

@@ -140,6 +140,16 @@ var _ = Describe("runtime configuration", func() {
 		Expect(cfg.Workers).To(Equal(3))
 		Expect(cfg.ResourceRules).To(HaveLen(1))
 	})
+	DescribeTable("rejects non-finite API rates before creating clients", func(value string) {
+		_, err := loadConfig("", nil, "--api-qps="+value)
+		Expect(err).To(MatchError("apiQPS must be finite and positive"))
+		_, err = loadConfig("", map[string]string{"KARTA_EXPORTER_API_QPS": value})
+		Expect(err).To(MatchError("apiQPS must be finite and positive"))
+	},
+		Entry("NaN", "NaN"),
+		Entry("positive infinity", "+Inf"),
+		Entry("negative infinity", "-Inf"),
+	)
 	It("rejects malformed resources and unbounded runtime settings", func() {
 		for _, body := range []string{"apiQPS: 0", "apiBurst: 0", "workers: 0", "maxAge: 1s", "resourceRules: [{apiGroups: [batch], apiVersions: [v1], resources: [jobs/status]}]", "requiredKinds: [{kind: Job}]"} {
 			_, err := loadConfig(body, nil)
