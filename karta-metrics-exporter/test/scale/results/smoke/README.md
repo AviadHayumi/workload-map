@@ -48,3 +48,17 @@ in 1.20 seconds and all continuity/reconnection stages in 52.17 seconds. There
 were no object GETs. In 20 seconds it emitted and observed 1,999 root changes.
 This isolates the intermediate metadata GET and queue interaction; it does not
 prove the deeper-owner scenario or the five-minute churn target.
+
+`intermediate-1000-v2-drain-failure.json.gz` records a later runtime with separate
+source/object/publication queues and explicit QPS 20, burst 40, two workers.
+Cold start and all periodic quiet/churn oracle scrapes passed. The run then failed
+the full-queue drain deadline: 5-second intermediate refresh demand exceeded the
+20-request/s budget. Publication/source queues drained while object maintenance
+remained queued. Reconnect/delete stages were not reached. This is a combined
+code and API-budget change, not a controlled algorithm speed comparison.
+The compressed JSON retains all sampled queue and API observations.
+
+These earlier intermediate-owner fixtures also changed ReplicaSet resourceVersion
+when only its Job changed. The harness now assigns versions independently per
+object. Cold-start failures are unaffected. Treat earlier intermediate churn
+results as diagnostic evidence, not a faithful immutable-owner comparison.

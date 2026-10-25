@@ -1,0 +1,24 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	  416768	       854.1 ns/op	    1168 B/op	       6 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  205177	      1504 ns/op	    2608 B/op	       9 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery	3.767s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	  434865	       743.1 ns/op	    1168 B/op	       6 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  260798	      1345 ns/op	    2608 B/op	       9 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery	1.428s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	  462296	       730.3 ns/op	    1168 B/op	       6 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  271327	      1320 ns/op	    2608 B/op	       9 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/exporter/pkg/discovery	1.470s

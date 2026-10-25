@@ -10,7 +10,8 @@ resolution, publication and OTel collection. No Store records are injected.
 This models API responses. It does not measure etcd or production API capacity.
 
 Each root is a Job. Each Job owns a ReplicaSet that owns its Pods. Intermediate
-ReplicaSets are available through GET; only root and Pod watches are expected.
+ReplicaSets are available through metadata GET and paginated metadata LIST;
+only root and Pod watches are expected.
 The bundled Job definition supplies the single `job` component. The independent
 oracle checks every root and Pod UID, component coordinates, creation timestamp,
 all nine phase values, custom `team` labels and observation health. Root phases
@@ -97,21 +98,26 @@ python3 karta-metrics-exporter/test/scale/runtime_scale.py \
 The wrapper records `runtime.ReadMemStats` and named client-go queue metrics.
 Queue metrics include depth, additions, retries, work/queue duration count, sum
 and maximum. Drain requires two diagnostic samples with zero queued and active
-work. Active work is observed queue starts minus completed durations. Publication
-polls read exact root resource versions from `Store.Published`; they do not scan
+work. Active work is observed queue starts minus completed durations. A saturated
+maintenance queue fails the drain gate even if current metric rows are correct.
+The harness records that failure and continues the lifecycle correctness stages.
+Publication polls read exact root resource versions from `Store.Published`; they do not scan
 or format the complete metric output.
 
 Sustained churn rotates through up to 100 independent roots. Each root has at
 most one pending event, so a later generation cannot falsely acknowledge an
-older one. A slow publisher reduces achieved event rate, which is reported and
-checked within 1% of the requested rate. Reported publication latency is an upper
-bound from just before event emission to the first matching diagnostic response.
+older one. A slow publisher reduces achieved event rate. The report retains
+actual count and elapsed time. The count is compared with the exact scheduled count (30,000 events for 300 seconds at
+100 events/s). A scheduling boundary miss is visible in this performance gate;
+it does not erase a successful correctness check. Reported publication latency
+is an upper bound from just before event emission to the first matching diagnostic response.
 It includes polling and diagnostic transport. It is not an exact publication
 timestamp. Diagnostic traffic and CPU are part of the measured wrapper overhead.
 
 During the final three minutes, explicit test GC requests sample retained heap
-at 30-second intervals. These pauses are included in observed latency. A final
-GC after delete-all compares retained heap with the pre-worker GC baseline.
+at 30-second intervals and once after the last publication is observed. The
+sample timestamps expose the measured window. These pauses are included in
+observed latency. A final GC after delete-all compares retained heap with the pre-worker GC baseline.
 Total allocation, heap objects and GC counts are sampled too. The production
 command does not force these collections. The wrapper is an instrumented
 production composition, not an unmodified production binary.

@@ -142,6 +142,16 @@ class APIFixtureTests(unittest.TestCase):
         current=self.get("/api/v1/namespaces/scale/pods/pod-2-1",metadata=True)
         self.assertEqual(current["metadata"]["labels"]["team"],"updated-team-2")
 
+    def test_resource_versions_change_only_for_mutated_objects(self):
+        before=self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0")
+        self.fixture.change(0,change_pods=False)
+        self.assertEqual(self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0"),before)
+        self.fixture.change(0,delete=True)
+        self.fixture.recreate(0)
+        job=self.get("/apis/batch/v1/namespaces/scale/jobs/job-0")
+        job_event=next(obj for _,resource,event,obj in self.fixture.events if resource=="jobs" and event=="ADDED")
+        self.assertEqual(job,job_event)
+
 
 class OracleTests(unittest.TestCase):
     def setUp(self):

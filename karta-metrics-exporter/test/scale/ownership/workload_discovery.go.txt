@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package controller
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+type scaleNoRead struct{}
+
+func (scaleNoRead) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return fmt.Errorf("unexpected owner-cache miss")
+}
+func (scaleNoRead) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	return fmt.Errorf("unexpected LIST")
+}
+func BenchmarkScaleOwnerWalk(b *testing.B) {
+	for _, intermediate := range []bool{false, true} {
+		b.Run(fmt.Sprintf("intermediate=%t", intermediate), func(b *testing.B) {
+			b.StopTimer()
+			pods, objects := scaleFixture(b, intermediate)
+			cache := NewOwnerCache(len(objects), time.Hour)
+			for _, o := range objects {
+				if o.Kind != "Pod" {
+					cache.Add(ownerCacheKey{gvk: o.GroupVersionKind(), namespace: o.Namespace, name: o.Name}, o)
+				}
+			}
+			walker := &OwnerWalker{APIReader: scaleNoRead{}, MaxDepth: 9, Cache: cache}
+			expected := make([]types.UID, len(pods))
+			for i := range pods {
+				expected[i] = types.UID(fmt.Sprintf("root-%d", i))
+			}
+			ctx := context.Background()
+			b.ReportAllocs()
+			b.StartTimer()
+			for i := 0; i < b.N; i++ {
+				index := i % len(pods)
+				result, err := walker.WalkPod(ctx, pods[index])
+				if err != nil || result.Root().UID != expected[index] || result.TruncatedAtMaxDepth || len(result.Path) != 2+boolInt(intermediate) {
+					b.Fatalf("wrong root/path: %+v %v", result, err)
+				}
+			}
+		})
+	}
+}
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}

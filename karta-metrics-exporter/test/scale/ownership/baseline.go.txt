@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package discovery
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+
+	inventory "github.com/dsx-ai-factory/workload-map/exporter/pkg/kartadefinitioninventory"
+)
+
+type scaleInventory struct{}
+
+func (scaleInventory) Lookup(schema.GroupVersionKind) (inventory.Selection, error) {
+	return inventory.Selection{}, nil
+}
+func BenchmarkScaleOwnerWalk(b *testing.B) {
+	for _, intermediate := range []bool{false, true} {
+		b.Run(fmt.Sprintf("intermediate=%t", intermediate), func(b *testing.B) {
+			b.StopTimer()
+			pods, objects := scaleFixture(b, intermediate)
+			d := New(nil, scaleInventory{})
+			coverage := map[CoverageKey]bool{}
+			for _, o := range objects {
+				key := CoverageKey{Resource: o.GroupVersionKind().GroupVersion().WithResource(o.Kind), Namespace: o.Namespace}
+				if !coverage[key] {
+					d.CoverageChanged(CoverageChange{Key: key, Run: 1, Ready: true, FullObject: true})
+					coverage[key] = true
+				}
+				d.Upsert(ObservedObject{Ref: ObjectRef{GVK: o.GroupVersionKind(), Namespace: o.Namespace, Name: o.Name, UID: o.UID, ResourceVersion: o.ResourceVersion}, Owners: o.OwnerReferences, WatchKey: key, Run: 1})
+			}
+			refs := make([]ObjectRef, len(pods))
+			expected := make([]types.UID, len(pods))
+			for i, pod := range pods {
+				refs[i] = ObjectRef{GVK: schema.GroupVersionKind{Version: "v1", Kind: "Pod"}, Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID, ResourceVersion: "1"}
+				expected[i] = types.UID(fmt.Sprintf("root-%d", i))
+			}
+			ctx := context.Background()
+			b.ReportAllocs()
+			b.StartTimer()
+			for i := 0; i < b.N; i++ {
+				index := i % len(refs)
+				result, err := d.Resolve(ctx, refs[index])
+				if err != nil || result.Root().UID != expected[index] || len(result.Path) != 2+boolInt(intermediate) {
+					b.Fatalf("wrong root/path: %+v %v", result, err)
+				}
+			}
+		})
+	}
+}
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}

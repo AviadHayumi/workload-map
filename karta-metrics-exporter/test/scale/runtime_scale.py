@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import http.server
 import json
+import math
 import os
 import pathlib
 import re
@@ -50,6 +51,7 @@ class LoopbackAPI:
         self.failed = bytearray(roots)
         self.changed_pods = {}
         self.root_versions = {}
+        self.intermediate_versions = {}
         self.generations = {}
         self.revision = 1
         self.condition = threading.Condition()
@@ -79,7 +81,7 @@ class LoopbackAPI:
         return "", ""
 
     def object(self, resource, index, metadata=False, state=None):
-        deleted, failed, root_versions, changed_pods, generations = state if state is not None else (self.deleted, self.failed, self.root_versions, self.changed_pods, self.generations)
+        deleted, failed, root_versions, changed_pods, generations, intermediate_versions = state if state is not None else (self.deleted, self.failed, self.root_versions, self.changed_pods, self.generations, self.intermediate_versions)
         if resource == "namespaces":
             obj = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": "scale", "uid": "scale-namespace", "resourceVersion": "1", "creationTimestamp": CREATED_TEXT, "labels": {"kubernetes.io/metadata.name": "scale"}}}
         else:
@@ -90,7 +92,7 @@ class LoopbackAPI:
             if resource == "jobs":
                 obj = {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": f"job-{root}", "namespace": "scale", "uid": f"job-{root}-g{generation}", "resourceVersion": str(root_versions.get(root, 1)), "creationTimestamp": CREATED_TEXT, "labels": {"app": "worker"}}, "spec": {"parallelism": max(1, self.pods), "completions": max(1, self.pods), "template": {"metadata": {"labels": {"app": "worker"}}, "spec": {"restartPolicy": "Never", "containers": [{"name": "worker", "image": "registry.k8s.io/pause:3.10", "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}}}]}}}, "status": {"active": 0 if failed[root] else max(1, self.pods), "ready": 0 if failed[root] else max(1, self.pods), "conditions": [{"type": "Failed", "status": "True"}] if failed[root] else []}}
             elif resource == "replicasets":
-                obj = {"apiVersion": "apps/v1", "kind": "ReplicaSet", "metadata": {"name": f"rs-{root}", "namespace": "scale", "uid": f"rs-{root}-g{generation}", "resourceVersion": str(root_versions.get(root,1)), "ownerReferences": [{"apiVersion":"batch/v1", "kind":"Job", "name":f"job-{root}", "uid":f"job-{root}-g{generation}", "controller": True}]}}
+                obj = {"apiVersion": "apps/v1", "kind": "ReplicaSet", "metadata": {"name": f"rs-{root}", "namespace": "scale", "uid": f"rs-{root}-g{generation}", "resourceVersion": str(intermediate_versions.get(root,1)), "ownerReferences": [{"apiVersion":"batch/v1", "kind":"Job", "name":f"job-{root}", "uid":f"job-{root}-g{generation}", "controller": True}]}}
             else:
                 pod = index % self.pods
                 obj = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": f"pod-{root}-{pod}", "namespace": "scale", "uid": f"pod-{root}-{pod}-g{generation}", "resourceVersion": str(changed_pods.get(index, 1)), "creationTimestamp": CREATED_TEXT, "labels": {"app": "worker", "batch.kubernetes.io/job-name": f"job-{root}", "batch.kubernetes.io/controller-uid": f"job-{root}-g{generation}"}, "ownerReferences": [{"apiVersion": "batch/v1", "kind": "Job", "name": f"job-{root}", "uid": f"job-{root}-g{generation}", "controller": True, "blockOwnerDeletion": True}]}, "spec": {"nodeName": "synthetic-node", "restartPolicy": "Never", "containers": [{"name": "worker", "image": "registry.k8s.io/pause:3.10", "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}}}]}, "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}], "containerStatuses": [{"name": "worker", "ready": True, "restartCount": 0, "image": "registry.k8s.io/pause:3.10", "imageID": "synthetic", "state": {"running": {"startedAt": CREATED_TEXT}}}]}}
@@ -157,8 +159,10 @@ class LoopbackAPI:
                 self.revision += 1
                 if resource == "pods":
                     self.changed_pods[index] = self.revision
-                else:
+                elif resource == "jobs":
                     self.root_versions[root] = self.revision
+                else:
+                    self.intermediate_versions[root] = self.revision
                 obj = self.object(resource,index)
                 obj["metadata"]["resourceVersion"] = str(self.revision)
                 self.events.append((self.revision,resource,"ADDED",obj))
@@ -266,7 +270,7 @@ class LoopbackAPI:
                             return
                     snapshot_key = (resource, revision)
                     if snapshot_key not in fixture.snapshots:
-                        fixture.snapshots[snapshot_key] = (bytes(fixture.deleted), bytes(fixture.failed), dict(fixture.root_versions), dict(fixture.changed_pods), dict(fixture.generations))
+                        fixture.snapshots[snapshot_key] = (bytes(fixture.deleted), bytes(fixture.failed), dict(fixture.root_versions), dict(fixture.changed_pods), dict(fixture.generations), dict(fixture.intermediate_versions))
                         while len(fixture.snapshots) > 16:
                             fixture.snapshots.popitem(last=False)
                     fixture.snapshots.move_to_end(snapshot_key)
@@ -480,7 +484,7 @@ def run(args):
     fixture = LoopbackAPI(args.roots, args.pods, args.page_size, intermediate=not args.direct_owner)
     report["topology"] = "Job->Pod" if args.direct_owner else "Job->ReplicaSet->Pod"
     endpoint = fixture.start()
-    config = {"kartaDefinitionSource": {"catalog": {"enabled": True, "include": ["batch-job-v1"], "exclude": []}, "cluster": {"enabled": False}}, "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "scale"}}, "requiredKinds": [{"group":"batch", "version":"v1", "kind":"Job"}], "labelRules":[{"name":"team", "metrics":["karta_workload_status"], "sources":["workload"], "expression":'object.metadata.labels["team"]'}, {"name":"team", "metrics":["karta_pod_workload_info"], "sources":["pod", "workload"], "expression":'object.metadata.labels["team"]'}]}
+    config = {"kartaDefinitionSource": {"catalog": {"enabled": True, "include": ["batch-job-v1"], "exclude": []}, "cluster": {"enabled": False}}, "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "scale"}}, "requiredKinds": ["batch/v1/Job"], "labelRules":[{"name":"team", "metrics":["karta_workload_status"], "sources":["workload"], "expression":'object.metadata.labels["team"]'}, {"name":"team", "metrics":["karta_pod_workload_info"], "sources":["pod", "workload"], "expression":'object.metadata.labels["team"]'}]}
     if args.refresh_seconds:
         config["refreshInterval"]=f"{args.refresh_seconds}s"
     if args.api_qps is not None:
@@ -571,6 +575,7 @@ def run(args):
                 if last["complete"]:
                     stage["seconds"] = round(time.monotonic() - stage_started, 4)
                     stage["api_after"] = fixture.snapshot()
+                    stage["api_read_rates_per_second"] = {key:(value-stage["api_before"]["requests"].get(key,0))/stage["seconds"] for key,value in stage["api_after"]["requests"].items() if ".get." in key or ".list." in key}
                     stage.update(process_usage(process.pid))
                     if diagnostics_port:
                         stage["diagnostics"] = diagnostic()
@@ -611,9 +616,11 @@ def run(args):
             next_event=churn_started
             pending={}
             latencies=[]
+            report["sustained_churn"] = {"requested_seconds":args.churn_seconds,"target_event_count":math.ceil(args.churn_seconds*args.churn_rate),"target_events_per_second":args.churn_rate,"emitted":0,"observed":0,"publication_upper_bounds_seconds":latencies}
             emitted=0
             pool=min(100,args.roots)
             gc_samples=[]
+            report["sustained_churn"]["gc_samples"]=gc_samples
             next_gc=churn_started+max(0,args.churn_seconds-180)
             while time.monotonic()-churn_started < args.churn_seconds or pending:
                 now=time.monotonic()
@@ -630,6 +637,8 @@ def run(args):
                         fixture.change(root,change_pods=False)
                         pending[root]=(str(fixture.root_versions[root]),sent)
                         emitted+=1
+                        report["sustained_churn"]["emitted"]=emitted
+                        report["sustained_churn"]["last_emission_seconds"]=now-churn_started
                         next_event+=1/args.churn_rate
                         now=time.monotonic()
                 if now >= next_gc and now-churn_started < args.churn_seconds:
@@ -645,7 +654,11 @@ def run(args):
                         if publication.get("resource_version")==version and not publication.get("failure_reasons") and publication.get("status_reason","") in ("","none"):
                             latencies.append(observed-sent)
                             del pending[root]
+                            report["sustained_churn"]["observed"]=len(latencies)
                 time.sleep(args.diagnostic_poll_seconds)
+            report["sustained_churn"]["emission_and_observation_seconds"]=time.monotonic()-churn_started
+            report["sustained_churn"]["observed_events_per_elapsed_second"]=len(latencies)/report["sustained_churn"]["emission_and_observation_seconds"]
+            gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(time.monotonic()-churn_started,4)))
             continuity_stop.set()
             continuity_thread.join(timeout=args.stage_seconds+args.scrape_seconds+args.oracle_seconds)
             if continuity_thread.is_alive() or continuity_errors:
@@ -657,12 +670,12 @@ def run(args):
                 starts=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".queue_latency_seconds"))
                 finishes=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".work_duration_seconds"))
                 queue_idle_samples=queue_idle_samples+1 if queue_stats and depth==0 and starts==finishes else 0
-                if time.monotonic()-churn_started > args.churn_seconds+args.stage_seconds:
-                    raise RuntimeError("queue drain deadline exceeded or named queue metrics unavailable")
+                if time.monotonic()-churn_started > args.churn_seconds+(60 if args.pods>=10 else 30):
+                    break
                 time.sleep(args.diagnostic_poll_seconds)
             latencies.sort()
             elapsed=time.monotonic()-churn_started
-            report["sustained_churn"]={"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first diagnostic observation of exact published root RV; polling upper bound"}
+            report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first diagnostic observation of exact published root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
             converge("after_sustained_churn")
         churn_count = max(1, min(args.churn_roots, args.roots))
         if args.pods:
@@ -711,6 +724,10 @@ def run(args):
         if args.settle_seconds:
             time.sleep(args.settle_seconds)
             converge("settled_after_cleanup")
+        intermediate_streams={key:value for key,value in fixture.snapshot()["requests"].items() if value and key=="replicasets.watch"}
+        report["intermediate_streams"] = intermediate_streams
+        if intermediate_streams:
+            raise RuntimeError(f"intermediate owner WATCH is forbidden: {intermediate_streams}")
         report["completed_all_stages"] = True
         gaps = [scrape for stage in report["stages"] if stage["name"] in ("steady_scrape","quiet_continuity","churn_continuity") for scrape in stage["scrapes"] if not scrape.get("complete")]
         report["steady_validity_gaps"] = len(gaps)
@@ -738,9 +755,9 @@ def run(args):
         report["returncode"] = process.returncode
         completed = [scrape for stage in report["stages"] for scrape in stage["scrapes"] if scrape.get("complete")]
         report["measured_gates"] = {"http_scrapes_under_25s": bool(completed) and all(scrape["http_seconds"] <= 25 for scrape in completed), "oracle_under_deadline": bool(completed) and all(scrape["oracle_seconds"] <= args.oracle_seconds for scrape in completed)}
-        if "sustained_churn" in report:
+        if "sustained_churn" in report and "drain_seconds" in report["sustained_churn"]:
             churn=report["sustained_churn"]
-            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_rate":churn["achieved_events_per_second"]>=args.churn_rate*0.99,"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= (10 if args.pods>=10 else 5),"queue_drain":churn["drain_seconds"] <= (60 if args.pods>=10 else 30),"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
+            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= (10 if args.pods>=10 else 5),"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= (60 if args.pods>=10 else 30),"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
         if "post_delete_heap_gate" in report:
             report["measured_gates"]["delete_all_heap"] = report["post_delete_heap_gate"]
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
@@ -752,11 +769,12 @@ def run(args):
         report["cpu_seconds_last_sample"] = next((sample["cpu_seconds"] for sample in reversed(rss_samples) if sample["cpu_seconds"] is not None), None)
         report["limit_triggered"] = limit
         report["api"] = fixture.snapshot()
+        report["api_read_rates_per_second"] = {key:value/report["elapsed_seconds"] for key,value in report["api"]["requests"].items() if ".get." in key or ".list." in key}
         report["harness_rss_bytes"] = process_rss(os.getpid())
         log.close()
         fixture.close()
         (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
-        print(json.dumps({key: report[key] for key in ("complete", "elapsed_seconds", "peak_sampled_rss_bytes", "limit_triggered")}), flush=True)
+        print(json.dumps({key: report[key] for key in ("complete", "elapsed_seconds", "peak_sampled_rss_bytes", "limit_triggered", "measured_gates")}), flush=True)
     return 0 if report["complete"] else 1
 
 
