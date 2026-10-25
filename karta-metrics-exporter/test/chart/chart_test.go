@@ -122,6 +122,20 @@ var _ = Describe("exporter chart", func() {
 		binding := find(objects, "ClusterRoleBinding")
 		Expect(binding.Object["subjects"].([]any)[0].(map[string]any)["name"]).To(Equal("external"))
 	})
+	It("forwards root resource rules and slash-separated kind settings", func() {
+		objects := render("--set", "operator.enabled=false", "--set", "exporter.enabled=true",
+			"--set-json", `exporter.resourceRules=[{"apiGroups":["batch"],"apiVersions":["v1"],"resources":["jobs","cronjobs"]}]`,
+			"--set-json", `exporter.excludeResourceRules=[{"apiGroups":["batch"],"apiVersions":["v1"],"resources":["cronjobs"]}]`,
+			"--set-json", `exporter.ignoredOwnerKinds=["example.com/v1/Wrapper"]`,
+			"--set-json", `exporter.requiredKinds=["v1/Node"]`)
+		raw := find(objects, "ConfigMap").Object["data"].(map[string]any)["config.yaml"].(string)
+		var config map[string]any
+		Expect(yaml.Unmarshal([]byte(raw), &config)).To(Succeed())
+		Expect(config["resourceRules"]).To(Equal([]any{map[string]any{"apiGroups": []any{"batch"}, "apiVersions": []any{"v1"}, "resources": []any{"jobs", "cronjobs"}}}))
+		Expect(config["excludeResourceRules"]).To(Equal([]any{map[string]any{"apiGroups": []any{"batch"}, "apiVersions": []any{"v1"}, "resources": []any{"cronjobs"}}}))
+		Expect(config["ignoredOwnerKinds"]).To(Equal([]any{"example.com/v1/Wrapper"}))
+		Expect(config["requiredKinds"]).To(Equal([]any{"v1/Node"}))
+	})
 	It("requires the external service account name", func() {
 		output, err := exec.Command("helm", "template", "test", "../../../charts/karta", "--set", "exporter.enabled=true", "--set", "exporter.serviceAccount.create=false").CombinedOutput()
 		Expect(err).To(HaveOccurred())

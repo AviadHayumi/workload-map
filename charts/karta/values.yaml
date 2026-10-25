@@ -23,6 +23,8 @@ exporter:
   namespaceSelector: {}
   objectSelector: {}
   podSelector: {}
+  resourceRules: []
+  excludeResourceRules: []
   ignoredOwnerKinds: []
   requiredKinds: []
   kartaDefinitionSource:

@@ -14,5 +14,5 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 data:
   config.yaml: |
-    {{- dict "labelRules" .Values.exporter.labelRules "labelLimits" .Values.exporter.labelLimits "namespaceSelector" .Values.exporter.namespaceSelector "objectSelector" .Values.exporter.objectSelector "podSelector" .Values.exporter.podSelector "kartaDefinitionSource" .Values.exporter.kartaDefinitionSource "ignoredOwnerKinds" .Values.exporter.ignoredOwnerKinds "requiredKinds" .Values.exporter.requiredKinds | toYaml | nindent 4 }}
+    {{- dict "labelRules" .Values.exporter.labelRules "labelLimits" .Values.exporter.labelLimits "resourceRules" .Values.exporter.resourceRules "excludeResourceRules" .Values.exporter.excludeResourceRules "namespaceSelector" .Values.exporter.namespaceSelector "objectSelector" .Values.exporter.objectSelector "podSelector" .Values.exporter.podSelector "kartaDefinitionSource" .Values.exporter.kartaDefinitionSource "ignoredOwnerKinds" .Values.exporter.ignoredOwnerKinds "requiredKinds" .Values.exporter.requiredKinds | toYaml | nindent 4 }}
 {{- end }}
