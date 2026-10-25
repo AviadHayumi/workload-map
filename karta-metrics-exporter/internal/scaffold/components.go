@@ -103,8 +103,8 @@ func newRuntime(_ controller.Dependencies) controller.Runner {
 
 func newRegistrar() collector.Registrar {
 	m := &mocks.Registrar{}
-	m.EXPECT().Register(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(
-		func(meter metric.Meter, _ collector.Capturer, _ collector.Options) (metric.Registration, error) {
+	m.EXPECT().Register(mock.Anything, mock.Anything).RunAndReturn(
+		func(meter metric.Meter, _ collector.Capturer) (metric.Registration, error) {
 			return meter.RegisterCallback(func(context.Context, metric.Observer) error { return nil })
 		})
 	return m

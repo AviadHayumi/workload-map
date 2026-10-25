@@ -50,8 +50,8 @@ func (_m *Registrar) EXPECT() *Registrar_Expecter {
 }
 
 // Register provides a mock function for the type Registrar
-func (_mock *Registrar) Register(meter metric.Meter, capturer otel.Capturer, options otel.Options) (metric.Registration, error) {
-	ret := _mock.Called(meter, capturer, options)
+func (_mock *Registrar) Register(meter metric.Meter, capturer otel.Capturer) (metric.Registration, error) {
+	ret := _mock.Called(meter, capturer)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Register")
@@ -59,18 +59,18 @@ func (_mock *Registrar) Register(meter metric.Meter, capturer otel.Capturer, opt
 
 	var r0 metric.Registration
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(metric.Meter, otel.Capturer, otel.Options) (metric.Registration, error)); ok {
-		return returnFunc(meter, capturer, options)
+	if returnFunc, ok := ret.Get(0).(func(metric.Meter, otel.Capturer) (metric.Registration, error)); ok {
+		return returnFunc(meter, capturer)
 	}
-	if returnFunc, ok := ret.Get(0).(func(metric.Meter, otel.Capturer, otel.Options) metric.Registration); ok {
-		r0 = returnFunc(meter, capturer, options)
+	if returnFunc, ok := ret.Get(0).(func(metric.Meter, otel.Capturer) metric.Registration); ok {
+		r0 = returnFunc(meter, capturer)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(metric.Registration)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(metric.Meter, otel.Capturer, otel.Options) error); ok {
-		r1 = returnFunc(meter, capturer, options)
+	if returnFunc, ok := ret.Get(1).(func(metric.Meter, otel.Capturer) error); ok {
+		r1 = returnFunc(meter, capturer)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -85,12 +85,11 @@ type Registrar_Register_Call struct {
 // Register is a helper method to define mock.On call
 //   - meter metric.Meter
 //   - capturer otel.Capturer
-//   - options otel.Options
-func (_e *Registrar_Expecter) Register(meter any, capturer any, options any) *Registrar_Register_Call {
-	return &Registrar_Register_Call{Call: _e.mock.On("Register", meter, capturer, options)}
+func (_e *Registrar_Expecter) Register(meter any, capturer any) *Registrar_Register_Call {
+	return &Registrar_Register_Call{Call: _e.mock.On("Register", meter, capturer)}
 }
 
-func (_c *Registrar_Register_Call) Run(run func(meter metric.Meter, capturer otel.Capturer, options otel.Options)) *Registrar_Register_Call {
+func (_c *Registrar_Register_Call) Run(run func(meter metric.Meter, capturer otel.Capturer)) *Registrar_Register_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 metric.Meter
 		if args[0] != nil {
@@ -100,14 +99,9 @@ func (_c *Registrar_Register_Call) Run(run func(meter metric.Meter, capturer ote
 		if args[1] != nil {
 			arg1 = args[1].(otel.Capturer)
 		}
-		var arg2 otel.Options
-		if args[2] != nil {
-			arg2 = args[2].(otel.Options)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -118,7 +112,7 @@ func (_c *Registrar_Register_Call) Return(registration metric.Registration, err 
 	return _c
 }
 
-func (_c *Registrar_Register_Call) RunAndReturn(run func(meter metric.Meter, capturer otel.Capturer, options otel.Options) (metric.Registration, error)) *Registrar_Register_Call {
+func (_c *Registrar_Register_Call) RunAndReturn(run func(meter metric.Meter, capturer otel.Capturer) (metric.Registration, error)) *Registrar_Register_Call {
 	_c.Call.Return(run)
 	return _c
 }
