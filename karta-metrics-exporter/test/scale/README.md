@@ -15,6 +15,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
   Earlier scheduling, health-reason and sampling failures remain available.
   The one-Pod case was not started.
 
+- [Optional heap-profile diagnosis](results/heap-diagnostic/a52b1216/README.md):
+  a separate short run reproduces heap oscillation with 13 sampled profiles.
+  It is not full acceptance and does not reclassify earlier failures.
 - [Verified 1k-root smokes](results/smoke/README.md#corrected-oracle-and-verified-acknowledgment):
   direct and intermediate ownership passed bounded lifecycle and 20-second churn
   checks. These do not establish five-minute or 100k-root acceptance.
