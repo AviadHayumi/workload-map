@@ -183,10 +183,7 @@ Rules default to `[]`. Limits default to 10000 cost units, 4096 expression bytes
 1024 value bytes and a cancellation check every 100 comprehension iterations.
 
 See the [evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
-for a complete example, flags, environment variables and precedence. The
-[migration example](../../karta-metrics-exporter/pkg/labelevaluator/README.md#migrating-from-submitter-extraction)
-replaces the removed submitter settings. Helm rejects `exporter.attribution`
-rather than silently ignoring it.
+for a complete example, flags, environment variables and precedence.
 
 ## Submitter admission
 
