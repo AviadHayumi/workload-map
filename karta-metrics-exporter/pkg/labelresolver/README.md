@@ -14,13 +14,12 @@ Empty or failed values try the next source. Errors remain visible even when a
 fallback succeeds. A top-level error reports cancellation or invalid input.
 The resolver neither fetches objects nor owns a Kubernetes cache.
 
-For a Pod metric, sources may be `workload`, `pod`, or both in that order.
-A workload-only metric must reject a rule containing `pod`: there is no single
-Pod to choose for the workload. Empty and failed values must not reuse old labels.
+For a Pod metric, sources may be `workload`, `pod`, or both in either order.
+A workload-only metric rejects a rule containing `pod`: there is no single
+Pod to choose for the workload. Empty and failed values never reuse old labels.
 
 Runtime calls the resolver for relevant changes and saves the results in Store.
-Collector reads those saved labels. Evaluation modes are not part of this
-configuration.
+Collector reads those saved labels.
 
 `ValidateConfig` checks the rules at startup. Helm and the command accept the
 configuration. Resolve creates fresh result maps on every call. Missing source
@@ -30,11 +29,24 @@ The resolver supports concurrent calls with immutable input objects.
 
 Workload evaluation results use a 1024-entry FIFO cache keyed by workload API version,
 kind, UID, resourceVersion and compiled rule. The Kubernetes object contents must
-be unchanged for the same API representation, UID and resourceVersion. Missing identities or versions
-bypass the cache. Deterministic evaluation errors remain available for fallback;
+be unchanged for the same API representation, UID and resourceVersion. Missing
+identities or versions bypass the cache. Deterministic evaluation errors remain available for fallback;
 cancellation errors are never cached. Pod results are evaluated separately.
 Concurrent cache misses can evaluate independently, without holding the cache
 lock during CEL execution.
 
 The OTel scope label names `otel_scope_name`, `otel_scope_version` and
 `otel_scope_schema_url` are reserved along with the metric's built-in labels.
+
+## Verify
+
+From the exporter module directory:
+
+```sh
+go test -race ./pkg/labelresolver
+```
+
+Tests use the real CEL compiler for ordered fallback, retained errors, label
+replacement, cancellation and bounded cache behavior. API-version, kind and
+resource-version changes must invalidate workload cache entries. Resolver tests
+need no Kubernetes API server.

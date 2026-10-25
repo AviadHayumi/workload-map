@@ -46,11 +46,12 @@ exporter:
 
 `labelRules` defaults to `[]`. Rules target Pod info or workload status. A Pod
 source is allowed only for Pod info. Sources run in listed order until a nonempty
-value is found. The resolver will retain per-source evaluation errors, including
+value is found. The resolver retains per-source evaluation errors, including
 when a fallback succeeds. Built-in labels cannot be replaced.
 
-The evaluator and startup rule validation work today. Resolver execution,
-Runtime evaluation and metric delivery remain scaffold work.
+Runtime calls the resolver when workload or Pod inputs change. Collector reads
+the saved labels from Store. See [label resolution](../labelresolver/) for source
+fallback and workload result caching.
 
 Helm mounts these two sections as a config file. Outside Helm, use the same file
 without the `exporter:` wrapper and pass `--config path.yaml`.
@@ -67,3 +68,15 @@ Explicit flags override environment variables, then YAML, then defaults. An empt
 numeric override is an error. `--config=""` skips a path set through the environment.
 Zero limits use compiler defaults, except an explicit zero interrupt frequency
 in configuration is rejected. Negative limits are rejected. Rules stay in YAML.
+
+## Verify
+
+From the exporter module directory:
+
+```sh
+go test -race ./pkg/labelevaluator
+```
+
+Tests exercise full-object access, compilation and result validation, missing
+fields, value and cost limits, cancellation and concurrent evaluation. No
+Kubernetes client or API server is required.

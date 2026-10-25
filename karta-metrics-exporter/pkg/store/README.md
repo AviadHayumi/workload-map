@@ -33,6 +33,7 @@ replaces the complete health list.
 - `Published` returns the immutable publication, or nil.
 - `RemovePublication` removes the root and its Pod rows. An absent UID is safe.
 - `SetPublicationFailure` sets a shared failure. An empty reason or `none` clears it.
+- `RetirePublicationFailure` removes a key only when no publication or health record refers to it.
 - `SetPublicationHealth` replaces the resource health list.
 - `Capture` returns a view that later writes cannot change.
 
@@ -45,7 +46,9 @@ last reference disappears. Replacement adds new references before removing old
 ones. Shared Pod pages retain their references without scanning their rows.
 Runtime keeps a health reference for each active stream and explicitly clears
 failures after invalidating affected evidence. A never-referenced failure must
-also be cleared explicitly when its dependency leaves scope.
+also be retired explicitly when its dependency leaves scope. Retirement does not
+clear failures still referenced by current publications. A captured view keeps
+its own failure map even after the current Store retires a key.
 
 Publication ownership transfers on `Publish`. The publication and all nested
 maps, slices and pages must remain immutable, including values returned by
@@ -55,8 +58,7 @@ change. Health inputs are copied, including dependency slices.
 
 `Publication.WithPod(uid, replacement)` copies changed pages and the page pointer
 list. Sorted pages stay ordered, split at capacity and merge after deletion when
-they fit. A nil
-replacement removes the Pod. A replacement must have the requested UID and its
+they fit. A nil replacement removes the Pod. A replacement must have the requested UID and its
 nested data follows the same immutable ownership contract. `BuildPodPages` sorts
 a copy of the input rows and reuses unchanged pages. `Publication.Pod` returns an
 immutable row. Page-bound validation takes time proportional to the number of
@@ -72,3 +74,21 @@ callers must replace these rather than mutate them.
 
 Store owns its data types and does not import discovery. Runtime translates the
 resolved identity into a publication.
+
+Pod records carry the Pod namespace separately from the workload reference.
+A cluster-scoped root can therefore contain Pods from multiple namespaces while
+its own reference has an empty namespace.
+
+## Verify
+
+From the exporter module directory:
+
+```sh
+go test -race ./pkg/store
+GOMAXPROCS=4 go test ./pkg/store -run '^$' -bench BenchmarkPodMutations -benchmem
+```
+
+Tests cover expiry with a fake clock, failure retirement, frozen captures,
+concurrent access, page reuse and Pod replacement/removal. The benchmark includes
+actual lookup, mutation and publication at 1000 and 100000 Pods, plus full expiry
+refresh and bulk page construction.

@@ -5,7 +5,7 @@
 
 `Registrar.Register` takes an OTel Meter and a Store `Capturer` and returns a
 `metric.Registration`. Collector publishes all supported workload phases.
-The generated Registrar mock lets startup be tested independently.
+The Registrar interface lets application lifecycle tests replace collection.
 
 `New()` returns the Registrar. It registers one callback for the four KEP metric families.
 Each collection captures Store once, checks evidence validity and emits saved
@@ -28,3 +28,20 @@ Tests use an OTel Prometheus reader and HTTP handler to verify the exported
 series. Runtime integration tests can publish through `store.Writer` and scrape
 the same reader. Neither pure component starts a Kubernetes client or envtest
 server.
+
+Pod-info uses each Pod's namespace. Status, creation and workload health use the
+root namespace, which is empty for a cluster-scoped root. Removing a publication
+or Pod row removes its series on the next collection.
+
+## Verify
+
+From the exporter module directory:
+
+```sh
+go test -race ./pkg/adapters/otel
+```
+
+The HTTP exposition tests check all four families, all nine phases, arbitrary
+custom labels, invalid evidence, creation failures and series removal. A 5001-Pod
+test checks that the configured provider preserves every identity without an
+OTel overflow series.

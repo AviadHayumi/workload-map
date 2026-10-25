@@ -3,61 +3,78 @@
 
 # Karta metrics exporter
 
-This branch provides the contracts for the exporter components. It does not yet
-watch Kubernetes or expose metrics. The CEL label evaluator is implemented. Source selection and metric delivery
-remain scaffold work.
+The exporter watches Kubernetes workloads and Pods, resolves their ownership,
+and exposes Prometheus metrics through OpenTelemetry. For example, a Pod owned
+by a ReplicaSet and Deployment produces a Pod-info row identifying the Deployment
+root and the Pod UID. The Deployment also has status and creation-time rows,
+even when it has no Pods.
 
-| Package | Input and result |
+## Components
+
+| Package | Responsibility |
 | --- | --- |
-| [kartadefinitioninventory](pkg/kartadefinitioninventory/) | Root GVK -> selected Karta and its source |
-| [discovery](pkg/discovery/) | Object reference -> workload root and missing root coverage |
-| [labelevaluator](pkg/labelevaluator/) | One object -> one configured label value |
-| [labelresolver](pkg/labelresolver/) | Root, optional Pod and metric names -> labels for each metric |
-| [controller](pkg/controller/) | Watches and queued work -> publications |
-| [store](pkg/store/) | Publications -> consistent captured view |
-| [adapters/otel](pkg/adapters/otel/) | Captured view -> OTel observations |
+| [kartadefinitioninventory](pkg/kartadefinitioninventory/) | Select a catalog or cluster Karta for each root GVK |
+| [discovery](pkg/discovery/) | Resolve ownership and report missing root coverage |
+| [labelevaluator](pkg/labelevaluator/) | Compile and evaluate one CEL expression against a full object |
+| [labelresolver](pkg/labelresolver/) | Resolve configured labels with ordered source fallback |
+| [controller](pkg/controller/) | Watch inputs, reconcile roots and publish verified results |
+| [store](pkg/store/) | Own immutable publications, evidence validity and captured views |
+| [adapters/otel](pkg/adapters/otel/) | Emit saved observations from one captured view per scrape |
 
-The command reads `labelRules` and `labelLimits`, validates the rules and compiles
-their expressions at startup. The remaining components expose interfaces and
-data types for their implementations.
+Runtime evaluates labels when inputs change. Collection reads saved values and
+does not call Kubernetes or CEL. Store owns synchronization; Runtime orders
+input verification and publication. The application registers collection before
+workers start. Shutdown stops workers before unregistering collection and
+closing the metric provider.
 
 ## Run
+
+From the repository root:
 
 ```sh
 make build-exporter
 ./bin/karta-metrics-exporter --version
-./bin/karta-metrics-exporter
+./bin/karta-metrics-exporter --kubeconfig /path/to/kubeconfig \
+  --config /path/to/exporter.yaml --metrics-bind-address 127.0.0.1:8080
 ```
 
-Startup currently uses generated Mockery mocks and an OTel no-op meter. The runtime
-waits for SIGINT or SIGTERM. It does not process example workloads, open an HTTP
-endpoint or produce metrics. Discovery and label calls return
-`ErrNotImplemented`. Unexpected Store writes fail rather than silently losing data.
+The same listener serves `/metrics`, `/healthz` and `/readyz`. The default listen
+address is `:8080`. In Kubernetes, the command uses its ServiceAccount credentials.
+A config file uses the exporter settings directly, without the Helm `exporter:`
+wrapper. See the [label configuration example](pkg/labelevaluator/README.md#configuration)
+and [deployment configuration](../docs/karta-metrics-exporter/configuration.md).
 
-[internal/scaffold/components.go](internal/scaffold/components.go) is the wiring
-point. Each factory returns a component interface. Replace a factory with the
-real constructor when that component is ready. Its dependencies are already
-passed there. The mock factories do not use those dependencies yet.
+Build an image with `make exporter-image IMAGE_TAG=dev`. The chart keeps the
+exporter disabled by default. Set `exporter.enabled=true` to enable it and
+`operator.enabled=false` for a standalone exporter installation. Its RBAC grants
+read-only access. Configure additional workload permissions with
+`exporter.rbac.workloadRules`.
 
-Store owns its locking. Runtime orders input verification and publication.
-Startup registers collection before starting workers. Shutdown waits for Runtime to stop,
-then unregisters collection. An eventual delivery provider and HTTP server belong
-in the command; neither is implemented here.
+## Verify
 
-## Develop a component
-
-Implement the interface in its package. Keep the component tests next to the
-implementation. Use Ginkgo/Gomega, as in the SDK and operator. Mocks are generated into `internal/scaffold/mocks` for the
-scaffold and consumer tests:
+Run commands from the repository root unless shown otherwise:
 
 ```sh
-make exporter-generate-mocks
+make test-exporter-unit
+make test-exporter-integration
+make exporter-rules-test
 make check-exporter
 ```
 
-The generator is pinned to Mockery v3.8.1. `make validate` also regenerates mocks
-to detect drift. Public component contracts are still under development.
+Unit and chart tests need no Kubernetes API server. The integration target starts
+an envtest API server for Discovery, Inventory and Runtime tests. Pure component
+race tests can be run independently:
 
-Build the image with `make exporter-image IMAGE_TAG=dev`. The chart keeps the
-exporter disabled by default. Configure labels with `exporter.labelRules` and
-`exporter.labelLimits`. See the [configuration example](pkg/labelevaluator/README.md#configuration).
+```sh
+cd karta-metrics-exporter
+go test -race ./pkg/store ./pkg/adapters/otel ./pkg/labelevaluator ./pkg/labelresolver
+```
+
+The [operator matrix](test/e2e/) installs the real exporter into an isolated
+cluster with the repository's pinned operators. The [scale harness](test/scale/)
+uses a modeled Kubernetes API; its results do not establish production capacity.
+Prometheus query examples have separate promtool fixtures in [test/rules](test/rules/).
+
+Component mocks are generated into `internal/testutil/mocks` with
+`make exporter-generate-mocks`, using pinned Mockery v3.8.1. They support consumer
+tests; the running command wires real components through `internal/app`.
