@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 
-{{- if .Values.exporter.enabled -}}
+{{- if .Values.exporter.enabled }}
 {{/*
 The bound ClusterRole aggregates every ClusterRole labeled
 karta.run.ai/exporter-rbac: "true". The base role below carries the chart's

@@ -32,6 +32,8 @@ func render(args ...string) []unstructured.Unstructured {
 		}
 		Expect(err).NotTo(HaveOccurred())
 		if object != nil {
+			Expect(object).To(HaveKey("apiVersion"), "every rendered Kubernetes object needs an API version")
+			Expect(object).To(HaveKey("kind"))
 			objects = append(objects, unstructured.Unstructured{Object: object})
 		}
 	}
