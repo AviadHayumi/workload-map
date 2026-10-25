@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	clienttesting "k8s.io/client-go/testing"
 
@@ -59,10 +60,10 @@ var _ = Describe("Superseded dependency paths", func() {
 			return true, nil, apierrors.NewForbidden(w.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
 		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
-		Expect(state.resolutionError).To(HaveOccurred())
+		Expect(state.resolutionErrors).NotTo(BeEmpty())
 		close(paused.resume)
 		Eventually(finished).Should(Receive(MatchError(discovery.ErrStale)))
-		Expect(state.resolutionError).To(HaveOccurred())
+		Expect(state.resolutionErrors).NotTo(BeEmpty())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		publication := publications.Published(root.GetUID())
 		valid, _ := publications.Capture().Valid(publication.Creation)
@@ -104,4 +105,106 @@ var _ = Describe("Superseded dependency paths", func() {
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(publications.Published(root.GetUID()).FailureReasons).NotTo(ContainElement(store.ReasonEvaluationFailed))
 	})
+	DescribeTable("cannot clear unresolved ownership through an unchanged served-version alias", func(ctx SpecContext, mode int) {
+		r, metadata, publications := testRuntime(nil)
+		canonical, alias := testObject(testRootGVK, "root"), testObject(testRootGVK, "root")
+		aliasGVK := testRootGVK
+		aliasGVK.Version = "v2"
+		alias.SetGroupVersionKind(aliasGVK)
+		r.reader.clients.Mapper.(*meta.DefaultRESTMapper).Add(aliasGVK, meta.RESTScopeNamespace)
+		pod, parent := testObject(podGVK, "pod"), testObject(testRootGVK, "parent")
+		ownedBy(pod, alias)
+		cw := seedWatch(r, testRootGVK, "jobs", canonical)
+		aw := seedWatch(r, aliasGVK, "jobs", alias)
+		seedWatch(r, podGVK, "pods", pod)
+		root := canonical
+		if mode == 1 {
+			root = alias
+		}
+		state := seedRoot(r, root, pod)
+		state.watch = cw.key
+		if mode > 0 {
+			definitions := jobInventory()
+			if mode == 2 {
+				definitions.selection.GVK = aliasGVK
+				state.watch = aw.key
+			}
+			r.deps.Inventory = definitions
+		}
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		paused := &pausedPodDiscovery{Discoverer: r.deps.Discovery, entered: make(chan struct{}), resume: make(chan struct{})}
+		r.deps.Discovery = paused
+		done := make(chan error, 1)
+		go func() { done <- r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
+		Eventually(paused.entered).Should(BeClosed())
+		changed := canonical.DeepCopy()
+		changed.SetResourceVersion("2")
+		ownedBy(changed, parent)
+		r.accept(cw, changed, false)
+		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			return true, nil, apierrors.NewForbidden(cw.key.Resource.GroupResource(), "parent", errors.New("denied"))
+		})
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
+		close(paused.resume)
+		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		record := publications.Published(root.GetUID())
+		valid, _ := publications.Capture().Valid(record.Creation)
+		Expect(valid).To(BeFalse())
+	}, Entry("generic canonical version", 0), Entry("selected version differs from original root", 1), Entry("selected watch moved to the alias", 2))
+
+	It("transfers a retired representation failure and requires a fresh replacement read", func(ctx SpecContext) {
+		r, metadata, publications := testRuntime(nil)
+		canonical, alias := testObject(testRootGVK, "root"), testObject(testRootGVK, "root")
+		v2 := testRootGVK
+		v2.Version = "v2"
+		alias.SetGroupVersionKind(v2)
+		r.reader.clients.Mapper.(*meta.DefaultRESTMapper).Add(v2, meta.RESTScopeNamespace)
+		pod := testObject(podGVK, "pod")
+		ownedBy(pod, alias)
+		old := seedWatch(r, testRootGVK, "jobs", canonical)
+		replacement := seedWatch(r, v2, "jobs", alias)
+		seedWatch(r, podGVK, "pods", pod)
+		state := seedRoot(r, canonical, pod)
+		state.watch = replacement.key
+		definitions := jobInventory()
+		definitions.selection.GVK = v2
+		r.deps.Inventory = definitions
+		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
+		state.failResolution(testRootGVK, discovery.ErrUnresolvedOwner)
+		entered, resume := make(chan struct{}), make(chan struct{})
+		first := true
+		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			if first {
+				first = false
+				close(entered)
+				<-resume
+			}
+			return true, metadataList(ownerMetadata("root", "1")), nil
+		})
+		done := make(chan error, 1)
+		go func() { done <- r.verifyWatch(ctx, replacement.key) }()
+		Eventually(entered).Should(BeClosed())
+		r.mu.Lock()
+		delete(r.watches, old.key)
+		r.reader.mu.Lock()
+		r.retireWatchObjectsLocked(old)
+		r.reader.mu.Unlock()
+		r.mu.Unlock()
+		Expect(state.resolutionErrors).NotTo(HaveKey(testRootGVK))
+		Expect(state.resolutionErrors).To(HaveKey(v2))
+		close(resume)
+		Eventually(done).Should(Receive(Succeed()))
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrPending))
+		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
+		valid, _ := publications.Capture().Valid(publications.Published(canonical.GetUID()).Creation)
+		Expect(valid).To(BeFalse())
+		Expect(r.verifyWatch(ctx, replacement.key)).To(Succeed())
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(state.resolutionErrors).To(BeEmpty())
+		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
+		valid, _ = publications.Capture().Valid(publications.Published(canonical.GetUID()).Creation)
+		Expect(valid).To(BeTrue())
+	})
+
 })

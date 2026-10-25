@@ -184,6 +184,16 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 		root := r.roots[ref.UID]
 		if root != nil && root.watch != w.key {
 			if replacement := r.watches[root.watch]; replacement != nil {
+				if failure, unresolved := root.resolutionErrors[w.gvk]; unresolved {
+					delete(root.resolutionErrors, w.gvk)
+					root.failResolution(replacement.gvk, failure.cause)
+					failure = root.resolutionErrors[replacement.gvk]
+					r.sequence++
+					failure.verifyAfter = r.sequence
+					root.resolutionErrors[replacement.gvk] = failure
+					r.controlQueue.Add(queueKey{Operation: "verify", Watch: replacement.key})
+				}
+
 				key := objectKey{GVK: replacement.gvk, Namespace: ref.Namespace, Name: ref.Name}
 				if observed, ok := r.reader.objects[key]; !ok || observed.object.GetUID() != ref.UID {
 					if replacement.pendingRoots == nil {
@@ -307,6 +317,8 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
 	r.mu.Lock()
 	epoch := w.failureEpoch
+	r.sequence++
+	readSequence := r.sequence
 	r.mu.Unlock()
 	started := r.config.Now()
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
@@ -328,6 +340,7 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	} else {
 		r.recoverWatchLocked(w)
 		w.verifiedAt = started
+		w.verifiedRead = readSequence
 	}
 	return list, err
 }
@@ -467,13 +480,17 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		w.objects[key] = struct{}{}
 		delete(w.pendingRoots, ref.UID)
 		r.reader.objects[key] = observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: r.config.Now().Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}}
+		if root := r.roots[ref.UID]; root != nil && old.object == nil && metav1.GetControllerOf(object) != nil {
+			root.failResolution(ref.GVK, discovery.ErrPending)
+			r.failPublicationLocked(ref.UID, discovery.ErrPending)
+		}
 		if old.object != nil && old.object.GetResourceVersion() != ref.ResourceVersion {
 			if root := r.roots[r.podRoots[ref.UID]]; root != nil {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
 			if root := r.roots[ref.UID]; root != nil {
 				if !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences()) {
-					root.resolutionError = discovery.ErrPending
+					root.failResolution(ref.GVK, discovery.ErrPending)
 				}
 				r.failPublicationLocked(ref.UID, discovery.ErrStale)
 			}
@@ -554,6 +571,8 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		return nil
 	}
 	generation, failureEpoch := w.generation, w.failureEpoch
+	r.sequence++
+	readSequence := r.sequence
 	r.mu.Unlock()
 	verificationStarted := r.config.Now()
 	refs := map[types.UID]string{}
@@ -602,6 +621,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 
 	r.recoverWatchLocked(w)
 	w.verifiedAt = verificationStarted
+	w.verifiedRead = readSequence
 	r.reader.mu.Lock()
 	for objectKey := range w.objects {
 		entry, ok := r.reader.objects[objectKey]

@@ -117,7 +117,14 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 	mapping, err := r.mapping(ref.GVK)
 	if err != nil {
 		r.mu.Lock()
-		r.recordMetadataFailureLocked(keyOf(ref), ref.UID, nil, err)
+		key := keyOf(ref)
+		cluster := key
+		cluster.Namespace = ""
+		if _, found := r.metadata[cluster]; found || r.priming[cluster] != 0 || r.pending[cluster] != nil {
+			key = cluster
+		}
+		r.recordMetadataFailureLocked(key, ref.UID, nil, err)
+		r.removeMetadataLocked(key, failureReason(err))
 		r.mu.Unlock()
 		return nil, err
 	}

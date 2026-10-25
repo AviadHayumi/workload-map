@@ -105,12 +105,13 @@ type resourceWatch struct {
 	ready        bool
 	generation   uint64
 	failureEpoch uint64
+	verifiedRead uint64
 	failureKey   string
 	err          error
 	verifiedAt   time.Time
 }
 type rootState struct {
-	resolutionError     error
+	resolutionErrors    map[schema.GroupVersionKind]resolutionFailure
 	labelFailures       map[types.UID]bool
 	publishedOrigin     inventory.Origin
 	publishedGVK        schema.GroupVersionKind
@@ -127,6 +128,11 @@ type rootState struct {
 	paths               map[types.UID][]discovery.ObjectRef
 	generation          uint64
 }
+type resolutionFailure struct {
+	cause       error
+	verifyAfter uint64
+}
+
 type cachedPod struct {
 	resourceVersion string
 	generation      uint64
@@ -559,4 +565,13 @@ func (r *Runtime) definitionsConvergedLocked() error {
 		}
 	}
 	return nil
+}
+
+func (r *rootState) failResolution(gvk schema.GroupVersionKind, cause error) {
+	if r.resolutionErrors == nil {
+		r.resolutionErrors = map[schema.GroupVersionKind]resolutionFailure{}
+	}
+	failure := r.resolutionErrors[gvk]
+	failure.cause = cause
+	r.resolutionErrors[gvk] = failure
 }

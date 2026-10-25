@@ -94,7 +94,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		r.mu.Lock()
 		if root := r.roots[ref.UID]; root != nil {
 			if current, ok := r.reader.Cached(ref); ok && current.GetResourceVersion() == ref.ResourceVersion {
-				root.resolutionError = err
+				root.failResolution(ref.GVK, err)
 				r.failPublicationLocked(ref.UID, err)
 				r.rootQueue.Add(queueKey{Operation: "root", UID: ref.UID})
 			}
@@ -151,7 +151,15 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		root = &rootState{ref: workload.Root, paths: map[types.UID][]discovery.ObjectRef{}, dirty: map[types.UID]bool{}, podKeys: map[types.UID]string{}, podErrors: map[types.UID]error{}, retired: map[string]bool{}, cached: map[types.UID]cachedPod{}, fullRefresh: true}
 		r.roots[workload.Root.UID] = root
 	}
-	root.resolutionError = nil
+	if failure, unresolved := root.resolutionErrors[workload.Root.GVK]; unresolved {
+		if failure.verifyAfter > 0 && r.watches[rootWatch].verifiedRead <= failure.verifyAfter {
+			return discovery.ErrPending
+		}
+		delete(root.resolutionErrors, workload.Root.GVK)
+	}
+	if len(root.resolutionErrors) > 0 {
+		return discovery.ErrStale
+	}
 	root.watch = rootWatch
 	if root.ref.GVK == workload.Root.GVK {
 		root.ref = workload.Root
@@ -191,7 +199,10 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		return nil
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
-	rootFailure := state.resolutionError
+	var rootFailure error
+	for _, failure := range state.resolutionErrors {
+		rootFailure = errors.Join(rootFailure, failure.cause)
+	}
 	if w := r.watches[state.watch]; w != nil {
 		rootFailure = errors.Join(rootFailure, w.err)
 		if rootFailure == nil && !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)) {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -23,6 +24,21 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 )
+
+type changingMapper struct {
+	meta.RESTMapper
+	mu  sync.RWMutex
+	err error
+}
+
+func (m *changingMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.RESTMapper.RESTMapping(gk, versions...)
+}
 
 var _ = Describe("Demand-aware cold owner priming", func() {
 	It("serves1000 distinct cold owners with two LIST pages and no GETs", func(ctx SpecContext) {
@@ -149,6 +165,8 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 	})
 	DescribeTable("cannot overwrite a newer accepted input", func(ctx SpecContext, operation string) {
 		r, metadata, _ := testRuntime(nil)
+		mapper := &changingMapper{RESTMapper: r.reader.clients.Mapper}
+		r.reader.clients.Mapper = mapper
 		owner, pod := testObject(testRootGVK, "owner"), testObject(podGVK, "pod")
 		ownedBy(pod, owner)
 		pw := seedWatch(r, podGVK, "pods", pod)
@@ -186,6 +204,12 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 			} else {
 				Expect(err).To(HaveOccurred())
 			}
+		case "mapping-failure":
+			mapper.mu.Lock()
+			mapper.err = errors.New("mapping unavailable")
+			mapper.mu.Unlock()
+			_, err := r.reader.GetMetadata(ctx, refOf(owner))
+			Expect(err).To(HaveOccurred())
 		case "cancel-get":
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
@@ -228,7 +252,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		default:
 			Expect(r.reader.metadata).To(BeEmpty())
 		}
-	}, Entry("GET success", "get"), Entry("GET failure", "failed-get"), Entry("watched update", "watch"), Entry("newer watch failure", "watch-failure"), Entry("one GET caller cancellation", "cancel-get"), Entry("owner UID replacement", "uid"), Entry("pruned last descendant", "prune"), Entry("namespace withdrawal", "namespace"))
+	}, Entry("GET success", "get"), Entry("GET failure", "failed-get"), Entry("newer mapping failure", "mapping-failure"), Entry("watched update", "watch"), Entry("newer watch failure", "watch-failure"), Entry("one GET caller cancellation", "cancel-get"), Entry("owner UID replacement", "uid"), Entry("pruned last descendant", "prune"), Entry("namespace withdrawal", "namespace"))
 	It("normalizes cluster scope and skips ignored or malformed controller references", func(ctx SpecContext) {
 		r, metadata, _ := testRuntime(nil)
 		clusterGVK := schema.GroupVersionKind{Group: "example.test", Version: "v1", Kind: "ClusterOwner"}
