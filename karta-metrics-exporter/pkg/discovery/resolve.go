@@ -11,6 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 )
@@ -34,20 +35,17 @@ func New(dependencies Dependencies, config Config) (Discoverer, error) {
 }
 
 func (d *discovery) Get(ctx context.Context, ref ObjectRef) (Result, error) {
-	workload := &GenericWorkload{Resolution: Resolved}
-	seen := make(map[ObjectRef]bool)
+	workload := &GenericWorkload{Resolution: Resolved, Path: make([]ObjectRef, 0, 3)}
+	seen := make(map[types.UID]struct{})
 	var rootCached bool
 	for {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		key := ref
-		key.ResourceVersion = ""
-		if seen[key] {
+		if _, exists := seen[ref.UID]; exists {
 			return Result{}, fmt.Errorf("%w: ownership cycle at %s", ErrUnresolvedOwner, ref.Name)
 		}
-		seen[key] = true
-		if len(seen) > 1024 {
+		if len(seen) >= 1024 {
 			return Result{}, fmt.Errorf("%w: owner chain exceeds limit", ErrUnresolvedOwner)
 		}
 		var object metav1.Object
@@ -65,29 +63,33 @@ func (d *discovery) Get(ctx context.Context, ref ObjectRef) (Result, error) {
 			}
 			object = metadata
 		}
+		uid, namespace, version := object.GetUID(), object.GetNamespace(), object.GetResourceVersion()
 		// The reader resolves API scope; a cluster-scoped owner has no namespace.
-		if len(workload.Path) > 0 && object.GetNamespace() == "" {
+		if len(workload.Path) > 0 && namespace == "" {
 			ref.Namespace = ""
 		}
-		if ref.Name != object.GetName() || ref.Namespace != object.GetNamespace() || object.GetUID() == "" || (ref.UID != "" && ref.UID != object.GetUID()) {
+		if ref.Name != object.GetName() || ref.Namespace != namespace || uid == "" || (ref.UID != "" && ref.UID != uid) {
 			return Result{}, fmt.Errorf("%w: object identity changed", ErrStale)
 		}
-		if ref.ResourceVersion != "" && ref.ResourceVersion != object.GetResourceVersion() {
+		if ref.ResourceVersion != "" && ref.ResourceVersion != version {
 			return Result{}, fmt.Errorf("%w: resource version changed", ErrStale)
 		}
-		ref.UID = object.GetUID()
-		ref.ResourceVersion = object.GetResourceVersion()
+		ref.UID = uid
+		ref.ResourceVersion = version
+		seen[uid] = struct{}{}
 		workload.Path = append(workload.Path, ref)
-		var owner *metav1.OwnerReference
+		var owner metav1.OwnerReference
+		hasOwner := false
 		for _, candidate := range object.GetOwnerReferences() {
 			if candidate.Controller != nil && *candidate.Controller {
-				if owner != nil {
+				if hasOwner {
 					return Result{}, fmt.Errorf("%w: multiple controller owners", ErrUnresolvedOwner)
 				}
-				owner = &candidate
+				owner = candidate
+				hasOwner = true
 			}
 		}
-		if owner == nil {
+		if !hasOwner {
 			rootCached = ok
 			break
 		}

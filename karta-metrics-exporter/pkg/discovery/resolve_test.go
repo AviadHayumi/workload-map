@@ -116,6 +116,46 @@ var _ = Describe("root resolution", func() {
 		_, err := d.Get(context.Background(), ref)
 		Expect(err).To(MatchError(ContainSubstring("ownership cycle")))
 	})
+	It("detects a repeated UID across served API versions", func() {
+		yes := true
+		r.objects["pod"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "v2", Kind: "Pod", Name: "pod", UID: "pod", Controller: &yes}}
+		result, err := d.Get(context.Background(), ref)
+		Expect(err).To(MatchError(ContainSubstring("ownership cycle")))
+		Expect(result.Workload).To(BeNil())
+		Expect(result.MissingCoverage).To(BeEmpty())
+	})
+	It("resolves chains beyond the initial path capacity", func() {
+		yes := true
+		for n := 0; n < 8; n++ {
+			name := fmt.Sprintf("owner-%d", n)
+			r.objects[name] = &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns", UID: types.UID(name), ResourceVersion: "1"}}
+			if n < 7 {
+				next := fmt.Sprintf("owner-%d", n+1)
+				r.objects[name].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: next, UID: types.UID(next), Controller: &yes}}
+			}
+		}
+		r.objects["pod"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: "owner-0", UID: "owner-0", Controller: &yes}}
+		result, err := d.Get(context.Background(), ref)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Workload.Path).To(HaveLen(9))
+		Expect(result.Workload.Root.UID).To(Equal(types.UID("owner-7")))
+	})
+
+	It("rejects an overlong chain before reading beyond the bound", func() {
+		yes := true
+		for n := 0; n < 1024; n++ {
+			name := fmt.Sprintf("owner-%d", n)
+			next := fmt.Sprintf("owner-%d", n+1)
+			r.objects[name] = &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns", UID: types.UID(name), ResourceVersion: "1", OwnerReferences: []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: next, UID: types.UID(next), Controller: &yes}}}}
+		}
+		r.objects["pod"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: "owner-0", UID: "owner-0", Controller: &yes}}
+		result, err := d.Get(context.Background(), ref)
+		Expect(err).To(MatchError(ContainSubstring("owner chain exceeds limit")))
+		Expect(result.Workload).To(BeNil())
+		Expect(result.MissingCoverage).To(BeEmpty())
+		Expect(r.reads).NotTo(ContainElement("owner-1023"))
+	})
+
 	It("retains root coverage while inventory is pending", func() {
 		defs.err = inventory.ErrPending
 		result, err := d.Get(context.Background(), ref)
