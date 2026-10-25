@@ -3,9 +3,9 @@
 
 # OTel Collector
 
-`Registrar.Register` is the registration contract: an OTel Meter, a Store `Capturer`
-and phase options produce a `metric.Registration`. Nil `WorkloadPhases` selects
-all phases. The generated Registrar mock lets startup be tested independently.
+`Registrar.Register` takes an OTel Meter and a Store `Capturer` and returns a
+`metric.Registration`. Collector publishes all supported workload phases.
+The generated Registrar mock lets startup be tested independently.
 
 The implementation will register one callback for the four KEP metric families.
 Each collection captures Store once, checks evidence validity and emits saved

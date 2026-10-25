@@ -13,7 +13,6 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
-	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 )
 
@@ -23,7 +22,7 @@ var _ = Describe("scaffold stops on cancellation", func() {
 		defer cancel()
 		components := scaffold.New(labelresolver.Config{})
 		done := make(chan error, 1)
-		go func() { done <- app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{}) }()
+		go func() { done <- app.Run(ctx, components, noop.NewMeterProvider().Meter("test")) }()
 		cancel()
 		select {
 		case err := <-done:

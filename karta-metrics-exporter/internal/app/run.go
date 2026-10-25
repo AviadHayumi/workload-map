@@ -23,11 +23,11 @@ type Components struct {
 }
 
 // Run registers collection before starting workers, then unregisters on shutdown.
-func Run(ctx context.Context, components Components, meter metric.Meter, options collector.Options) (err error) {
+func Run(ctx context.Context, components Components, meter metric.Meter) (err error) {
 	if components.Runtime == nil || components.Store == nil || components.Registrar == nil || meter == nil {
 		return errors.New("incomplete exporter components")
 	}
-	registration, err := components.Registrar.Register(meter, components.Store, options)
+	registration, err := components.Registrar.Register(meter, components.Store)
 	if err != nil {
 		return fmt.Errorf("register collector: %w", err)
 	}

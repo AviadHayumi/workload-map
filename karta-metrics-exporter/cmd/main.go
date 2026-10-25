@@ -19,7 +19,6 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
-	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
@@ -67,7 +66,7 @@ func run() error {
 	components := scaffold.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits})
 	slog.Info("Karta metrics exporter started; metrics collection is not implemented",
 		"version", version.String(), "labelRules", len(cfg.LabelRules))
-	if err := app.Run(ctx, components, noop.NewMeterProvider().Meter("karta-metrics-exporter"), collector.Options{}); err != nil {
+	if err := app.Run(ctx, components, noop.NewMeterProvider().Meter("karta-metrics-exporter")); err != nil {
 		return err
 	}
 

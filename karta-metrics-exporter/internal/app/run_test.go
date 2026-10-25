@@ -58,10 +58,9 @@ var _ = Describe("App lifecycle", func() {
 				}).Return(tc.runtimeError).Once()
 			}
 			registrar := mocks.NewRegistrar(GinkgoT())
-			registrar.EXPECT().Register(mock.Anything, publications, collector.Options{WorkloadPhases: []string{"Running"}}).RunAndReturn(
-				func(_ metric.Meter, source collector.Capturer, options collector.Options) (metric.Registration, error) {
+			registrar.EXPECT().Register(mock.Anything, publications).RunAndReturn(
+				func(_ metric.Meter, source collector.Capturer) (metric.Registration, error) {
 					Expect(source).To(BeIdenticalTo(publications))
-					Expect(options.WorkloadPhases).To(Equal([]string{"Running"}))
 					registered = true
 					if tc.registrationError != nil || tc.nilRegistration {
 						return nil, tc.registrationError
@@ -70,7 +69,7 @@ var _ = Describe("App lifecycle", func() {
 				}).Once()
 			components := app.Components{Runtime: runtime, Store: publications, Registrar: registrar}
 
-			err := app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{WorkloadPhases: []string{"Running"}})
+			err := app.Run(ctx, components, noop.NewMeterProvider().Meter("test"))
 			switch {
 			case tc.registrationError != nil:
 				Expect(err).To(MatchError(tc.registrationError))
@@ -96,6 +95,6 @@ var _ = Describe("App lifecycle", func() {
 
 var _ = Describe("run rejects incomplete components", func() {
 	It("rejects missing dependencies before registering collection", func(specCtx SpecContext) {
-		Expect(app.Run(specCtx, app.Components{}, noop.NewMeterProvider().Meter("test"), collector.Options{})).To(MatchError(ContainSubstring("incomplete")))
+		Expect(app.Run(specCtx, app.Components{}, noop.NewMeterProvider().Meter("test"))).To(MatchError(ContainSubstring("incomplete")))
 	})
 })
