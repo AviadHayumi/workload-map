@@ -226,3 +226,57 @@ returns near baseline at 273.921 seconds; this alone does not identify the
 retained allocations or establish a leak. Runtime work and diagnostics can
 still overlap these GC requests. No alternative baseline or threshold was
 substituted. Full acceptance remains failed, and the one-Pod run was not started.
+
+## Compiled-query reuse candidate: zero-Pod pass, one-Pod failure
+
+Both runs use immutable source `535c5e9305a874d32a93cc672308ad16a518e40f`, binary
+SHA256 `f43685873d8a61c12101cc0fe5c49fc2133ea6b145e6151244b6546e0086c0f8`.
+Heap profiling was off. Protocol 2 and all workload/API/acceptance settings were
+unchanged. Matching compressed JSON/log and host-context files are retained.
+All four kind nodes remained stopped. A design-only documentation commit advanced
+the checkout before the one-Pod run; its source binary and harness were unchanged.
+
+The 100k-root/zero-Pod scenario passed correctness and every applicable gate:
+
+| Measurement | Result |
+| --- | --- |
+| Cold convergence | 47.9235 s |
+| Peak sampled RSS | 6,302,072,832 bytes |
+| Emitted / verified | 30,000 / 30,000 |
+| Publication p99 / max upper bound | 0.91859 / 1.54357 s |
+| Drain | 0.29523 s |
+| Maximum scheduler lateness | 0.60147 s |
+| GC coverage | 208.44196 s |
+| First-to-last post-GC heap growth | -4.8318% |
+| Post-delete HeapAlloc | 103,078,896 bytes |
+
+All lifecycle stages completed in 742.9898 seconds with zero continuity gaps.
+HTTP/oracle timing and full-duration/count gates passed. This is one scenario
+outcome, not statistical comparative confidence or proof of hierarchy capacity.
+
+The same binary's 100k-root/one-Pod Job -> ReplicaSet -> Pod scenario failed the
+one-second scheduling lateness gate. Cold convergence passed in 161.8745 seconds,
+with all 100k roots, 100k Pod mappings and 900k phase rows valid. Quiet checks
+passed. Peak RSS was 7,745,863,680 bytes, below 8 GiB, and HTTP/oracle timing gates
+passed. After 10.031 seconds of churn, only 903 events were emitted and 804
+verified. The target was 30,000. First-to-last emission throughput was 99.994/s;
+99 outstanding updates then blocked further rotation. Final churn, heap and
+cleanup gates were not reached. No dense or giant-root run followed.
+
+Cold startup used 3,282 API requests, including 841 ReplicaSet metadata GETs and
+600 ReplicaSet metadata LIST pages (three full 100k-owner collections). Jobs
+used 200 full-object and 798 metadata LIST pages; Pods used 200 full-object and
+627 metadata pages. These include overlapping maintenance during startup, not
+only initial informer acquisition. API budgets stayed at 20 QPS / burst 40.
+Exact per-request timestamps are unavailable; the report retains stage counters
+and timestamped queue samples instead.
+
+Churn began at process time 415.266 seconds. Object/root ready queues remained
+zero through 422.796 seconds. At 423.805 they were 0/1, then at 424.823 they were
+72,464/72,466, while the source queue changed from two to one. This supports
+investigation of a completed intermediate refresh wave. The source is not
+profiled, so these counts alone do not establish a causal attribution. Raw retry
+counters include healthy AddAfter renewals and are not error counts. The pending
+continuity HTTP request closed after the failed run terminated the process;
+it does not establish an independent source outage. Earlier failures remain
+unchanged, including the 941b heap-growth result.

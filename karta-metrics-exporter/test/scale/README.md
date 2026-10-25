@@ -9,11 +9,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 ## Current evidence
 
-- [100k-root zero-Pod candidates](results/full-scale/README.md): the latest
-  protocol-2 repeat passed correctness, all 30,000 verified events and all other
-  measured gates, but failed heap growth at 10.12% against the unchanged 5% gate.
-  Earlier scheduling, health-reason and sampling failures remain available.
-  The one-Pod case was not started.
+- [Current 100k-root outcomes](results/full-scale/README.md): source `535c5e93`
+  passed every zero-Pod gate. Its one-Pod hierarchy run passed cold/quiet checks
+  but failed sustained-churn scheduling. Earlier failures remain preserved.
 
 - [Optional heap-profile diagnosis](results/heap-diagnostic/a52b1216/README.md):
   a separate short run reproduces heap oscillation with 13 sampled profiles.
