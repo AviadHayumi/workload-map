@@ -108,3 +108,15 @@ contributors, not an isolated causal attribution. Diagnostics consumed 19.24
 seconds of cumulative HTTP time across 1,272 requests; their exclusive CPU cost
 is not separated from runtime work. The retained queue, GC, API and event
 samples support further diagnosis without changing the gates.
+
+A separate small fixture reproduction distinguished EOF from expiration. The
+fixture retains a global 20,000-event deque across resource kinds. Idle active
+streams advance over unrelated events internally, but emit no bookmarks. Their
+clients can therefore reconnect after the 240-second normal EOF with an old RV.
+Job-only churn can then cause a Pod or Namespace reconnect to receive 410.
+With a two-event deque, three Job-only updates reproduced a Pod RV1 expiration;
+a fresh empty Pod LIST returned RV4, and a subsequent ordinary EOF returned no
+ERROR event. `watch_expirations` counts the 410, not normal EOF. This global
+retention model is not a claim about Kubernetes per-resource watch-cache
+retention. The recorded failure includes this supported source-recovery event;
+no gate or model behavior was changed after the result.
