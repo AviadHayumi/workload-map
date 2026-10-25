@@ -31,12 +31,13 @@ import (
 )
 
 var (
-	client         dynamic.Interface
-	mapper         meta.RESTMapper
-	metricsURL     string
-	outputDir      string
-	repository     string
-	clusterContext string
+	client          dynamic.Interface
+	mapper          meta.RESTMapper
+	metricsURL      string
+	outputDir       string
+	repository      string
+	clusterContext  string
+	includeBarePods bool
 )
 
 const systemNamespace = "exporter-e2e-system"
@@ -88,10 +89,15 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	Expect(image).NotTo(BeEmpty(), "build and load the new exporter image into kind, then set EXPORTER_E2E_IMAGE=repository:tag")
 	split := strings.LastIndex(image, ":")
 	Expect(split).To(BeNumerically(">", 0))
+	includeBarePods = os.Getenv("EXPORTER_E2E_INCLUDE_BARE_PODS") == "true"
+	excluded := []string{"core-pod-v1"}
+	if includeBarePods {
+		excluded = []string{}
+	}
 	values := map[string]any{"operator": map[string]any{"enabled": false}, "crdUpgrader": map[string]any{"enabled": false}, "exporter": map[string]any{
 		"enabled": true, "image": map[string]any{"repository": image[:split], "tag": image[split+1:], "pullPolicy": "IfNotPresent"},
 		"namespaceSelector":     map[string]any{"matchLabels": map[string]string{"exporter-e2e": "true"}},
-		"kartaDefinitionSource": map[string]any{"catalog": map[string]any{"enabled": true, "include": catalogNames(), "exclude": []string{"core-pod-v1"}}, "cluster": map[string]any{"enabled": false}},
+		"kartaDefinitionSource": map[string]any{"catalog": map[string]any{"enabled": true, "include": catalogNames(), "exclude": excluded}, "cluster": map[string]any{"enabled": false}},
 		"resources":             map[string]any{"requests": map[string]string{"cpu": "100m", "memory": "256Mi"}, "limits": map[string]string{"memory": "2Gi"}},
 		"labelRules":            []any{map[string]any{"name": "team", "metrics": []string{"karta_pod_workload_info", "karta_workload_status"}, "sources": []string{"workload"}, "expression": `has(object.metadata.labels) && "example.com/exporter-e2e-team" in object.metadata.labels ? object.metadata.labels["example.com/exporter-e2e-team"] : ""`}},
 		"rbac":                  map[string]any{"workloadRules": workloadRules()},

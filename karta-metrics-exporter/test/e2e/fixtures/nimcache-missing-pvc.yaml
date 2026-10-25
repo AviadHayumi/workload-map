@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# The real operator reports NotReady before creating a model download Job.
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMCache
+metadata:
+  name: karta-e2e-nimcache
+spec:
+  source:
+    ngc:
+      modelPuller: busybox:1.36
+      authSecret: unused-placeholder
+  storage:
+    pvc:
+      create: false
+      name: intentionally-missing

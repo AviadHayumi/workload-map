@@ -32,6 +32,20 @@ type scenario struct {
 }
 
 var scenarios = []scenario{
+	{name: "deployment", fixture: "deployment/running.yaml", definition: "apps-deployment-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"deployment", "", ""}: 1}, ready: condition("Available")},
+	{name: "statefulset", fixture: "statefulset/running.yaml", definition: "apps-statefulset-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"statefulset", "", ""}: 1}, ready: func(root *unstructured.Unstructured) bool {
+		ready, _, _ := unstructured.NestedInt64(root.Object, "status", "readyReplicas")
+		return ready == 1
+	}},
+	{name: "cronjob", fixture: "cronjob/running.yaml", definition: "batch-cronjob-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"cronjob", "", ""}: 1}, ready: func(root *unstructured.Unstructured) bool {
+		scheduled, _, _ := unstructured.NestedString(root.Object, "status", "lastScheduleTime")
+		return scheduled != ""
+	}},
+	{name: "pod", fixture: "pod/running.yaml", definition: "core-pod-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"pod", "", ""}: 1}, ready: condition("Ready")},
+	{name: "nimcache", fixture: "local:nimcache-missing-pvc.yaml", definition: "apps-nvidia-com-nimcache-v1alpha1", phases: []string{"Initializing"}, groups: map[coordinate]int{}, ready: func(root *unstructured.Unstructured) bool {
+		return fieldEquals("NotReady", "status", "state")(root) && condition("NIM_CACHE_RECONCILE_FAILED")(root)
+	}},
+
 	{name: "lws", fixture: "lws/running.yaml", definition: "leaderworkerset-x-k8s-io-leaderworkerset-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"leader", "", "0"}: 1, {"worker", "", "0"}: 1}, ready: condition("Available")},
 	{name: "jobset", fixture: "jobset/running.yaml", definition: "jobset-x-k8s-io-jobset-v1alpha2", phases: []string{"Running"}, groups: map[coordinate]int{{"replicatedjob", "workers", "0"}: 1}, ready: func(root *unstructured.Unstructured) bool {
 		jobs, _, _ := unstructured.NestedSlice(root.Object, "status", "replicatedJobsStatus")
@@ -91,6 +105,22 @@ var _ = Describe("operator workloads", Serial, func() {
 				}
 				return nil
 			}, 10*time.Minute, 2*time.Second).Should(Succeed())
+			if test.name == "pod" && !includeBarePods {
+				Consistently(ctx, func() error {
+					rows, raw, err := scrape(ctx)
+					if err != nil {
+						return err
+					}
+					for _, row := range rows {
+						if row.labels["workload_uid"] == string(root.GetUID()) || row.labels["pod_uid"] == string(root.GetUID()) {
+							return fmt.Errorf("bare Pod is published despite the default catalog exclusion")
+						}
+					}
+					return os.WriteFile(filepath.Join(outputDir, "pod-default-excluded.prom"), raw, 0600)
+				}, 10*time.Second, time.Second).Should(Succeed())
+				AddReportEntry("verified", "bare Pod excluded by default")
+				return
+			}
 			if test.removeTerminalPods {
 				pods, err := ownedPods(ctx, current)
 				Expect(err).NotTo(HaveOccurred())
