@@ -86,7 +86,7 @@ All components run in one exporter process. Runtime connects them:
 | Store | The latest saved results, keyed by root UID. |
 | Collector | OTel instruments and conversion of saved results to metrics. |
 
-![Runtime uses Discovery, inventory and label evaluation to build results. Store holds those results. Collector reads them when OTel requests collection.](./exporter-components.png)
+![Runtime uses Discovery, inventory and label evaluation to build results. Store holds those results. Collector reads them when OTel requests collection.](./exporter-components-overview.png)
 
 Startup validates configuration, compiles CEL and creates these components.
 Runtime starts the inventory, watches and workers. Collector registers its OTel
@@ -115,7 +115,7 @@ LIST/WATCH permission for that resource. A denial reports `permission_denied`;
 it does not silently fall back to GET-only root observation. See
 [workload RBAC](../../karta-metrics-exporter/configuration.md#deployment-and-permissions).
 
-![Pod and root JobSet are watched. The intermediate Job is read and refreshed with GET.](./root-watch-ownership.png)
+![A Pod event triggers root discovery. Discovery reads the intermediate Job, returns its root JobSet, and Runtime saves the evaluated workload result.](./root-watch-sequence.png)
 
 Namespace selection limits watches. Root selectors filter output after ownership
 is resolved. Excluding a JobSet also excludes its descendant Pods from output;
@@ -144,7 +144,7 @@ Read Pod -> GET Job train-workers-1 -> read JobSet train
 Workload.Root: JobSet team-a/train
 Workload.Path: [Pod train-workers-1-0, Job train-workers-1, JobSet train]
 Workload.Resolution: resolved
-RootWatch: none (the JobSet watch already exists)
+MissingCoverage: [] (the JobSet watch already exists)
 ```
 
 If JobSet coverage is missing, the same result requests a JobSet watch. Runtime handles that request through the shared watch manager.
@@ -179,16 +179,19 @@ type WatchRequest struct {
 }
 
 type Result struct {
-	Workload  *GenericWorkload
-	RootWatch *WatchRequest // Nil when the root is already covered.
+	Workload        *GenericWorkload
+	MissingCoverage []WatchRequest
 }
 ```
 
-`Get` returns `(Result, error)`. Once the root is known, `RootWatch` can be returned
-even if later Karta selection fails. If the owner chain cannot be resolved, there
-is no root watch to request. Runtime starts a requested watch and retries once its
-initial LIST is accepted. That first publication uses the watched root and the
-verified intermediate GET results.
+`Get` returns `(Result, error)`. `MissingCoverage` lists the watches Runtime needs
+to start. For now, it contains only the resolved root when no existing watch
+covers it. Otherwise it is empty. Intermediate owners are not included.
+
+Once the root is known, its missing coverage can be returned even if Karta
+selection fails. An unresolved owner chain returns no coverage request. Runtime
+starts the requested watch and retries after accepting its initial LIST. It then
+publishes using the watched root and verified intermediate GET results.
 
 ### Cache owner links
 
@@ -209,11 +212,17 @@ type ObjectReader interface {
 }
 ```
 
-The reader adapts Runtime's informer cache and Kubernetes client. It converts
-cached Pod metadata to an unstructured object containing apiVersion, kind and
-metadata. It does not invent spec or status fields. Discovery does
-not start goroutines or watches. Runtime feeds accepted create, update and delete
-observations into it.
+The reader has two methods:
+
+- `Cached` reads Runtime's informer cache without calling Kubernetes.
+- `GetMetadata` calls Kubernetes when an owner is missing or expired in the cache.
+
+Discovery decides when a GET is needed and checks the response before caching it.
+The reader converts cached Pod metadata to an unstructured object containing
+apiVersion, kind and metadata. It does not add spec or status fields.
+
+Discovery does not start goroutines or watches. Runtime feeds accepted create,
+update and delete observations into it.
 
 The index stores each object once by UID. Each node records its controller owner
 and its direct children. Several Pods can therefore reuse the same Job entry:
