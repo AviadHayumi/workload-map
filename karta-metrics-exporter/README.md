@@ -59,5 +59,5 @@ The generator is pinned to Mockery v3.8.1. `make validate` also regenerates mock
 to detect drift. Public component contracts are still under development.
 
 Build the image with `make exporter-image IMAGE_TAG=dev`. The chart keeps the
-exporter disabled by default. Use `exporter.labelRules` and `exporter.labelLimits`; the old attribution settings
-are removed. See the [configuration and migration example](pkg/labelevaluator/README.md).
+exporter disabled by default. Configure labels with `exporter.labelRules` and
+`exporter.labelLimits`. See the [configuration example](pkg/labelevaluator/README.md#configuration).

@@ -122,15 +122,6 @@ func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader 
 // and then the flags, so a flag wins. Explicit flags win even when empty. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	for _, name := range []string{
-		"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", "KARTA_EXPORTER_SUBMITTER_COST_LIMIT",
-		"KARTA_EXPORTER_SUBMITTER_MAX_EXPRESSION_BYTES", "KARTA_EXPORTER_SUBMITTER_MAX_IDENTITY_BYTES",
-		"KARTA_EXPORTER_SUBMITTER_INTERRUPT_CHECK_FREQUENCY",
-	} {
-		if _, set := l.lookupEnv(name); set {
-			return Config{}, fmt.Errorf("%s was removed; use labelRules and labelLimits", name)
-		}
-	}
 	cfg := Config{LabelLimits: defaultLabelLimits}
 
 	if path, _ := l.value(configSetting); path != "" {

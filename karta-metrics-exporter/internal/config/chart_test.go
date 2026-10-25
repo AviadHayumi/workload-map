@@ -66,10 +66,5 @@ var _ = Describe("chart label configuration", func() {
 			}
 		}
 		Expect(found).To(BeTrue(), "rendered exporter config was not found")
-		for _, enabled := range []string{"true", "false"} {
-			out, err = exec.Command(helm, "template", "labels", chart, "--set", "exporter.enabled="+enabled, "--set", "exporter.attribution.submittedByExpression=old").CombinedOutput()
-			Expect(err).To(HaveOccurred())
-			Expect(string(out)).To(ContainSubstring("exporter.attribution was removed"))
-		}
 	})
 })

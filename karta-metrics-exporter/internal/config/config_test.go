@@ -82,7 +82,7 @@ var _ = Describe("config path and empty override", func() {
 var _ = Describe("config rejects invalid input", func() {
 	It("rejects invalid files, flags and environment values", func() {
 		for _, contents := range []string{
-			"attribution: {}", "labelLimits:\n  maxIdentityBytes: 1", "labelLimits:\n  costLimit: lots",
+			"labelLimits:\n  costLimit: lots",
 			"labelLimits:\n  maxValueBytes: -1", "labelLimits:\n  maxExpressionBytes: -1",
 			"labelLimits:\n  interruptCheckFrequency: 0", "labelLimits:\n  interruptCheckFrequency: -1",
 			"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
@@ -95,7 +95,7 @@ var _ = Describe("config rejects invalid input", func() {
 			})
 		}
 		for _, args := range [][]string{
-			{"--submitted-by-expression", `"alice"`}, {"--submitter-cost-limit", "1"},
+			{"--unknown-option", "1"},
 			{"--config", "/does-not-exist/config.yaml"}, {"--label-cost-limit", "lots"},
 			{"--label-interrupt-check-frequency", "0"}, {"--label-interrupt-check-frequency", "-1"},
 			{"--label-max-value-bytes", "-1"},
@@ -107,13 +107,6 @@ var _ = Describe("config rejects invalid input", func() {
 			_, err := loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY": value})
 			Expect(err).To(HaveOccurred())
 		}
-	})
-})
-
-var _ = Describe("rejects removed submitter environment", func() {
-	It("rejects removed submitter environment settings", func() {
-		_, err := loadConfig("", map[string]string{"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION": "old"})
-		Expect(err).To(MatchError(ContainSubstring("was removed")))
 	})
 })
 

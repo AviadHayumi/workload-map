@@ -84,7 +84,7 @@ var _ = Describe("compile failures", func() {
 		want error
 	}{
 		{"syntax", Config{Expression: `object[`}, nil},
-		{"old variable", Config{Expression: `labels["team"]`}, nil},
+		{"undeclared variable", Config{Expression: `unknownField`}, nil},
 		{"static number", Config{Expression: `1 + 1`}, ErrNotString},
 		{"static map", Config{Expression: `{"team": "a"}`}, ErrNotString},
 		{"expression default bound", Config{Expression: `"` + strings.Repeat("a", DefaultMaxExpressionBytes) + `"`}, ErrExpressionTooLong},

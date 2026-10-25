@@ -67,30 +67,3 @@ Explicit flags override environment variables, then YAML, then defaults. An empt
 numeric override is an error. `--config=""` skips a path set through the environment.
 Zero limits use compiler defaults, except an explicit zero interrupt frequency
 in configuration is rejected. Negative limits are rejected. Rules stay in YAML.
-
-## Migrating from submitter extraction
-
-The dedicated `submitterextractor` package, `exporter.attribution` values,
-`--submitter-*` and `--submitted-by-expression` flags are removed. Replace their
-environment variables with the label limit variables above.
-
-A submitter can be an ordinary configured label:
-
-```yaml
-exporter:
-  labelRules:
-    - name: submitted_by
-      metrics: [karta_pod_workload_info, karta_workload_status]
-      sources: [workload]
-      expression: |
-        has(object.metadata.annotations) &&
-        "karta.run.ai/submitted-by" in object.metadata.annotations
-          ? object.metadata.annotations["karta.run.ai/submitted-by"]
-          : (has(object.metadata.labels) &&
-             "example.com/submitted-by" in object.metadata.labels
-               ? object.metadata.labels["example.com/submitted-by"] : "")
-```
-
-The old variables `labels`, `annotations` and `resource` are replaced by fields
-under `object`. GVK is available as `object.apiVersion` and `object.kind`.
-There is no special identity agreement, authentication or inheritance behavior.
