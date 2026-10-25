@@ -460,10 +460,10 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 	}
 }
 
-// Root proof is allocated only for an object used as a publication root. Its key
+// Object proof is allocated only for a root or intermediate publication input. Its key
 // survives unchanged refreshes, but is retired before changed ownership can
 // invalidate a captured or in-flight publication. Fresh reads mint a new key.
-func (r *Reader) rootEvidence(ref discovery.ObjectRef) (store.Evidence, error) {
+func (r *Reader) objectEvidence(ref discovery.ObjectRef) (store.Evidence, error) {
 	r.mu.Lock()
 	key := keyOf(ref)
 	entry, found := r.objects[key]

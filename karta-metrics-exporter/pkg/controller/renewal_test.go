@@ -49,6 +49,114 @@ func renewalClock(r *Runtime) *clocktesting.FakeClock {
 }
 
 var _ = Describe("Source-owned renewal scheduling", func() {
+	It("reads committed label health while the root worker updates its private cache", func(ctx SpecContext) {
+		r, _, _ := testRuntime(nil)
+		renewalClock(r)
+		root := testObject(testRootGVK, "root")
+		seedWatch(r, testRootGVK, "jobs", root)
+		state := seedRoot(r, root)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		state.labelFailures = map[types.UID]bool{}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for range 10000 {
+				state.labelFailures["pod"] = true
+				delete(state.labelFailures, "pod")
+			}
+		}()
+		for range 1000 {
+			r.mu.Lock()
+			r.reader.mu.RLock()
+			r.scheduleRenewalLocked(root.GetUID())
+			r.reader.mu.RUnlock()
+			r.mu.Unlock()
+		}
+		Eventually(done).Should(BeClosed())
+	})
+	It("advances a pending renewal when a new dependency expires earlier", func(ctx SpecContext) {
+		r, _, publications := testRuntime(nil)
+		clock := renewalClock(r)
+		root := testObject(testRootGVK, "root")
+		seedWatch(r, testRootGVK, "jobs", root)
+		state := seedRoot(r, root)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		drainQueue(r.rootQueue)
+		schedule := func() {
+			r.mu.Lock()
+			r.reader.mu.RLock()
+			Expect(r.scheduleRenewalLocked(root.GetUID())).To(BeTrue())
+			r.reader.mu.RUnlock()
+			r.mu.Unlock()
+		}
+		schedule()
+		original := state.renewalAt
+		record := *publications.Published(root.GetUID())
+		record.Creation.ExpiresAt = clock.Now().Add(4 * time.Second)
+		publications.Publish(&record)
+		schedule()
+		Expect(state.renewalAt.Before(original)).To(BeTrue())
+		Expect(state.renewalAt.Before(record.Creation.ExpiresAt)).To(BeTrue())
+	})
+	It("advances renewal when an urgent publication introduces a shorter Pod proof", func(ctx SpecContext) {
+		r, _, _ := testRuntime(nil)
+		clock := renewalClock(r)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		seedWatch(r, testRootGVK, "jobs", root)
+		pw := seedWatch(r, podGVK, "pods")
+		state := seedRoot(r, root)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		drainQueue(r.rootQueue)
+		r.mu.Lock()
+		r.reader.mu.RLock()
+		Expect(r.scheduleRenewalLocked(root.GetUID())).To(BeTrue())
+		r.reader.mu.RUnlock()
+		r.mu.Unlock()
+		original := state.renewalAt
+		ownedBy(pod, root)
+		r.acceptEvent(pw, pod, false)
+		expiry := clock.Now().Add(4 * time.Second)
+		r.reader.mu.Lock()
+		entry := r.reader.objects[keyOf(refOf(pod))]
+		entry.evidence.ExpiresAt = expiry
+		r.reader.objects[keyOf(refOf(pod))] = entry
+		r.reader.mu.Unlock()
+		Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(state.renewalAt.Before(original)).To(BeTrue())
+		Expect(state.renewalAt.Before(expiry)).To(BeTrue())
+	})
+	It("re-arms renewal after an urgent delayed item consumes its queue entry", func(ctx SpecContext) {
+		r, _, _ := testRuntime(nil)
+		clock := renewalClock(r)
+		root := testObject(testRootGVK, "root")
+		w := seedWatch(r, testRootGVK, "jobs", root)
+		state := seedRoot(r, root)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		drainQueue(r.rootQueue)
+		r.mu.Lock()
+		r.reader.mu.RLock()
+		Expect(r.scheduleRenewalLocked(root.GetUID())).To(BeTrue())
+		r.reader.mu.RUnlock()
+		r.mu.Unlock()
+		original := state.renewalAt
+		changed := root.DeepCopy()
+		changed.SetResourceVersion("2")
+		r.acceptEvent(w, changed, false)
+		clock.Step(20 * time.Millisecond)
+		Eventually(r.rootQueue.Len).Should(Equal(1))
+		key, _ := r.rootQueue.Get()
+		Expect(r.reconcile(ctx, key.UID)).To(Succeed())
+		r.rootQueue.Done(key)
+		drainQueue(r.rootQueue)
+		Expect(state.renewalAt).To(Equal(original))
+		clock.Step(original.Sub(clock.Now()))
+		Eventually(r.rootQueue.Len).Should(Equal(1))
+		key, _ = r.rootQueue.Get()
+		Expect(r.reconcile(ctx, key.UID)).To(Succeed())
+		r.rootQueue.Done(key)
+		Expect(state.renewalAt.IsZero()).To(BeTrue())
+	})
 	DescribeTable("uses the earliest relevant publication expiry", func(ctx SpecContext, part string) {
 		r, _, publications := testRuntime(nil)
 		clock := renewalClock(r)

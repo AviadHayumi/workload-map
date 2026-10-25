@@ -200,6 +200,7 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 			continue
 		}
 		ref := refOf(entry.object)
+		r.invalidatePathDependentsLocked(ref)
 		r.reader.retireObjectProofLocked(r.reader.objects[key])
 		delete(r.reader.objects, key)
 		if !r.terminalOwnerBoundary(entry.object) {
@@ -473,6 +474,11 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 		}
 	}
 	delete(r.reader.activeKeys, w.failureKey)
+	for key := range w.objects {
+		if entry, ok := r.reader.objects[key]; ok {
+			r.invalidatePathDependentsLocked(refOf(entry.object))
+		}
+	}
 	r.reader.mu.Unlock()
 	w.err = err
 	if w.gvk == kartaGVK {
@@ -552,6 +558,9 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	}
 	if old.object != nil && (deleted || old.object.GetUID() != ref.UID || !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences())) {
 		r.reader.invalidatePrimeOwnersLocked(old.object)
+	}
+	if !deleted && old.object != nil && old.object.GetUID() == ref.UID && old.object.GetResourceVersion() != ref.ResourceVersion {
+		r.invalidatePathDependentsLocked(refOf(old.object))
 	}
 	if old.object != nil && old.object.GetUID() != ref.UID {
 		r.deleteObjectLocked(refOf(old.object))
@@ -658,10 +667,11 @@ func (r *Runtime) acceptsDefinition(object *unstructured.Unstructured) bool {
 }
 
 func (r *Runtime) deleteObjectLocked(ref discovery.ObjectRef) {
+	r.invalidatePathDependentsLocked(ref)
 	if rootUID := r.podRoots[ref.UID]; rootUID != "" {
 		if root := r.roots[rootUID]; root != nil {
 			r.invalidatePodLocked(root, ref.UID, store.ReasonUnresolvedOwner)
-			delete(root.paths, ref.UID)
+			r.removePodPathLocked(root, ref.UID)
 		}
 		delete(r.podRoots, ref.UID)
 	}
@@ -772,6 +782,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			}
 		}
 		if version != ref.ResourceVersion {
+			r.reader.retireObjectProofLocked(entry)
 			entry.evidence = store.Evidence{}
 			r.failPublicationLocked(ref.UID, discovery.ErrStale)
 			if w.gvk == kartaGVK {
@@ -794,6 +805,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			}
 		}
 		r.reader.objects[objectKey] = entry
+		if !unchanged {
+			r.invalidatePathDependentsLocked(ref)
+		}
 		rootUID := ref.UID
 		root := r.roots[rootUID]
 		if root == nil {

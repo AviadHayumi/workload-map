@@ -59,6 +59,7 @@ type Config struct {
 // Runtime orders accepted events and final publication under its own guard.
 // Store methods acquire only Store's lock, after the Runtime guard.
 type Runtime struct {
+	pathDependents                                 map[objectKey]map[types.UID]pathDependent
 	primeAttempts                                  map[watchKey]time.Time
 	watchFailures                                  map[discovery.WatchRequest]error
 	mu                                             sync.Mutex
@@ -171,7 +172,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := &Runtime{watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, pendingDefinitions: map[schema.GroupKind]bool{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
+	r := &Runtime{pathDependents: map[objectKey]map[types.UID]pathDependent{}, watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, pendingDefinitions: map[schema.GroupKind]bool{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
 	reader.publications = deps.Publications
 	reader.watchNow, reader.watchMaxAge = config.Now, config.MaxAge
 	reader.ignoredOwners = append([]schema.GroupVersionKind(nil), config.IgnoredOwnerKinds...)
@@ -423,6 +424,7 @@ func (r *Runtime) retireFailuresLocked(root *rootState) {
 func (r *Runtime) removeRoot(uid types.UID) {
 	if root := r.roots[uid]; root != nil {
 		for pod := range root.paths {
+			r.removePodPathLocked(root, pod)
 			delete(r.podRoots, pod)
 		}
 	}

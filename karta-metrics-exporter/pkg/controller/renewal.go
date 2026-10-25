@@ -24,7 +24,7 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 	record := r.deps.Publications.Published(uid)
 	healthy := record != nil && record.Workload.OwnerResolution != store.UnknownOwner &&
 		len(record.FailureReasons) == 0 && len(state.dirty) == 0 && len(state.podErrors) == 0 &&
-		len(state.labelFailures) == 0 && len(state.resolutionErrors) == 0 &&
+		len(state.resolutionErrors) == 0 &&
 		state.publishedGeneration == state.generation && !state.fullRefresh &&
 		r.definitionError == nil && !r.pendingDefinitions[state.ref.GVK.GroupKind()]
 	now := r.config.Now()
@@ -61,15 +61,15 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 		r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
 		return false
 	}
-	if !state.renewalAt.IsZero() {
-		return true
-	}
 	window := min(r.config.RefreshInterval, remaining/2)
 	hash := fnv.New64a()
 	_, _ = hash.Write([]byte(uid))
 	delay := window/4 + time.Duration(hash.Sum64()%uint64(max(window*3/4, time.Nanosecond)))
-	state.renewalAt = now.Add(delay)
-	r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, delay)
+	deadline := now.Add(delay)
+	if state.renewalAt.IsZero() || deadline.Before(state.renewalAt) {
+		state.renewalAt = deadline
+	}
+	r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, state.renewalAt.Sub(now))
 	return true
 }
 

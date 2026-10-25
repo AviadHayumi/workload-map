@@ -42,7 +42,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		r.mu.Lock()
 		if uid := r.podRoots[ref.UID]; uid != "" {
 			r.invalidatePodLocked(r.roots[uid], ref.UID, store.ReasonUnresolvedOwner)
-			delete(r.roots[uid].paths, ref.UID)
+			r.removePodPathLocked(r.roots[uid], ref.UID)
 			delete(r.podRoots, ref.UID)
 		}
 		r.mu.Unlock()
@@ -66,7 +66,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 				r.mu.Lock()
 				if previous := r.roots[r.podRoots[ref.UID]]; previous != nil {
 					r.invalidatePodLocked(previous, ref.UID, store.ReasonUnresolvedOwner)
-					delete(previous.paths, ref.UID)
+					r.removePodPathLocked(previous, ref.UID)
 					delete(r.podRoots, ref.UID)
 				}
 				r.mu.Unlock()
@@ -176,7 +176,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		if previous := r.podRoots[ref.UID]; previous != "" && previous != workload.Root.UID {
 			if old := r.roots[previous]; old != nil {
 				r.invalidatePodLocked(old, ref.UID, store.ReasonUnresolvedOwner)
-				delete(old.paths, ref.UID)
+				r.removePodPathLocked(old, ref.UID)
 			}
 		}
 		if root.podErrors[ref.UID] != nil {
@@ -187,7 +187,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 			r.sequence++
 			root.podKeys[ref.UID] = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
 		}
-		root.paths[ref.UID] = slices.Clone(workload.Path)
+		r.setPodPathLocked(root, ref.UID, workload.Path)
 		r.dirtyPod(root, ref.UID)
 		r.podRoots[ref.UID] = workload.Root.UID
 	}
@@ -208,6 +208,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if !state.renewalAt.IsZero() && !r.config.Now().Before(state.renewalAt) {
 		state.fullRefresh = true
 		state.renewalAt = time.Time{}
+	} else if !state.renewalAt.IsZero() {
+		// An urgent AddAfter may have consumed the queue's earlier renewal entry.
+		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, state.renewalAt.Sub(r.config.Now()))
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
 	var rootFailure error
@@ -315,7 +318,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		r.mu.Unlock()
 		return nil
 	}
-	rootEvidence, err := r.reader.rootEvidence(selectedRef)
+	rootEvidence, err := r.reader.objectEvidence(selectedRef)
 	if err != nil {
 		if rootFailure == nil || previous == nil {
 			return err
@@ -408,7 +411,13 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			if dependency.UID == uid && (interpretationOrigin != (inventory.Origin{}) || dependency.GVK == selectedRef.GVK) {
 				continue
 			}
-			proof, proofErr := r.reader.evidence(dependency)
+			var proof store.Evidence
+			var proofErr error
+			if dependency.UID == podUID {
+				proof, proofErr = r.reader.evidence(dependency)
+			} else {
+				proof, proofErr = r.reader.objectEvidence(dependency)
+			}
 			if proofErr == nil {
 				for _, key := range proof.Dependencies {
 					if cause := failedSources[key]; cause != nil {
@@ -551,6 +560,17 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 	}
 	r.deps.Publications.Publish(record)
+	// Changed rows can introduce an earlier path deadline between source rounds.
+	// Inspect only the proofs already evaluated by this reconciliation.
+	if !current.renewalAt.IsZero() {
+		now := r.config.Now()
+		for _, proof := range proofs {
+			if !proof.ExpiresAt.IsZero() && !proof.ExpiresAt.After(current.renewalAt) {
+				current.renewalAt = now.Add(max(time.Duration(0), proof.ExpiresAt.Sub(now)/2))
+			}
+		}
+		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, current.renewalAt.Sub(now))
+	}
 	for pod := range dirty {
 		if _, ok := current.paths[pod]; !ok {
 			delete(current.podKeys, pod)
