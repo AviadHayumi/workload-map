@@ -66,3 +66,45 @@ the emitter had already failed, so its parsing did not trigger the initial
 backpressure. Concurrent Go metric collection could amplify CPU/GC contention;
 no exclusive profile was captured. The evidence supports reducing duplicate
 background fanout before changing request budgets, workload shape or gates.
+
+## Scheduled-renewal repeat
+
+`b6c53803-100000-0.json.gz` records clean source
+`b6c53803d634a4df4dc09f453f22fd186f588784`. The immutable wrapper SHA256 is
+`7266f38e75000bf6a562224d96b1d791cb71ccd1c4d66a0c5c99f32421e23bdd`.
+`b6c53803-host-context.json` records all four kind nodes stopped, 48 GiB RAM,
+14 logical CPUs and no swap. Desktop, security and indexer background CPU was
+present. No concurrent benchmark, build or test ran during this measurement.
+Test-only source edits after binary capture do not change its recorded source.
+
+The same 20 QPS, burst 40, two workers, 45-second refresh and 120-second maxAge
+were used. All acceptance gates stayed unchanged. Cold convergence passed in
+45.31 seconds. Both steady checks, six quiet checks and completed churn checks
+retained exact 100,000 creation and 900,000 phase rows. Peak sampled RSS was
+6,149,095,424 bytes. HTTP and oracle timing gates passed.
+
+The run failed the one-second scheduler-lateness gate after 212.37 seconds of
+churn: 21,198 events emitted and 21,123 verified, short of 30,000. Actual emitted
+throughput was 99.81 events/s. The last emitted tick was 0.399 seconds late;
+the subsequent stalled tick is represented by `scheduler_error`. The full
+five-minute, final latency, drain, heap and deletion gates remain unverified.
+This is a retained failure, not a passing capacity result. No one-Pod run followed.
+
+The final samples show a different backlog from the earlier candidate:
+
+| Elapsed seconds | Root queue | Object queue | Root retries |
+| --- | ---: | ---: | ---: |
+| 480.871 | 0 | 0 | 1,229,220 |
+| 481.880 | 0 | 0 | 1,229,321 |
+| 482.892 | 98,865 | 0 | 1,230,297 |
+| 483.902 | 73,721 | 0 | 1,249,280 |
+
+The overlapping continuity HTTP request began at 481.891 seconds and took
+12.012 seconds. Its offline Python oracle began after the emission failure,
+so it did not initiate that stall. A scheduled explicit GC occurred near
+481.956 seconds. The API counters also show repeated Namespace/Pod WATCH
+connections around the fixture's 240-second lifetime. These are possible
+contributors, not an isolated causal attribution. Diagnostics consumed 19.24
+seconds of cumulative HTTP time across 1,272 requests; their exclusive CPU cost
+is not separated from runtime work. The retained queue, GC, API and event
+samples support further diagnosis without changing the gates.
