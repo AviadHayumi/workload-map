@@ -1,0 +1,10 @@
+{
+  "baseline_commit": "d66cb9a327f81f404f83467ffcfe5a8eea50f9d0",
+  "runtime_unchanged": "f868589a334e917dee0cfb4e1d258e28bb94a19a",
+  "python": "3.14.4",
+  "platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "before_source_sha256": "de8829466e784fc36c58465608ce925596cc55cd8e58f81b9fa8c45477f0267a",
+  "after_source_sha256": "e68b29b52cf634ddde27d51f1568338f781a476e641152c682b201fc595edd35",
+  "exposition_bytes": 311533731,
+  "exposition_sha256": "7576c9afe727f3dede7d01b1acbfce644689beca33f7a0e291275bb3a36382f0"
+}

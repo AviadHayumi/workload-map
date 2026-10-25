@@ -32,6 +32,75 @@ class APIFixtureTests(unittest.TestCase):
         with urllib.request.urlopen(request, timeout=2) as response:
             return json.load(response)
 
+    def test_blocked_response_write_does_not_block_mutations(self):
+        for path in ("/apis/batch/v1/jobs", "/apis/batch/v1/jobs/job-0", "/apis/batch/v1/jobs/missing"):
+            with self.subTest(path=path):
+                entered, release, changed = threading.Event(), threading.Event(), threading.Event()
+                handler = object.__new__(self.fixture.server.RequestHandlerClass)
+                handler.path, handler.headers = path, {}
+                handler.send_response = handler.send_header = handler.end_headers = lambda *args: None
+                body = []
+                def write(data):
+                    body.append(data)
+                    entered.set()
+                    release.wait(2)
+                handler.wfile = SimpleNamespace(write=write)
+                request = threading.Thread(target=handler.do_GET)
+                request.start()
+                self.assertTrue(entered.wait(1))
+                mutation = threading.Thread(target=lambda: (self.fixture.change(0), changed.set()))
+                mutation.start()
+                try:
+                    self.assertTrue(changed.wait(.5), "response writer holds the fixture lock")
+                finally:
+                    release.set()
+                    request.join(2)
+                    mutation.join(2)
+                self.assertTrue(body)
+
+    def test_page_construction_uses_snapshot_without_holding_mutation_lock(self):
+        entered, release, changed = threading.Event(), threading.Event(), threading.Event()
+        original = self.fixture.object
+        def object_at_snapshot(resource, index, metadata=False, state=None):
+            if state is not None and index == 0:
+                entered.set()
+                release.wait(2)
+            return original(resource, index, metadata, state)
+        pages = []
+        with mock.patch.object(self.fixture, "object", side_effect=object_at_snapshot):
+            request = threading.Thread(target=lambda: pages.append(self.get("/apis/batch/v1/jobs")))
+            request.start()
+            self.assertTrue(entered.wait(1))
+            mutation = threading.Thread(target=lambda: (self.fixture.change(0, delete=True), changed.set()))
+            mutation.start()
+            try:
+                self.assertTrue(changed.wait(.5), "page materialization holds the fixture lock")
+            finally:
+                release.set()
+                request.join(2)
+                mutation.join(2)
+        self.assertEqual(pages[0]["metadata"]["resourceVersion"], "1")
+        self.assertEqual(pages[0]["items"][0]["metadata"]["uid"], "job-0-g0")
+        self.assertEqual(pages[0]["items"][0]["metadata"]["resourceVersion"], "1")
+
+    def test_watch_suffix_order_and_expired_global_history(self):
+        for _ in range(10):
+            self.fixture.change(0, change_pods=False)
+        revision = self.fixture.revision
+        self.fixture.change_pod(0)
+        self.fixture.change(1, change_pods=False)
+        self.fixture.change_pod(1)
+        self.fixture.change(2, change_pods=False)
+        with urllib.request.urlopen(self.endpoint + f"/apis/batch/v1/jobs?watch=true&resourceVersion={revision}", timeout=2) as response:
+            events = [json.loads(response.readline()) for _ in range(2)]
+        self.assertEqual([event["object"]["metadata"]["name"] for event in events], ["job-1", "job-2"])
+        self.assertEqual([int(event["object"]["metadata"]["resourceVersion"]) for event in events], [revision+2, revision+4])
+        with self.fixture.condition:
+            while len(self.fixture.events) > 2:
+                self.fixture.events.popleft()
+        with urllib.request.urlopen(self.endpoint + f"/apis/batch/v1/jobs?watch=true&resourceVersion={revision}", timeout=2) as response:
+            self.assertEqual(json.loads(response.readline())["object"]["code"], 410)
+
     def test_discovery_and_paginated_informer_objects(self):
         self.assertEqual(self.get("/api")["versions"], ["v1"])
         self.assertEqual(self.get("/apis")["groups"][0]["name"], "batch")

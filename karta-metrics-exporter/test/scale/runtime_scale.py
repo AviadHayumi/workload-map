@@ -237,7 +237,8 @@ class LoopbackAPI:
                     return
                 with fixture.condition:
                     fixture.counts[f"{resource}.{'get' if name else 'list'}.{encoding}"] += 1
-                    if name:
+                if name:
+                    with fixture.condition:
                         try:
                             if resource == "namespaces":
                                 index = 0 if name == "scale" else -1
@@ -251,50 +252,58 @@ class LoopbackAPI:
                             obj = fixture.object(resource, index, metadata) if 0 <= index < fixture.total(resource) else None
                         except (ValueError, IndexError):
                             obj = None
-                        if obj is None:
-                            self.status(404, "NotFound")
-                        else:
-                            self.send_json(obj)
-                        return
+                    if obj is None:
+                        self.status(404, "NotFound")
+                    else:
+                        self.send_json(obj)
+                    return
+                prepared, error = self.list_snapshot(resource, value("continue"))
+                if error:
+                    self.status(*error)
+                    return
+                offset, revision, state = prepared
+                requested = int(value("limit", str(fixture.page_size)))
+                limit = min(requested or fixture.page_size, fixture.page_size)
+                items = []
+                while offset < fixture.total(resource) and len(items) < limit:
+                    obj = fixture.object(resource, offset, metadata, state)
+                    offset += 1
+                    if obj is not None:
+                        items.append(obj)
+                with fixture.condition:
+                    fixture.max_page = max(fixture.max_page, len(items))
+                    fixture.counts[f"{resource}.objects.{encoding}"] += len(items)
+                    if resource == "pods" and metadata and not value("continue") and fixture.change_during_list:
+                        fixture.change_during_list = False
+                        fixture.change_pod(fixture.roots-1,fixture.pods-1)
+                continuation = base64.urlsafe_b64encode(json.dumps([resource, revision, offset]).encode()).decode() if offset < fixture.total(resource) else ""
+                kind = "PartialObjectMetadataList" if metadata else {"namespaces": "NamespaceList", "jobs": "JobList", "replicasets": "ReplicaSetList", "pods": "PodList"}[resource]
+                api = "meta.k8s.io/v1" if metadata else "batch/v1" if resource == "jobs" else "apps/v1" if resource == "replicasets" else "v1"
+                self.send_json({"apiVersion": api, "kind": kind, "metadata": {"resourceVersion": str(revision), "continue": continuation}, "items": items})
+                if metadata and not continuation:
+                    with fixture.condition:
+                        fixture.completed_metadata_lists[resource] = revision
+
+            def list_snapshot(self, resource, token):
+                with fixture.condition:
                     offset, revision = 0, fixture.revision
-                    if value("continue"):
+                    if token:
                         try:
-                            token_resource, revision, offset = json.loads(base64.urlsafe_b64decode(value("continue")))
+                            token_resource, revision, offset = json.loads(base64.urlsafe_b64decode(token))
                             if token_resource != resource or not isinstance(offset, int) or not 0 <= offset <= fixture.total(resource):
                                 raise ValueError("continuation belongs to another collection or has an invalid offset")
                         except (ValueError, TypeError):
-                            self.status(400, "BadRequest")
-                            return
+                            return None, (400, "BadRequest")
                         if (resource, revision) not in fixture.snapshots:
                             fixture.counts["continuation_expirations"] += 1
-                            self.status(410, "ResourceExpired")
-                            return
+                            return None, (410, "ResourceExpired")
                     snapshot_key = (resource, revision)
                     if snapshot_key not in fixture.snapshots:
                         fixture.snapshots[snapshot_key] = (bytes(fixture.deleted), bytes(fixture.failed), dict(fixture.root_versions), dict(fixture.changed_pods), dict(fixture.generations), dict(fixture.intermediate_versions))
                         while len(fixture.snapshots) > 16:
                             fixture.snapshots.popitem(last=False)
                     fixture.snapshots.move_to_end(snapshot_key)
-                    state = fixture.snapshots[snapshot_key]
-                    requested = int(value("limit", str(fixture.page_size)))
-                    limit = min(requested or fixture.page_size, fixture.page_size)
-                    items = []
-                    while offset < fixture.total(resource) and len(items) < limit:
-                        obj = fixture.object(resource, offset, metadata, state)
-                        offset += 1
-                        if obj is not None:
-                            items.append(obj)
-                    fixture.max_page = max(fixture.max_page, len(items))
-                    fixture.counts[f"{resource}.objects.{encoding}"] += len(items)
-                    if resource == "pods" and metadata and not value("continue") and fixture.change_during_list:
-                        fixture.change_during_list = False
-                        fixture.change_pod(fixture.roots-1,fixture.pods-1)
-                    continuation = base64.urlsafe_b64encode(json.dumps([resource, revision, offset]).encode()).decode() if offset < fixture.total(resource) else ""
-                    kind = "PartialObjectMetadataList" if metadata else {"namespaces": "NamespaceList", "jobs": "JobList", "replicasets": "ReplicaSetList", "pods": "PodList"}[resource]
-                    api = "meta.k8s.io/v1" if metadata else "batch/v1" if resource == "jobs" else "apps/v1" if resource == "replicasets" else "v1"
-                    self.send_json({"apiVersion": api, "kind": kind, "metadata": {"resourceVersion": str(revision), "continue": continuation}, "items": items})
-                    if metadata and not continuation:
-                        fixture.completed_metadata_lists[resource] = revision
+                    return (offset, revision, fixture.snapshots[snapshot_key]), None
 
             def watch(self, resource, version, metadata):
                 if urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("sendInitialEvents") == ["true"]:
@@ -321,7 +330,12 @@ class LoopbackAPI:
                                 payload = {"type": "ERROR", "object": {"apiVersion": "v1", "kind": "Status", "status": "Failure", "reason": "Expired", "code": 410}}
                                 events = None
                             else:
-                                events = [event for event in fixture.events if event[0] > version]
+                                events = []
+                                for event in reversed(fixture.events):
+                                    if event[0] <= version:
+                                        break
+                                    events.append(event)
+                                events.reverse()
                                 if not events:
                                     fixture.condition.wait(timeout=1)
                                     continue

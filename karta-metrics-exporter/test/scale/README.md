@@ -14,6 +14,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
   failed emitter scheduling after 232 seconds, with exporter queues near empty.
   Full hierarchy acceptance is unproven; all earlier failures remain preserved.
 
+- [Fixture contention diagnostic](results/fixture-capacity/README.md): bounded
+  before/after tests remove proven API-lock and WATCH-scan overhead. Both sustain
+  the small requested rate; the full-run scheduling failure remains unclassified.
 - [Optional heap-profile diagnosis](results/heap-diagnostic/a52b1216/README.md):
   a separate short run reproduces heap oscillation with 13 sampled profiles.
   It is not full acceptance and does not reclassify earlier failures.
