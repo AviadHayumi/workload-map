@@ -49,9 +49,18 @@ type watchReadScope struct {
 	gvk       schema.GroupVersionKind
 	namespace string
 }
+
+// Contradicted names stay fenced through informer delivery. Fresh verification
+// removes each fence; retiring the watch releases the remaining scope state.
 type watchReadState struct {
 	readers     int
-	invalidated map[objectKey]uint64
+	retired     bool
+	invalidated map[objectKey]ownershipInvalidation
+}
+
+type ownershipInvalidation struct {
+	sequence uint64
+	uid      types.UID
 }
 
 type metadataFailure struct {
@@ -415,7 +424,7 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		for _, namespace := range []string{key.Namespace, ""} {
 			if read := r.watchReads[watchReadScope{gvk: gvk, namespace: namespace}]; read != nil {
 				r.sequence++
-				read.invalidated[aliasKey] = r.sequence
+				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, uid: uid}
 			}
 		}
 		if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {

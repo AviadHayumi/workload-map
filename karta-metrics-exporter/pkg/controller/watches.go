@@ -172,6 +172,13 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 
 // Retiring a representation does not retire a UID already assigned to another source.
 func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
+	scope := watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}
+	if read := r.reader.watchReads[scope]; read != nil {
+		read.retired = true
+		if read.readers == 0 {
+			delete(r.reader.watchReads, scope)
+		}
+	}
 	r.trackWatchVersion(w.gvk, -1)
 	delete(r.reader.activeKeys, w.failureKey)
 	r.deps.Publications.SetPublicationFailure(w.failureKey, store.ReasonAPIUnavailable)
@@ -338,8 +345,8 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		r.reader.watchReads = map[watchReadScope]*watchReadState{}
 	}
 	read := r.reader.watchReads[scope]
-	if read == nil {
-		read = &watchReadState{invalidated: map[objectKey]uint64{}}
+	if read == nil || read.retired {
+		read = &watchReadState{invalidated: map[objectKey]ownershipInvalidation{}}
 		r.reader.watchReads[scope] = read
 	}
 	read.readers++
@@ -348,7 +355,7 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	defer func() {
 		r.reader.mu.Lock()
 		read.readers--
-		if read.readers == 0 {
+		if read.retired && read.readers == 0 && r.reader.watchReads[scope] == read {
 			delete(r.reader.watchReads, scope)
 		}
 		r.reader.mu.Unlock()
@@ -375,7 +382,7 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		for _, object := range list.Items {
 			key := objectKey{GVK: w.gvk, Namespace: object.GetNamespace(), Name: object.GetName()}
 			entry := r.reader.objects[key]
-			if entry.invalidated > readerSequence || read.invalidated[key] > readerSequence {
+			if entry.invalidated > readerSequence || read.invalidated[key].sequence > readerSequence {
 				r.reader.mu.RUnlock()
 				return nil, discovery.ErrStale
 			}
@@ -534,6 +541,13 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 			}
 		} else {
 			r.reader.retireObjectProofLocked(old)
+		}
+		if read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]; read != nil {
+			if fence, found := read.invalidated[key]; found && fence.uid == ref.UID {
+				entry.invalidated = fence.sequence
+				entry.evidence = store.Evidence{}
+				r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
+			}
 		}
 		r.reader.objects[key] = entry
 		if !r.terminalOwnerBoundary(object) {
@@ -696,12 +710,13 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 	w.verifiedAt = verificationStarted
 	w.verifiedRead = readSequence
 	r.reader.mu.Lock()
+	read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]
 	for objectKey := range w.objects {
 		entry, ok := r.reader.objects[objectKey]
 		if !ok {
 			continue
 		}
-		if entry.sequence > generation || entry.invalidated > readerSequence {
+		if entry.sequence > generation || entry.invalidated > readerSequence || (read != nil && read.invalidated[objectKey].sequence > readerSequence) {
 			continue
 		}
 		ref := refOf(entry.object)
@@ -725,6 +740,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
 		} else {
+			if read != nil {
+				delete(read.invalidated, objectKey)
+			}
 			entry.evidence = store.Evidence{ExpiresAt: w.verifiedAt.Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}
 			if entry.proofKey != "" {
 				if !r.reader.activeKeys[entry.proofKey] {
@@ -745,6 +763,13 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		}
 		if w.discover || r.roots[ref.UID] != nil {
 			r.queue.Add(queueKey{Operation: "object", Object: objectKey, UID: ref.UID})
+		}
+	}
+	if read != nil {
+		for objectKey, fence := range read.invalidated {
+			if _, found := refs[fence.uid]; !found && fence.sequence <= readerSequence {
+				delete(read.invalidated, objectKey)
+			}
 		}
 	}
 	for uid, ref := range w.pendingRoots {

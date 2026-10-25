@@ -29,6 +29,50 @@ func conflictingMetadata() *metav1.PartialObjectMetadata {
 }
 
 var _ = Describe("Ownership proof retirement", func() {
+	It("keeps the alias fence between a returned LIST and its delayed Add callback", func(ctx SpecContext) {
+		r, metadata, publications := testRuntime(nil)
+		v2 := testRootGVK
+		v2.Version = "v2"
+		r.reader.clients.Mapper.(*meta.DefaultRESTMapper).Add(v2, meta.RESTScopeNamespace)
+		root, pod := testObject(v2, "root"), testObject(podGVK, "pod")
+		ownedBy(pod, root)
+		w := seedWatch(r, v2, "jobs")
+		seedWatch(r, podGVK, "pods", pod)
+		dynamic := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(kruntime.NewScheme(), map[schema.GroupVersionResource]string{v2.GroupVersion().WithResource("jobs"): "JobList"})
+		r.reader.clients.Dynamic = dynamic
+		dynamic.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*root}}, nil
+		})
+		result, err := r.listWatch(ctx, w, metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		key := objectKey{GVK: testRootGVK, Namespace: "ns", Name: "root"}
+		r.reader.mu.Lock()
+		r.reader.saveMetadataLocked(key, metadataEntry{object: conflictingMetadata(), expires: time.Now().Add(time.Minute), failureKey: "contradiction"})
+		r.reader.removeMetadataLocked(key, "unresolved_owner")
+		r.reader.mu.Unlock()
+		list := result.(*unstructured.UnstructuredList)
+		r.accept(w, &list.Items[0], false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
+		Expect(publications.Capture().Records).To(BeEmpty())
+		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			return true, metadataList(ownerMetadata("root", "1")), nil
+		})
+		Expect(r.verifyWatch(ctx, w.key)).To(Succeed())
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		valid, _ := publications.Capture().Valid(publications.Published(root.GetUID()).Creation)
+		Expect(valid).To(BeTrue())
+		scope := watchReadScope{gvk: v2, namespace: w.key.Namespace}
+		Expect(r.reader.watchReads[scope].invalidated).To(BeEmpty())
+		r.mu.Lock()
+		r.reader.mu.Lock()
+		delete(r.watches, w.key)
+		r.retireWatchObjectsLocked(w)
+		r.reader.mu.Unlock()
+		r.mu.Unlock()
+		Expect(r.reader.watchReads).To(BeEmpty())
+	})
+
 	DescribeTable("keeps independent published roots valid", func(ctx SpecContext, mode string) {
 		r, metadata, publications := testRuntime(nil)
 		v2 := testRootGVK
@@ -114,7 +158,7 @@ var _ = Describe("Ownership proof retirement", func() {
 		r.reader.mu.Unlock()
 		close(resume)
 		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
-		Expect(r.reader.watchReads).To(BeEmpty())
+		Expect(r.reader.watchReads).To(HaveLen(1))
 		if cached {
 			r.accept(w, root.DeepCopy(), false)
 			_, err := r.reader.evidence(refOf(root))
