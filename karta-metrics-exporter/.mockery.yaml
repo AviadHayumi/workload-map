@@ -25,6 +25,10 @@ packages:
           filename: object_reader_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator:
     interfaces:
+      Compiler:
+        config:
+          structname: LabelCompiler
+          filename: label_compiler_mock.go
       Evaluator:
         config:
           structname: LabelEvaluator
@@ -47,3 +51,9 @@ packages:
         config:
           structname: Runtime
           filename: runtime_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel:
+    interfaces:
+      Registrar:
+        config:
+          structname: Registrar
+          filename: registrar_mock.go

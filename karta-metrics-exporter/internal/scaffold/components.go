@@ -6,7 +6,6 @@ package scaffold
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/stretchr/testify/mock"
 	"go.opentelemetry.io/otel/metric"
@@ -25,18 +24,17 @@ import (
 var ErrNotImplemented = errors.New("exporter component is not implemented")
 
 // New is the temporary composition root. Replace the factories here as components land.
-func New() app.Components {
+func New(labelConfig labelresolver.Config) app.Components {
 	definitions := newInventory(inventory.Config{})
 	reader := newObjectReader()
 	ownership := newDiscovery(discovery.Dependencies{Reader: reader, Inventory: definitions})
-	labels := newLabelResolver(labelresolver.Config{}, labelresolver.Dependencies{Compile: newLabelEvaluator})
-	publications := newStore()
-	lock := &sync.Mutex{}
+	labels := newLabelResolver(labelConfig, labelresolver.Dependencies{Compiler: newCompiler()})
+	publications := newStore(store.Options{})
 	runtime := newRuntime(controller.Dependencies{
 		Discovery: ownership, Inventory: definitions, Labels: labels,
-		Publications: publications, PublicationLock: lock,
+		Publications: publications,
 	})
-	return app.Components{Runtime: runtime, Store: publications, PublicationLock: lock, Register: registerCollector}
+	return app.Components{Runtime: runtime, Store: publications, Registrar: newRegistrar()}
 }
 
 func newInventory(_ inventory.Config) inventory.Interface {
@@ -58,10 +56,12 @@ func newDiscovery(_ discovery.Dependencies) discovery.Discoverer {
 	return m
 }
 
-func newLabelEvaluator(_ labelevaluator.Config) (labelevaluator.Evaluator, error) {
+func newCompiler() labelevaluator.Compiler {
+	compiler := &mocks.LabelCompiler{}
 	m := &mocks.LabelEvaluator{}
 	m.EXPECT().Evaluate(mock.Anything, mock.Anything).Return("", ErrNotImplemented)
-	return m, nil
+	compiler.EXPECT().Compile(mock.Anything).Return(m, nil)
+	return compiler
 }
 
 func newLabelResolver(_ labelresolver.Config, _ labelresolver.Dependencies) labelresolver.Resolver {
@@ -70,9 +70,8 @@ func newLabelResolver(_ labelresolver.Config, _ labelresolver.Dependencies) labe
 	return m
 }
 
-func newStore() store.Interface {
+func newStore(_ store.Options) store.Interface {
 	m := &mocks.Store{}
-	m.EXPECT().BindPublication(mock.Anything, mock.Anything).Return().Once()
 	m.EXPECT().Capture().Return(store.CapturedView{})
 	// Writes are deliberately unconfigured: a real worker must use a real Store.
 	return m
@@ -87,13 +86,19 @@ func newRuntime(_ controller.Dependencies) controller.Runner {
 	return m
 }
 
-func registerCollector(meter metric.Meter, _ collector.Capturer, _ collector.Options) (metric.Registration, error) {
-	// Register no instruments. The scaffold must not emit production-looking series.
-	return meter.RegisterCallback(func(context.Context, metric.Observer) error { return nil })
+func newRegistrar() collector.Registrar {
+	m := &mocks.Registrar{}
+	m.EXPECT().Register(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(
+		func(meter metric.Meter, _ collector.Capturer, _ collector.Options) (metric.Registration, error) {
+			return meter.RegisterCallback(func(context.Context, metric.Observer) error { return nil })
+		})
+	return m
 }
 
 // Keep generated mocks checked against their contracts even before implementations exist.
 var (
+	_ labelevaluator.Compiler  = (*mocks.LabelCompiler)(nil)
+	_ collector.Registrar      = (*mocks.Registrar)(nil)
 	_ inventory.Interface      = (*mocks.Inventory)(nil)
 	_ discovery.Discoverer     = (*mocks.Discovery)(nil)
 	_ discovery.ObjectReader   = (*mocks.ObjectReader)(nil)

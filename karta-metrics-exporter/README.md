@@ -4,12 +4,11 @@
 # Karta metrics exporter
 
 This branch provides the contracts for the exporter components. It does not yet
-watch Kubernetes or expose metrics. The existing submitter extractor remains
-available with its current configuration.
+watch Kubernetes or expose metrics. The CEL label evaluator is implemented. Source selection and metric delivery
+remain scaffold work.
 
 | Package | Input and result |
 | --- | --- |
-| [submitterextractor](pkg/submitterextractor/) | Existing CEL implementation for submitter metadata |
 | [kartadefinitioninventory](pkg/kartadefinitioninventory/) | Root GVK -> selected Karta and its source |
 | [discovery](pkg/discovery/) | Object reference -> workload root and missing root coverage |
 | [labelevaluator](pkg/labelevaluator/) | One object -> one configured label value |
@@ -18,8 +17,9 @@ available with its current configuration.
 | [store](pkg/store/) | Publications -> consistent captured view |
 | [adapters/otel](pkg/adapters/otel/) | Captured view -> OTel observations |
 
-The packages above contain interfaces and data types. Their implementations will
-arrive separately. The command keeps the existing startup behavior by default.
+The command reads `labelRules` and `labelLimits`, validates the rules and compiles
+their expressions at startup. The remaining components expose interfaces and
+data types for their implementations.
 
 ## Run the mock composition
 
@@ -39,8 +39,8 @@ point. Each factory returns a component interface. Replace a factory with the
 real constructor when that component is ready. Its dependencies are already
 passed there. The mock factories do not use those dependencies yet.
 
-The runtime and Store share one publication mutex. Startup binds it before
-registering collection or starting workers. Shutdown waits for Runtime to stop,
+Store owns its locking. Runtime orders input verification and publication.
+Startup registers collection before starting workers. Shutdown waits for Runtime to stop,
 then unregisters collection. An eventual delivery provider and HTTP server belong
 in the command; neither is implemented here.
 
@@ -59,4 +59,5 @@ The generator is pinned to Mockery v3.8.1. `make validate` also regenerates mock
 to detect drift. Public component contracts are still under development.
 
 Build the image with `make exporter-image IMAGE_TAG=dev`. The chart keeps the
-exporter disabled by default. Its values and default command remain unchanged.
+exporter disabled by default. Use `exporter.labelRules` and `exporter.labelLimits`; the old attribution settings
+are removed. See the [configuration and migration example](pkg/labelevaluator/README.md).

@@ -12,8 +12,8 @@ by resource and namespace, including roots returned by discovery without an
 existing watch. It will not add intermediate-owner watches.
 
 After resolving a root, Runtime calculates status, Pod mappings and configured
-labels. It verifies the inputs, takes the publication mutex and publishes the
-result. Deleting a root removes its publication. A failed read changes validity
+labels. It serializes final input verification and publication with accepted
+events. Store locks its own data internally. Deleting a root removes its publication. A failed read changes validity
 instead of pretending the workload disappeared.
 
 This package has no queue, watch or reconcile implementation yet. The runnable

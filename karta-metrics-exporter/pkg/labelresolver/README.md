@@ -4,8 +4,9 @@
 # Label resolver
 
 `Config.Rules` is the `labelRules` list. Each rule names a label, its metrics,
-ordered sources and expression. `Dependencies.Compile` supplies the label evaluator
-compiler. The resolver will compile rules at construction.
+ordered sources and expression. `Dependencies.Compiler` supplies the compiler.
+`Config.Limits` supplies its evaluation bounds. The resolver will compile rules
+at construction.
 
 `Resolve` receives metric names, a workload object and an optional Pod object.
 It returns one `ResolvedMetricLabels` per metric, with values and per-label errors.
@@ -21,5 +22,5 @@ Runtime calls the resolver for relevant changes and saves the results in Store.
 Collector reads those saved labels. Evaluation modes are not part of this
 configuration.
 
-Only types and interfaces are included here. Configuration is not wired into the
-Helm chart or command yet.
+`ValidateConfig` checks the rules at startup. Helm and the command accept the
+configuration. Source selection, fallback and caching are not implemented yet.

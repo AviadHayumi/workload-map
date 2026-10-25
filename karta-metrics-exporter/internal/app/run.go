@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -18,19 +16,17 @@ import (
 )
 
 type Components struct {
-	Runtime         controller.Runner
-	Store           store.Interface
-	PublicationLock *sync.Mutex
-	Register        collector.RegisterFunc
+	Runtime   controller.Runner
+	Store     store.Interface
+	Registrar collector.Registrar
 }
 
-// Run binds publication access before collection or workers can start.
+// Run registers collection before starting workers, then unregisters on shutdown.
 func Run(ctx context.Context, components Components, meter metric.Meter, options collector.Options) (err error) {
-	if components.Runtime == nil || components.Store == nil || components.PublicationLock == nil || components.Register == nil || meter == nil {
+	if components.Runtime == nil || components.Store == nil || components.Registrar == nil || meter == nil {
 		return errors.New("incomplete exporter components")
 	}
-	components.Store.BindPublication(components.PublicationLock, time.Now)
-	registration, err := components.Register(meter, components.Store, options)
+	registration, err := components.Registrar.Register(meter, components.Store, options)
 	if err != nil {
 		return fmt.Errorf("register collector: %w", err)
 	}
