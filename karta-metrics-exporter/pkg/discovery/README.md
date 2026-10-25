@@ -17,6 +17,12 @@ Callers inspect errors with `errors.Is`. Missing coverage can accompany a Karta
 selection error once the root is known. An unresolved chain cannot request a
 root watch.
 
-The interfaces and result types are included here. Ownership indexing, input
-verification, Karta evaluation handles and their batches remain implementation
-work. `GenericWorkload` currently carries identity, path and resolution only.
+`New(dependencies, config)` accepts an explicit `IgnoredTopOwners` GVK list.
+Traversal follows controller owner references. UID replacement, malformed or
+multiple controller references, cycles and missing owners fail resolution.
+Only a fully resolved root can produce missing coverage.
+
+The reader owns metadata refresh and coalescing. Discovery retains no metadata
+between calls. Returned references include the observed resource versions so
+the caller can fence publication against changes. `GenericWorkload` carries
+identity, path and resolution only; it does not evaluate Karta expressions.

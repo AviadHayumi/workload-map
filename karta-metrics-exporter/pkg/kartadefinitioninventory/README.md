@@ -3,7 +3,7 @@
 
 # Karta definition inventory
 
-This package defines the definition lookup contract. Implementation follows.
+This package selects definitions from cluster and bundled catalog snapshots.
 `Lookup` selects for the observed root's group and kind.
 The returned `GVK` identifies the selected definition's API representation.
 A nil `Definition` with no error means confirmed absence after sources initialize.
@@ -22,6 +22,12 @@ flag and definition-name include/exclude lists. Cluster definitions also have a
 label selector. Empty includes mean all. Names and labels must both match;
 exclusions win. Selected cluster definitions take precedence over catalog ones.
 
-The implementation will load the catalog and watch cluster Karta changes. Lookup
-reads only those caches. Source failures return an error rather than falling back.
-Filtering, cache updates and concurrent access remain implementation work.
+`New(config, source)` loads the bundled catalog. `Run(ctx)` maintains the cluster
+snapshot using the injected `ClusterSource` LIST and WATCH operations. A broken
+stream makes lookup unavailable until a fresh LIST and WATCH succeeds.
+`Selections()` returns an atomic snapshot for root watch planning. It does not
+notify consumers or start workload watches.
+
+Cluster definitions match by group and kind. The oldest creation timestamp wins;
+ties use the definition name. Catalog matches use name order. All public reads
+return independent copies. Deletes only remove the matching UID.
