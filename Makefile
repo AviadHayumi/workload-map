@@ -620,8 +620,8 @@ helm-validate: ## Validate the chart renders and the CRD ConfigMap fits in etcd
 .PHONY: exporter-rules-test
 exporter-rules-test: ## Validate platform-owned KEP query examples with promtool
 	@command -v promtool >/dev/null 2>&1 || { echo "promtool is required for exporter query tests"; exit 1; }
-	promtool check rules exporter/test/rules/kep-rules.yaml
-	cd exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml replica-tests.yaml kep-tests.yaml
+	promtool check rules karta-metrics-exporter/test/rules/kep-rules.yaml
+	cd karta-metrics-exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml replica-tests.yaml kep-tests.yaml
 
 ##@ Air-gap
 
