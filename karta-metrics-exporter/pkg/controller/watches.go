@@ -181,6 +181,7 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 			continue
 		}
 		ref := refOf(entry.object)
+		r.reader.retireObjectProofLocked(r.reader.objects[key])
 		delete(r.reader.objects, key)
 		if !r.terminalOwnerBoundary(entry.object) {
 			r.reader.invalidateAliasesLocked(key, ref.UID)
@@ -330,7 +331,28 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	epoch := w.failureEpoch
 	r.sequence++
 	readSequence := r.sequence
+	r.reader.mu.Lock()
+	readerSequence := r.reader.sequence
+	scope := watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}
+	if r.reader.watchReads == nil {
+		r.reader.watchReads = map[watchReadScope]*watchReadState{}
+	}
+	read := r.reader.watchReads[scope]
+	if read == nil {
+		read = &watchReadState{invalidated: map[objectKey]uint64{}}
+		r.reader.watchReads[scope] = read
+	}
+	read.readers++
+	r.reader.mu.Unlock()
 	r.mu.Unlock()
+	defer func() {
+		r.reader.mu.Lock()
+		read.readers--
+		if read.readers == 0 {
+			delete(r.reader.watchReads, scope)
+		}
+		r.reader.mu.Unlock()
+	}()
 	started := r.config.Now()
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
 	defer cancel()
@@ -349,6 +371,16 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	if err != nil {
 		r.failWatchLocked(w, err)
 	} else {
+		r.reader.mu.RLock()
+		for _, object := range list.Items {
+			key := objectKey{GVK: w.gvk, Namespace: object.GetNamespace(), Name: object.GetName()}
+			entry := r.reader.objects[key]
+			if entry.invalidated > readerSequence || read.invalidated[key] > readerSequence {
+				r.reader.mu.RUnlock()
+				return nil, discovery.ErrStale
+			}
+		}
+		r.reader.mu.RUnlock()
 		r.recoverWatchLocked(w)
 		w.verifiedAt = started
 		w.verifiedRead = readSequence
@@ -479,10 +511,12 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	}
 	if old.object != nil && old.object.GetUID() != ref.UID {
 		r.deleteObjectLocked(refOf(old.object))
+		r.reader.retireObjectProofLocked(r.reader.objects[key])
 		delete(r.reader.objects, key)
 	}
 	if deleted {
 		if old.object != nil && old.object.GetUID() == ref.UID {
+			r.reader.retireObjectProofLocked(r.reader.objects[key])
 			delete(r.reader.objects, key)
 			delete(w.objects, key)
 			r.deleteObjectLocked(ref)
@@ -490,7 +524,21 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	} else {
 		w.objects[key] = struct{}{}
 		delete(w.pendingRoots, ref.UID)
-		r.reader.objects[key] = observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: r.config.Now().Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}}
+		entry := observation{sequence: w.generation, object: object, stream: w.key, evidence: store.Evidence{ExpiresAt: r.config.Now().Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}}
+		if old.object != nil && old.object.GetUID() == ref.UID && old.object.GetResourceVersion() == ref.ResourceVersion {
+			entry.proofKey, entry.invalidated = old.proofKey, old.invalidated
+			if old.evidence.ExpiresAt.IsZero() {
+				entry.evidence = store.Evidence{}
+			} else if entry.proofKey != "" {
+				entry.evidence.Dependencies = append(entry.evidence.Dependencies, entry.proofKey)
+			}
+		} else {
+			r.reader.retireObjectProofLocked(old)
+		}
+		r.reader.objects[key] = entry
+		if !r.terminalOwnerBoundary(object) {
+			r.reader.invalidateAliasesLocked(key, ref.UID)
+		}
 		if root := r.roots[ref.UID]; root != nil && old.object == nil && metav1.GetControllerOf(object) != nil {
 			root.failResolution(ref.GVK, discovery.ErrPending)
 			r.failPublicationLocked(ref.UID, discovery.ErrPending)
@@ -584,6 +632,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 	generation, failureEpoch := w.generation, w.failureEpoch
 	r.sequence++
 	readSequence := r.sequence
+	r.reader.mu.RLock()
+	readerSequence := r.reader.sequence
+	r.reader.mu.RUnlock()
 	r.mu.Unlock()
 	verificationStarted := r.config.Now()
 	deadline := verificationStarted.Add(r.config.MaxAge)
@@ -650,12 +701,13 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		if !ok {
 			continue
 		}
-		if entry.sequence > generation {
+		if entry.sequence > generation || entry.invalidated > readerSequence {
 			continue
 		}
 		ref := refOf(entry.object)
 		version, found := refs[ref.UID]
 		if !found {
+			r.reader.retireObjectProofLocked(entry)
 			delete(r.reader.objects, objectKey)
 			delete(w.objects, objectKey)
 			r.deleteObjectLocked(ref)
@@ -674,6 +726,14 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			}
 		} else {
 			entry.evidence = store.Evidence{ExpiresAt: w.verifiedAt.Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}
+			if entry.proofKey != "" {
+				if !r.reader.activeKeys[entry.proofKey] {
+					r.reader.sequence++
+					entry.proofKey = fmt.Sprintf("ownership:%s:%d", ref.UID, r.reader.sequence)
+					r.reader.activeKeys[entry.proofKey] = true
+				}
+				entry.evidence.Dependencies = append(entry.evidence.Dependencies, entry.proofKey)
+			}
 		}
 		r.reader.objects[objectKey] = entry
 		if root := r.roots[ref.UID]; root != nil {

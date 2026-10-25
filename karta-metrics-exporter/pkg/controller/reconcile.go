@@ -310,9 +310,12 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		r.mu.Unlock()
 		return nil
 	}
-	rootEvidence, err := r.reader.evidence(selectedRef)
+	rootEvidence, err := r.reader.rootEvidence(selectedRef)
 	if err != nil {
-		return err
+		if rootFailure == nil || previous == nil {
+			return err
+		}
+		rootEvidence = previous.Creation
 	}
 	rootEvidence.Dependencies = append(slices.Clone(rootEvidence.Dependencies), fmt.Sprintf("root:%s:%d", uid, generation))
 	if rootFailure != nil {
@@ -511,7 +514,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			continue
 		}
 		for _, key := range proof.Dependencies {
-			if strings.HasPrefix(key, "watch:") || strings.HasPrefix(key, "metadata:") {
+			if strings.HasPrefix(key, "watch:") || strings.HasPrefix(key, "metadata:") || strings.HasPrefix(key, "ownership:") {
 				proofKeys[key] = true
 			}
 		}

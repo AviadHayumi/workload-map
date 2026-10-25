@@ -121,6 +121,7 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 		r.reader.sequence++
 		markers[key] = r.reader.sequence
 		r.reader.priming[key] = r.reader.sequence
+		trackVersion(&r.reader.versions, key.GVK, 1)
 		byName[key.Name] = key
 	}
 	r.reader.mu.Unlock()
@@ -130,6 +131,7 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 		for key, marker := range markers {
 			if r.reader.priming[key] == marker {
 				delete(r.reader.priming, key)
+				trackVersion(&r.reader.versions, key.GVK, -1)
 			}
 			if _, cached := r.reader.metadata[key]; !cached && r.reader.pending[key] == nil {
 				delete(r.reader.observed, key)

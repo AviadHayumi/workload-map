@@ -26,6 +26,8 @@ import (
 
 // Reader shares accepted watch objects with discovery and caches metadata GETs.
 type Reader struct {
+	watchReads      map[watchReadScope]*watchReadState
+	ignoredOwners   []schema.GroupVersionKind
 	versions        versionCounts
 	mapperMu        sync.Mutex
 	lastMapperReset time.Time
@@ -41,6 +43,15 @@ type Reader struct {
 	metadata        map[objectKey]metadataEntry
 	pending         map[objectKey]chan struct{}
 	priming         map[objectKey]uint64
+}
+
+type watchReadScope struct {
+	gvk       schema.GroupVersionKind
+	namespace string
+}
+type watchReadState struct {
+	readers     int
+	invalidated map[objectKey]uint64
 }
 
 type metadataFailure struct {
@@ -65,10 +76,12 @@ type objectKey struct {
 	Namespace, Name string
 }
 type observation struct {
-	sequence uint64
-	object   *unstructured.Unstructured
-	stream   watchKey
-	evidence store.Evidence
+	proofKey    string
+	invalidated uint64
+	sequence    uint64
+	object      *unstructured.Unstructured
+	stream      watchKey
+	evidence    store.Evidence
 }
 type metadataEntry struct {
 	sequence   uint64
@@ -162,6 +175,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 		}
 		pending := make(chan struct{})
 		r.pending[key] = pending
+		trackVersion(&r.versions, key.GVK, 1)
 		r.sequence++
 		requestSequence := r.sequence
 		r.mu.Unlock()
@@ -180,6 +194,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 				err = discovery.ErrStale
 			}
 			delete(r.pending, key)
+			trackVersion(&r.versions, key.GVK, -1)
 			close(pending)
 			if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
 				delete(r.observed, key)
@@ -189,6 +204,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 		}
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			delete(r.pending, key)
+			trackVersion(&r.versions, key.GVK, -1)
 			close(pending)
 			r.mu.Unlock()
 			if ctx.Err() != nil {
@@ -215,6 +231,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			r.deleteMetadataLocked(key)
 		}
 		delete(r.pending, key)
+		trackVersion(&r.versions, key.GVK, -1)
 		if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
 			delete(r.observed, key)
 		}
@@ -364,6 +381,10 @@ func failureReason(err error) string {
 }
 
 func (r *Reader) saveMetadataLocked(key objectKey, entry metadataEntry) {
+	previous := r.metadata[key]
+	if _, watched := r.objects[key]; !watched && !r.terminalOwnerBoundary(entry.object) && (previous.object == nil || previous.object.GetUID() != entry.object.GetUID() || previous.object.GetResourceVersion() != entry.object.GetResourceVersion()) {
+		r.invalidateAliasesLocked(key, entry.object.GetUID())
+	}
 	if _, found := r.metadata[key]; !found {
 		trackVersion(&r.versions, key.GVK, 1)
 	}
@@ -377,7 +398,7 @@ func (r *Reader) deleteMetadataLocked(key objectKey) {
 	}
 	// An alias cannot become affirmative root proof merely because a conflicting
 	// metadata observation expires or its last dependent input disappears.
-	if _, watched := r.objects[key]; !watched && metav1.GetControllerOf(entry.object) != nil {
+	if _, watched := r.objects[key]; !watched && !r.terminalOwnerBoundary(entry.object) {
 		r.invalidateAliasesLocked(key, entry.object.GetUID())
 	}
 	delete(r.metadata, key)
@@ -391,7 +412,20 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		if aliasKey == key {
 			continue
 		}
+		for _, namespace := range []string{key.Namespace, ""} {
+			if read := r.watchReads[watchReadScope{gvk: gvk, namespace: namespace}]; read != nil {
+				r.sequence++
+				read.invalidated[aliasKey] = r.sequence
+			}
+		}
+		if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {
+			r.sequence++
+			r.observed[aliasKey] = r.sequence
+		}
 		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
+			r.sequence++
+			alias.invalidated = r.sequence
+			r.retireObjectProofLocked(alias)
 			alias.evidence = store.Evidence{}
 			r.objects[aliasKey] = alias
 		}
@@ -399,12 +433,38 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 			r.retireMetadataLocked(alias, store.ReasonUnresolvedOwner)
 			delete(r.metadata, aliasKey)
 			trackVersion(&r.versions, gvk, -1)
-			if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {
-				r.sequence++
-				r.observed[aliasKey] = r.sequence
-			} else {
+			if r.pending[aliasKey] == nil && r.priming[aliasKey] == 0 {
 				delete(r.observed, aliasKey)
 			}
 		}
+	}
+}
+
+// Root proof is allocated only for an object used as a publication root. Its key
+// survives unchanged refreshes, but is retired before changed ownership can
+// invalidate a captured or in-flight publication. Fresh reads mint a new key.
+func (r *Reader) rootEvidence(ref discovery.ObjectRef) (store.Evidence, error) {
+	r.mu.Lock()
+	key := keyOf(ref)
+	entry, found := r.objects[key]
+	if found && entry.object.GetUID() == ref.UID && entry.object.GetResourceVersion() == ref.ResourceVersion && !entry.evidence.ExpiresAt.IsZero() && entry.proofKey == "" {
+		r.sequence++
+		entry.proofKey = fmt.Sprintf("ownership:%s:%d", ref.UID, r.sequence)
+		r.activeKeys[entry.proofKey] = true
+		entry.evidence.Dependencies = append(entry.evidence.Dependencies, entry.proofKey)
+		r.objects[key] = entry
+	}
+	r.mu.Unlock()
+	return r.evidence(ref)
+}
+
+func (r *Reader) retireObjectProofLocked(entry observation) {
+	if entry.proofKey == "" {
+		return
+	}
+	delete(r.activeKeys, entry.proofKey)
+	if r.publications != nil {
+		r.publications.SetPublicationFailure(entry.proofKey, store.ReasonUnresolvedOwner)
+		r.publications.RetirePublicationFailure(entry.proofKey)
 	}
 }

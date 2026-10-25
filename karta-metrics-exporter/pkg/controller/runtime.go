@@ -172,6 +172,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	}
 	r := &Runtime{watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, pendingDefinitions: map[schema.GroupKind]bool{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
 	reader.publications = deps.Publications
+	reader.ignoredOwners = append([]schema.GroupVersionKind(nil), config.IgnoredOwnerKinds...)
 	var err error
 	r.namespaceSelector, err = selector(config.NamespaceSelector)
 	if err != nil {

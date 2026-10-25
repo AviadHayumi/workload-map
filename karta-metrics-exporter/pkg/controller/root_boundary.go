@@ -39,6 +39,14 @@ func (r *Runtime) trackWatchVersion(gvk schema.GroupVersionKind, delta int) {
 }
 
 func (r *Runtime) terminalOwnerBoundary(object metav1.Object) bool {
+	return terminalOwnerBoundary(object, r.config.IgnoredOwnerKinds)
+}
+
+func (r *Reader) terminalOwnerBoundary(object metav1.Object) bool {
+	return terminalOwnerBoundary(object, r.ignoredOwners)
+}
+
+func terminalOwnerBoundary(object metav1.Object, ignored []schema.GroupVersionKind) bool {
 	var controller *metav1.OwnerReference
 	for _, owner := range object.GetOwnerReferences() {
 		if owner.Controller == nil || !*owner.Controller {
@@ -57,7 +65,7 @@ func (r *Runtime) terminalOwnerBoundary(object metav1.Object) bool {
 	if err != nil || gv.Version == "" || controller.Name == "" || controller.Kind == "" || controller.UID == "" {
 		return false
 	}
-	return slices.Contains(r.config.IgnoredOwnerKinds, gv.WithKind(controller.Kind))
+	return slices.Contains(ignored, gv.WithKind(controller.Kind))
 }
 
 // Runtime and Reader are locked by the caller. A publication's removal must not
