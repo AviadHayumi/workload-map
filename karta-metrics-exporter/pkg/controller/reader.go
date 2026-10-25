@@ -52,8 +52,8 @@ type watchReadScope struct {
 	namespace string
 }
 
-// Contradicted names stay fenced through informer delivery. Fresh verification
-// removes each fence; retiring the watch releases the remaining scope state.
+// Contradicted names stay fenced through informer delivery until every older
+// callback has expired. Watch retirement also releases the remaining scope state.
 type watchReadState struct {
 	readers     int
 	retired     bool
@@ -63,7 +63,6 @@ type watchReadState struct {
 type ownershipInvalidation struct {
 	expiresAt time.Time
 	sequence  uint64
-	uid       types.UID
 }
 
 type metadataFailure struct {
@@ -436,7 +435,7 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		for _, namespace := range []string{key.Namespace, ""} {
 			if read := r.watchReads[watchReadScope{gvk: gvk, namespace: namespace}]; read != nil {
 				r.sequence++
-				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, uid: uid, expiresAt: r.watchNow().Add(r.watchMaxAge)}
+				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, expiresAt: r.watchNow().Add(r.watchMaxAge)}
 			}
 		}
 		if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {

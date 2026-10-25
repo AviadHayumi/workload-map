@@ -30,6 +30,33 @@ func conflictingMetadata() *metav1.PartialObjectMetadata {
 }
 
 var _ = Describe("Ownership proof retirement", func() {
+	It("keeps older callbacks fenced across two same-name UID lifetimes", func(ctx SpecContext) {
+		r, _, _ := testRuntime(nil)
+		v2 := testRootGVK
+		v2.Version = "v2"
+		root := testObject(v2, "root")
+		w := seedWatch(r, v2, "jobs")
+		dynamic := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(kruntime.NewScheme(), map[schema.GroupVersionResource]string{v2.GroupVersion().WithResource("jobs"): "JobList"})
+		r.reader.clients.Dynamic = dynamic
+		dynamic.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*root}}, nil
+		})
+		result, err := r.listWatch(ctx, w, metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		key := objectKey{GVK: testRootGVK, Namespace: "ns", Name: "root"}
+		r.reader.mu.Lock()
+		for _, uid := range []types.UID{"root", "replacement"} {
+			object := conflictingMetadata()
+			object.UID = uid
+			r.reader.saveMetadataLocked(key, metadataEntry{object: object, expires: time.Now().Add(time.Minute), failureKey: "contradiction"})
+			r.reader.removeMetadataLocked(key, "unresolved_owner")
+		}
+		r.reader.mu.Unlock()
+		r.acceptEvent(w, result.(*metav1.List).Items[0].Object, false)
+		_, err = r.reader.evidence(refOf(root))
+		Expect(err).To(MatchError(discovery.ErrPending))
+	})
+
 	DescribeTable("does not downgrade newer verified objects with buffered source callbacks", func(ctx SpecContext, operation string, replacement bool) {
 		r, metadata, _ := testRuntime(nil)
 		v2 := testRootGVK

@@ -529,7 +529,7 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	staleRead := !r.config.Now().Before(source.expiresAt)
 	if read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]; read != nil {
 		fence := read.invalidated[key]
-		staleRead = staleRead || (fence.uid == ref.UID && source.sequence < fence.sequence)
+		staleRead = staleRead || source.sequence < fence.sequence
 	}
 	newerProof := old.object != nil && r.config.Now().Before(old.evidence.ExpiresAt)
 	for _, proof := range old.evidence.Dependencies {
