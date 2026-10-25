@@ -36,11 +36,24 @@ replaces the complete health list.
 - `SetPublicationHealth` replaces the resource health list.
 - `Capture` returns a view that later writes cannot change.
 
-The data types and interfaces are included here. Storage, internal locking,
-expiry checks and copy-on-write Pod updates are not implemented. The implementation
-will add `Publication.WithPod(uid, replacement)` and `CapturedView.Valid(evidence)`,
-including the captured view's private failure state. `Valid` checks explicit
-failure, dependency failures and expiry at the captured time.
+`New(Options)` constructs the Store. `CapturedView.Valid(evidence)` checks an
+explicit failure first, then shared dependency failures, then expiry at the
+captured time. Zero expiry and the expiry instant are invalid. Shared failure
+keys remain until Runtime explicitly clears them, including failures set before
+publication. Runtime clears keys when their dependencies leave its scope.
+
+Publication ownership transfers on `Publish`. The publication and all nested
+maps, slices and pages must remain immutable, including values returned by
+`Published` and `Capture`. Store shares these references to avoid copying all Pod
+rows on every scrape. Runtime creates replacement maps and slices when inputs
+change. Health inputs are copied, including dependency slices.
+
+`Publication.WithPod(uid, replacement)` copies only the changed page. A nil
+replacement removes the Pod. A replacement must have the requested UID and its
+nested data follows the same immutable ownership contract. `BuildPodPages` sorts
+a copy of the input rows and reuses unchanged pages. `Publication.Pod` returns an
+immutable row. Helpers share nested label maps and evidence dependency slices;
+callers must replace these rather than mutate them.
 
 Store owns its data types and does not import discovery. Runtime translates the
 resolved identity into a publication.

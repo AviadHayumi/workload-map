@@ -94,9 +94,10 @@ type Evidence struct {
 
 // CapturedView is an immutable snapshot evaluated at At.
 type CapturedView struct {
-	At      time.Time
-	Records []*Publication
-	Health  []HealthRecord
+	At       time.Time
+	Records  []*Publication
+	Health   []HealthRecord
+	failures map[string]string
 }
 
 type HealthRecord struct {
