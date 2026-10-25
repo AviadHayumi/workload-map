@@ -105,3 +105,37 @@ on an accepted root resourceVersion change, and `failureReason` maps that to
 from quiet-refresh continuity. It does not establish the reason for the earlier
 unsampled gap. No oracle rule was relaxed; contract interpretation remains open
 for that earlier failure. No 10k or 100k run followed these smokes.
+
+## Corrected oracle and verified acknowledgment
+
+`direct-1000-verified.json.gz` and `intermediate-1000-verified.json.gz` use
+exact source `f605ac23`, including runtime correctness checkpoint `63dc9ed1`
+and the corrected oracle described in [the harness guide](../../runtime-scale.md).
+Both use QPS 20, burst 40, two workers, 5-second refresh, 20 seconds quiet,
+20 seconds churn, one-second full-oracle cadence and 10 ms diagnostic polling.
+The diagnostic acknowledgment now verifies one captured publication's creation,
+status and current Pod mappings, plus exact UID, version, phase and labels.
+These latency observations are stronger than the historical version-only ACK.
+
+Both runs passed every correctness stage and observed 2,000 of 2,000 events.
+The direct run took 51.11 seconds, including 3.94 seconds cold convergence;
+its verified p99 observation upper bound was 42.9 ms and queue drain 41.4 ms.
+The intermediate run took 102.28 seconds, including 52.74 seconds cold
+convergence; its corresponding bounds were 45.0 ms and 41.9 ms. All quiet and
+final scrapes were valid. Churn allowed only coherent invalidity for roots
+whose emitted-to-verified-ACK intervals overlapped that scrape. Heap gates
+passed. Twenty seconds still does not meet five-minute acceptance.
+
+The intermediate run made 1,000 cold owner GETs and one recreation GET, plus
+40 metadata LIST pages over the full run. It started no intermediate WATCH.
+Cold per-owner API demand remains the dominant difference from direct ownership.
+Diagnostic traffic was 1,545 requests / 2.39 MB / 2.83 seconds cumulative HTTP
+time for direct ownership, and 1,606 / 2.44 MB / 3.06 seconds for intermediate
+ownership. CPU and allocation samples include that work.
+
+The local kind nodes were confirmed stopped at 19:15:26 UTC. Exact stop
+completion was not captured, so the first direct run may overlap shutdown.
+The node absence was also checked during the intermediate run. These remain
+bounded development smokes, not isolated-host capacity measurements. Further
+review found runtime issues outside these scenarios after `63dc9ed1`; passing
+these reports does not override those findings. No 10k run followed.
