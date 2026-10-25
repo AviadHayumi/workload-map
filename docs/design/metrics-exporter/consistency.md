@@ -36,8 +36,8 @@ the captured dependency failures, then expiry. Zero expiry and the expiry instan
 are invalid. A mapping uses the earliest expiry among its required inputs.
 Root creation and status do not depend on unrelated Pod paths.
 
-A WATCH event gives Runtime a new observed object version. Periodic verification
-renews unchanged observations. Scrapes and watch bookmarks never renew evidence.
+A WATCH event records a new observed object version with expiry at its local
+acceptance time plus `maxAge`. Periodic verification renews unchanged observations. Scrapes and watch bookmarks never renew evidence.
 Local generations detect changes already accepted by this exporter. They do not
 prove Kubernetes has no newer change.
 
@@ -185,11 +185,14 @@ or discarded its in-flight result. Metadata and definition keys can retire soone
 because final active-key and selection checks reject obsolete work. Keys are
 opaque internal strings, not Kubernetes generations or metric labels.
 `RetirePublicationFailure` removes a key only when no current publication or
-health record refers to it.
+health record refers to it. Runtime checks root and Pod generations and definition
+identity against accepted state. Reader tracks active watch and metadata proof
+keys separately. Store retirement does not change those checks.
 
 Store counts those references and retires a failed key when its last reference
 is removed. Active failing streams keep a health reference. A failure installed
-before any publication remains until explicitly cleared or retired. Replacing a
+before any publication remains until cleared with
+`SetPublicationFailure(key, "")` or retired. Replacing a
 publication adds new references before removing old ones. A captured view keeps
 its own failure map, so retirement cannot change an ongoing collection.
 
@@ -216,7 +219,9 @@ omits the timestamp and contributes a workload-health failure.
 An intermediate-owner GET returning NotFound fails that Pod's owner path. A
 compatible old mapping can remain invalid with unknown owner resolution until
 recovery or removal of its Pod/root. It is not treated as a confirmed Pod or root
-delete. An accepted delete of the published Pod or root removes its rows.
+delete. A previously resolved path that becomes malformed or cyclic also retains
+its compatible old mapping as invalid with unknown owner resolution. An accepted
+delete of the published Pod or root removes its rows.
 
 Status, mapping and creation validity are separate. A status-expression error
 does not invalidate an independently verified creation time. A label-expression
@@ -240,12 +245,14 @@ Its `workload_name` and `workload_uid` labels are empty.
 
 Workload health uses `scope="workload"` and adds the root name and UID. Collector
 combines `Publication.FailureReasons` with failed creation, status and Pod
-evidence. It emits one value-0 row with the highest-priority reason. A metadata
+evidence. Healthy workloads have no workload-health row. For a failed workload,
+it emits one value-0 row. Reason priority is `permission_denied`, `api_unavailable`,
+`invalid_definition`, `unresolved_owner`, then `evaluation_failed`. A metadata
 read failure also produces resource-type health for the failed owner type, even
 when no root has been resolved.
 
-A malformed or cyclic owner chain can fail before any root is known. That Pod
-has no mapping or workload-health row. Pod collection can still be healthy:
+If a malformed or cyclic owner chain has never resolved to a root, that Pod has
+no mapping or workload-health row. Pod collection can still be healthy:
 its watch succeeded, but no verified workload identity exists. Correcting the
 owner reference triggers resolution again.
 
@@ -254,7 +261,7 @@ The error categories are bounded:
 
 | Error | Action |
 | --- | --- |
-| `ErrPending` | Wait for source or watch initialization and retry. |
+| `ErrPending` | Retry initialization. Pending or missing APIs use `api_unavailable` in resource-type health. |
 | `ErrStale` | Discard superseded work and retry. |
 | `ErrPermissionDenied` | Report `permission_denied` for dependent evidence. |
 | `ErrUnavailable` | Report `api_unavailable`; expiry uses the same reason. |

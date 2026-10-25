@@ -259,8 +259,11 @@ are copies of the inventory snapshot.
 
 An enabled cluster source must initialize and remain usable before absence can
 be confirmed. A source failure or invalid selected definition returns an error;
-it does not enable generic or catalog fallback. Confirmed absence returns `Selection{Definition: nil}` with a nil error. Runtime then publishes generic identity and creation time, with
-`<unknown>` component and instance, an empty replica group and no status rows.
+it does not enable generic or catalog fallback. Confirmed absence returns
+`Selection{Definition: nil}` with a nil error. Runtime then publishes generic
+identity and creation time, with `<unknown>` component and instance, an empty
+replica group and no status rows. Pod roots are excluded unless a Pod definition
+is selected.
 
 If selection uses another API version, Runtime obtains coverage for that
 representation and verifies the same UID. Both versions identify one root
@@ -269,8 +272,7 @@ publication. ResourceVersions are compared for equality within a representation.
 ## Evaluate status and Pod coordinates
 
 Runtime passes the selected definition and full root object to the Karta SDK.
-It creates a component factory using `resource.NewComponentFactory` and a JQ
-accessor. The root component's `GetStatus(ctx)` produces matching phases. Pod
+It creates a component factory using `resource.NewComponentFactoryFromObject`. The root component's `GetStatus(ctx)` produces matching phases. Pod
 mapping uses `NewPodQuerier(pod)`, `InferPodComponent`,
 `InferPodComponentInstance` and `ExtractReplicaKey`.
 

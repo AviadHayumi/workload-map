@@ -156,7 +156,9 @@ group, version and resource lists. Subresources are not supported.
 `labelRules` adds labels to `karta_pod_workload_info` and `karta_workload_status`.
 Each rule names its metrics, ordered sources and CEL expression. `workload` means
 the full resolved root object. `pod` means that full Pod object and is allowed
-only for Pod-info rules. The expression reads the input as `object`.
+only for Pod-info rules. Startup rejects any rule containing both the status
+metric and a `pod` source, even if Pod-info is also listed. The expression reads
+the input as `object`.
 
 An empty result or error tries the next source. If no source returns a value,
 the label is absent. A successful fallback still retains previous source errors
