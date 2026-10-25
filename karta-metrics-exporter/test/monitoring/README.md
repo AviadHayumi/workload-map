@@ -14,6 +14,11 @@ operator disabled. Prometheus must discover the ServiceMonitor and collect all
 four metric families. The test then checks permission denial and recovery, a real
 Helm upgrade, and resource removal when the exporter is disabled.
 
+Before the permission-denial restart, the test waits until the exporter's
+ServiceAccount cannot list or watch Deployments in the observed namespace.
+After the upgrade restores both permissions, recovery requires a newly created
+root UID and a healthy Deployment observation scraped after permission recovery.
+
 A supplied NetworkPolicy selects only exporter Pods. It permits ingress from the
 suite's Prometheus Pods and egress to the local Kubernetes API endpoints on TCP
 443/6443. Endpoint addresses are discovered locally and never written to evidence.
@@ -54,9 +59,12 @@ name. Run against a fresh cluster: the missing-CRD check deliberately refuses an
 existing Prometheus Operator installation.
 
 The test leaves the monitoring infrastructure and workloads for inspection. It
-writes the actual exporter image ID and acceptance checkpoints, plus the Ginkgo
-reports requested above. Review reports for local addresses before publishing.
-Do not treat compilation or dry-run output as deployed acceptance.
+writes the requested image reference before installation and the actual exporter
+image ID immediately after deployment, before the monitoring checks. It verifies
+that the image ID remains unchanged after upgrade. Acceptance checkpoints and
+the Ginkgo reports record the checks that completed. Review reports for local
+addresses before publishing. Do not treat compilation or dry-run output as
+deployed acceptance.
 
 Stop the cluster before running exporter scale benchmarks:
 

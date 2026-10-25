@@ -85,6 +85,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 		output = filepath.Join(os.TempDir(), "exporter-monitoring-results")
 	}
 	Expect(os.MkdirAll(output, 0700)).To(Succeed())
+	save("image-reference.txt", image+"\n")
 	raw := mustKube(ctx, "", "config", "view", "--minify", "-o", "jsonpath={.current-context}")
 	Expect(raw).To(Equal(contextName))
 	// This cluster name and node label guard precedes all installation or deletion.
@@ -111,6 +112,15 @@ var _ = Describe("Standalone monitoring lifecycle", func() {
 		mustKube(ctx, "", "apply", "-f", "prometheus.yaml")
 		body, err = helm(ctx, "--wait", "--timeout", "3m")
 		Expect(err).NotTo(HaveOccurred(), body)
+		deployedImage := mustKube(ctx, "", "-n", namespace, "get", "pod", "-l", "app.kubernetes.io/name=karta-metrics-exporter", "-o", `jsonpath={.items[*].spec.containers[?(@.name=="karta-metrics-exporter")].image}`)
+		Expect(strings.Fields(deployedImage)).To(Equal([]string{image}))
+		imageID := mustKube(ctx, "", "-n", namespace, "get", "pod", "-l", "app.kubernetes.io/name=karta-metrics-exporter", "-o", `jsonpath={.items[*].status.containerStatuses[?(@.name=="karta-metrics-exporter")].imageID}`)
+		Expect(strings.Fields(imageID)).To(HaveLen(1))
+		save("image-id.txt", imageID+"\n")
+		AddReportEntry("exporter image", map[string]string{"reference": image, "imageID": imageID})
+		serviceAccount := mustKube(ctx, "", "-n", namespace, "get", "deployment", "karta-metrics-exporter", "-o", "jsonpath={.spec.template.spec.serviceAccountName}")
+		Expect(serviceAccount).To(Equal("karta-metrics-exporter"))
+		identity := "system:serviceaccount:" + namespace + ":" + serviceAccount
 		mustKube(ctx, "", "-n", namespace, "rollout", "status", "statefulset/prometheus-acceptance", "--timeout=300s")
 		mustKube(ctx, "", "-n", namespace, "create", "deployment", "observed", "--image=registry.k8s.io/pause:3.10")
 		mustKube(ctx, "", "-n", namespace, "label", "deployment", "observed", "monitoring-workload=true")
@@ -161,6 +171,13 @@ var _ = Describe("Standalone monitoring lifecycle", func() {
 		By("reporting missing root LIST/WATCH permission and recovering")
 		body, err = helm(ctx, "--set-json", `exporter.rbac.workloadRules=[{"apiGroups":["apps"],"resources":["replicasets"]}]`)
 		Expect(err).NotTo(HaveOccurred(), body)
+		for _, verb := range []string{"list", "watch"} {
+			Eventually(func(g Gomega) {
+				answer, err := kube(ctx, "", "-n", namespace, "auth", "can-i", verb, "deployments.apps", "--as", identity, "--as-group", "system:serviceaccounts", "--as-group", "system:serviceaccounts:"+namespace, "--as-group", "system:authenticated")
+				g.Expect(strings.TrimSpace(answer)).To(Equal("no"), identity+" "+verb+" deployments.apps in "+namespace)
+				g.Expect(err).To(HaveOccurred())
+			}).Should(Succeed())
+		}
 		mustKube(ctx, "", "-n", namespace, "rollout", "restart", "deployment/karta-metrics-exporter")
 		Eventually(func() (int, error) {
 			return query(ctx, `karta_exporter_observation_valid{resource_kind="Deployment",reason="permission_denied"} == 0`)
@@ -168,11 +185,32 @@ var _ = Describe("Standalone monitoring lifecycle", func() {
 		By("upgrading the running release and recovering observations")
 		body, err = helm(ctx, "--set", "exporter.podAnnotations.acceptance-revision=second", "--wait", "--timeout", "3m")
 		Expect(err).NotTo(HaveOccurred(), body)
+		for _, verb := range []string{"list", "watch"} {
+			Eventually(func(g Gomega) {
+				answer, err := kube(ctx, "", "-n", namespace, "auth", "can-i", verb, "deployments.apps", "--as", identity, "--as-group", "system:serviceaccounts", "--as-group", "system:serviceaccounts:"+namespace, "--as-group", "system:authenticated")
+				g.Expect(err).NotTo(HaveOccurred(), answer)
+				g.Expect(strings.TrimSpace(answer)).To(Equal("yes"), identity+" "+verb+" deployments.apps in "+namespace)
+			}).Should(Succeed())
+		}
+		recoveredAfter := time.Now().Unix()
+		mustKube(ctx, "", "-n", namespace, "create", "deployment", "after-recovery", "--image=registry.k8s.io/pause:3.10")
+		mustKube(ctx, "", "-n", namespace, "label", "deployment", "after-recovery", "monitoring-workload=true")
+		recoveredUID := mustKube(ctx, "", "-n", namespace, "get", "deployment", "after-recovery", "-o", "jsonpath={.metadata.uid}")
+		Expect(recoveredUID).NotTo(BeEmpty())
+		Expect(recoveredUID).NotTo(BeElementOf(rootUID, freshUID))
 		Eventually(func() (int, error) {
-			return query(ctx, `karta_workload_status{workload_uid="`+rootUID+`",observation_valid="true"}`)
+			return query(ctx, `karta_workload_status{workload_uid="`+recoveredUID+`",observation_valid="true"}`)
 		}).Should(Equal(9))
-		save("image-id.txt", mustKube(ctx, "", "-n", namespace, "get", "pod", "-l", "app.kubernetes.io/name=karta-metrics-exporter", "-o", "jsonpath={.items[*].status.containerStatuses[*].imageID}"))
-		save("acceptance.txt", "ServiceMonitor collected all four families. NetworkPolicy denied the control Pod after allowing it before policy; fresh root metrics passed under policy. Missing Deployment permissions reported permission_denied and recovered after upgrade.\n")
+		health := `karta_exporter_observation_valid{scope="resource_type",namespace="` + namespace + `",resource_group="apps",resource_version="v1",resource_kind="Deployment",reason="none"}`
+		Eventually(func() (int, error) {
+			return query(ctx, fmt.Sprintf("(%s == 1) and (timestamp(%s) > %d)", health, health, recoveredAfter))
+		}).Should(BeNumerically(">", 0))
+		upgradedIDs := strings.Fields(mustKube(ctx, "", "-n", namespace, "get", "pod", "-l", "app.kubernetes.io/name=karta-metrics-exporter", "-o", `jsonpath={.items[*].status.containerStatuses[?(@.name=="karta-metrics-exporter")].imageID}`))
+		Expect(upgradedIDs).NotTo(BeEmpty())
+		for _, upgradedID := range upgradedIDs {
+			Expect(upgradedID).To(Equal(imageID))
+		}
+		save("acceptance.txt", "ServiceMonitor collected all four families. NetworkPolicy denied the control Pod after allowing it before policy; fresh root metrics passed under policy. Effective Deployment LIST/WATCH permissions were denied before restart. The exporter reported permission_denied. After upgrade, permissions were restored and a new root UID plus a new healthy Deployment observation proved recovery. The deployed image ID stayed unchanged.\n")
 		By("removing runtime resources by disabling the exporter")
 		body, err = helm(ctx, "--set", "exporter.enabled=false")
 		Expect(err).NotTo(HaveOccurred(), body)
