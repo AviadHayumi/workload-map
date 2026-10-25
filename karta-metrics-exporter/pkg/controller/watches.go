@@ -200,8 +200,8 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 			continue
 		}
 		ref := refOf(entry.object)
-		r.invalidatePathDependentsLocked(ref)
-		r.reader.retireObjectProofLocked(r.reader.objects[key])
+		r.invalidatePathDependentsLocked(ref, store.ReasonAPIUnavailable)
+		r.reader.retireObjectProofLocked(r.reader.objects[key], store.ReasonAPIUnavailable)
 		delete(r.reader.objects, key)
 		if !r.terminalOwnerBoundary(entry.object) {
 			r.reader.invalidateAliasesLocked(key, ref.UID)
@@ -489,7 +489,7 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 	podRoots := map[types.UID]bool{}
 	for key := range w.objects {
 		if entry, ok := r.reader.objects[key]; ok {
-			r.invalidatePathDependentsLocked(refOf(entry.object))
+			r.invalidatePathDependentsLocked(refOf(entry.object), failureReason(err))
 			if w.gvk == podGVK {
 				if uid := r.podRoots[entry.object.GetUID()]; uid != "" {
 					podRoots[uid] = true
@@ -574,20 +574,24 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		r.reader.sequence++
 		r.reader.observed[key] = r.reader.sequence
 	}
-	if old.object != nil && (deleted || old.object.GetUID() != ref.UID || !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences())) {
+	retirementReason := store.ReasonAPIUnavailable
+	if old.object != nil {
+		retirementReason = objectChangeReason(old.object, object)
+	}
+	if old.object != nil && (deleted || retirementReason == store.ReasonUnresolvedOwner) {
 		r.reader.invalidatePrimeOwnersLocked(old.object)
 	}
 	if !deleted && old.object != nil && old.object.GetUID() == ref.UID && old.object.GetResourceVersion() != ref.ResourceVersion {
-		r.invalidatePathDependentsLocked(refOf(old.object))
+		r.invalidatePathDependentsLocked(refOf(old.object), retirementReason)
 	}
 	if old.object != nil && old.object.GetUID() != ref.UID {
 		r.deleteObjectLocked(refOf(old.object))
-		r.reader.retireObjectProofLocked(r.reader.objects[key])
+		r.reader.retireObjectProofLocked(r.reader.objects[key], store.ReasonUnresolvedOwner)
 		delete(r.reader.objects, key)
 	}
 	if deleted {
 		if old.object != nil && old.object.GetUID() == ref.UID {
-			r.reader.retireObjectProofLocked(r.reader.objects[key])
+			r.reader.retireObjectProofLocked(r.reader.objects[key], store.ReasonUnresolvedOwner)
 			delete(r.reader.objects, key)
 			delete(w.objects, key)
 			r.deleteObjectLocked(ref)
@@ -604,10 +608,10 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 				entry.evidence.Dependencies = append(entry.evidence.Dependencies, entry.proofKey)
 			}
 		} else {
-			r.reader.retireObjectProofLocked(old)
+			r.reader.retireObjectProofLocked(old, retirementReason)
 		}
 		if staleRead {
-			r.reader.retireObjectProofLocked(old)
+			r.reader.retireObjectProofLocked(old, retirementReason)
 			entry.evidence = store.Evidence{}
 			r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
 		}
@@ -624,7 +628,7 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
 			if root := r.roots[ref.UID]; root != nil {
-				if !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences()) {
+				if retirementReason == store.ReasonUnresolvedOwner {
 					root.failResolution(ref.GVK, discovery.ErrPending)
 				}
 				r.failPublicationLocked(ref.UID, discovery.ErrStale)
@@ -685,7 +689,7 @@ func (r *Runtime) acceptsDefinition(object *unstructured.Unstructured) bool {
 }
 
 func (r *Runtime) deleteObjectLocked(ref discovery.ObjectRef) {
-	r.invalidatePathDependentsLocked(ref)
+	r.invalidatePathDependentsLocked(ref, store.ReasonUnresolvedOwner)
 	if rootUID := r.podRoots[ref.UID]; rootUID != "" {
 		if root := r.roots[rootUID]; root != nil {
 			r.invalidatePodLocked(root, ref.UID, store.ReasonUnresolvedOwner)
@@ -787,7 +791,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		ref := refOf(entry.object)
 		version, found := refs[ref.UID]
 		if !found {
-			r.reader.retireObjectProofLocked(entry)
+			r.reader.retireObjectProofLocked(entry, store.ReasonUnresolvedOwner)
 			delete(r.reader.objects, objectKey)
 			delete(w.objects, objectKey)
 			r.deleteObjectLocked(ref)
@@ -800,7 +804,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			}
 		}
 		if version != ref.ResourceVersion {
-			r.reader.retireObjectProofLocked(entry)
+			r.reader.retireObjectProofLocked(entry, store.ReasonAPIUnavailable)
 			entry.evidence = store.Evidence{}
 			r.failPublicationLocked(ref.UID, discovery.ErrStale)
 			if w.gvk == kartaGVK {
@@ -824,7 +828,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		}
 		r.reader.objects[objectKey] = entry
 		if !unchanged {
-			r.invalidatePathDependentsLocked(ref)
+			r.invalidatePathDependentsLocked(ref, store.ReasonAPIUnavailable)
 		}
 		rootUID := ref.UID
 		root := r.roots[rootUID]

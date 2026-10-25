@@ -95,7 +95,7 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 			r.recordMetadataFailureLocked(key, old.object.GetUID(), object, nil)
 			proofKey := current.failureKey
 			if current.object.GetUID() != object.GetUID() || current.object.GetResourceVersion() != object.GetResourceVersion() {
-				r.retireMetadataLocked(current, store.ReasonUnresolvedOwner)
+				r.retireMetadataLocked(current, objectChangeReason(current.object, object))
 				r.sequence++
 				proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
 			}
@@ -193,7 +193,7 @@ func (r *Reader) refreshMetadataByGet(ctx context.Context, entries map[objectKey
 			} else {
 				proofKey := current.failureKey
 				if current.object.GetUID() != object.GetUID() || current.object.GetResourceVersion() != object.GetResourceVersion() {
-					r.retireMetadataLocked(current, store.ReasonUnresolvedOwner)
+					r.retireMetadataLocked(current, objectChangeReason(current.object, object))
 					r.sequence++
 					proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
 				}

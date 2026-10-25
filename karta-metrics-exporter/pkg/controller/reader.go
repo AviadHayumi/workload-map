@@ -231,7 +231,9 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 		if err == nil {
 			proofKey := previous.failureKey
 			if previous.object == nil || previous.object.GetUID() != object.GetUID() || previous.object.GetResourceVersion() != object.GetResourceVersion() {
-				r.retireMetadataLocked(previous, store.ReasonUnresolvedOwner)
+				if previous.object != nil {
+					r.retireMetadataLocked(previous, objectChangeReason(previous.object, object))
+				}
 				r.sequence++
 				proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
 			}
@@ -445,7 +447,7 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
 			r.sequence++
 			alias.invalidated = r.sequence
-			r.retireObjectProofLocked(alias)
+			r.retireObjectProofLocked(alias, store.ReasonUnresolvedOwner)
 			alias.evidence = store.Evidence{}
 			r.objects[aliasKey] = alias
 		}
@@ -478,13 +480,13 @@ func (r *Reader) objectEvidence(ref discovery.ObjectRef) (store.Evidence, error)
 	return r.evidence(ref)
 }
 
-func (r *Reader) retireObjectProofLocked(entry observation) {
+func (r *Reader) retireObjectProofLocked(entry observation, reason string) {
 	if entry.proofKey == "" {
 		return
 	}
 	delete(r.activeKeys, entry.proofKey)
 	if r.publications != nil {
-		r.publications.SetPublicationFailure(entry.proofKey, store.ReasonUnresolvedOwner)
+		r.publications.SetPublicationFailure(entry.proofKey, reason)
 		r.publications.RetirePublicationFailure(entry.proofKey)
 	}
 }

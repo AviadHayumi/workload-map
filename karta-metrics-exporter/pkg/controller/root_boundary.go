@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
 type versionCounts map[schema.GroupKind]map[schema.GroupVersionKind]int
@@ -47,25 +48,41 @@ func (r *Reader) terminalOwnerBoundary(object metav1.Object) bool {
 }
 
 func terminalOwnerBoundary(object metav1.Object, ignored []schema.GroupVersionKind) bool {
+	owner, valid := controllerOwner(object)
+	return valid && (owner.UID == "" || slices.Contains(ignored, owner.GVK))
+}
+
+func controllerOwner(object metav1.Object) (discovery.ObjectRef, bool) {
 	var controller *metav1.OwnerReference
 	for _, owner := range object.GetOwnerReferences() {
 		if owner.Controller == nil || !*owner.Controller {
 			continue
 		}
 		if controller != nil {
-			return false
+			return discovery.ObjectRef{}, false
 		}
 		candidate := owner
 		controller = &candidate
 	}
 	if controller == nil {
-		return true
+		return discovery.ObjectRef{}, true
 	}
 	gv, err := schema.ParseGroupVersion(controller.APIVersion)
 	if err != nil || gv.Version == "" || controller.Name == "" || controller.Kind == "" || controller.UID == "" {
-		return false
+		return discovery.ObjectRef{}, false
 	}
-	return slices.Contains(ignored, gv.WithKind(controller.Kind))
+	return discovery.ObjectRef{GVK: gv.WithKind(controller.Kind), Name: controller.Name, UID: controller.UID}, true
+}
+
+// A newer object version supersedes verification, but does not by itself mean
+// its controller owner disappeared. Non-controller references are not traversed.
+func objectChangeReason(previous, current metav1.Object) string {
+	before, beforeValid := controllerOwner(previous)
+	after, afterValid := controllerOwner(current)
+	if previous.GetUID() != current.GetUID() || !beforeValid || !afterValid || before != after {
+		return store.ReasonUnresolvedOwner
+	}
+	return store.ReasonAPIUnavailable
 }
 
 // Runtime and Reader are locked by the caller. A publication's removal must not

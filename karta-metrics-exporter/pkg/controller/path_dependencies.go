@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
 type pathDependent struct {
@@ -43,13 +42,13 @@ func (r *Runtime) removePodPathLocked(root *rootState, pod types.UID) {
 	delete(root.paths, pod)
 }
 
-func (r *Runtime) invalidatePathDependentsLocked(ref discovery.ObjectRef) {
+func (r *Runtime) invalidatePathDependentsLocked(ref discovery.ObjectRef, reason string) {
 	for pod, dependency := range r.pathDependents[keyOf(ref)] {
 		if dependency.owner != ref.UID {
 			continue
 		}
 		if root := r.roots[r.podRoots[pod]]; root != nil {
-			r.invalidatePodLocked(root, pod, store.ReasonUnresolvedOwner)
+			r.invalidatePodLocked(root, pod, reason)
 			r.queue.Add(queueKey{Operation: "object", Object: keyOf(dependency.pod), UID: pod})
 		}
 	}
