@@ -18,7 +18,8 @@ A supplied NetworkPolicy selects only exporter Pods. It permits ingress from the
 suite's Prometheus Pods and egress to the local Kubernetes API endpoints on TCP
 443/6443. Endpoint addresses are discovered locally and never written to evidence.
 An unauthorized Pod must connect before policy installation and fail afterward.
-A root created after policy installation must appear in Prometheus. This checks
+The exporter restarts under the policy before a new root is created. That root
+must appear in Prometheus through new API connections. This checks
 both fresh API reads and allowed metrics ingress. It does not add a chart policy
 API or claim coverage of other CNIs.
 
