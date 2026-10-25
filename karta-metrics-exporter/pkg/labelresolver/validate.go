@@ -18,6 +18,7 @@ var reservedLabels = map[string]bool{
 	"component": true, "component_instance": true, "replica_group_id": true,
 	"observation_valid": true, "phase": true, "karta": true, "karta_source": true,
 	"job": true, "instance": true,
+	"otel_scope_name": true, "otel_scope_version": true, "otel_scope_schema_url": true,
 }
 
 // ValidateConfig checks rule structure without compiling or evaluating expressions.

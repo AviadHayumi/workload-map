@@ -27,3 +27,14 @@ configuration. Resolve creates fresh result maps on every call. Missing source
 objects are per-label errors and permit fallback. Unknown or duplicate requested
 metrics are invalid input. A canceled context stops resolution immediately.
 The resolver supports concurrent calls with immutable input objects.
+
+Workload evaluation results use a 1024-entry FIFO cache keyed by workload UID,
+resourceVersion and compiled rule. The Kubernetes object contents must be
+unchanged for the same UID and resourceVersion. Missing identities or versions
+bypass the cache. Deterministic evaluation errors remain available for fallback;
+cancellation errors are never cached. Pod results are evaluated separately.
+Concurrent cache misses can evaluate independently, without holding the cache
+lock during CEL execution.
+
+The OTel scope label names `otel_scope_name`, `otel_scope_version` and
+`otel_scope_schema_url` are reserved along with the metric's built-in labels.
