@@ -23,6 +23,8 @@ for commands, topology, diagnostic overhead and acceptance gates.
   converged in 13.46 seconds at unchanged API budgets. The pre-priming run
   failed its 180-second deadline with 3,256 of 10,000 Pod mappings. Both raw
   reports and their exact sources are preserved.
+- [Scalar JQ reuse microbenchmark](results/jq-reuse/README.md): five matched
+  repeats measure compilation/evaluation cost, not full-runtime capacity.
 - [Warm owner-walk measurements](results/owner-walk/README.md): repeated small
   comparisons with the old PoC and k8s-workload-discovery. Read the
   [comparison scope](ownership/README.md); these are not full-runtime results.

@@ -248,6 +248,15 @@ gates, and cannot retrospectively turn earlier failures into passes.
 
 Large scenario gates remain unverified until their full runs complete.
 
+Modeled API runs complement kind tests: they make large object counts and
+controlled LIST/WATCH failures practical, while kind exercises real API and
+operator behavior. Upstream [kube-state-metrics benchmarks](https://github.com/kubernetes/kube-state-metrics/blob/0c043c480319b17a7b1325429c8651e6e204b490/pkg/app/server_test.go#L64-L147)
+and [client-go indexer benchmarks](https://github.com/kubernetes/kubernetes/blob/121abd026c869bdb9b3896ac64190efcdb8d70cb/staging/src/k8s.io/client-go/tools/cache/thread_safe_store_test.go#L288-L315)
+also use synthetic inputs for scoped measurements. An individual full run is a
+scenario outcome, not statistical confidence in a performance comparison.
+Matched microbenchmark repeats retain raw variation; none of these measurements
+establish production API-server capacity.
+
 ## Historical evidence
 
 The historical runtime at `63d74fc` passed 100k roots with one Pod at 7.072 GiB

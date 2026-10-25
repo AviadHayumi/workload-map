@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq/execution
+cpu: Apple M4 Pro
+BenchmarkFreshRunnerStatus-14              	  139119	      7593 ns/op	   10986 B/op	     166 allocs/op
+BenchmarkFreshRunnerStatus-14              	  150345	      7025 ns/op	   10990 B/op	     166 allocs/op
+BenchmarkFreshRunnerStatus-14              	  178706	      7354 ns/op	   10987 B/op	     166 allocs/op
+BenchmarkFreshRunnerStatus-14              	  179454	      6825 ns/op	   10986 B/op	     166 allocs/op
+BenchmarkFreshRunnerStatus-14              	  152142	      7252 ns/op	   10988 B/op	     166 allocs/op
+BenchmarkFreshRunnerStatusTwoWorkers-14    	  226446	      5875 ns/op	   11601 B/op	     176 allocs/op
+BenchmarkFreshRunnerStatusTwoWorkers-14    	  156727	      6433 ns/op	   11650 B/op	     177 allocs/op
+BenchmarkFreshRunnerStatusTwoWorkers-14    	  172915	      6209 ns/op	   11645 B/op	     177 allocs/op
+BenchmarkFreshRunnerStatusTwoWorkers-14    	  221362	      5595 ns/op	   11584 B/op	     176 allocs/op
+BenchmarkFreshRunnerStatusTwoWorkers-14    	  189261	      5953 ns/op	   11608 B/op	     176 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq/execution	12.111s
