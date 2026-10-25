@@ -874,6 +874,8 @@ def run(args):
                     rejections=collections.Counter()
                     entries=list(pending_snapshot.items())
                     for offset in range(0,len(entries),100):
+                        if churn_intervals.overdue(time.monotonic(),args.publication_latency_seconds):
+                            raise RuntimeError("changed root did not recover a verified publication within the latency bound")
                         batch=dict(entries[offset:offset+100])
                         query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in batch])
                         batch_started=time.monotonic()
@@ -885,6 +887,8 @@ def run(args):
                                 uid=f"job-{root}-g{fixture.generations.get(root,0)}"
                                 publication=publications.get(uid,{})
                                 if verified_publication(publication,fixture,root,version):
+                                    if observed-sent > args.publication_latency_seconds:
+                                        raise RuntimeError("publication acknowledgment exceeded the latency bound")
                                     churn_intervals.acknowledge(root,observed)
                                     latencies.append(observed-sent)
                                     del pending[root]

@@ -497,5 +497,51 @@ class HotRootTests(unittest.TestCase):
             FixedSchedule(300,100,1).due(1.001,blocked=True)
 
 
+class AckDeadlineWiringTests(unittest.TestCase):
+    def execute_round(self, count, response_times, exit_advance=0):
+        tree=ast.parse(inspect.getsource(runtime_scale.run))
+        loop=next(n for n in ast.walk(tree) if isinstance(n,ast.For) and isinstance(n.target,ast.Name) and n.target.id=="offset")
+        clock=[0.0]
+        calls=[]
+        intervals=ChurnIntervals()
+        pending={i:("1",0.0) for i in range(count)}
+        for root in pending: intervals.begin(root,0)
+        class Condition:
+            def __enter__(self): return self
+            def __exit__(self,*args): clock[0]+=exit_advance
+            def notify_all(self): pass
+        def diagnostic(path):
+            calls.append(path)
+            clock[0]=response_times[len(calls)-1]
+            return {f"job-{i}-g0":{"valid":True,"resource_version":"1"} for i in range(count)}
+        namespace=dict(vars(runtime_scale),entries=list(pending.items()),pending=pending,
+            fixture=SimpleNamespace(generations={}),args=SimpleNamespace(publication_latency_seconds=5),
+            time=SimpleNamespace(monotonic=lambda:clock[0]),churn_intervals=intervals,
+            diagnostic=diagnostic,verified_publication=lambda *args:True,
+            emission_condition=Condition(),latencies=[],batch_timings=[],rejections=runtime_scale.collections.Counter(),
+            report={"sustained_churn":{}},churn_started=0)
+        with self.assertRaisesRegex(RuntimeError,"latency bound"):
+            exec(compile(ast.Module(body=[loop],type_ignores=[]),"actual_ack_batches","exec"),namespace)
+        return pending,calls,namespace["latencies"]
+
+    def test_later_batch_checks_deadline_before_issuing_request(self):
+        pending,calls,latencies=self.execute_round(101,[4.9],exit_advance=0.2)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(list(pending),[100])
+        self.assertEqual(len(latencies),100)
+
+    def test_single_http_response_cannot_ack_after_deadline(self):
+        pending,calls,latencies=self.execute_round(1,[5.001])
+        self.assertEqual(len(calls),1)
+        self.assertEqual(list(pending),[0])
+        self.assertEqual(latencies,[])
+
+    def test_later_http_response_cannot_ack_after_deadline(self):
+        pending,calls,latencies=self.execute_round(101,[4.9,5.001])
+        self.assertEqual(len(calls),2)
+        self.assertEqual(list(pending),[100])
+        self.assertEqual(len(latencies),100)
+
+
 if __name__ == "__main__":
     unittest.main()
