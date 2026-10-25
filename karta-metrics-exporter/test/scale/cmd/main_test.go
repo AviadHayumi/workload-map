@@ -4,7 +4,10 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -60,6 +63,34 @@ var _ = Describe("test diagnostics", func() {
 		Expect(result.Queues["roots.queue_latency_seconds"]["count"]).To(Equal(float64(400)))
 		Expect(result.Queues["roots.queue_latency_seconds"]["sum"]).To(Equal(float64(100)))
 		Expect(result.HeapAlloc).To(BeNumerically(">", 0))
+	})
+	It("optionally captures a heap profile after the same GC snapshot", func() {
+		d := diagnostic{queues: &queueProvider{metrics: map[string]*queueMetric{}}}
+		server := httptest.NewServer(d.handler())
+		defer server.Close()
+		for _, path := range []string{"/gc", "/gc?heap=1"} {
+			response, err := http.Post(server.URL+path, "", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.StatusCode).To(Equal(http.StatusOK))
+			var result gcSnapshot
+			Expect(json.NewDecoder(response.Body).Decode(&result)).To(Succeed())
+			response.Body.Close()
+			Expect(result.GCCompletedAt.Before(result.GCStartedAt)).To(BeFalse())
+			Expect(result.SnapshotAt.Before(result.GCCompletedAt)).To(BeFalse())
+			Expect(result.HeapAlloc).To(BeNumerically(">", 0))
+			if path == "/gc" {
+				Expect(result.HeapProfile).To(BeEmpty())
+				continue
+			}
+			Expect(result.ProfileStartedAt.Before(result.SnapshotAt)).To(BeFalse())
+			Expect(result.ProfileCompletedAt.Before(result.ProfileStartedAt)).To(BeFalse())
+			reader, err := gzip.NewReader(bytes.NewReader(result.HeapProfile))
+			Expect(err).NotTo(HaveOccurred())
+			profile, err := io.ReadAll(reader)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(reader.Close()).To(Succeed())
+			Expect(profile).NotTo(BeEmpty())
+		}
 	})
 	It("acknowledges only a coherent valid captured publication over HTTP", func() {
 		now := time.Now()

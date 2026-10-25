@@ -613,6 +613,7 @@ def run(args):
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
     report["measurement_protocol"] = "2: HTTP-excluded post-GC heap; independent queue-drain polling"
+    report["heap_profiles_enabled"] = args.heap_profiles
     report["source_revision"] = args.source_revision
     report["publication_latency_limit_seconds"] = args.publication_latency_seconds
     report["queue_drain_limit_seconds"] = args.queue_drain_seconds
@@ -666,8 +667,12 @@ def run(args):
 
     diagnostic_traffic = collections.Counter()
     diagnostic_lock = threading.Lock()
+    heap_profile_number = 0
 
     def diagnostic(path="/stats", method="GET"):
+        nonlocal heap_profile_number
+        if path == "/gc" and args.heap_profiles:
+            path = "/gc?heap=1"
         request=urllib.request.Request(f"http://127.0.0.1:{diagnostics_port}{path}", method=method)
         request_started = time.monotonic()
         with urllib.request.urlopen(request,timeout=5) as response:
@@ -676,7 +681,15 @@ def run(args):
             diagnostic_traffic["requests"] += 1
             diagnostic_traffic["response_bytes"] += len(payload)
             diagnostic_traffic["http_seconds"] += time.monotonic()-request_started
-        return json.loads(payload)
+        result=json.loads(payload)
+        encoded=result.pop("heap_profile_base64",None)
+        if encoded is not None:
+            data=base64.b64decode(encoded,validate=True)
+            heap_profile_number+=1
+            profile_path=output / f"heap-{heap_profile_number:03d}.pprof"
+            profile_path.write_bytes(data)
+            result["heap_profile"]={"file":profile_path.name,"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()}
+        return result
 
 
     def monitor():
@@ -1032,6 +1045,7 @@ def main():
     parser.add_argument("--continuity-seconds", type=float, default=5)
     parser.add_argument("--refresh-seconds", type=float, default=0)
     parser.add_argument("--watch-faults", action="store_true")
+    parser.add_argument("--heap-profiles", action="store_true", help="Diagnostic-only: save sampled heap profiles after existing GC requests; adds profile serialization overhead")
     parser.add_argument("--diagnostics", action="store_true", help="Binary is the test/scale/cmd wrapper")
     parser.add_argument("--churn-seconds", type=float, default=0)
     parser.add_argument("--churn-rate", type=float, default=100, help="Positive events/s; fractional rates are preserved")
@@ -1056,6 +1070,8 @@ def main():
     parser.add_argument("--delete-percent", type=int, default=10)
     parser.add_argument("--settle-seconds", type=int, default=30)
     args = parser.parse_args()
+    if args.heap_profiles and not args.diagnostics:
+        parser.error("heap profiles require the test diagnostics wrapper")
     if args.publication_latency_seconds is None:
         args.publication_latency_seconds = 10 if args.pods>=10 else 5
     if args.queue_drain_seconds is None:

@@ -230,6 +230,22 @@ reports, including the 17be01f1 failure whose final GC overlapped collection,
 remain unchanged and do not become passes under this protocol. The production
 command does not force GC; this remains an instrumented production composition.
 
+Optional `--heap-profiles` is for diagnosis, not a matched acceptance run.
+It requests `/gc?heap=1` from the test wrapper. The wrapper performs the same
+single GC, reads MemStats, and then serializes `pprof.Lookup("heap")` without
+another GC. The harness saves `heap-NNN.pprof` files and records each file's
+size, SHA256, GC start/end, snapshot time and profile start/end timestamps.
+Profile bytes are removed from the JSON report after saving. Capture and response
+serialization add work and temporary allocations; diagnostic traffic/timing and
+inclusive RSS expose that cost. The ordinary path does not collect profiles.
+
+A heap profile is sampled Go allocation evidence, not an exact census of live
+objects. Concurrent runtime work and Go heap-profile accounting affect what it
+contains. Compare profiles from identified low/high samples with the exact
+binary, for example `go tool pprof -sample_index=inuse_space <binary> <profile>`.
+Short diagnostic runs cannot establish the 180-second heap or five-minute churn
+gates, and cannot retrospectively turn earlier failures into passes.
+
 Large scenario gates remain unverified until their full runs complete.
 
 ## Historical evidence

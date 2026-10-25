@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -54,6 +56,16 @@ type stats struct {
 	NumGC        uint32                        `json:"gc_count"`
 	Goroutines   int                           `json:"goroutines"`
 	Queues       map[string]map[string]float64 `json:"queues"`
+}
+
+type gcSnapshot struct {
+	stats
+	GCStartedAt        time.Time `json:"gc_started_at"`
+	GCCompletedAt      time.Time `json:"gc_completed_at"`
+	SnapshotAt         time.Time `json:"snapshot_at"`
+	ProfileStartedAt   time.Time `json:"profile_started_at,omitempty"`
+	ProfileCompletedAt time.Time `json:"profile_completed_at,omitempty"`
+	HeapProfile        []byte    `json:"heap_profile_base64,omitempty"`
 }
 
 func (m *queueMetric) Inc()          { m.mu.Lock(); m.Value++; m.mu.Unlock() }
@@ -115,8 +127,22 @@ func (d diagnostic) handler() http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		result := gcSnapshot{GCStartedAt: time.Now()}
 		runtime.GC()
-		writeJSON(w, d.stats())
+		result.GCCompletedAt = time.Now()
+		result.stats = d.stats()
+		result.SnapshotAt = time.Now()
+		if r.URL.Query().Get("heap") == "1" {
+			result.ProfileStartedAt = time.Now()
+			var profile bytes.Buffer
+			if err := pprof.Lookup("heap").WriteTo(&profile, 0); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			result.HeapProfile = profile.Bytes()
+			result.ProfileCompletedAt = time.Now()
+		}
+		writeJSON(w, result)
 	})
 	mux.HandleFunc("/publications", func(w http.ResponseWriter, r *http.Request) {
 		uids := r.URL.Query()["uid"]
