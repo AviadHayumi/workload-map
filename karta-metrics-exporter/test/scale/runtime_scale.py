@@ -605,6 +605,7 @@ def run(args):
         config["apiBurst"] = args.api_burst
     if args.workers is not None:
         config["workers"] = args.workers
+    config["maxAge"] = "120s"
     report["exporter_config"] = config
     report["client_budget"] = {"qps":args.api_qps,"burst":args.api_burst,"workers":args.workers,"source":"explicit config values when supplied; null means executable defaults, verify its source"}
     report["refresh_seconds"] = args.refresh_seconds or 45

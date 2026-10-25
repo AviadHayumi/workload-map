@@ -87,6 +87,35 @@ host. A missing measurement leaves its gate unverified.
 reports observed performance limits. A short smoke run cannot satisfy the
 five-minute churn duration gate.
 
+## Dense default and tuned API profiles
+
+The 100k-root/10-Pod fixture contains 100,000 Jobs, 100,000 intermediate
+ReplicaSets and 1,000,000 Pods in one Namespace. Each 500-item verification
+round needs 2,000 Pod pages, 200 Job pages, 200 retained ReplicaSet metadata
+pages and one Namespace page: 2,401 LIST requests. ReplicaSets have no WATCH.
+At a 45-second refresh interval, the minimum average is 53.36 requests/s.
+The default 20 QPS supplies only 900 requests per interval. Its burst of 40
+cannot cover the sustained deficit. These counts exclude discovery, WATCH
+connections, retries and cold GET races. They establish an API request floor,
+not a prediction of processing time or production API-server capacity.
+
+Run the default dense profile first at `--api-qps 20 --api-burst 40` and retain
+its measured result, including any failure under the existing bounds. Then run
+a separately named tuned profile at `--api-qps 100 --api-burst 200`.
+The tuned profile changes API configuration, not the algorithm. It does not
+turn a failed default profile into a pass. At 100 QPS, one round consumes at
+least 24.01 seconds of sustained request capacity before other work.
+
+Both dense profiles retain two workers, 45-second refresh, explicit
+`maxAge: 120s`, RSS <=16 GiB and GOMEMLIMIT=12 GiB. Cold start stays <=300
+seconds, HTTP <=25 seconds and oracle <=120 seconds. Each still requires
+30,000 verified events over 300 seconds at 100 events/s, publication p99 <=10
+seconds, drain <=60 seconds, the one-second scheduler lateness bound and the
+existing heap/deletion gates. Record separate source hashes, configuration and
+results. The 100k-root/0-Pod, 100k-root/1-Pod and giant-root profiles remain at
+20 QPS with burst 40. The harness writes `maxAge: 120s` explicitly for every
+profile so the source freshness bound appears in each result's configuration.
+
 ## Giant-root workload
 
 The giant-root case is one Job with 100,000 Pods. It emits 0.05 root updates/s,
