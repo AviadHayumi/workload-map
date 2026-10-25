@@ -109,14 +109,11 @@ func (i *Inventory) lookup(gvk schema.GroupVersionKind) (Selection, error) {
 	if !ok {
 		entry = i.catalog[gvk.GroupKind()]
 	}
-	if entry.err != nil {
-		return Selection{}, entry.err
-	}
 	result := entry.selection
 	if result.Definition != nil {
 		result.Definition = result.Definition.DeepCopy()
 	}
-	return result, nil
+	return result, entry.err
 }
 
 func elect(definitions map[string]*v1alpha1.Karta, source Source) map[schema.GroupKind]cachedSelection {
@@ -130,16 +127,16 @@ func elect(definitions map[string]*v1alpha1.Karta, source Source) map[schema.Gro
 	}
 	result := make(map[schema.GroupKind]cachedSelection, len(winners))
 	for key, k := range winners {
-		if err := v1alpha1.NewKartaValidator(k).Validate(); err != nil {
-			result[key] = cachedSelection{err: fmt.Errorf("%w: %s: %w", ErrInvalidDefinition, k.Name, err)}
-			continue
-		}
 		origin := Origin{Source: source, Name: k.Name}
 		if source == SourceCluster {
 			origin.UID = k.UID
 			origin.ResourceVersion = k.ResourceVersion
 		}
-		result[key] = cachedSelection{selection: Selection{Definition: k, GVK: catalog.RootKey(k), Origin: origin}}
+		entry := cachedSelection{selection: Selection{Definition: k, GVK: catalog.RootKey(k), Origin: origin}}
+		if err := v1alpha1.NewKartaValidator(k).Validate(); err != nil {
+			entry.err = fmt.Errorf("%w: %s: %w", ErrInvalidDefinition, k.Name, err)
+		}
+		result[key] = entry
 	}
 	return result
 }
@@ -252,7 +249,7 @@ func (i *Inventory) Selections() ([]Selection, error) {
 	result := make([]Selection, 0, len(keys))
 	for _, gvk := range keys {
 		selection, err := i.lookup(gvk)
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrInvalidDefinition) {
 			return nil, err
 		}
 		if selection.Definition != nil {

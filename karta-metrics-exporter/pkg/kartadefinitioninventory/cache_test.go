@@ -164,6 +164,43 @@ var _ = Describe("inventory snapshots", func() {
 		s.stream.Delete(bad)
 		Eventually(func() string { v, _ := i.Lookup(gvk); return v.Origin.Name }).Should(Equal("valid"))
 	})
+	It("isolates invalid definitions while keeping selected metadata visible", func() {
+		bad := definition("invalid-deployment", 1)
+		bad.Spec.StructureDefinition.RootComponent.Name = ""
+		missing := definition("missing-root-kind", 2)
+		missing.Spec.StructureDefinition.RootComponent.Kind = nil
+		jobGVK := schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}
+		job, err := catalog.Get(jobGVK)
+		Expect(err).NotTo(HaveOccurred())
+		job.Name = "valid-job"
+		s.list.Items = []v1alpha1.Karta{*bad, *missing, *job}
+		var invErr error
+		i, invErr = New(Config{Cluster: ClusterConfig{Enabled: true}}, s)
+		Expect(invErr).NotTo(HaveOccurred())
+		ctx, c := context.WithCancel(context.Background())
+		cancel = c
+		done = make(chan error, 1)
+		go func() { done <- i.Run(ctx) }()
+		Eventually(func() error { _, err := i.Lookup(jobGVK); return err }).Should(Succeed())
+		chosen, err := i.Lookup(gvk)
+		Expect(errors.Is(err, ErrInvalidDefinition)).To(BeTrue())
+		Expect(chosen.Origin.Name).To(Equal(bad.Name))
+		Expect(chosen.GVK).To(Equal(gvk))
+		chosen.Definition.Name = "mutated"
+		chosenAgain, _ := i.Lookup(gvk)
+		Expect(chosenAgain.Definition.Name).To(Equal(bad.Name))
+		chosen, err = i.Lookup(jobGVK)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(chosen.Origin.Name).To(Equal(job.Name))
+		selections, err := i.Selections()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(selections).To(HaveLen(3))
+		chosen, err = i.Lookup(schema.GroupVersionKind{})
+		Expect(errors.Is(err, ErrInvalidDefinition)).To(BeTrue())
+		Expect(chosen.Origin.Name).To(Equal(missing.Name))
+		Expect(chosen.GVK).To(Equal(schema.GroupVersionKind{}))
+	})
+
 	It("exposes initial LIST failure instead of catalog fallback", func() {
 		s.err = errors.New("source failed")
 		var err error
