@@ -59,12 +59,19 @@ func (r *runner) Evaluate(ctx context.Context, expression string) ([]any, error)
 		return nil, fmt.Errorf("failed to get JSON data: %w", err)
 	}
 
-	query, err := r.compile(expression, nil)
-	if err != nil {
-		return nil, err
+	program := programs.take(expression)
+	if program == nil {
+		query, err := r.compile(expression, nil)
+		if err != nil {
+			return nil, err
+		}
+		program = &compiledProgram{code: query, uses: 1}
 	}
-
-	return r.safeRunWithVariables(ctx, query, objectData, expression, nil)
+	results, err := r.safeRunWithVariables(ctx, program.code, objectData, expression, nil)
+	if err == nil && hasOnlyScalarResults(results) {
+		programs.put(expression, program)
+	}
+	return results, err
 }
 
 func (r *runner) Assign(ctx context.Context, expression string, value any) error {
