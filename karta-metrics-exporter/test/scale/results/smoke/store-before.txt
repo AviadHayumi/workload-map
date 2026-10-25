@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store
+cpu: Apple M4 Pro
+BenchmarkPodMutations/1000/lookup_last-4         	  151138	      2410 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPodMutations/1000/replace_last_publish-4         	   19162	     18209 ns/op	   41441 B/op	       4 allocs/op
+BenchmarkPodMutations/1000/insert_delete_publish-4        	   10000	     33167 ns/op	   82864 B/op	       8 allocs/op
+BenchmarkPodMutations/1000/refresh_all_publish-4          	    3957	     90949 ns/op	  361432 B/op	      22 allocs/op
+BenchmarkPodMutations/1000/build_all-4                    	    8374	     44407 ns/op	  361241 B/op	      14 allocs/op
+BenchmarkPodMutations/100000/lookup_last-4                	    1322	    287294 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPodMutations/100000/replace_last_publish-4       	    1174	    318462 ns/op	   49929 B/op	      10 allocs/op
+BenchmarkPodMutations/100000/insert_delete_publish-4      	    1429	    261198 ns/op	   99856 B/op	      20 allocs/op
+BenchmarkPodMutations/100000/refresh_all_publish-4        	      37	   9445530 ns/op	36049376 B/op	    1576 allocs/op
+BenchmarkPodMutations/100000/build_all-4                  	      98	   3500822 ns/op	36011584 B/op	     788 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store	4.908s

@@ -1,0 +1,2003 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "custom_label": "team",
+  "expected_team": "scale-team",
+  "harness_sha256": "6ac1b1409ae6be9de355e8f342fc5bdec25358748b4ba500e7fcff05a8b31170",
+  "roots": 10,
+  "pods_per_root": 1,
+  "page_size": 500,
+  "poll_seconds": 0.2,
+  "settle_seconds": 0,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP response transfer to disk; oracle timed separately",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "max_seconds": 90,
+  "stage_seconds": 30,
+  "scrape_seconds": 60,
+  "oracle_seconds": 60,
+  "binary_sha256": "052cf9a959f280180aaff4533b9456f6c5fe4b054c59b43c43cf07e90984dcb8",
+  "unavailable_measurements": [
+    "exact event-to-publication timestamp (diagnostic polling gives an upper bound)"
+  ],
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0102
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0003
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 764,
+            "health_rows": 3,
+            "health_failures": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0002,
+          "http_seconds": 0.0034,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0032,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0015,
+          "http_seconds": 0.0058,
+          "response_headers_seconds": 0.0034,
+          "scrape_seconds": 0.0078
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0015,
+          "http_seconds": 0.0049,
+          "response_headers_seconds": 0.0029,
+          "scrape_seconds": 0.0073
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0018,
+          "http_seconds": 0.0052,
+          "response_headers_seconds": 0.0029,
+          "scrape_seconds": 0.0078
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0023,
+          "http_seconds": 0.0058,
+          "response_headers_seconds": 0.0036,
+          "scrape_seconds": 0.0086
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      },
+      "seconds": 1.8854,
+      "api_after": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 28865,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 1,
+          "pods.objects.metadata": 10,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37060608,
+      "cpu_percent": 4.8,
+      "cpu_seconds": 0.08,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 4476608,
+        "total_alloc_bytes": 12023208,
+        "heap_objects": 40350,
+        "gc_count": 6,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 68
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.39107025
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 68,
+            "max": 0.780493875,
+            "sum": 14.643007205999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 40
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.583085917
+          },
+          "exporter.work_duration_seconds": {
+            "count": 67,
+            "max": 0.402269958,
+            "sum": 1.812308748,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0021,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0062
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 28865,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 1,
+          "pods.objects.metadata": 10,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0062,
+      "api_after": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 28865,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 1,
+          "pods.objects.metadata": 10,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37371904,
+      "cpu_percent": 4.8,
+      "cpu_seconds": 0.08,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 5180496,
+        "total_alloc_bytes": 12727096,
+        "heap_objects": 48331,
+        "gc_count": 6,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 68
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.39107025
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 68,
+            "max": 0.780493875,
+            "sum": 14.643007205999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 40
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.583085917
+          },
+          "exporter.work_duration_seconds": {
+            "count": 67,
+            "max": 0.402269958,
+            "sum": 1.812308748,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0018,
+          "http_seconds": 0.0036,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.0056
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 28865,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 1,
+          "pods.objects.metadata": 10,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0056,
+      "api_after": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 28865,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 1,
+          "pods.objects.metadata": 10,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37421056,
+      "cpu_percent": 4.8,
+      "cpu_seconds": 0.09,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 3329064,
+        "total_alloc_bytes": 13448016,
+        "heap_objects": 27592,
+        "gc_count": 7,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 68
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.39107025
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 68,
+            "max": 0.780493875,
+            "sum": 14.643007205999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 40
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.583085917
+          },
+          "exporter.work_duration_seconds": {
+            "count": 67,
+            "max": 0.402269958,
+            "sum": 1.812308748,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "after_sustained_churn",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0028,
+          "http_seconds": 0.0069,
+          "response_headers_seconds": 0.0042,
+          "scrape_seconds": 0.0105
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 44972,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 20
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 21,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 21
+        }
+      },
+      "seconds": 0.0106,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 44972,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 20
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 21,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 21
+        }
+      },
+      "rss_bytes": 37552128,
+      "cpu_percent": 2.2,
+      "cpu_seconds": 0.14,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 5110664,
+        "total_alloc_bytes": 17663624,
+        "heap_objects": 48379,
+        "gc_count": 10,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 128
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 128,
+            "max": 0.780493875,
+            "sum": 14.649038367999996,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 100
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 128,
+            "max": 0.402269958,
+            "sum": 2.2219423760000003,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "single_pod_label_update",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 1,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.002,
+          "http_seconds": 0.006,
+          "response_headers_seconds": 0.0036,
+          "scrape_seconds": 0.0082
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0036
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 44972,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 20
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 21
+        }
+      },
+      "seconds": 0.2135,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 45867,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 20,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 21,
+          "pods": 22
+        }
+      },
+      "rss_bytes": 37568512,
+      "cpu_percent": 3.7,
+      "cpu_seconds": 0.15,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 4642312,
+        "total_alloc_bytes": 19189528,
+        "heap_objects": 40418,
+        "gc_count": 11,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 130
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 130,
+            "max": 0.780493875,
+            "sum": 14.649060908999996,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 102
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 130,
+            "max": 0.402269958,
+            "sum": 2.2224500840000005,
+            "value": 0
+          }
+        }
+      },
+      "limitation": "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
+    },
+    {
+      "name": "status_and_pod_churn",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0017,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31435,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0038
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 45867,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 20,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 42,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 21,
+          "pods": 22
+        }
+      },
+      "seconds": 0.2077,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 60597,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 30,
+          "pods.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 42,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 41,
+          "pods": 42
+        }
+      },
+      "rss_bytes": 37584896,
+      "cpu_percent": 2.5,
+      "cpu_seconds": 0.16,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 5075792,
+        "total_alloc_bytes": 21855784,
+        "heap_objects": 49200,
+        "gc_count": 12,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 160
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 160,
+            "max": 0.780493875,
+            "sum": 14.652614869999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 142
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 160,
+            "max": 0.402269958,
+            "sum": 2.224055373,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "deletion_cleanup",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0033,
+          "response_headers_seconds": 0.0024,
+          "scrape_seconds": 0.0045
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 60597,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 30,
+          "pods.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 45,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 41,
+          "pods": 42
+        }
+      },
+      "seconds": 0.0045,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 62068,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 31,
+          "pods.watch_events": 12
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 45,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 45,
+          "pods": 43
+        }
+      },
+      "rss_bytes": 37601280,
+      "cpu_percent": 2.5,
+      "cpu_seconds": 0.16,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 5769728,
+        "total_alloc_bytes": 22549720,
+        "heap_objects": 57007,
+        "gc_count": 12,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 161
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 161,
+            "max": 0.780493875,
+            "sum": 14.652617203999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 143
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 161,
+            "max": 0.402269958,
+            "sum": 2.224083831,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "same_name_recreation",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 1,
+            "missing_pods": 1,
+            "missing_status_roots": 1,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.016,
+          "response_headers_seconds": 0.0025,
+          "scrape_seconds": 0.0171
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31435,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0038
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 62068,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "jobs.watch_events": 31,
+          "pods.watch_events": 12
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 48,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 45,
+          "pods": 43
+        }
+      },
+      "seconds": 0.2248,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 63790,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "jobs.watch_events": 32,
+          "pods.watch_events": 13
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 48,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 46,
+          "pods": 48
+        }
+      },
+      "rss_bytes": 37732352,
+      "cpu_percent": 2.1,
+      "cpu_seconds": 0.17,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 4617072,
+        "total_alloc_bytes": 24044600,
+        "heap_objects": 39949,
+        "gc_count": 13,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 165
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 165,
+            "max": 0.780493875,
+            "sum": 14.652641286999998,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 145
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 165,
+            "max": 0.402269958,
+            "sum": 2.2250929139999998,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "delete_all_cleanup",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 25381,
+            "health_rows": 3,
+            "unexpected_identity": 88,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-2-0\",pod_uid=\"pod-2-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-2\",workload_uid=\"job-2-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-3-0\",pod_uid=\"pod-3-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-3\",workload_uid=\"job-3-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-4-0\",pod_uid=\"pod-4-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-4\",workload_uid=\"job-4-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-5-0\",pod_uid=\"pod-5-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-5\",workload_uid=\"job-5-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-6-0\",pod_uid=\"pod-6-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-6\",workload_uid=\"job-6-g0\",workload_version=\"v1\"} 1"
+          ],
+          "oracle_seconds": 0.0007,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0021
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 63790,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "jobs.watch_events": 32,
+          "pods.watch_events": 13
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 78,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 46,
+          "pods": 48
+        }
+      },
+      "seconds": 0.2103,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 78467,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "jobs.watch_events": 42,
+          "pods.watch_events": 23
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 78,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 2,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 78,
+          "pods": 76
+        }
+      },
+      "rss_bytes": 37781504,
+      "cpu_percent": 1.3,
+      "cpu_seconds": 0.17,
+      "diagnostics": {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 5591256,
+        "total_alloc_bytes": 25018784,
+        "heap_objects": 51036,
+        "gc_count": 13,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 172
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 172,
+            "max": 0.780493875,
+            "sum": 14.652699827999998,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 147
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 172,
+            "max": 0.402269958,
+            "sum": 2.2252197889999996,
+            "value": 0
+          }
+        }
+      }
+    }
+  ],
+  "test_diagnostics_wrapper": true,
+  "sustained_churn": {
+    "requested_seconds": 2.0,
+    "target_events_per_second": 10.0,
+    "emitted": 20,
+    "observed": 20,
+    "achieved_events_per_second": 10.0,
+    "publication_upper_bound_p99_seconds": 0.03242899999895599,
+    "publication_upper_bound_max_seconds": 0.03242899999895599,
+    "drain_seconds": 0.03569187499670079,
+    "gc_samples": [
+      {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 3153880,
+        "total_alloc_bytes": 13495280,
+        "heap_objects": 23129,
+        "gc_count": 8,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 69
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.39107025
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 69,
+            "max": 0.780493875,
+            "sum": 14.643011830999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 42
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0.583085917
+          },
+          "exporter.work_duration_seconds": {
+            "count": 68,
+            "max": 0.402269958,
+            "sum": 1.812327582,
+            "value": 0
+          }
+        },
+        "seconds": 0.0001
+      },
+      {
+        "baseline_heap_bytes": 2597216,
+        "heap_alloc_bytes": 3172904,
+        "total_alloc_bytes": 15725864,
+        "heap_objects": 23287,
+        "gc_count": 10,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 109
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 109,
+            "max": 0.780493875,
+            "sum": 14.648856409999997,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 82
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 109,
+            "max": 0.402269958,
+            "sum": 2.217042834000001,
+            "value": 0
+          }
+        },
+        "seconds": 1.0113
+      }
+    ],
+    "gc_sample_seconds": 1.0,
+    "final_window_heap_growth_fraction": 0.006031935267036159,
+    "poll_seconds": 0.01,
+    "measurement": "event emission to first diagnostic observation of exact published root RV; polling upper bound"
+  },
+  "post_delete_gc": {
+    "baseline_heap_bytes": 2597216,
+    "heap_alloc_bytes": 3067264,
+    "total_alloc_bytes": 25027280,
+    "heap_objects": 21481,
+    "gc_count": 14,
+    "goroutines": 52,
+    "queues": {
+      "exporter.adds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 172
+      },
+      "exporter.depth": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.longest_running_seconds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.queue_latency_seconds": {
+        "count": 172,
+        "max": 0.780493875,
+        "sum": 14.652699827999998,
+        "value": 0
+      },
+      "exporter.retries": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 147
+      },
+      "exporter.unfinished_work_seconds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.work_duration_seconds": {
+        "count": 172,
+        "max": 0.402269958,
+        "sum": 2.2252197889999996,
+        "value": 0
+      }
+    }
+  },
+  "post_delete_heap_gate": true,
+  "completed_all_stages": true,
+  "steady_validity_gaps": 0,
+  "complete": true,
+  "returncode": 0,
+  "measured_gates": {
+    "http_scrapes_under_25s": true,
+    "oracle_under_deadline": true
+  },
+  "elapsed_seconds": 4.8784,
+  "peak_sampled_rss_bytes": 37568512,
+  "diagnostic_samples": [
+    {
+      "baseline_heap_bytes": 2597216,
+      "heap_alloc_bytes": 3252856,
+      "total_alloc_bytes": 5880632,
+      "heap_objects": 23623,
+      "gc_count": 4,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 38
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 21
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 17,
+          "max": 0.198857541,
+          "sum": 0.213346165,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 8
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 15,
+          "max": 0.19707725,
+          "sum": 0.20692933200000002,
+          "value": 0
+        }
+      },
+      "seconds": 1.014
+    },
+    {
+      "baseline_heap_bytes": 2597216,
+      "heap_alloc_bytes": 4247352,
+      "total_alloc_bytes": 14588752,
+      "heap_objects": 38623,
+      "gc_count": 8,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 90
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0.39107025
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 90,
+          "max": 0.780493875,
+          "sum": 14.648751035999997,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 62
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0.583085917
+        },
+        "exporter.work_duration_seconds": {
+          "count": 90,
+          "max": 0.402269958,
+          "sum": 2.2147298750000006,
+          "value": 0
+        }
+      },
+      "seconds": 2.024
+    },
+    {
+      "baseline_heap_bytes": 2597216,
+      "heap_alloc_bytes": 3333600,
+      "total_alloc_bytes": 15886560,
+      "heap_objects": 25222,
+      "gc_count": 10,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 111
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 111,
+          "max": 0.780493875,
+          "sum": 14.648877283999997,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 84
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 111,
+          "max": 0.402269958,
+          "sum": 2.2178862510000004,
+          "value": 0
+        }
+      },
+      "seconds": 3.038
+    },
+    {
+      "baseline_heap_bytes": 2597216,
+      "heap_alloc_bytes": 3942936,
+      "total_alloc_bytes": 18490152,
+      "heap_objects": 32442,
+      "gc_count": 11,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 130
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 130,
+          "max": 0.780493875,
+          "sum": 14.649060908999996,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 102
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 130,
+          "max": 0.402269958,
+          "sum": 2.2224500840000005,
+          "value": 0
+        }
+      },
+      "seconds": 4.046
+    }
+  ],
+  "process_samples": [
+    {
+      "rss_bytes": 33832960,
+      "cpu_percent": 5.6,
+      "cpu_seconds": 0.04,
+      "seconds": 1.012
+    },
+    {
+      "rss_bytes": 37519360,
+      "cpu_percent": 8.4,
+      "cpu_seconds": 0.09,
+      "seconds": 2.022
+    },
+    {
+      "rss_bytes": 37552128,
+      "cpu_percent": 4.1,
+      "cpu_seconds": 0.12,
+      "seconds": 3.036
+    },
+    {
+      "rss_bytes": 37568512,
+      "cpu_percent": 5.5,
+      "cpu_seconds": 0.15,
+      "seconds": 4.045
+    }
+  ],
+  "cpu_seconds_last_sample": 0.15,
+  "limit_triggered": [],
+  "api": {
+    "requests": {
+      "all_requests": 31,
+      "response_bytes": 78467,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "pods.list.full": 1,
+      "pods.objects.full": 10,
+      "pods.list.metadata": 2,
+      "pods.objects.metadata": 20,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "jobs.list.metadata": 2,
+      "jobs.objects.metadata": 20,
+      "pods.watch": 1,
+      "replicasets.get.metadata": 11,
+      "jobs.watch": 1,
+      "jobs.watch_events": 42,
+      "pods.watch_events": 23
+    },
+    "max_page_objects": 10,
+    "active_watches": 3,
+    "revision": 78,
+    "completed_metadata_lists": {
+      "namespaces": 1,
+      "pods": 2,
+      "jobs": 1
+    },
+    "delivered_watch_versions": {
+      "jobs": 78,
+      "pods": 76
+    }
+  },
+  "harness_rss_bytes": 38551552
+}

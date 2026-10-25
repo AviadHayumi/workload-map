@@ -115,9 +115,32 @@ class APIFixtureTests(unittest.TestCase):
         with urllib.request.urlopen(request,timeout=2) as response:
             self.fixture.change_pod(0)
             event=json.loads(response.readline())
-        self.assertEqual(event["object"]["metadata"]["labels"]["team"],"updated-team")
+        self.assertEqual(event["object"]["metadata"]["labels"]["team"],"updated-team-2")
         after = self.fixture.snapshot()["requests"]
         self.assertEqual({k:v for k,v in before.items() if ".list." in k},{k:v for k,v in after.items() if ".list." in k})
+
+    def test_explicit_watch_eof_and_expiration(self):
+        url=self.endpoint+"/api/v1/namespaces/scale/pods?watch=true&resourceVersion=1"
+        with urllib.request.urlopen(url,timeout=2) as response:
+            self.fixture.interrupt_watch("pods")
+            self.assertEqual(response.readline(),b"")
+        with urllib.request.urlopen(url,timeout=2) as response:
+            self.fixture.interrupt_watch("pods",expired=True)
+            event=json.loads(response.readline())
+            self.assertEqual(event["type"],"ERROR")
+            self.assertEqual(event["object"]["code"],410)
+
+    def test_watch_update_during_paginated_metadata_list_keeps_snapshot(self):
+        self.fixture.change_during_list=True
+        first=self.get("/api/v1/namespaces/scale/pods",metadata=True)
+        token=first["metadata"]["continue"]
+        last=None
+        while token:
+            last=self.get("/api/v1/namespaces/scale/pods?continue="+urllib.parse.quote(token),metadata=True)
+            token=last["metadata"]["continue"]
+        self.assertEqual(last["items"][-1]["metadata"]["labels"]["team"],"scale-team")
+        current=self.get("/api/v1/namespaces/scale/pods/pod-2-1",metadata=True)
+        self.assertEqual(current["metadata"]["labels"]["team"],"updated-team-2")
 
 
 class OracleTests(unittest.TestCase):
@@ -155,13 +178,13 @@ class OracleTests(unittest.TestCase):
         self.fixture.change_pod(0)
         self.assertFalse(self.check(self.exposition)["complete"])
         lines=self.exposition.splitlines()
-        updated="\n".join(line.replace('team="scale-team"','team="updated-team"') if line.startswith("karta_pod_workload_info") else line for line in lines)
+        updated="\n".join(line.replace('team="scale-team"','team="updated-team-2"') if line.startswith("karta_pod_workload_info") else line for line in lines)
         self.assertTrue(self.check(updated)["complete"])
         self.fixture.change(0,delete=True)
         self.assertFalse(self.check(updated)["complete"])
         self.fixture.recreate(0)
         self.assertFalse(self.check(updated)["complete"])
-        self.assertTrue(self.check(updated.replace("-g0","-g1"))["complete"])
+        self.assertTrue(self.check(updated.replace("-g0","-g1").replace("updated-team-2", f"updated-team-{self.fixture.changed_pods[0]}"))["complete"])
 
 
 if __name__ == "__main__":

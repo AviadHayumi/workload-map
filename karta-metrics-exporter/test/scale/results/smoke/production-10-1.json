@@ -1,0 +1,1041 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "custom_label": "team",
+  "expected_team": "scale-team",
+  "harness_sha256": "14ce72943a5a4f1ef263235078b8b7f140d3cecb5b1254f4ae183182a6c573d9",
+  "roots": 10,
+  "pods_per_root": 1,
+  "page_size": 500,
+  "poll_seconds": 0.2,
+  "settle_seconds": 0,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP response transfer to disk; oracle timed separately",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "max_seconds": 90,
+  "stage_seconds": 30,
+  "scrape_seconds": 60,
+  "oracle_seconds": 60,
+  "binary_sha256": "c2c010e2ec10fb4df84791142ec54df20b2549d7a64398b3e3ba3ae4d2257369",
+  "unavailable_measurements": [
+    "per-event publication latency",
+    "queue backlog",
+    "queue drain time",
+    "live heap if no diagnostic metrics"
+  ],
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0108
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 764,
+            "health_rows": 3,
+            "health_failures": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0002,
+          "http_seconds": 0.0049,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0051
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0025
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0013,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0055
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.002,
+          "http_seconds": 0.0072,
+          "response_headers_seconds": 0.0054,
+          "scrape_seconds": 0.0099
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 22340,
+            "health_rows": 3,
+            "pods": 7,
+            "created": 7,
+            "status": 63,
+            "missing_created": 3,
+            "missing_pods": 3,
+            "missing_status_roots": 3,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0006,
+          "http_seconds": 0.0017,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0025
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0029
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      },
+      "seconds": 1.8637,
+      "api_after": {
+        "requests": {
+          "all_requests": 29,
+          "response_bytes": 30905,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 36945920,
+      "cpu_percent": 0.6,
+      "cpu_seconds": 0.07
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0037
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 33420,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0037,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 33420,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 36978688,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.07
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0024,
+          "scrape_seconds": 0.0053
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 33420,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0053,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 33420,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37011456,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.08
+    },
+    {
+      "name": "single_pod_label_update",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 1,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0029,
+          "response_headers_seconds": 0.0019,
+          "scrape_seconds": 0.004
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 33420,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.2129,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 34314,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "rss_bytes": 37355520,
+      "cpu_percent": 1.1,
+      "cpu_seconds": 0.08,
+      "limitation": "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
+    },
+    {
+      "name": "status_and_pod_churn",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 9,
+            "created": 10,
+            "status": 90,
+            "wrong_phase": 20,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0019,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31435,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0049,
+          "response_headers_seconds": 0.0029,
+          "scrape_seconds": 0.0061
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 34314,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "seconds": 0.2147,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 49037,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 11,
+          "jobs.watch_events": 10
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 22,
+          "jobs": 21
+        }
+      },
+      "rss_bytes": 37453824,
+      "cpu_percent": 2.0,
+      "cpu_seconds": 0.09
+    },
+    {
+      "name": "deletion_cleanup",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0049
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 49037,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 11,
+          "jobs.watch_events": 10
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 25,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 22,
+          "jobs": 21
+        }
+      },
+      "seconds": 0.0049,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 50508,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 12,
+          "jobs.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 25,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 23,
+          "jobs": 25
+        }
+      },
+      "rss_bytes": 37470208,
+      "cpu_percent": 2.0,
+      "cpu_seconds": 0.09
+    },
+    {
+      "name": "same_name_recreation",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 1,
+            "missing_pods": 1,
+            "missing_status_roots": 1,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0029,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0039
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31435,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.003
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 50508,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 10,
+          "jobs.watch": 1,
+          "pods.watch_events": 12,
+          "jobs.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 28,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 23,
+          "jobs": 25
+        }
+      },
+      "seconds": 0.2094,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 52230,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "pods.watch_events": 13,
+          "jobs.watch_events": 12
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 28,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 28,
+          "jobs": 26
+        }
+      },
+      "rss_bytes": 37519360,
+      "cpu_percent": 2.7,
+      "cpu_seconds": 0.1
+    },
+    {
+      "name": "delete_all_cleanup",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 13273,
+            "health_rows": 3,
+            "unexpected_identity": 44,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-6-0\",pod_uid=\"pod-6-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-6\",workload_uid=\"job-6-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-7-0\",pod_uid=\"pod-7-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-7\",workload_uid=\"job-7-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-8-0\",pod_uid=\"pod-8-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-8\",workload_uid=\"job-8-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-9-0\",pod_uid=\"pod-9-0-g0\",replica_group_id=\"\",team=\"updated-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-9\",workload_uid=\"job-9-g0\",workload_version=\"v1\"} 1",
+            "karta_workload_created_timestamp_seconds{namespace=\"scale\",workload_name=\"job-6\",workload_uid=\"job-6-g0\"} 1.7924544e+09"
+          ],
+          "oracle_seconds": 0.0004,
+          "http_seconds": 0.0029,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0034
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0017,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0018
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 52230,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "pods.watch_events": 13,
+          "jobs.watch_events": 12
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 58,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 28,
+          "jobs": 26
+        }
+      },
+      "seconds": 0.2091,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 66907,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "pods.watch": 1,
+          "replicasets.get.metadata": 11,
+          "jobs.watch": 1,
+          "pods.watch_events": 23,
+          "jobs.watch_events": 22
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 58,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {
+          "pods": 56,
+          "jobs": 58
+        }
+      },
+      "rss_bytes": 37830656,
+      "cpu_percent": 1.4,
+      "cpu_seconds": 0.1
+    }
+  ],
+  "test_diagnostics_wrapper": false,
+  "completed_all_stages": true,
+  "steady_validity_gaps": 0,
+  "complete": true,
+  "returncode": 0,
+  "measured_gates": {
+    "http_scrapes_under_25s": true,
+    "oracle_under_deadline": true
+  },
+  "elapsed_seconds": 13.3384,
+  "peak_sampled_rss_bytes": 37011456,
+  "diagnostic_samples": [],
+  "process_samples": [
+    {
+      "rss_bytes": 34439168,
+      "cpu_percent": 7.2,
+      "cpu_seconds": 0.04,
+      "seconds": 1.006
+    },
+    {
+      "rss_bytes": 36978688,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.07,
+      "seconds": 3.73
+    },
+    {
+      "rss_bytes": 37011456,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.08,
+      "seconds": 12.458
+    }
+  ],
+  "cpu_seconds_last_sample": 0.08,
+  "limit_triggered": [],
+  "api": {
+    "requests": {
+      "all_requests": 31,
+      "response_bytes": 66907,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "pods.list.full": 1,
+      "pods.objects.full": 10,
+      "pods.list.metadata": 2,
+      "pods.objects.metadata": 20,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "jobs.list.metadata": 2,
+      "jobs.objects.metadata": 20,
+      "pods.watch": 1,
+      "replicasets.get.metadata": 11,
+      "jobs.watch": 1,
+      "pods.watch_events": 23,
+      "jobs.watch_events": 22
+    },
+    "max_page_objects": 10,
+    "active_watches": 3,
+    "revision": 58,
+    "completed_metadata_lists": {
+      "namespaces": 1,
+      "pods": 1,
+      "jobs": 1
+    },
+    "delivered_watch_versions": {
+      "pods": 56,
+      "jobs": 58
+    }
+  },
+  "harness_rss_bytes": 38649856
+}

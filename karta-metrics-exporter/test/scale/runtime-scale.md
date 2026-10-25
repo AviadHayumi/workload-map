@@ -20,7 +20,13 @@ Healthy WATCH delivery does not require a subsequent LIST to pass.
 Stages are cold start, steady scrapes, a single Pod label update, root/Pod churn,
 partial deletion, same-name recreation with new UIDs, delete-all and optional
 settling. The oracle rejects old UIDs after recreation and any workload rows
-after deletion. A steady scrape failure remains a failed run even after recovery.
+after deletion. A steady or continuity scrape failure remains a failed run even
+after recovery. `--quiet-seconds` and `--continuity-seconds` check every periodic
+quiet scrape. Sustained churn first primes stable public phase values, then
+changes root resource versions while an independent periodic oracle checks all
+rows. `--refresh-seconds` sets an explicit refresh interval for bounded TTL
+regression runs. `--watch-faults` injects Pod WATCH EOF and Job WATCH 410 before
+checking reconnection and a fresh visible Pod update.
 
 ```sh
 (cd karta-metrics-exporter && go build -o /tmp/karta-exporter ./cmd)
@@ -53,7 +59,7 @@ Process CPU comes from `ps`, outside the exporter process. Go heap and allocatio
 samples are recorded only when the executable exposes the corresponding runtime
 metrics. Their absence is not zero. Sampled RSS is not live heap. Polling-stage
 convergence includes transfer/oracle cost and is not per-event publication latency.
-Queue backlog and drain time are unavailable without test diagnostics.
+Queue backlog and drain time require the test diagnostics wrapper below.
 
 The following targets are predeclared engineering gates on the 48 GiB, 14-CPU
 host. A missing measurement leaves its gate unverified.
@@ -69,9 +75,48 @@ host. A missing measurement leaves its gate unverified.
 | Final three-minute live heap growth | <=5% | <=5% |
 | Delete-all live heap | baseline + max(256 MiB, 10% peak) | same |
 
-The current staged harness measures correctness, HTTP/oracle timing, process
-CPU/RSS and API traffic. Sustained churn publication latency, queue drain and live
-heap gates require diagnostic instrumentation and remain unverified.
+`complete` reports correctness of the staged oracle. `measured_gates` separately
+reports observed performance limits. A short smoke run cannot satisfy the
+five-minute churn duration gate.
+
+## Test diagnostics wrapper
+
+`test/scale/cmd` calls production `app.New` and `Application.Serve`. It adds a
+separate loopback-only diagnostics listener. The normal command has no diagnostic
+endpoints. Run a small case through the normal command as a separate composition
+check before using the wrapper for measurement.
+
+```sh
+(cd karta-metrics-exporter && go build -o /tmp/karta-exporter-scale ./test/scale/cmd)
+python3 karta-metrics-exporter/test/scale/runtime_scale.py \
+  --binary /tmp/karta-exporter-scale --diagnostics --roots 1000 --pods 1 \
+  --churn-seconds 300 --churn-rate 100 --max-seconds 900 \
+  --output /tmp/karta-scale-instrumented-1000-1
+```
+
+The wrapper records `runtime.ReadMemStats` and named client-go queue metrics.
+Queue metrics include depth, additions, retries, work/queue duration count, sum
+and maximum. Drain requires two diagnostic samples with zero queued and active
+work. Active work is observed queue starts minus completed durations. Publication
+polls read exact root resource versions from `Store.Published`; they do not scan
+or format the complete metric output.
+
+Sustained churn rotates through up to 100 independent roots. Each root has at
+most one pending event, so a later generation cannot falsely acknowledge an
+older one. A slow publisher reduces achieved event rate, which is reported and
+checked within 1% of the requested rate. Reported publication latency is an upper
+bound from just before event emission to the first matching diagnostic response.
+It includes polling and diagnostic transport. It is not an exact publication
+timestamp. Diagnostic traffic and CPU are part of the measured wrapper overhead.
+
+During the final three minutes, explicit test GC requests sample retained heap
+at 30-second intervals. These pauses are included in observed latency. A final
+GC after delete-all compares retained heap with the pre-worker GC baseline.
+Total allocation, heap objects and GC counts are sampled too. The production
+command does not force these collections. The wrapper is an instrumented
+production composition, not an unmodified production binary.
+
+Large scenario gates remain unverified until their full runs complete.
 
 ## Historical evidence
 

@@ -1,0 +1,3935 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "custom_label": "team",
+  "expected_team": "scale-team",
+  "harness_sha256": "80c44f273be4c44b8ef2b979e10a11acf4a257aa131b3066403eb530a5f75eb0",
+  "roots": 10,
+  "pods_per_root": 1,
+  "page_size": 500,
+  "poll_seconds": 0.2,
+  "settle_seconds": 0,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP response transfer to disk; oracle timed separately",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "max_seconds": 90,
+  "stage_seconds": 30,
+  "scrape_seconds": 60,
+  "oracle_seconds": 60,
+  "binary_sha256": "3b21d6615bf099626b7897e9ef98edd92056c7abb99cbeea6c3a80daedfda139",
+  "unavailable_measurements": [
+    "per-event publication latency",
+    "queue backlog",
+    "queue drain time",
+    "live heap if no diagnostic metrics"
+  ],
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0133
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0004
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0003
+        },
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0003
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 764,
+            "health_rows": 3,
+            "health_failures": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0039,
+          "response_headers_seconds": 0.0007,
+          "scrape_seconds": 0.0042
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0016,
+          "response_headers_seconds": 0.0007,
+          "scrape_seconds": 0.0021
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0007,
+          "scrape_seconds": 0.0019
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0007,
+          "scrape_seconds": 0.0027
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 10,
+            "missing_pods": 10,
+            "missing_status_roots": 10,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0001,
+          "http_seconds": 0.0013,
+          "response_headers_seconds": 0.0007,
+          "scrape_seconds": 0.0015
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 10240,
+            "health_rows": 3,
+            "pods": 3,
+            "created": 3,
+            "status": 27,
+            "missing_created": 7,
+            "missing_pods": 7,
+            "missing_status_roots": 7,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0005,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0032
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0062,
+          "response_headers_seconds": 0.0043,
+          "scrape_seconds": 0.009
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      },
+      "seconds": 2.0494,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37076992,
+      "cpu_percent": 2.2,
+      "cpu_seconds": 0.06
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.003,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0042
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0043,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37109760,
+      "cpu_percent": 2.2,
+      "cpu_seconds": 0.06
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0043
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.0043,
+      "api_after": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 37158912,
+      "cpu_percent": 2.2,
+      "cpu_seconds": 0.06
+    },
+    {
+      "name": "single_pod_label_update",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31415,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 1,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0014,
+          "http_seconds": 0.0081,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0097
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0026,
+          "http_seconds": 0.0043,
+          "response_headers_seconds": 0.0026,
+          "scrape_seconds": 0.0073
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 30,
+          "response_bytes": 31143,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 1,
+          "jobs.objects.metadata": 10,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.2198,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 34552,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 2,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "rss_bytes": 37535744,
+      "cpu_percent": 4.4,
+      "cpu_seconds": 0.07,
+      "limitation": "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
+    },
+    {
+      "name": "status_and_pod_churn",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31417,
+            "health_rows": 3,
+            "pods": 10,
+            "wrong_team": 9,
+            "created": 10,
+            "status": 90,
+            "wrong_phase": 20,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0035,
+          "response_headers_seconds": 0.0024,
+          "scrape_seconds": 0.0047
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 31435,
+            "health_rows": 3,
+            "pods": 10,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.006,
+          "response_headers_seconds": 0.0025,
+          "scrape_seconds": 0.0086
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 34552,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 2
+        }
+      },
+      "seconds": 0.2166,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 49275,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 11,
+          "jobs.watch_events": 10
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 22,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 22,
+          "jobs": 21
+        }
+      },
+      "rss_bytes": 37781504,
+      "cpu_percent": 4.5,
+      "cpu_seconds": 0.09
+    },
+    {
+      "name": "deletion_cleanup",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0037
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 49275,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 11,
+          "jobs.watch_events": 10
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 25,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 22,
+          "jobs": 21
+        }
+      },
+      "seconds": 0.0037,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 50746,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 12,
+          "jobs.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 25,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 23,
+          "jobs": 25
+        }
+      },
+      "rss_bytes": 38109184,
+      "cpu_percent": 4.5,
+      "cpu_seconds": 0.09
+    },
+    {
+      "name": "same_name_recreation",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 28408,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 9,
+            "status": 81,
+            "missing_created": 1,
+            "missing_pods": 1,
+            "missing_status_roots": 1,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0027,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0036
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0036,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.0048
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0026,
+          "http_seconds": 0.0041,
+          "response_headers_seconds": 0.0025,
+          "scrape_seconds": 0.007
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0023,
+          "http_seconds": 0.0037,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0065
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0021,
+          "http_seconds": 0.0048,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0072
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0029,
+          "http_seconds": 0.0035,
+          "response_headers_seconds": 0.0022,
+          "scrape_seconds": 0.0066
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0031,
+          "http_seconds": 0.0049,
+          "response_headers_seconds": 0.0034,
+          "scrape_seconds": 0.0082
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.003,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.0044
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0032
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0041
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0036,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0063
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0044,
+          "response_headers_seconds": 0.0028,
+          "scrape_seconds": 0.0072
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0042,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0069
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0064,
+          "http_seconds": 0.0072,
+          "response_headers_seconds": 0.0056,
+          "scrape_seconds": 0.0139
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.003,
+          "http_seconds": 0.0041,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.0075
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0031,
+          "http_seconds": 0.0053,
+          "response_headers_seconds": 0.0035,
+          "scrape_seconds": 0.009
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0029,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0028,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0029
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0037,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0049
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0047,
+          "response_headers_seconds": 0.0031,
+          "scrape_seconds": 0.0076
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0013,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0042
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.003,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.0044
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0017,
+          "http_seconds": 0.0031,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0052
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0037,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0064
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0015,
+          "http_seconds": 0.0107,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.0123
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0039
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0044,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0057
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0039,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0066
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0027,
+          "http_seconds": 0.0066,
+          "response_headers_seconds": 0.0045,
+          "scrape_seconds": 0.0099
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0026,
+          "http_seconds": 0.0048,
+          "response_headers_seconds": 0.0031,
+          "scrape_seconds": 0.0079
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0023,
+          "http_seconds": 0.0048,
+          "response_headers_seconds": 0.003,
+          "scrape_seconds": 0.0072
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0031,
+          "http_seconds": 0.0045,
+          "response_headers_seconds": 0.0027,
+          "scrape_seconds": 0.0079
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0029,
+          "http_seconds": 0.0065,
+          "response_headers_seconds": 0.0047,
+          "scrape_seconds": 0.0111
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0034
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0036
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0041,
+          "http_seconds": 0.0045,
+          "response_headers_seconds": 0.0025,
+          "scrape_seconds": 0.0091
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0037,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0068
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0032,
+          "http_seconds": 0.0057,
+          "response_headers_seconds": 0.0039,
+          "scrape_seconds": 0.0094
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0027,
+          "http_seconds": 0.0057,
+          "response_headers_seconds": 0.0042,
+          "scrape_seconds": 0.0089
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0031,
+          "http_seconds": 0.004,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0076
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0036
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.003
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0029
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0047,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0058
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0032
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0055,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.007
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0032,
+          "http_seconds": 0.0055,
+          "response_headers_seconds": 0.0042,
+          "scrape_seconds": 0.0096
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.003,
+          "http_seconds": 0.004,
+          "response_headers_seconds": 0.0022,
+          "scrape_seconds": 0.0072
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0021,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0066
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.003,
+          "http_seconds": 0.0064,
+          "response_headers_seconds": 0.004,
+          "scrape_seconds": 0.0101
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0046,
+          "response_headers_seconds": 0.0028,
+          "scrape_seconds": 0.0076
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0058,
+          "response_headers_seconds": 0.0045,
+          "scrape_seconds": 0.0095
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0027,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0027,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0034
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0034
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0028,
+          "response_headers_seconds": 0.0017,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0039,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0065
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0013,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.003,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.0044
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0067,
+          "response_headers_seconds": 0.0038,
+          "scrape_seconds": 0.0094
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0073,
+          "response_headers_seconds": 0.006,
+          "scrape_seconds": 0.0104
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0033,
+          "http_seconds": 0.0032,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.007
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.003,
+          "http_seconds": 0.0043,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0078
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0028,
+          "http_seconds": 0.0042,
+          "response_headers_seconds": 0.0027,
+          "scrape_seconds": 0.0075
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0041
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0021,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0034
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.002,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0039
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0013,
+          "http_seconds": 0.0054,
+          "response_headers_seconds": 0.0034,
+          "scrape_seconds": 0.0069
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0028,
+          "http_seconds": 0.0055,
+          "response_headers_seconds": 0.0035,
+          "scrape_seconds": 0.0091
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0031,
+          "http_seconds": 0.0056,
+          "response_headers_seconds": 0.0041,
+          "scrape_seconds": 0.0092
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0028
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0036
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0038
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0029
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0028,
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0027,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0039
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0027,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0039
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0034,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0049
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0026,
+          "http_seconds": 0.0065,
+          "response_headers_seconds": 0.0041,
+          "scrape_seconds": 0.0094
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0026,
+          "http_seconds": 0.0052,
+          "response_headers_seconds": 0.0038,
+          "scrape_seconds": 0.008
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0035,
+          "http_seconds": 0.0074,
+          "response_headers_seconds": 0.0052,
+          "scrape_seconds": 0.0113
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0075,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0087
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0026,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0028,
+          "response_headers_seconds": 0.0014,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0022,
+          "http_seconds": 0.0036,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0063
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0031,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0045
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0023,
+          "http_seconds": 0.0091,
+          "response_headers_seconds": 0.0061,
+          "scrape_seconds": 0.0118
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0029,
+          "http_seconds": 0.0053,
+          "response_headers_seconds": 0.0036,
+          "scrape_seconds": 0.0085
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0032,
+          "http_seconds": 0.0041,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0076
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0044,
+          "response_headers_seconds": 0.0026,
+          "scrape_seconds": 0.0072
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0035
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0024,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0029
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0029,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.004
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0021,
+          "http_seconds": 0.0038,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0063
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0023,
+          "http_seconds": 0.0032,
+          "response_headers_seconds": 0.002,
+          "scrape_seconds": 0.0059
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0011,
+          "http_seconds": 0.0022,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0018,
+          "response_headers_seconds": 0.0011,
+          "scrape_seconds": 0.0031
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0013,
+          "http_seconds": 0.0034,
+          "response_headers_seconds": 0.0023,
+          "scrape_seconds": 0.0048
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0054,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0065
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0025,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0037
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0009,
+          "http_seconds": 0.0023,
+          "response_headers_seconds": 0.0013,
+          "scrape_seconds": 0.0036
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.001,
+          "http_seconds": 0.0019,
+          "response_headers_seconds": 0.001,
+          "scrape_seconds": 0.0033
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0012,
+          "http_seconds": 0.0035,
+          "response_headers_seconds": 0.0012,
+          "scrape_seconds": 0.0048
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0025,
+          "http_seconds": 0.0035,
+          "response_headers_seconds": 0.0021,
+          "scrape_seconds": 0.0063
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0038,
+          "http_seconds": 0.0049,
+          "response_headers_seconds": 0.0033,
+          "scrape_seconds": 0.0092
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0024,
+          "http_seconds": 0.0062,
+          "response_headers_seconds": 0.0048,
+          "scrape_seconds": 0.009
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0027,
+          "http_seconds": 0.0041,
+          "response_headers_seconds": 0.0029,
+          "scrape_seconds": 0.0076
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 31108,
+            "health_rows": 3,
+            "pods": 9,
+            "created": 10,
+            "status": 90,
+            "missing_created": 0,
+            "missing_pods": 1,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0035,
+          "http_seconds": 0.0064,
+          "response_headers_seconds": 0.0037,
+          "scrape_seconds": 0.0131
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 50746,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.objects.full": 10,
+          "pods.list.metadata": 2,
+          "pods.objects.metadata": 20,
+          "jobs.list.full": 1,
+          "jobs.objects.full": 10,
+          "replicasets.get.metadata": 10,
+          "pods.watch": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.metadata": 20,
+          "jobs.get.metadata": 1,
+          "jobs.watch": 1,
+          "pods.watch_events": 12,
+          "jobs.watch_events": 11
+        },
+        "max_page_objects": 10,
+        "active_watches": 3,
+        "revision": 28,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "pods": 1,
+          "jobs": 2
+        },
+        "delivered_watch_versions": {
+          "pods": 23,
+          "jobs": 25
+        }
+      }
+    }
+  ],
+  "completed_all_stages": false,
+  "complete": false,
+  "failure": "same_name_recreation did not converge within 30s; last={'complete': False, 'counts': {'bytes': 31108, 'health_rows': 3, 'pods': 9, 'created': 10, 'status': 90, 'missing_created': 0, 'missing_pods': 1, 'missing_status_roots': 0, 'missing_health': 0}, 'process_metrics': {}, 'examples': [], 'oracle_seconds': 0.0035, 'http_seconds': 0.0064, 'response_headers_seconds': 0.0037, 'scrape_seconds': 0.0131}",
+  "returncode": 0,
+  "measured_gates": {
+    "http_scrapes_under_25s": true,
+    "oracle_under_deadline": true
+  },
+  "elapsed_seconds": 32.6812,
+  "peak_sampled_rss_bytes": 38699008,
+  "process_samples": [
+    {
+      "rss_bytes": 34045952,
+      "cpu_percent": 6.2,
+      "cpu_seconds": 0.04,
+      "seconds": 1.006
+    },
+    {
+      "rss_bytes": 36569088,
+      "cpu_percent": 2.2,
+      "cpu_seconds": 0.05,
+      "seconds": 2.02
+    },
+    {
+      "rss_bytes": 38125568,
+      "cpu_percent": 1.2,
+      "cpu_seconds": 0.09,
+      "seconds": 3.027
+    },
+    {
+      "rss_bytes": 38141952,
+      "cpu_percent": 1.8,
+      "cpu_seconds": 0.11,
+      "seconds": 4.044
+    },
+    {
+      "rss_bytes": 38158336,
+      "cpu_percent": 0.3,
+      "cpu_seconds": 0.12,
+      "seconds": 5.051
+    },
+    {
+      "rss_bytes": 38158336,
+      "cpu_percent": 0.6,
+      "cpu_seconds": 0.14,
+      "seconds": 6.061
+    },
+    {
+      "rss_bytes": 38174720,
+      "cpu_percent": 0.7,
+      "cpu_seconds": 0.16,
+      "seconds": 7.07
+    },
+    {
+      "rss_bytes": 38191104,
+      "cpu_percent": 0.5,
+      "cpu_seconds": 0.16,
+      "seconds": 8.074
+    },
+    {
+      "rss_bytes": 38191104,
+      "cpu_percent": 0.5,
+      "cpu_seconds": 0.18,
+      "seconds": 9.08
+    },
+    {
+      "rss_bytes": 38191104,
+      "cpu_percent": 0.1,
+      "cpu_seconds": 0.19,
+      "seconds": 10.086
+    },
+    {
+      "rss_bytes": 38191104,
+      "cpu_percent": 0.5,
+      "cpu_seconds": 0.2,
+      "seconds": 11.092
+    },
+    {
+      "rss_bytes": 38191104,
+      "cpu_percent": 1.1,
+      "cpu_seconds": 0.21,
+      "seconds": 12.108
+    },
+    {
+      "rss_bytes": 38207488,
+      "cpu_percent": 0.9,
+      "cpu_seconds": 0.23,
+      "seconds": 13.113
+    },
+    {
+      "rss_bytes": 38207488,
+      "cpu_percent": 1.5,
+      "cpu_seconds": 0.25,
+      "seconds": 14.126
+    },
+    {
+      "rss_bytes": 38600704,
+      "cpu_percent": 0.2,
+      "cpu_seconds": 0.26,
+      "seconds": 15.134
+    },
+    {
+      "rss_bytes": 38600704,
+      "cpu_percent": 0.4,
+      "cpu_seconds": 0.27,
+      "seconds": 16.139
+    },
+    {
+      "rss_bytes": 38600704,
+      "cpu_percent": 0.2,
+      "cpu_seconds": 0.28,
+      "seconds": 17.145
+    },
+    {
+      "rss_bytes": 38617088,
+      "cpu_percent": 1.8,
+      "cpu_seconds": 0.29,
+      "seconds": 18.155
+    },
+    {
+      "rss_bytes": 38633472,
+      "cpu_percent": 0.4,
+      "cpu_seconds": 0.31,
+      "seconds": 19.163
+    },
+    {
+      "rss_bytes": 38649856,
+      "cpu_percent": 0.3,
+      "cpu_seconds": 0.32,
+      "seconds": 20.172
+    },
+    {
+      "rss_bytes": 38649856,
+      "cpu_percent": 0.3,
+      "cpu_seconds": 0.33,
+      "seconds": 21.176
+    },
+    {
+      "rss_bytes": 38666240,
+      "cpu_percent": 1.4,
+      "cpu_seconds": 0.35,
+      "seconds": 22.187
+    },
+    {
+      "rss_bytes": 38666240,
+      "cpu_percent": 0.4,
+      "cpu_seconds": 0.36,
+      "seconds": 23.194
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 1.4,
+      "cpu_seconds": 0.38,
+      "seconds": 24.199
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 0.2,
+      "cpu_seconds": 0.39,
+      "seconds": 25.208
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 1.6,
+      "cpu_seconds": 0.41,
+      "seconds": 26.219
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 0.6,
+      "cpu_seconds": 0.42,
+      "seconds": 27.224
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 1.4,
+      "cpu_seconds": 0.43,
+      "seconds": 28.239
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 0.4,
+      "cpu_seconds": 0.45,
+      "seconds": 29.245
+    },
+    {
+      "rss_bytes": 38682624,
+      "cpu_percent": 0.3,
+      "cpu_seconds": 0.46,
+      "seconds": 30.275
+    },
+    {
+      "rss_bytes": 38699008,
+      "cpu_percent": 0.7,
+      "cpu_seconds": 0.47,
+      "seconds": 31.285
+    },
+    {
+      "rss_bytes": 38699008,
+      "cpu_percent": 2.1,
+      "cpu_seconds": 0.49,
+      "seconds": 32.301
+    }
+  ],
+  "cpu_seconds_last_sample": 0.49,
+  "limit_triggered": [],
+  "api": {
+    "requests": {
+      "all_requests": 31,
+      "response_bytes": 52180,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.watch": 1,
+      "pods.list.full": 1,
+      "pods.objects.full": 10,
+      "pods.list.metadata": 2,
+      "pods.objects.metadata": 20,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "replicasets.get.metadata": 10,
+      "pods.watch": 1,
+      "jobs.list.metadata": 2,
+      "jobs.objects.metadata": 20,
+      "jobs.get.metadata": 1,
+      "jobs.watch": 1,
+      "pods.watch_events": 13,
+      "jobs.watch_events": 12
+    },
+    "max_page_objects": 10,
+    "active_watches": 3,
+    "revision": 28,
+    "completed_metadata_lists": {
+      "namespaces": 1,
+      "pods": 1,
+      "jobs": 2
+    },
+    "delivered_watch_versions": {
+      "pods": 28,
+      "jobs": 26
+    }
+  },
+  "harness_rss_bytes": 38289408
+}

@@ -1,0 +1,6144 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "custom_label": "team",
+  "expected_team": "scale-team",
+  "harness_sha256": "f88db7675a70ff951fb4bd361cf4181d9ad2d0ca63a89876ba5e9eb4e7c64183",
+  "roots": 1000,
+  "pods_per_root": 1,
+  "page_size": 500,
+  "poll_seconds": 1.0,
+  "settle_seconds": 0,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP response transfer to disk; oracle timed separately",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "max_seconds": 360,
+  "stage_seconds": 180,
+  "scrape_seconds": 60,
+  "oracle_seconds": 60,
+  "binary_sha256": "052cf9a959f280180aaff4533b9456f6c5fe4b054c59b43c43cf07e90984dcb8",
+  "unavailable_measurements": [
+    "exact event-to-publication timestamp (diagnostic polling gives an upper bound)"
+  ],
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.0114
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0934,
+          "http_seconds": 0.092,
+          "response_headers_seconds": 0.0593,
+          "scrape_seconds": 0.1861
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      },
+      "seconds": 1.1997,
+      "api_after": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 105611264,
+      "cpu_percent": 44.5,
+      "cpu_seconds": 0.57,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 52813760,
+        "total_alloc_bytes": 309886816,
+        "heap_objects": 779413,
+        "gc_count": 25,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6011
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 6011,
+            "max": 0.042022916,
+            "sum": 58.83518869599991,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6000
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 6011,
+            "max": 0.019147834,
+            "sum": 0.2834969999999991,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0868,
+          "http_seconds": 0.0877,
+          "response_headers_seconds": 0.0548,
+          "scrape_seconds": 0.175
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.175,
+      "api_after": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 116867072,
+      "cpu_percent": 63.2,
+      "cpu_seconds": 0.71,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 46019000,
+        "total_alloc_bytes": 374086928,
+        "heap_objects": 681498,
+        "gc_count": 28,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6011
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 6011,
+            "max": 0.042022916,
+            "sum": 58.83518869599991,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6000
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 6011,
+            "max": 0.019147834,
+            "sum": 0.2834969999999991,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "steady_scrape",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0867,
+          "http_seconds": 0.0892,
+          "response_headers_seconds": 0.0563,
+          "scrape_seconds": 0.1768
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.1768,
+      "api_after": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 128139264,
+      "cpu_percent": 67.1,
+      "cpu_seconds": 0.85,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 48691896,
+        "total_alloc_bytes": 438282864,
+        "heap_objects": 720923,
+        "gc_count": 30,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6011
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 6011,
+            "max": 0.042022916,
+            "sum": 58.83518869599991,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6000
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 6011,
+            "max": 0.019147834,
+            "sum": 0.2834969999999991,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "quiet_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0866,
+          "http_seconds": 0.0844,
+          "response_headers_seconds": 0.056,
+          "scrape_seconds": 0.1717
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.1717,
+      "api_after": {
+        "requests": {
+          "all_requests": 26,
+          "response_bytes": 2857330,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 4,
+          "jobs.objects.metadata": 2000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 4,
+          "pods.objects.metadata": 2000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 128843776,
+      "cpu_percent": 77.2,
+      "cpu_seconds": 0.97,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 53247672,
+        "total_alloc_bytes": 502483352,
+        "heap_objects": 785855,
+        "gc_count": 32,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6011
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 6011,
+            "max": 0.042022916,
+            "sum": 58.83518869599991,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 6000
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 6011,
+            "max": 0.019147834,
+            "sum": 0.2834969999999991,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "quiet_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0846,
+          "http_seconds": 0.0808,
+          "response_headers_seconds": 0.0547,
+          "scrape_seconds": 0.1662
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 3577352,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 6,
+          "jobs.objects.metadata": 3000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 6,
+          "pods.objects.metadata": 3000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.1663,
+      "api_after": {
+        "requests": {
+          "all_requests": 31,
+          "response_bytes": 3577352,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 6,
+          "jobs.objects.metadata": 3000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 6,
+          "pods.objects.metadata": 3000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 131596288,
+      "cpu_percent": 31.0,
+      "cpu_seconds": 1.43,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 47258632,
+        "total_alloc_bytes": 784595592,
+        "heap_objects": 698811,
+        "gc_count": 46,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 10463
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 10463,
+            "max": 0.059703625,
+            "sum": 232.7739134639992,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 10021
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 10463,
+            "max": 0.019147834,
+            "sum": 0.5320987779999976,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "quiet_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0836,
+          "http_seconds": 0.0926,
+          "response_headers_seconds": 0.066,
+          "scrape_seconds": 0.1772
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 36,
+          "response_bytes": 4297374,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 4,
+          "namespaces.objects.metadata": 4,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 8,
+          "jobs.objects.metadata": 4000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 8,
+          "pods.objects.metadata": 4000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.1772,
+      "api_after": {
+        "requests": {
+          "all_requests": 36,
+          "response_bytes": 4297374,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 4,
+          "namespaces.objects.metadata": 4,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 8,
+          "jobs.objects.metadata": 4000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 8,
+          "pods.objects.metadata": 4000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 131612672,
+      "cpu_percent": 41.7,
+      "cpu_seconds": 1.88,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 46802584,
+        "total_alloc_bytes": 1072728480,
+        "heap_objects": 691074,
+        "gc_count": 60,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 15031
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 15031,
+            "max": 0.071631708,
+            "sum": 432.16207582200144,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 14084
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 15031,
+            "max": 0.023949792,
+            "sum": 0.7913933369999977,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "quiet_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0934,
+          "http_seconds": 0.0942,
+          "response_headers_seconds": 0.0612,
+          "scrape_seconds": 0.1883
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 41,
+          "response_bytes": 5017396,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 5,
+          "namespaces.objects.metadata": 5,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 10,
+          "jobs.objects.metadata": 5000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 10,
+          "pods.objects.metadata": 5000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 0.1883,
+      "api_after": {
+        "requests": {
+          "all_requests": 41,
+          "response_bytes": 5017396,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 5,
+          "namespaces.objects.metadata": 5,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 10,
+          "jobs.objects.metadata": 5000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 10,
+          "pods.objects.metadata": 5000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "rss_bytes": 131629056,
+      "cpu_percent": 33.6,
+      "cpu_seconds": 2.33,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 55369728,
+        "total_alloc_bytes": 1355767232,
+        "heap_objects": 813869,
+        "gc_count": 73,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 19526
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 19526,
+            "max": 0.071631708,
+            "sum": 599.5138506900026,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 18137
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 19526,
+            "max": 0.023949792,
+            "sum": 1.0270545589999989,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "churn_baseline",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "wrong_phase": 200,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0861,
+          "http_seconds": 0.0866,
+          "response_headers_seconds": 0.0624,
+          "scrape_seconds": 0.1732
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0871,
+          "http_seconds": 0.0862,
+          "response_headers_seconds": 0.0565,
+          "scrape_seconds": 0.1738
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 46,
+          "response_bytes": 5737418,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 6,
+          "namespaces.objects.metadata": 6,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 12,
+          "jobs.objects.metadata": 6000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 12,
+          "pods.objects.metadata": 6000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 101,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {}
+      },
+      "seconds": 1.3495,
+      "api_after": {
+        "requests": {
+          "all_requests": 46,
+          "response_bytes": 5795392,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 6,
+          "namespaces.objects.metadata": 6,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 12,
+          "jobs.objects.metadata": 6000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 12,
+          "pods.objects.metadata": 6000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 100
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 101,
+        "completed_metadata_lists": {
+          "namespaces": 1,
+          "jobs": 1,
+          "pods": 1
+        },
+        "delivered_watch_versions": {
+          "jobs": 101
+        }
+      },
+      "rss_bytes": 131743744,
+      "cpu_percent": 31.0,
+      "cpu_seconds": 2.92,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 45643224,
+        "total_alloc_bytes": 1714567200,
+        "heap_objects": 671410,
+        "gc_count": 91,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 24206
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 24206,
+            "max": 0.071631708,
+            "sum": 756.5602647120061,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 22350
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 24206,
+            "max": 0.023949792,
+            "sum": 1.258593659999994,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "churn_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.1244,
+          "http_seconds": 0.162,
+          "response_headers_seconds": 0.111,
+          "scrape_seconds": 0.2869
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 51,
+          "response_bytes": 6806024,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 7,
+          "namespaces.objects.metadata": 7,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 14,
+          "jobs.objects.metadata": 7000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 14,
+          "pods.objects.metadata": 7000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 600
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 601,
+        "completed_metadata_lists": {
+          "namespaces": 312,
+          "jobs": 312,
+          "pods": 312
+        },
+        "delivered_watch_versions": {
+          "jobs": 601
+        }
+      },
+      "seconds": 0.287,
+      "api_after": {
+        "requests": {
+          "all_requests": 51,
+          "response_bytes": 6818786,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 7,
+          "namespaces.objects.metadata": 7,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 14,
+          "jobs.objects.metadata": 7000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 14,
+          "pods.objects.metadata": 7000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 622
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 623,
+        "completed_metadata_lists": {
+          "namespaces": 312,
+          "jobs": 312,
+          "pods": 312
+        },
+        "delivered_watch_versions": {
+          "jobs": 623
+        }
+      },
+      "rss_bytes": 131825664,
+      "cpu_percent": 58.8,
+      "cpu_seconds": 3.93,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 59495512,
+        "total_alloc_bytes": 2051634968,
+        "heap_objects": 874285,
+        "gc_count": 110,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 29704
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 29704,
+            "max": 0.071631708,
+            "sum": 924.6564811730002,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 27439
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 29704,
+            "max": 0.023949792,
+            "sum": 1.6260967579999848,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "churn_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.096,
+          "http_seconds": 0.101,
+          "response_headers_seconds": 0.0684,
+          "scrape_seconds": 0.1977
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 56,
+          "response_bytes": 7834198,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 8,
+          "namespaces.objects.metadata": 8,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 16,
+          "jobs.objects.metadata": 8000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 16,
+          "pods.objects.metadata": 8000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 1130
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1131,
+        "completed_metadata_lists": {
+          "namespaces": 816,
+          "jobs": 812,
+          "pods": 812
+        },
+        "delivered_watch_versions": {
+          "jobs": 1131
+        }
+      },
+      "seconds": 0.1977,
+      "api_after": {
+        "requests": {
+          "all_requests": 56,
+          "response_bytes": 7845838,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 8,
+          "namespaces.objects.metadata": 8,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 16,
+          "jobs.objects.metadata": 8000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 16,
+          "pods.objects.metadata": 8000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 1150
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1151,
+        "completed_metadata_lists": {
+          "namespaces": 816,
+          "jobs": 812,
+          "pods": 812
+        },
+        "delivered_watch_versions": {
+          "jobs": 1151
+        }
+      },
+      "rss_bytes": 131825664,
+      "cpu_percent": 38.5,
+      "cpu_seconds": 4.99,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 53455464,
+        "total_alloc_bytes": 2372746872,
+        "heap_objects": 786618,
+        "gc_count": 127,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 34964
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 34964,
+            "max": 0.15720325,
+            "sum": 1381.5443649440028,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 32501
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 34964,
+            "max": 0.037825958,
+            "sum": 2.3459438019999896,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "churn_continuity",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0921,
+          "http_seconds": 0.0967,
+          "response_headers_seconds": 0.062,
+          "scrape_seconds": 0.1896
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 61,
+          "response_bytes": 8857083,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 9,
+          "namespaces.objects.metadata": 9,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 18,
+          "jobs.objects.metadata": 9000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 18,
+          "pods.objects.metadata": 9000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 1650
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1651,
+        "completed_metadata_lists": {
+          "namespaces": 1313,
+          "jobs": 1312,
+          "pods": 1312
+        },
+        "delivered_watch_versions": {
+          "jobs": 1651
+        }
+      },
+      "seconds": 0.1896,
+      "api_after": {
+        "requests": {
+          "all_requests": 61,
+          "response_bytes": 8866395,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 9,
+          "namespaces.objects.metadata": 9,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 18,
+          "jobs.objects.metadata": 9000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 18,
+          "pods.objects.metadata": 9000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 1666
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 1667,
+        "completed_metadata_lists": {
+          "namespaces": 1313,
+          "jobs": 1312,
+          "pods": 1312
+        },
+        "delivered_watch_versions": {
+          "jobs": 1667
+        }
+      },
+      "rss_bytes": 131874816,
+      "cpu_percent": 50.5,
+      "cpu_seconds": 5.89,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 56605832,
+        "total_alloc_bytes": 2709912968,
+        "heap_objects": 832353,
+        "gc_count": 145,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 40451
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 40451,
+            "max": 0.15720325,
+            "sum": 1554.0287503740026,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 37592
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 40451,
+            "max": 0.037825958,
+            "sum": 2.719118308999999,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "after_sustained_churn",
+      "scrapes": [
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0864,
+          "http_seconds": 0.0874,
+          "response_headers_seconds": 0.0567,
+          "scrape_seconds": 0.1745
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 66,
+          "response_bytes": 9838666,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 10,
+          "namespaces.objects.metadata": 10,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 20,
+          "jobs.objects.metadata": 10000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 20,
+          "pods.objects.metadata": 10000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 2099
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2100,
+        "completed_metadata_lists": {
+          "namespaces": 1812,
+          "jobs": 1813,
+          "pods": 1812
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100
+        }
+      },
+      "seconds": 0.1746,
+      "api_after": {
+        "requests": {
+          "all_requests": 66,
+          "response_bytes": 9838666,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 10,
+          "namespaces.objects.metadata": 10,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 20,
+          "jobs.objects.metadata": 10000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 20,
+          "pods.objects.metadata": 10000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 2099
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2100,
+        "completed_metadata_lists": {
+          "namespaces": 1812,
+          "jobs": 1813,
+          "pods": 1812
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100
+        }
+      },
+      "rss_bytes": 131907584,
+      "cpu_percent": 41.0,
+      "cpu_seconds": 6.68,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 52294104,
+        "total_alloc_bytes": 3034429288,
+        "heap_objects": 770310,
+        "gc_count": 162,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 45698
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 45698,
+            "max": 0.15720325,
+            "sum": 1750.850945111011,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 42478
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 45698,
+            "max": 0.037825958,
+            "sum": 3.0789533029999983,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "single_pod_label_update",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 3071525,
+            "health_rows": 3,
+            "pods": 1000,
+            "wrong_team": 1,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0903,
+          "http_seconds": 0.0855,
+          "response_headers_seconds": 0.0529,
+          "scrape_seconds": 0.1763
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071532,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.085,
+          "http_seconds": 0.0864,
+          "response_headers_seconds": 0.0539,
+          "scrape_seconds": 0.172
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 66,
+          "response_bytes": 9838666,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 10,
+          "namespaces.objects.metadata": 10,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 20,
+          "jobs.objects.metadata": 10000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 20,
+          "pods.objects.metadata": 10000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 2099
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2101,
+        "completed_metadata_lists": {
+          "namespaces": 1812,
+          "jobs": 1813,
+          "pods": 1812
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100
+        }
+      },
+      "seconds": 1.3498,
+      "api_after": {
+        "requests": {
+          "all_requests": 66,
+          "response_bytes": 9839590,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 10,
+          "namespaces.objects.metadata": 10,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 20,
+          "jobs.objects.metadata": 10000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 20,
+          "pods.objects.metadata": 10000,
+          "jobs.list.full": 2,
+          "jobs.objects.full": 1000,
+          "jobs.watch": 1,
+          "pods.watch": 1,
+          "jobs.watch_events": 2099,
+          "pods.watch_events": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2101,
+        "completed_metadata_lists": {
+          "namespaces": 1812,
+          "jobs": 1813,
+          "pods": 1812
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100,
+          "pods": 2101
+        }
+      },
+      "rss_bytes": 131907584,
+      "cpu_percent": 38.2,
+      "cpu_seconds": 6.95,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 56091464,
+        "total_alloc_bytes": 3162982528,
+        "heap_objects": 824695,
+        "gc_count": 167,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 45700
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 45700,
+            "max": 0.15720325,
+            "sum": 1750.850953778011,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 42480
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 45700,
+            "max": 0.037825958,
+            "sum": 3.0791655949999983,
+            "value": 0
+          }
+        }
+      },
+      "limitation": "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
+    },
+    {
+      "name": "watch_eof_and_410_recovery",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 3168376,
+            "health_rows": 1003,
+            "health_failures": 2000,
+            "invalid_rows": 10000,
+            "wrong_coordinates": 10000,
+            "pods": 1000,
+            "wrong_team": 1,
+            "status": 9000,
+            "missing_created": 1000,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0818,
+          "http_seconds": 0.0946,
+          "response_headers_seconds": 0.0693,
+          "scrape_seconds": 0.1772
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3071532,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0855,
+          "http_seconds": 0.1061,
+          "response_headers_seconds": 0.0791,
+          "scrape_seconds": 0.1925
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12046033,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2099,
+          "pods.watch_events": 1,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2102,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100,
+          "pods": 2101
+        }
+      },
+      "seconds": 1.3741,
+      "api_after": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12046957,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2099,
+          "pods.watch_events": 2,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2102,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100,
+          "pods": 2102
+        }
+      },
+      "rss_bytes": 133300224,
+      "cpu_percent": 37.6,
+      "cpu_seconds": 7.87,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 57524448,
+        "total_alloc_bytes": 3750769776,
+        "heap_objects": 843422,
+        "gc_count": 193,
+        "goroutines": 50,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 56523
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 56523,
+            "max": 0.15720325,
+            "sum": 1981.8703209060088,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 54537
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 56523,
+            "max": 0.037825958,
+            "sum": 3.564729824999983,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "status_and_pod_churn",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 3071532,
+            "health_rows": 3,
+            "pods": 1000,
+            "wrong_team": 100,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0875,
+          "http_seconds": 0.0918,
+          "response_headers_seconds": 0.0599,
+          "scrape_seconds": 0.1815
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 3072225,
+            "health_rows": 3,
+            "pods": 1000,
+            "created": 1000,
+            "status": 9000,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0828,
+          "http_seconds": 0.1047,
+          "response_headers_seconds": 0.0784,
+          "scrape_seconds": 0.1883
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12046957,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2099,
+          "pods.watch_events": 2,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2302,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2100,
+          "pods": 2102
+        }
+      },
+      "seconds": 1.3743,
+      "api_after": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12198077,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2199,
+          "pods.watch_events": 102,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2302,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2301,
+          "pods": 2302
+        }
+      },
+      "rss_bytes": 133840896,
+      "cpu_percent": 36.8,
+      "cpu_seconds": 8.19,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 48990608,
+        "total_alloc_bytes": 3891465488,
+        "heap_objects": 724577,
+        "gc_count": 199,
+        "goroutines": 50,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 56824
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 56824,
+            "max": 0.15720325,
+            "sum": 1981.897603689009,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 54938
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 56824,
+            "max": 0.037825958,
+            "sum": 3.575998360999982,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "deletion_cleanup",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 3066161,
+            "health_rows": 3,
+            "unexpected_identity": 1078,
+            "pods": 900,
+            "created": 900,
+            "status": 8100,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-10-0\",pod_uid=\"pod-10-0-g0\",replica_group_id=\"\",team=\"updated-team-2124\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-10\",workload_uid=\"job-10-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-11-0\",pod_uid=\"pod-11-0-g0\",replica_group_id=\"\",team=\"updated-team-2126\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-11\",workload_uid=\"job-11-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-12-0\",pod_uid=\"pod-12-0-g0\",replica_group_id=\"\",team=\"updated-team-2128\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-12\",workload_uid=\"job-12-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-13-0\",pod_uid=\"pod-13-0-g0\",replica_group_id=\"\",team=\"updated-team-2130\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-13\",workload_uid=\"job-13-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-14-0\",pod_uid=\"pod-14-0-g0\",replica_group_id=\"\",team=\"updated-team-2132\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-14\",workload_uid=\"job-14-g0\",workload_version=\"v1\"} 1"
+          ],
+          "oracle_seconds": 0.0829,
+          "http_seconds": 0.078,
+          "response_headers_seconds": 0.0542,
+          "scrape_seconds": 0.1614
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 2766865,
+            "health_rows": 3,
+            "pods": 900,
+            "created": 900,
+            "status": 8100,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0745,
+          "http_seconds": 0.0744,
+          "response_headers_seconds": 0.0473,
+          "scrape_seconds": 0.15
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12198077,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2199,
+          "pods.watch_events": 102,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2602,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2301,
+          "pods": 2302
+        }
+      },
+      "seconds": 1.3156,
+      "api_after": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12348997,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2299,
+          "pods.watch_events": 202,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2602,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2602,
+          "pods": 2600
+        }
+      },
+      "rss_bytes": 134709248,
+      "cpu_percent": 31.5,
+      "cpu_seconds": 8.44,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 45290376,
+        "total_alloc_bytes": 4024183888,
+        "heap_objects": 664113,
+        "gc_count": 204,
+        "goroutines": 50,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 56904
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 56904,
+            "max": 0.15720325,
+            "sum": 1981.9063237750076,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 55010
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 56904,
+            "max": 0.037825958,
+            "sum": 3.5807326109999855,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "same_name_recreation",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 2766865,
+            "health_rows": 3,
+            "pods": 900,
+            "created": 900,
+            "status": 8100,
+            "missing_created": 1,
+            "missing_pods": 1,
+            "missing_status_roots": 1,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0748,
+          "http_seconds": 0.0745,
+          "response_headers_seconds": 0.0459,
+          "scrape_seconds": 0.1501
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 2769897,
+            "health_rows": 3,
+            "pods": 901,
+            "created": 901,
+            "status": 8109,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0786,
+          "http_seconds": 0.1038,
+          "response_headers_seconds": 0.0745,
+          "scrape_seconds": 0.1835
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 82,
+          "response_bytes": 12348997,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 11,
+          "namespaces.objects.metadata": 11,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 26,
+          "jobs.objects.metadata": 13000,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 24,
+          "pods.objects.metadata": 12000,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2299,
+          "pods.watch_events": 202,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2605,
+        "completed_metadata_lists": {
+          "namespaces": 2101,
+          "jobs": 2101,
+          "pods": 2101
+        },
+        "delivered_watch_versions": {
+          "jobs": 2602,
+          "pods": 2600
+        }
+      },
+      "seconds": 1.3388,
+      "api_after": {
+        "requests": {
+          "all_requests": 87,
+          "response_bytes": 13000104,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 12,
+          "namespaces.objects.metadata": 12,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 28,
+          "jobs.objects.metadata": 13901,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 26,
+          "pods.objects.metadata": 12901,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2300,
+          "pods.watch_events": 203,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 2605,
+        "completed_metadata_lists": {
+          "namespaces": 2605,
+          "jobs": 2605,
+          "pods": 2605
+        },
+        "delivered_watch_versions": {
+          "jobs": 2603,
+          "pods": 2605
+        }
+      },
+      "rss_bytes": 134725632,
+      "cpu_percent": 55.1,
+      "cpu_seconds": 9.03,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 40711792,
+        "total_alloc_bytes": 4344659664,
+        "heap_objects": 592354,
+        "gc_count": 220,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 61081
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 61081,
+            "max": 0.15720325,
+            "sum": 2147.3806189980155,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 58695
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 61081,
+            "max": 0.037825958,
+            "sum": 3.8239101199999714,
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "delete_all_cleanup",
+      "scrapes": [
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 2763792,
+            "health_rows": 3,
+            "unexpected_identity": 9889,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-101-0\",pod_uid=\"pod-101-0-g0\",replica_group_id=\"\",team=\"scale-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-101\",workload_uid=\"job-101-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-102-0\",pod_uid=\"pod-102-0-g0\",replica_group_id=\"\",team=\"scale-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-102\",workload_uid=\"job-102-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-103-0\",pod_uid=\"pod-103-0-g0\",replica_group_id=\"\",team=\"scale-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-103\",workload_uid=\"job-103-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-104-0\",pod_uid=\"pod-104-0-g0\",replica_group_id=\"\",team=\"scale-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-104\",workload_uid=\"job-104-g0\",workload_version=\"v1\"} 1",
+            "karta_pod_workload_info{component=\"job\",component_instance=\"\",namespace=\"scale\",observation_valid=\"true\",owner_resolution=\"resolved\",pod_name=\"pod-105-0\",pod_uid=\"pod-105-0-g0\",replica_group_id=\"\",team=\"scale-team\",workload_group=\"batch\",workload_kind=\"Job\",workload_name=\"job-105\",workload_uid=\"job-105-g0\",workload_version=\"v1\"} 1"
+          ],
+          "oracle_seconds": 0.0669,
+          "http_seconds": 0.0883,
+          "response_headers_seconds": 0.0604,
+          "scrape_seconds": 0.1556
+        },
+        {
+          "complete": true,
+          "counts": {
+            "bytes": 731,
+            "health_rows": 3,
+            "missing_created": 0,
+            "missing_pods": 0,
+            "missing_status_roots": 0,
+            "missing_health": 0
+          },
+          "process_metrics": {},
+          "examples": [],
+          "oracle_seconds": 0.0002,
+          "http_seconds": 0.003,
+          "response_headers_seconds": 0.0015,
+          "scrape_seconds": 0.0037
+        }
+      ],
+      "api_before": {
+        "requests": {
+          "all_requests": 87,
+          "response_bytes": 13000104,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 12,
+          "namespaces.objects.metadata": 12,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 28,
+          "jobs.objects.metadata": 13901,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 26,
+          "pods.objects.metadata": 12901,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 2300,
+          "pods.watch_events": 203,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 5308,
+        "completed_metadata_lists": {
+          "namespaces": 2605,
+          "jobs": 2605,
+          "pods": 2605
+        },
+        "delivered_watch_versions": {
+          "jobs": 2603,
+          "pods": 2605
+        }
+      },
+      "seconds": 1.1595,
+      "api_after": {
+        "requests": {
+          "all_requests": 87,
+          "response_bytes": 14331773,
+          "namespaces.list.full": 1,
+          "namespaces.objects.full": 1,
+          "namespaces.list.metadata": 12,
+          "namespaces.objects.metadata": 12,
+          "namespaces.watch": 1,
+          "jobs.list.metadata": 28,
+          "jobs.objects.metadata": 13901,
+          "pods.list.full": 2,
+          "pods.objects.full": 1000,
+          "pods.list.metadata": 26,
+          "pods.objects.metadata": 12901,
+          "jobs.list.full": 4,
+          "jobs.objects.full": 2000,
+          "jobs.watch": 2,
+          "pods.watch": 2,
+          "jobs.watch_events": 3201,
+          "pods.watch_events": 1104,
+          "watch_expirations": 1
+        },
+        "max_page_objects": 500,
+        "active_watches": 3,
+        "revision": 5308,
+        "completed_metadata_lists": {
+          "namespaces": 2605,
+          "jobs": 2605,
+          "pods": 2605
+        },
+        "delivered_watch_versions": {
+          "jobs": 5308,
+          "pods": 5306
+        }
+      },
+      "rss_bytes": 134774784,
+      "cpu_percent": 1.9,
+      "cpu_seconds": 9.24,
+      "diagnostics": {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 38135728,
+        "total_alloc_bytes": 4461671744,
+        "heap_objects": 558354,
+        "gc_count": 224,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 61814
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 61814,
+            "max": 0.15720325,
+            "sum": 2147.414873166014,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 59318
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 61814,
+            "max": 0.037825958,
+            "sum": 3.8588240689999775,
+            "value": 0
+          }
+        }
+      }
+    }
+  ],
+  "topology": "Job->Pod",
+  "exporter_config": {
+    "kartaDefinitionSource": {
+      "catalog": {
+        "enabled": true,
+        "include": [
+          "batch-job-v1"
+        ],
+        "exclude": []
+      },
+      "cluster": {
+        "enabled": false
+      }
+    },
+    "namespaceSelector": {
+      "matchLabels": {
+        "kubernetes.io/metadata.name": "scale"
+      }
+    },
+    "requiredKinds": [
+      {
+        "group": "batch",
+        "version": "v1",
+        "kind": "Job"
+      }
+    ],
+    "labelRules": [
+      {
+        "name": "team",
+        "metrics": [
+          "karta_workload_status"
+        ],
+        "sources": [
+          "workload"
+        ],
+        "expression": "object.metadata.labels[\"team\"]"
+      },
+      {
+        "name": "team",
+        "metrics": [
+          "karta_pod_workload_info"
+        ],
+        "sources": [
+          "pod",
+          "workload"
+        ],
+        "expression": "object.metadata.labels[\"team\"]"
+      }
+    ],
+    "refreshInterval": "5.0s"
+  },
+  "client_budget": {
+    "qps": 5,
+    "burst": 10,
+    "source": "client-go defaults; this harness does not override client configuration"
+  },
+  "refresh_seconds": 5.0,
+  "quiet_seconds": 20.0,
+  "test_diagnostics_wrapper": true,
+  "sustained_churn": {
+    "requested_seconds": 20.0,
+    "target_events_per_second": 100.0,
+    "emitted": 1999,
+    "observed": 1999,
+    "achieved_events_per_second": 99.95,
+    "publication_upper_bound_p99_seconds": 0.07473091700012446,
+    "publication_upper_bound_max_seconds": 0.16678937499818858,
+    "drain_seconds": 0.05010483400110388,
+    "gc_samples": [
+      {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 18432744,
+        "total_alloc_bytes": 1714612944,
+        "heap_objects": 219807,
+        "gc_count": 92,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 24207
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 24207,
+            "max": 0.071631708,
+            "sum": 756.5602682120061,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 22352
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 24207,
+            "max": 0.023949792,
+            "sum": 1.258608993999994,
+            "value": 0
+          }
+        },
+        "seconds": 0.0
+      },
+      {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 21644200,
+        "total_alloc_bytes": 1990034608,
+        "heap_objects": 231922,
+        "gc_count": 108,
+        "goroutines": 56,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 29662
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 29662,
+            "max": 0.071631708,
+            "sum": 924.6553302560003,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 27397
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 29662,
+            "max": 0.023949792,
+            "sum": 1.618542048999984,
+            "value": 0
+          }
+        },
+        "seconds": 5.0083
+      },
+      {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 18278008,
+        "total_alloc_bytes": 2303536176,
+        "heap_objects": 221052,
+        "gc_count": 124,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 34871
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 34871,
+            "max": 0.15720325,
+            "sum": 1381.5421737780034,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 32405
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 34871,
+            "max": 0.037825958,
+            "sum": 2.336476261999991,
+            "value": 0
+          }
+        },
+        "seconds": 10.0107
+      },
+      {
+        "baseline_heap_bytes": 2595472,
+        "heap_alloc_bytes": 18249448,
+        "total_alloc_bytes": 2638298648,
+        "heap_objects": 221029,
+        "gc_count": 142,
+        "goroutines": 52,
+        "queues": {
+          "exporter.adds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 40315
+          },
+          "exporter.depth": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.longest_running_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.queue_latency_seconds": {
+            "count": 40315,
+            "max": 0.15720325,
+            "sum": 1554.0277207930014,
+            "value": 0
+          },
+          "exporter.retries": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 37454
+          },
+          "exporter.unfinished_work_seconds": {
+            "count": 0,
+            "max": 0,
+            "sum": 0,
+            "value": 0
+          },
+          "exporter.work_duration_seconds": {
+            "count": 40315,
+            "max": 0.037825958,
+            "sum": 2.7048080189999975,
+            "value": 0
+          }
+        },
+        "seconds": 15.009
+      }
+    ],
+    "gc_sample_seconds": 5.0,
+    "final_window_heap_growth_fraction": -0.009944043057289798,
+    "poll_seconds": 0.01,
+    "measurement": "event emission to first diagnostic observation of exact published root RV; polling upper bound"
+  },
+  "post_delete_gc": {
+    "baseline_heap_bytes": 2595472,
+    "heap_alloc_bytes": 4801624,
+    "total_alloc_bytes": 4461680328,
+    "heap_objects": 25070,
+    "gc_count": 225,
+    "goroutines": 52,
+    "queues": {
+      "exporter.adds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 61814
+      },
+      "exporter.depth": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.longest_running_seconds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.queue_latency_seconds": {
+        "count": 61814,
+        "max": 0.15720325,
+        "sum": 2147.414873166014,
+        "value": 0
+      },
+      "exporter.retries": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 59318
+      },
+      "exporter.unfinished_work_seconds": {
+        "count": 0,
+        "max": 0,
+        "sum": 0,
+        "value": 0
+      },
+      "exporter.work_duration_seconds": {
+        "count": 61814,
+        "max": 0.037825958,
+        "sum": 3.8588240689999775,
+        "value": 0
+      }
+    }
+  },
+  "post_delete_heap_gate": true,
+  "completed_all_stages": true,
+  "steady_validity_gaps": 0,
+  "complete": true,
+  "returncode": 0,
+  "measured_gates": {
+    "http_scrapes_under_25s": true,
+    "oracle_under_deadline": true,
+    "sustained_churn_full_duration": false,
+    "sustained_churn_rate": true,
+    "publication_p99_upper_bound": true,
+    "queue_drain": true,
+    "live_heap_growth": true,
+    "delete_all_heap": true
+  },
+  "elapsed_seconds": 52.1745,
+  "peak_sampled_rss_bytes": 134774784,
+  "diagnostic_samples": [
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 25971672,
+      "total_alloc_bytes": 245673576,
+      "heap_objects": 340885,
+      "gc_count": 22,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6011
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 6011,
+          "max": 0.042022916,
+          "sum": 58.83518869599991,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6000
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 6011,
+          "max": 0.019147834,
+          "sum": 0.2834969999999991,
+          "value": 0
+        }
+      },
+      "seconds": 1.009
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 53257472,
+      "total_alloc_bytes": 502493152,
+      "heap_objects": 785959,
+      "gc_count": 32,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6011
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 6011,
+          "max": 0.042022916,
+          "sum": 58.83518869599991,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6000
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 6011,
+          "max": 0.019147834,
+          "sum": 0.2834969999999991,
+          "value": 0
+        }
+      },
+      "seconds": 2.025
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 53275072,
+      "total_alloc_bytes": 502510752,
+      "heap_objects": 786052,
+      "gc_count": 32,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6011
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 6011,
+          "max": 0.042022916,
+          "sum": 58.83518869599991,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6000
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 6011,
+          "max": 0.019147834,
+          "sum": 0.2834969999999991,
+          "value": 0
+        }
+      },
+      "seconds": 3.032
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 53294152,
+      "total_alloc_bytes": 502529832,
+      "heap_objects": 786157,
+      "gc_count": 32,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6011
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 6011,
+          "max": 0.042022916,
+          "sum": 58.83518869599991,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 6000
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 6011,
+          "max": 0.019147834,
+          "sum": 0.2834969999999991,
+          "value": 0
+        }
+      },
+      "seconds": 4.047
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 32392248,
+      "total_alloc_bytes": 527316776,
+      "heap_objects": 418054,
+      "gc_count": 33,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 9019
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 2628
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 6391,
+          "max": 0.042022916,
+          "sum": 66.65640695099992,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 8195
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 6389,
+          "max": 0.019147834,
+          "sum": 0.3336634659999992,
+          "value": 0
+        }
+      },
+      "seconds": 5.059
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 25786104,
+      "total_alloc_bytes": 720413200,
+      "heap_objects": 337083,
+      "gc_count": 43,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10463
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 10463,
+          "max": 0.059703625,
+          "sum": 232.7739134639992,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10021
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 10463,
+          "max": 0.019147834,
+          "sum": 0.5320987779999976,
+          "value": 0
+        }
+      },
+      "seconds": 6.071
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 47268360,
+      "total_alloc_bytes": 784605320,
+      "heap_objects": 698913,
+      "gc_count": 46,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10463
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 10463,
+          "max": 0.059703625,
+          "sum": 232.7739134639992,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10021
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 10463,
+          "max": 0.019147834,
+          "sum": 0.5320987779999976,
+          "value": 0
+        }
+      },
+      "seconds": 7.086
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 47285000,
+      "total_alloc_bytes": 784621960,
+      "heap_objects": 699004,
+      "gc_count": 46,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10463
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 10463,
+          "max": 0.059703625,
+          "sum": 232.7739134639992,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10021
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 10463,
+          "max": 0.019147834,
+          "sum": 0.5320987779999976,
+          "value": 0
+        }
+      },
+      "seconds": 8.107
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 47293640,
+      "total_alloc_bytes": 784630600,
+      "heap_objects": 699104,
+      "gc_count": 46,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10463
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 10463,
+          "max": 0.059703625,
+          "sum": 232.7739134639992,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 10021
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 10463,
+          "max": 0.019147834,
+          "sum": 0.5320987779999976,
+          "value": 0
+        }
+      },
+      "seconds": 9.113
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 43206792,
+      "total_alloc_bytes": 917044560,
+      "heap_objects": 595338,
+      "gc_count": 51,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14456
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 567
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 3.375e-05
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 13889,
+          "max": 0.071631708,
+          "sum": 406.1121438350011,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14084
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 5.7917e-05
+        },
+        "exporter.work_duration_seconds": {
+          "count": 13887,
+          "max": 0.023949792,
+          "sum": 0.7170838409999957,
+          "value": 0
+        }
+      },
+      "seconds": 10.129
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 21229728,
+      "total_alloc_bytes": 1008521240,
+      "heap_objects": 266669,
+      "gc_count": 57,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 15031
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 15031,
+          "max": 0.071631708,
+          "sum": 432.16207582200144,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14084
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 15031,
+          "max": 0.023949792,
+          "sum": 0.7913933369999977,
+          "value": 0
+        }
+      },
+      "seconds": 11.141
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 46812384,
+      "total_alloc_bytes": 1072738280,
+      "heap_objects": 691178,
+      "gc_count": 60,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 15031
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 15031,
+          "max": 0.071631708,
+          "sum": 432.16207582200144,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14084
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 15031,
+          "max": 0.023949792,
+          "sum": 0.7913933369999977,
+          "value": 0
+        }
+      },
+      "seconds": 12.155
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 46818512,
+      "total_alloc_bytes": 1072744408,
+      "heap_objects": 691262,
+      "gc_count": 60,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 15031
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 15031,
+          "max": 0.071631708,
+          "sum": 432.16207582200144,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14084
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 15031,
+          "max": 0.023949792,
+          "sum": 0.7913933369999977,
+          "value": 0
+        }
+      },
+      "seconds": 13.167
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 46836000,
+      "total_alloc_bytes": 1072761896,
+      "heap_objects": 691354,
+      "gc_count": 60,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 15031
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 15031,
+          "max": 0.071631708,
+          "sum": 432.16207582200144,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 14084
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 15031,
+          "max": 0.023949792,
+          "sum": 0.7913933369999977,
+          "value": 0
+        }
+      },
+      "seconds": 14.194
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 30672880,
+      "total_alloc_bytes": 1291569776,
+      "heap_objects": 409937,
+      "gc_count": 70,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 19526
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 19526,
+          "max": 0.071631708,
+          "sum": 599.5138506900026,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 18137
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 19526,
+          "max": 0.023949792,
+          "sum": 1.0270545589999989,
+          "value": 0
+        }
+      },
+      "seconds": 15.21
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 30679480,
+      "total_alloc_bytes": 1291576376,
+      "heap_objects": 410023,
+      "gc_count": 70,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 19526
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 19526,
+          "max": 0.071631708,
+          "sum": 599.5138506900026,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 18137
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 19526,
+          "max": 0.023949792,
+          "sum": 1.0270545589999989,
+          "value": 0
+        }
+      },
+      "seconds": 16.222
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 55359928,
+      "total_alloc_bytes": 1355757432,
+      "heap_objects": 813765,
+      "gc_count": 73,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 19526
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 19526,
+          "max": 0.071631708,
+          "sum": 599.5138506900026,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 18137
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 19526,
+          "max": 0.023949792,
+          "sum": 1.0270545589999989,
+          "value": 0
+        }
+      },
+      "seconds": 17.264
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 55386368,
+      "total_alloc_bytes": 1355783872,
+      "heap_objects": 813960,
+      "gc_count": 73,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 19526
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 19526,
+          "max": 0.071631708,
+          "sum": 599.5138506900026,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 18137
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 19526,
+          "max": 0.023949792,
+          "sum": 1.0270545589999989,
+          "value": 0
+        }
+      },
+      "seconds": 18.285
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 55395008,
+      "total_alloc_bytes": 1355792512,
+      "heap_objects": 814060,
+      "gc_count": 73,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 19526
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 19526,
+          "max": 0.071631708,
+          "sum": 599.5138506900026,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 18137
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 19526,
+          "max": 0.023949792,
+          "sum": 1.0270545589999989,
+          "value": 0
+        }
+      },
+      "seconds": 19.297
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 34740952,
+      "total_alloc_bytes": 1576053000,
+      "heap_objects": 469341,
+      "gc_count": 84,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 24006
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 7.292e-06
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 24006,
+          "max": 0.071631708,
+          "sum": 756.4659507570062,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 22150
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 7.292e-06
+        },
+        "exporter.work_duration_seconds": {
+          "count": 24006,
+          "max": 0.023949792,
+          "sum": 1.250382949999994,
+          "value": 0
+        }
+      },
+      "seconds": 20.303
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 34747664,
+      "total_alloc_bytes": 1576059712,
+      "heap_objects": 469428,
+      "gc_count": 84,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 24006
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 24006,
+          "max": 0.071631708,
+          "sum": 756.4659507570062,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 22150
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 24006,
+          "max": 0.023949792,
+          "sum": 1.250382949999994,
+          "value": 0
+        }
+      },
+      "seconds": 21.31
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 52765232,
+      "total_alloc_bytes": 1650382232,
+      "heap_objects": 773806,
+      "gc_count": 88,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 24206
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 24206,
+          "max": 0.071631708,
+          "sum": 756.5602647120061,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 22350
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 24206,
+          "max": 0.023949792,
+          "sum": 1.258593659999994,
+          "value": 0
+        }
+      },
+      "seconds": 22.32
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 22709984,
+      "total_alloc_bytes": 1718890184,
+      "heap_objects": 282543,
+      "gc_count": 92,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 24285
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 24285,
+          "max": 0.071631708,
+          "sum": 756.560845134006,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 22430
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 24285,
+          "max": 0.023949792,
+          "sum": 1.2662145819999944,
+          "value": 0
+        }
+      },
+      "seconds": 23.326
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 21493040,
+      "total_alloc_bytes": 1729693112,
+      "heap_objects": 264746,
+      "gc_count": 93,
+      "goroutines": 53,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 24487
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 1.1333e-05
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 24487,
+          "max": 0.071631708,
+          "sum": 756.5624742610063,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 22634
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 1.1333e-05
+        },
+        "exporter.work_duration_seconds": {
+          "count": 24487,
+          "max": 0.023949792,
+          "sum": 1.293300079999993,
+          "value": 0
+        }
+      },
+      "seconds": 24.34
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 32673480,
+      "total_alloc_bytes": 1957132280,
+      "heap_objects": 437284,
+      "gc_count": 104,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 29144
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 29144,
+          "max": 0.071631708,
+          "sum": 924.6504999570009,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 26881
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 29144,
+          "max": 0.023949792,
+          "sum": 1.5598921339999832,
+          "value": 0
+        }
+      },
+      "seconds": 25.35
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 25009960,
+      "total_alloc_bytes": 1967976592,
+      "heap_objects": 317571,
+      "gc_count": 105,
+      "goroutines": 53,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 29344
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 29344,
+          "max": 0.071631708,
+          "sum": 924.6523139670002,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 27079
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 29344,
+          "max": 0.023949792,
+          "sum": 1.5845398879999837,
+          "value": 0
+        }
+      },
+      "seconds": 26.356
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 23630104,
+      "total_alloc_bytes": 1978872000,
+      "heap_objects": 300277,
+      "gc_count": 106,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 29547
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 29547,
+          "max": 0.071631708,
+          "sum": 924.6541511300001,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 27283
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 29547,
+          "max": 0.023949792,
+          "sum": 1.6042853019999836,
+          "value": 0
+        }
+      },
+      "seconds": 27.367
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 18349928,
+      "total_alloc_bytes": 2053960664,
+      "heap_objects": 221721,
+      "gc_count": 111,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 29748
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 29748,
+          "max": 0.071631708,
+          "sum": 924.660316466,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 27485
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 29748,
+          "max": 0.023949792,
+          "sum": 1.631463046999985,
+          "value": 0
+        }
+      },
+      "seconds": 28.378
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 39343952,
+      "total_alloc_bytes": 2098923440,
+      "heap_objects": 517669,
+      "gc_count": 113,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 33140
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 2627
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 30513,
+          "max": 0.071631708,
+          "sum": 948.879180407,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 30039
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 30511,
+          "max": 0.037825958,
+          "sum": 1.8178224259999873,
+          "value": 0
+        }
+      },
+      "seconds": 30.104
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 20670920,
+      "total_alloc_bytes": 2283926872,
+      "heap_objects": 255736,
+      "gc_count": 122,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 34505
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 34505,
+          "max": 0.15720325,
+          "sum": 1381.5277584940025,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 32037
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 34505,
+          "max": 0.037825958,
+          "sum": 2.2776279209999903,
+          "value": 0
+        }
+      },
+      "seconds": 31.116
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 19670000,
+      "total_alloc_bytes": 2294943944,
+      "heap_objects": 241119,
+      "gc_count": 123,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 34711
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 34711,
+          "max": 0.15720325,
+          "sum": 1381.538754786003,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 32245
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 34711,
+          "max": 0.037825958,
+          "sum": 2.30872379799999,
+          "value": 0
+        }
+      },
+      "seconds": 32.151
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 20696864,
+      "total_alloc_bytes": 2305955032,
+      "heap_objects": 256378,
+      "gc_count": 124,
+      "goroutines": 54,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 34915
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 34915,
+          "max": 0.15720325,
+          "sum": 1381.542526819003,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 32449
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 34915,
+          "max": 0.037825958,
+          "sum": 2.3407155519999896,
+          "value": 0
+        }
+      },
+      "seconds": 33.158
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 62001992,
+      "total_alloc_bytes": 2381293400,
+      "heap_objects": 913411,
+      "gc_count": 127,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 35121
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 35121,
+          "max": 0.15720325,
+          "sum": 1381.5476014510032,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 32655
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 35121,
+          "max": 0.037825958,
+          "sum": 2.370081086999991,
+          "value": 0
+        }
+      },
+      "seconds": 34.197
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 34023392,
+      "total_alloc_bytes": 2608767296,
+      "heap_objects": 458565,
+      "gc_count": 138,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 39768
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 39768,
+          "max": 0.15720325,
+          "sum": 1554.022365655002,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 36908
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 39768,
+          "max": 0.037825958,
+          "sum": 2.6304368059999956,
+          "value": 0
+        }
+      },
+      "seconds": 35.207
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 24172416,
+      "total_alloc_bytes": 2619834640,
+      "heap_objects": 308279,
+      "gc_count": 139,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 39973
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 39973,
+          "max": 0.15720325,
+          "sum": 1554.0243029150015,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 37112
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 39973,
+          "max": 0.037825958,
+          "sum": 2.658532219999999,
+          "value": 0
+        }
+      },
+      "seconds": 36.231
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 22994288,
+      "total_alloc_bytes": 2630668944,
+      "heap_objects": 290365,
+      "gc_count": 140,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 40174
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 40174,
+          "max": 0.15720325,
+          "sum": 1554.0264647530012,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 37314
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 40174,
+          "max": 0.037825958,
+          "sum": 2.6902055619999974,
+          "value": 0
+        }
+      },
+      "seconds": 37.237
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 21673312,
+      "total_alloc_bytes": 2641722512,
+      "heap_objects": 271151,
+      "gc_count": 142,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 40378
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 40378,
+          "max": 0.15720325,
+          "sum": 1554.0283442080017,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 37518
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 40378,
+          "max": 0.037825958,
+          "sum": 2.7114967269999966,
+          "value": 0
+        }
+      },
+      "seconds": 38.251
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 63657464,
+      "total_alloc_bytes": 2716964600,
+      "heap_objects": 937026,
+      "gc_count": 145,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 40580
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 40580,
+          "max": 0.15720325,
+          "sum": 1554.029895333003,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 37718
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 40580,
+          "max": 0.037825958,
+          "sum": 2.7338095589999987,
+          "value": 0
+        }
+      },
+      "seconds": 39.258
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 36841888,
+      "total_alloc_bytes": 2941521160,
+      "heap_objects": 500719,
+      "gc_count": 156,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 45166
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 45166,
+          "max": 0.15720325,
+          "sum": 1750.84728374501,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 41948
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 45166,
+          "max": 0.037825958,
+          "sum": 3.024998640000003,
+          "value": 0
+        }
+      },
+      "seconds": 40.264
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 28879024,
+      "total_alloc_bytes": 2952304472,
+      "heap_objects": 375027,
+      "gc_count": 157,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 45367
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 45367,
+          "max": 0.15720325,
+          "sum": 1750.8483658210098,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 42150
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 45367,
+          "max": 0.037825958,
+          "sum": 3.041280554000001,
+          "value": 0
+        }
+      },
+      "seconds": 41.269
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 27306928,
+      "total_alloc_bytes": 2963112136,
+      "heap_objects": 354610,
+      "gc_count": 158,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 45568
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 4.275e-05
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 45568,
+          "max": 0.15720325,
+          "sum": 1750.85011311001,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 42350
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 4.275e-05
+        },
+        "exporter.work_duration_seconds": {
+          "count": 45567,
+          "max": 0.037825958,
+          "sum": 3.0663499709999993,
+          "value": 0
+        }
+      },
+      "seconds": 42.275
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 33354528,
+      "total_alloc_bytes": 3098780744,
+      "heap_objects": 639037,
+      "gc_count": 165,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 45700
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 45700,
+          "max": 0.15720325,
+          "sum": 1750.850953778011,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 42480
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 45700,
+          "max": 0.037825958,
+          "sum": 3.0791655949999983,
+          "value": 0
+        }
+      },
+      "seconds": 43.326
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 34680640,
+      "total_alloc_bytes": 3100106856,
+      "heap_objects": 642778,
+      "gc_count": 165,
+      "goroutines": 56,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 45700
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 45700,
+          "max": 0.15720325,
+          "sum": 1750.850953778011,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 42480
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 45700,
+          "max": 0.037825958,
+          "sum": 3.0791655949999983,
+          "value": 0
+        }
+      },
+      "seconds": 44.335
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 38238088,
+      "total_alloc_bytes": 3484679464,
+      "heap_objects": 523899,
+      "gc_count": 183,
+      "goroutines": 46,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 53228
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 53228,
+          "max": 0.15720325,
+          "sum": 1943.8060191800103,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 50535
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 53228,
+          "max": 0.037825958,
+          "sum": 3.4193402839999774,
+          "value": 0
+        }
+      },
+      "seconds": 45.344
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 81887456,
+      "total_alloc_bytes": 3686589296,
+      "heap_objects": 1221926,
+      "gc_count": 190,
+      "goroutines": 50,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 56523
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 56523,
+          "max": 0.15720325,
+          "sum": 1981.8703209060088,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 54537
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 56523,
+          "max": 0.037825958,
+          "sum": 3.564729824999983,
+          "value": 0
+        }
+      },
+      "seconds": 46.357
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 46015488,
+      "total_alloc_bytes": 3827269200,
+      "heap_objects": 682227,
+      "gc_count": 197,
+      "goroutines": 50,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 56824
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 56824,
+          "max": 0.15720325,
+          "sum": 1981.897603689009,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 54938
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 56824,
+          "max": 0.037825958,
+          "sum": 3.575998360999982,
+          "value": 0
+        }
+      },
+      "seconds": 47.364
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 46751248,
+      "total_alloc_bytes": 3966086184,
+      "heap_objects": 696887,
+      "gc_count": 202,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 56904
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 56904,
+          "max": 0.15720325,
+          "sum": 1981.9063237750076,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 55010
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 56904,
+          "max": 0.037825958,
+          "sum": 3.5807326109999855,
+          "value": 0
+        }
+      },
+      "seconds": 48.373
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 47121480,
+      "total_alloc_bytes": 3966456416,
+      "heap_objects": 697453,
+      "gc_count": 202,
+      "goroutines": 50,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 56904
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 56904,
+          "max": 0.15720325,
+          "sum": 1981.9063237750076,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 55010
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 56904,
+          "max": 0.037825958,
+          "sum": 3.5807326109999855,
+          "value": 0
+        }
+      },
+      "seconds": 49.381
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 21380008,
+      "total_alloc_bytes": 4286825912,
+      "heap_objects": 267874,
+      "gc_count": 217,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 61075
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 61075,
+          "max": 0.15720325,
+          "sum": 2147.380443998015,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 58689
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 61075,
+          "max": 0.037825958,
+          "sum": 3.8235107029999718,
+          "value": 0
+        }
+      },
+      "seconds": 50.395
+    },
+    {
+      "baseline_heap_bytes": 2595472,
+      "heap_alloc_bytes": 38073840,
+      "total_alloc_bytes": 4461609856,
+      "heap_objects": 557979,
+      "gc_count": 224,
+      "goroutines": 52,
+      "queues": {
+        "exporter.adds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 61813
+        },
+        "exporter.depth": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.longest_running_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.queue_latency_seconds": {
+          "count": 61813,
+          "max": 0.15720325,
+          "sum": 2147.414862916014,
+          "value": 0
+        },
+        "exporter.retries": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 59318
+        },
+        "exporter.unfinished_work_seconds": {
+          "count": 0,
+          "max": 0,
+          "sum": 0,
+          "value": 0
+        },
+        "exporter.work_duration_seconds": {
+          "count": 61813,
+          "max": 0.037825958,
+          "sum": 3.8588181529999774,
+          "value": 0
+        }
+      },
+      "seconds": 51.402
+    }
+  ],
+  "process_samples": [
+    {
+      "rss_bytes": 77283328,
+      "cpu_percent": 8.8,
+      "cpu_seconds": 0.43,
+      "seconds": 1.007
+    },
+    {
+      "rss_bytes": 128843776,
+      "cpu_percent": 18.7,
+      "cpu_seconds": 0.97,
+      "seconds": 2.024
+    },
+    {
+      "rss_bytes": 128843776,
+      "cpu_percent": 0.1,
+      "cpu_seconds": 0.97,
+      "seconds": 3.031
+    },
+    {
+      "rss_bytes": 128843776,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.97,
+      "seconds": 4.046
+    },
+    {
+      "rss_bytes": 131088384,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 1.01,
+      "seconds": 5.058
+    },
+    {
+      "rss_bytes": 131579904,
+      "cpu_percent": 3.7,
+      "cpu_seconds": 1.3,
+      "seconds": 6.07
+    },
+    {
+      "rss_bytes": 131596288,
+      "cpu_percent": 19.3,
+      "cpu_seconds": 1.43,
+      "seconds": 7.085
+    },
+    {
+      "rss_bytes": 131596288,
+      "cpu_percent": 0.1,
+      "cpu_seconds": 1.43,
+      "seconds": 8.105
+    },
+    {
+      "rss_bytes": 131596288,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 1.43,
+      "seconds": 9.112
+    },
+    {
+      "rss_bytes": 131612672,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 1.63,
+      "seconds": 10.127
+    },
+    {
+      "rss_bytes": 131612672,
+      "cpu_percent": 3.5,
+      "cpu_seconds": 1.74,
+      "seconds": 11.14
+    },
+    {
+      "rss_bytes": 131612672,
+      "cpu_percent": 41.7,
+      "cpu_seconds": 1.88,
+      "seconds": 12.154
+    },
+    {
+      "rss_bytes": 131612672,
+      "cpu_percent": 0.2,
+      "cpu_seconds": 1.88,
+      "seconds": 13.166
+    },
+    {
+      "rss_bytes": 131612672,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 1.88,
+      "seconds": 14.192
+    },
+    {
+      "rss_bytes": 131629056,
+      "cpu_percent": 90.3,
+      "cpu_seconds": 2.19,
+      "seconds": 15.209
+    },
+    {
+      "rss_bytes": 131629056,
+      "cpu_percent": 1.7,
+      "cpu_seconds": 2.19,
+      "seconds": 16.221
+    },
+    {
+      "rss_bytes": 131629056,
+      "cpu_percent": 24.4,
+      "cpu_seconds": 2.33,
+      "seconds": 17.247
+    },
+    {
+      "rss_bytes": 131629056,
+      "cpu_percent": 0.9,
+      "cpu_seconds": 2.33,
+      "seconds": 18.283
+    },
+    {
+      "rss_bytes": 131629056,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 2.33,
+      "seconds": 19.296
+    },
+    {
+      "rss_bytes": 131710976,
+      "cpu_percent": 52.3,
+      "cpu_seconds": 2.63,
+      "seconds": 20.302
+    },
+    {
+      "rss_bytes": 131710976,
+      "cpu_percent": 0.7,
+      "cpu_seconds": 2.63,
+      "seconds": 21.308
+    },
+    {
+      "rss_bytes": 131743744,
+      "cpu_percent": 4.0,
+      "cpu_seconds": 2.78,
+      "seconds": 22.319
+    },
+    {
+      "rss_bytes": 131760128,
+      "cpu_percent": 13.0,
+      "cpu_seconds": 2.96,
+      "seconds": 23.325
+    },
+    {
+      "rss_bytes": 131760128,
+      "cpu_percent": 13.7,
+      "cpu_seconds": 3.06,
+      "seconds": 24.338
+    },
+    {
+      "rss_bytes": 131792896,
+      "cpu_percent": 64.4,
+      "cpu_seconds": 3.46,
+      "seconds": 25.35
+    },
+    {
+      "rss_bytes": 131792896,
+      "cpu_percent": 8.0,
+      "cpu_seconds": 3.55,
+      "seconds": 26.355
+    },
+    {
+      "rss_bytes": 131792896,
+      "cpu_percent": 6.4,
+      "cpu_seconds": 3.62,
+      "seconds": 27.366
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 39.5,
+      "cpu_seconds": 3.96,
+      "seconds": 28.377
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 8.5,
+      "cpu_seconds": 4.18,
+      "seconds": 30.099
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 17.6,
+      "cpu_seconds": 4.64,
+      "seconds": 31.113
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 11.4,
+      "cpu_seconds": 4.73,
+      "seconds": 32.147
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 11.4,
+      "cpu_seconds": 4.82,
+      "seconds": 33.158
+    },
+    {
+      "rss_bytes": 131825664,
+      "cpu_percent": 10.1,
+      "cpu_seconds": 5.06,
+      "seconds": 34.196
+    },
+    {
+      "rss_bytes": 131858432,
+      "cpu_percent": 99.4,
+      "cpu_seconds": 5.45,
+      "seconds": 35.206
+    },
+    {
+      "rss_bytes": 131858432,
+      "cpu_percent": 11.7,
+      "cpu_seconds": 5.54,
+      "seconds": 36.229
+    },
+    {
+      "rss_bytes": 131858432,
+      "cpu_percent": 8.5,
+      "cpu_seconds": 5.64,
+      "seconds": 37.235
+    },
+    {
+      "rss_bytes": 131874816,
+      "cpu_percent": 8.6,
+      "cpu_seconds": 5.72,
+      "seconds": 38.248
+    },
+    {
+      "rss_bytes": 131874816,
+      "cpu_percent": 10.3,
+      "cpu_seconds": 5.94,
+      "seconds": 39.257
+    },
+    {
+      "rss_bytes": 131907584,
+      "cpu_percent": 108.3,
+      "cpu_seconds": 6.37,
+      "seconds": 40.263
+    },
+    {
+      "rss_bytes": 131907584,
+      "cpu_percent": 7.0,
+      "cpu_seconds": 6.42,
+      "seconds": 41.269
+    },
+    {
+      "rss_bytes": 131907584,
+      "cpu_percent": 6.7,
+      "cpu_seconds": 6.5,
+      "seconds": 42.275
+    },
+    {
+      "rss_bytes": 131907584,
+      "cpu_percent": 39.4,
+      "cpu_seconds": 6.82,
+      "seconds": 43.298
+    },
+    {
+      "rss_bytes": 131907584,
+      "cpu_percent": 1.1,
+      "cpu_seconds": 6.82,
+      "seconds": 44.334
+    },
+    {
+      "rss_bytes": 131940352,
+      "cpu_percent": 57.1,
+      "cpu_seconds": 7.4,
+      "seconds": 45.343
+    },
+    {
+      "rss_bytes": 133234688,
+      "cpu_percent": 9.0,
+      "cpu_seconds": 7.7,
+      "seconds": 46.356
+    },
+    {
+      "rss_bytes": 133365760,
+      "cpu_percent": 28.8,
+      "cpu_seconds": 8.04,
+      "seconds": 47.363
+    },
+    {
+      "rss_bytes": 134070272,
+      "cpu_percent": 36.8,
+      "cpu_seconds": 8.29,
+      "seconds": 48.372
+    },
+    {
+      "rss_bytes": 134070272,
+      "cpu_percent": 2.1,
+      "cpu_seconds": 8.32,
+      "seconds": 49.38
+    },
+    {
+      "rss_bytes": 134725632,
+      "cpu_percent": 60.7,
+      "cpu_seconds": 8.86,
+      "seconds": 50.393
+    },
+    {
+      "rss_bytes": 134774784,
+      "cpu_percent": 39.3,
+      "cpu_seconds": 9.24,
+      "seconds": 51.401
+    }
+  ],
+  "cpu_seconds_last_sample": 9.24,
+  "limit_triggered": [],
+  "api": {
+    "requests": {
+      "all_requests": 87,
+      "response_bytes": 14331773,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.list.metadata": 12,
+      "namespaces.objects.metadata": 12,
+      "namespaces.watch": 1,
+      "jobs.list.metadata": 28,
+      "jobs.objects.metadata": 13901,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "pods.list.metadata": 26,
+      "pods.objects.metadata": 12901,
+      "jobs.list.full": 4,
+      "jobs.objects.full": 2000,
+      "jobs.watch": 2,
+      "pods.watch": 2,
+      "jobs.watch_events": 3201,
+      "pods.watch_events": 1104,
+      "watch_expirations": 1
+    },
+    "max_page_objects": 500,
+    "active_watches": 3,
+    "revision": 5308,
+    "completed_metadata_lists": {
+      "namespaces": 2605,
+      "jobs": 2605,
+      "pods": 2605
+    },
+    "delivered_watch_versions": {
+      "jobs": 5308,
+      "pods": 5306
+    }
+  },
+  "harness_rss_bytes": 57606144
+}

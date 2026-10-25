@@ -43,8 +43,9 @@ LABELS = {
 
 
 class LoopbackAPI:
-    def __init__(self, roots, pods, page_size=500):
+    def __init__(self, roots, pods, page_size=500, intermediate=True):
         self.roots, self.pods, self.page_size = roots, pods, page_size
+        self.intermediate = intermediate
         self.deleted = bytearray(roots)
         self.failed = bytearray(roots)
         self.changed_pods = {}
@@ -60,6 +61,8 @@ class LoopbackAPI:
         self.completed_metadata_lists = {}
         self.delivered_watch_versions = {}
         self.server = None
+        self.watch_faults = {}
+        self.change_during_list = False
 
     def resource(self, path):
         parts = path.strip("/").split("/")
@@ -92,8 +95,8 @@ class LoopbackAPI:
                 pod = index % self.pods
                 obj = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": f"pod-{root}-{pod}", "namespace": "scale", "uid": f"pod-{root}-{pod}-g{generation}", "resourceVersion": str(changed_pods.get(index, 1)), "creationTimestamp": CREATED_TEXT, "labels": {"app": "worker", "batch.kubernetes.io/job-name": f"job-{root}", "batch.kubernetes.io/controller-uid": f"job-{root}-g{generation}"}, "ownerReferences": [{"apiVersion": "batch/v1", "kind": "Job", "name": f"job-{root}", "uid": f"job-{root}-g{generation}", "controller": True, "blockOwnerDeletion": True}]}, "spec": {"nodeName": "synthetic-node", "restartPolicy": "Never", "containers": [{"name": "worker", "image": "registry.k8s.io/pause:3.10", "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}}}]}, "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}], "containerStatuses": [{"name": "worker", "ready": True, "restartCount": 0, "image": "registry.k8s.io/pause:3.10", "imageID": "synthetic", "state": {"running": {"startedAt": CREATED_TEXT}}}]}}
         if resource != "namespaces":
-            obj["metadata"].setdefault("labels", {})["team"] = "updated-team" if resource == "pods" and index in changed_pods else TEAM
-        if resource == "pods":
+            obj["metadata"].setdefault("labels", {})["team"] = f"updated-team-{changed_pods[index]}" if resource == "pods" and index in changed_pods else TEAM
+        if resource == "pods" and self.intermediate:
             obj["metadata"]["ownerReferences"] = [{"apiVersion":"apps/v1", "kind":"ReplicaSet", "name":f"rs-{root}", "uid":f"rs-{root}-g{generation}", "controller":True}]
         if metadata:
             return {"apiVersion": "meta.k8s.io/v1", "kind": "PartialObjectMetadata", "metadata": obj["metadata"]}
@@ -106,7 +109,7 @@ class LoopbackAPI:
         with self.condition:
             return {"requests": dict(self.counts), "max_page_objects": self.max_page, "active_watches": self.active_watches, "revision": self.revision, "completed_metadata_lists": dict(self.completed_metadata_lists), "delivered_watch_versions": dict(self.delivered_watch_versions)}
 
-    def change(self, root, delete=False):
+    def change(self, root, delete=False, change_pods=True):
         with self.condition:
             if self.deleted[root]:
                 return
@@ -122,7 +125,7 @@ class LoopbackAPI:
                 self.revision += 1
                 self.root_versions[root] = self.revision
                 self.events.append((self.revision, "jobs", "MODIFIED", self.object("jobs", root)))
-                if self.pods:
+                if self.pods and change_pods:
                     self.revision += 1
                     self.changed_pods[root * self.pods] = self.revision
                     self.events.append((self.revision, "pods", "MODIFIED", self.object("pods", root * self.pods)))
@@ -136,6 +139,12 @@ class LoopbackAPI:
             self.revision += 1
             self.changed_pods[index] = self.revision
             self.events.append((self.revision, "pods", "MODIFIED", self.object("pods", index)))
+            self.condition.notify_all()
+
+    def interrupt_watch(self, resource, expired=False):
+        with self.condition:
+            generation,_ = self.watch_faults.get(resource,(0,False))
+            self.watch_faults[resource]=(generation+1,expired)
             self.condition.notify_all()
 
     def recreate(self, root):
@@ -272,6 +281,9 @@ class LoopbackAPI:
                             items.append(obj)
                     fixture.max_page = max(fixture.max_page, len(items))
                     fixture.counts[f"{resource}.objects.{encoding}"] += len(items)
+                    if resource == "pods" and metadata and not value("continue") and fixture.change_during_list:
+                        fixture.change_during_list = False
+                        fixture.change_pod(fixture.roots-1,fixture.pods-1)
                     continuation = base64.urlsafe_b64encode(json.dumps([resource, revision, offset]).encode()).decode() if offset < fixture.total(resource) else ""
                     kind = "PartialObjectMetadataList" if metadata else {"namespaces": "NamespaceList", "jobs": "JobList", "replicasets": "ReplicaSetList", "pods": "PodList"}[resource]
                     api = "meta.k8s.io/v1" if metadata else "batch/v1" if resource == "jobs" else "apps/v1" if resource == "replicasets" else "v1"
@@ -289,13 +301,17 @@ class LoopbackAPI:
                 self.end_headers()
                 self.wfile.flush()
                 with fixture.condition:
+                    fault_generation = fixture.watch_faults.get(resource,(0,False))[0]
                     fixture.active_watches += 1
                     fixture.counts[f"{resource}.watch"] += 1
                 started = time.monotonic()
                 try:
                     while time.monotonic() - started < 240:
                         with fixture.condition:
-                            if fixture.events and version < fixture.events[0][0] - 1:
+                            current_fault,expired = fixture.watch_faults.get(resource,(0,False))
+                            if current_fault != fault_generation and not expired:
+                                return
+                            if current_fault != fault_generation or (fixture.events and version < fixture.events[0][0] - 1):
                                 fixture.counts["watch_expirations"] += 1
                                 payload = {"type": "ERROR", "object": {"apiVersion": "v1", "kind": "Status", "status": "Failure", "reason": "Expired", "code": 410}}
                                 events = None
@@ -422,7 +438,7 @@ def read_metrics(response, fixture, deadline=None):
             if any(labels.get(key) != expected for key, expected in expected_labels.items()):
                 counts["wrong_pod"] += 1
             index = root * fixture.pods + int(match[2])
-            if labels.get("team") != ("updated-team" if index in fixture.changed_pods else TEAM):
+            if labels.get("team") != (f"updated-team-{fixture.changed_pods[index]}" if index in fixture.changed_pods else TEAM):
                 counts["wrong_team"] += 1
             if seen_pods[index] or value != 1:
                 counts["wrong_pod"] += 1
@@ -461,9 +477,22 @@ def run(args):
     with open(binary, "rb") as binary_file:
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
-    fixture = LoopbackAPI(args.roots, args.pods, args.page_size)
+    fixture = LoopbackAPI(args.roots, args.pods, args.page_size, intermediate=not args.direct_owner)
+    report["topology"] = "Job->Pod" if args.direct_owner else "Job->ReplicaSet->Pod"
     endpoint = fixture.start()
     config = {"kartaDefinitionSource": {"catalog": {"enabled": True, "include": ["batch-job-v1"], "exclude": []}, "cluster": {"enabled": False}}, "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "scale"}}, "requiredKinds": [{"group":"batch", "version":"v1", "kind":"Job"}], "labelRules":[{"name":"team", "metrics":["karta_workload_status"], "sources":["workload"], "expression":'object.metadata.labels["team"]'}, {"name":"team", "metrics":["karta_pod_workload_info"], "sources":["pod", "workload"], "expression":'object.metadata.labels["team"]'}]}
+    if args.refresh_seconds:
+        config["refreshInterval"]=f"{args.refresh_seconds}s"
+    if args.api_qps is not None:
+        config["apiQPS"] = args.api_qps
+    if args.api_burst is not None:
+        config["apiBurst"] = args.api_burst
+    if args.workers is not None:
+        config["workers"] = args.workers
+    report["exporter_config"] = config
+    report["client_budget"] = {"qps":args.api_qps,"burst":args.api_burst,"workers":args.workers,"source":"explicit config values when supplied; null means executable defaults, verify its source"}
+    report["refresh_seconds"] = args.refresh_seconds or 45
+    report["quiet_seconds"] = args.quiet_seconds
     (output / "config.json").write_text(json.dumps(config))
     # Loopback HTTP needs no authentication material; this file contains no credentials.
     kube = {"apiVersion": "v1", "kind": "Config", "clusters": [{"name": "synthetic", "cluster": {"server": endpoint}}], "users": [{"name": "synthetic", "user": {}}], "contexts": [{"name": "synthetic", "context": {"cluster": "synthetic", "user": "synthetic"}}], "current-context": "synthetic"}
@@ -471,25 +500,47 @@ def run(args):
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         metrics_port = listener.getsockname()[1]
+    diagnostics_port = None
+    if args.diagnostics:
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1",0))
+            diagnostics_port = listener.getsockname()[1]
+    diagnostic_flags = [f"--diagnostics-bind-address=127.0.0.1:{diagnostics_port}"] if diagnostics_port else []
+    report["test_diagnostics_wrapper"] = args.diagnostics
     child_env = dict(os.environ, GOMAXPROCS=str(args.gomaxprocs), GOMEMLIMIT=f"{max(128, args.max_rss_mib * 3 // 4)}MiB")
     log = open(output / "exporter.log", "w")
-    process = subprocess.Popen([str(binary), "--config=" + str(output / "config.json"), "--kubeconfig=" + str(output / "kubeconfig.json"), f"--metrics-bind-address=127.0.0.1:{metrics_port}"], stdout=log, stderr=log, env=child_env)
+    process = subprocess.Popen([str(binary), "--config=" + str(output / "config.json"), "--kubeconfig=" + str(output / "kubeconfig.json"), f"--metrics-bind-address=127.0.0.1:{metrics_port}"] + diagnostic_flags, stdout=log, stderr=log, env=child_env)
     started = time.monotonic()
     stop = threading.Event()
     rss_samples = []
     limit = []
+    diagnostic_samples = []
+    continuity_stop = None
+    continuity_thread = None
+
+    def diagnostic(path="/stats", method="GET"):
+        request=urllib.request.Request(f"http://127.0.0.1:{diagnostics_port}{path}", method=method)
+        with urllib.request.urlopen(request,timeout=5) as response:
+            return json.load(response)
+
 
     def monitor():
         while not stop.wait(1):
             usage = process_usage(process.pid)
             rss = usage["rss_bytes"]
             rss_samples.append(dict(usage, seconds=round(time.monotonic() - started, 3)))
+            if diagnostics_port:
+                try:
+                    diagnostic_samples.append(dict(diagnostic(),seconds=round(time.monotonic()-started,3)))
+                except (OSError,ValueError):
+                    pass
             if rss > report["memory_limit_bytes"] or time.monotonic() - started > args.max_seconds:
                 limit.append("rss" if rss > report["memory_limit_bytes"] else "wall_time")
                 process.kill()
                 return
 
-    threading.Thread(target=monitor, daemon=True).start()
+    monitor_thread=threading.Thread(target=monitor, daemon=True)
+    monitor_thread.start()
 
     def converge(name):
         stage_started = time.monotonic()
@@ -521,6 +572,8 @@ def run(args):
                     stage["seconds"] = round(time.monotonic() - stage_started, 4)
                     stage["api_after"] = fixture.snapshot()
                     stage.update(process_usage(process.pid))
+                    if diagnostics_port:
+                        stage["diagnostics"] = diagnostic()
                     print(json.dumps({"stage": name, "seconds": stage["seconds"], "rss_bytes": stage["rss_bytes"], "counts": last["counts"]}), flush=True)
                     return
                 print(json.dumps({"stage": name, "complete": False, "scrape_seconds": last["scrape_seconds"], "counts": last["counts"]}), flush=True)
@@ -533,11 +586,113 @@ def run(args):
         converge("cold_start")
         for _ in range(args.steady_scrapes):
             converge("steady_scrape")
+        quiet_started=time.monotonic()
+        while time.monotonic()-quiet_started < args.quiet_seconds:
+            converge("quiet_continuity")
+            time.sleep(min(args.continuity_seconds,max(0,args.quiet_seconds-(time.monotonic()-quiet_started))))
+        if args.churn_seconds:
+            if not diagnostics_port:
+                raise RuntimeError("sustained churn requires --diagnostics")
+            for root in range(min(100,args.roots)):
+                fixture.change(root,change_pods=False)
+            converge("churn_baseline")
+            continuity_stop=threading.Event()
+            continuity_errors=[]
+            def continuity():
+                while not continuity_stop.wait(args.continuity_seconds):
+                    try:
+                        converge("churn_continuity")
+                    except Exception as exc:
+                        continuity_errors.append(str(exc))
+                        return
+            continuity_thread=threading.Thread(target=continuity,daemon=True)
+            continuity_thread.start()
+            churn_started=time.monotonic()
+            next_event=churn_started
+            pending={}
+            latencies=[]
+            emitted=0
+            pool=min(100,args.roots)
+            gc_samples=[]
+            next_gc=churn_started+max(0,args.churn_seconds-180)
+            while time.monotonic()-churn_started < args.churn_seconds or pending:
+                now=time.monotonic()
+                if now-churn_started >= args.churn_seconds+args.stage_seconds:
+                    raise RuntimeError("churn publication drain deadline exceeded")
+                if process.poll() is not None:
+                    raise RuntimeError("exporter exited during sustained churn")
+                while now-churn_started < args.churn_seconds and now >= next_event:
+                    root=emitted % pool
+                    if root in pending:
+                        break
+                    if root not in pending:
+                        sent=time.monotonic()
+                        fixture.change(root,change_pods=False)
+                        pending[root]=(str(fixture.root_versions[root]),sent)
+                        emitted+=1
+                        next_event+=1/args.churn_rate
+                        now=time.monotonic()
+                if now >= next_gc and now-churn_started < args.churn_seconds:
+                    gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(now-churn_started,4)))
+                    next_gc+=args.gc_sample_seconds
+                if pending:
+                    query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in pending])
+                    publications=diagnostic("/publications?"+query)
+                    observed=time.monotonic()
+                    for root,(version,sent) in list(pending.items()):
+                        uid=f"job-{root}-g{fixture.generations.get(root,0)}"
+                        publication=publications.get(uid,{})
+                        if publication.get("resource_version")==version and not publication.get("failure_reasons") and publication.get("status_reason","") in ("","none"):
+                            latencies.append(observed-sent)
+                            del pending[root]
+                time.sleep(args.diagnostic_poll_seconds)
+            continuity_stop.set()
+            continuity_thread.join(timeout=args.stage_seconds+args.scrape_seconds+args.oracle_seconds)
+            if continuity_thread.is_alive() or continuity_errors:
+                raise RuntimeError(f"churn continuity failed: {continuity_errors}")
+            queue_idle_samples=0
+            while queue_idle_samples < 2:
+                queue_stats=diagnostic()["queues"]
+                depth=sum(metric["value"] for name,metric in queue_stats.items() if name.endswith(".depth"))
+                starts=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".queue_latency_seconds"))
+                finishes=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".work_duration_seconds"))
+                queue_idle_samples=queue_idle_samples+1 if queue_stats and depth==0 and starts==finishes else 0
+                if time.monotonic()-churn_started > args.churn_seconds+args.stage_seconds:
+                    raise RuntimeError("queue drain deadline exceeded or named queue metrics unavailable")
+                time.sleep(args.diagnostic_poll_seconds)
+            latencies.sort()
+            elapsed=time.monotonic()-churn_started
+            report["sustained_churn"]={"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first diagnostic observation of exact published root RV; polling upper bound"}
+            converge("after_sustained_churn")
         churn_count = max(1, min(args.churn_roots, args.roots))
         if args.pods:
             fixture.change_pod(0, args.pods - 1)
             converge("single_pod_label_update")
             report["stages"][-1]["limitation"] = "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
+        if args.watch_faults:
+            before=fixture.snapshot()["requests"]
+            fixture.interrupt_watch("pods")
+            fixture.interrupt_watch("jobs",expired=True)
+            reconnect_started=time.monotonic()
+            while time.monotonic()-reconnect_started < args.stage_seconds:
+                counts=fixture.snapshot()["requests"]
+                if all(counts.get(resource+".watch",0)>before.get(resource+".watch",0) for resource in ("pods","jobs")):
+                    break
+                time.sleep(0.05)
+            else:
+                raise RuntimeError("WATCH reconnect deadline exceeded")
+            if args.pods:
+                fixture.change_pod(0)
+            converge("watch_eof_and_410_recovery")
+            if args.pods:
+                with fixture.condition:
+                    fixture.change_during_list = True
+                list_started=time.monotonic()
+                while fixture.change_during_list:
+                    if time.monotonic()-list_started > args.stage_seconds:
+                        raise RuntimeError("metadata LIST mutation was not exercised")
+                    time.sleep(0.05)
+                converge("watch_update_during_metadata_list")
         for root in range(churn_count):
             fixture.change(root)
         converge("status_and_pod_churn")
@@ -549,21 +704,28 @@ def run(args):
         for root in range(args.roots):
             fixture.change(root, delete=True)
         converge("delete_all_cleanup")
+        if diagnostics_port:
+            report["post_delete_gc"] = diagnostic("/gc",method="POST")
+            peak_heap=max([sample["heap_alloc_bytes"] for sample in diagnostic_samples]+[report["post_delete_gc"]["heap_alloc_bytes"]])
+            report["post_delete_heap_gate"] = report["post_delete_gc"]["heap_alloc_bytes"] <= report["post_delete_gc"]["baseline_heap_bytes"] + max(256*1024**2,peak_heap*0.1)
         if args.settle_seconds:
             time.sleep(args.settle_seconds)
             converge("settled_after_cleanup")
         report["completed_all_stages"] = True
-        gaps = [scrape for stage in report["stages"] if stage["name"] == "steady_scrape" for scrape in stage["scrapes"] if not scrape.get("complete")]
+        gaps = [scrape for stage in report["stages"] if stage["name"] in ("steady_scrape","quiet_continuity","churn_continuity") for scrape in stage["scrapes"] if not scrape.get("complete")]
         report["steady_validity_gaps"] = len(gaps)
         report["complete"] = not gaps
         if gaps:
-            report["failure"] = "steady output lost validity without fixture changes"
+            report["failure"] = "steady/continuity output lost validity without expected public-value changes"
     except Exception as exc:
         report["completed_all_stages"] = False
         report["complete"] = False
         report["failure"] = str(exc)
     finally:
         stop.set()
+        if continuity_stop is not None:
+            continuity_stop.set()
+        monitor_thread.join(timeout=6)
         if process.poll() is None:
             process.send_signal(signal.SIGTERM)
             try:
@@ -571,11 +733,21 @@ def run(args):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
+        if continuity_thread is not None:
+            continuity_thread.join(timeout=args.poll_seconds+5)
         report["returncode"] = process.returncode
         completed = [scrape for stage in report["stages"] for scrape in stage["scrapes"] if scrape.get("complete")]
         report["measured_gates"] = {"http_scrapes_under_25s": bool(completed) and all(scrape["http_seconds"] <= 25 for scrape in completed), "oracle_under_deadline": bool(completed) and all(scrape["oracle_seconds"] <= args.oracle_seconds for scrape in completed)}
+        if "sustained_churn" in report:
+            churn=report["sustained_churn"]
+            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_rate":churn["achieved_events_per_second"]>=args.churn_rate*0.99,"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= (10 if args.pods>=10 else 5),"queue_drain":churn["drain_seconds"] <= (60 if args.pods>=10 else 30),"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
+        if "post_delete_heap_gate" in report:
+            report["measured_gates"]["delete_all_heap"] = report["post_delete_heap_gate"]
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
         report["peak_sampled_rss_bytes"] = max((sample["rss_bytes"] for sample in rss_samples), default=0)
+        report["diagnostic_samples"] = diagnostic_samples
+        if diagnostics_port:
+            report["unavailable_measurements"] = ["exact event-to-publication timestamp (diagnostic polling gives an upper bound)"]
         report["process_samples"] = rss_samples
         report["cpu_seconds_last_sample"] = next((sample["cpu_seconds"] for sample in reversed(rss_samples) if sample["cpu_seconds"] is not None), None)
         report["limit_triggered"] = limit
@@ -591,6 +763,19 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True)
+    parser.add_argument("--api-qps", type=float)
+    parser.add_argument("--api-burst", type=int)
+    parser.add_argument("--workers", type=int)
+    parser.add_argument("--direct-owner", action="store_true", help="Use Job->Pod for a matched no-intermediate control")
+    parser.add_argument("--quiet-seconds", type=float, default=0)
+    parser.add_argument("--continuity-seconds", type=float, default=5)
+    parser.add_argument("--refresh-seconds", type=float, default=0)
+    parser.add_argument("--watch-faults", action="store_true")
+    parser.add_argument("--diagnostics", action="store_true", help="Binary is the test/scale/cmd wrapper")
+    parser.add_argument("--churn-seconds", type=float, default=0)
+    parser.add_argument("--churn-rate", type=float, default=100)
+    parser.add_argument("--gc-sample-seconds", type=float, default=30)
+    parser.add_argument("--diagnostic-poll-seconds", type=float, default=0.01)
     parser.add_argument("--output", required=True)
     parser.add_argument("--roots", type=int, required=True)
     parser.add_argument("--pods", type=int, required=True)
@@ -607,8 +792,10 @@ def main():
     parser.add_argument("--delete-percent", type=int, default=10)
     parser.add_argument("--settle-seconds", type=int, default=30)
     args = parser.parse_args()
-    if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0:
+    if args.roots < 1 or args.pods < 0 or args.roots * args.pods > 1000000 or args.roots > 100000 or not 1 <= args.page_size <= 5000 or args.max_rss_mib < 256 or args.gomaxprocs < 1 or min(args.max_seconds, args.stage_seconds, args.scrape_seconds, args.oracle_seconds, args.poll_seconds) <= 0 or args.steady_scrapes < 0 or args.churn_roots < 1 or not 1 <= args.delete_percent <= 100 or args.settle_seconds < 0 or args.churn_seconds < 0 or args.churn_rate <= 0 or args.diagnostic_poll_seconds <= 0 or args.gc_sample_seconds <= 0 or args.quiet_seconds < 0 or args.continuity_seconds <= 0 or args.refresh_seconds < 0:
         parser.error("invalid scenario or safety bound; maximum 100k roots and 1m Pods")
+    if (args.api_qps is not None and args.api_qps<=0) or (args.api_burst is not None and args.api_burst<=0) or (args.workers is not None and args.workers<1):
+        parser.error("explicit API budgets and worker counts must be positive")
     raise SystemExit(run(args))
 
 
