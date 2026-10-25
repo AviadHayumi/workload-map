@@ -3,18 +3,23 @@
 
 # Runtime
 
-`Runner.Run(ctx)` owns the watches and workers. It returns after they stop.
-`Dependencies` gives Runtime discovery, the definition inventory, label resolution
+`Runner.Run(ctx)` owns watches and workers. It returns after they stop.
+`Dependencies` supplies Discovery, the definition inventory, label resolution
 and the Store writer. Collector receives only Store's read interface.
 
-Runtime will always watch Pods in selected namespaces. It will share root watches
-by resource and namespace, including roots returned by discovery without an
-existing watch. It will not add intermediate-owner watches.
+Runtime watches Pods in selected namespaces. It shares root watches by resource
+and namespace, including roots returned by Discovery without existing coverage.
+Intermediate owners use cached metadata reads and periodic refresh, without
+additional watches.
 
-After resolving a root, Runtime calculates status, Pod mappings and configured
-labels. It serializes final input verification and publication with accepted
-events. Store locks its own data internally. Deleting a root removes its publication. A failed read changes validity
-instead of pretending the workload disappeared.
+Object events queue ownership resolution. Resolved roots queue status, Pod
+mapping and label calculations. A separate source queue handles synchronization
+and verification. Each root has at most one publication worker at a time.
 
-This package has no queue, watch or reconcile implementation yet. The runnable
-scaffold supplies a mock `Runner` that waits for cancellation.
+Before publishing, Runtime checks that its inputs still match accepted events.
+Store locks its own data. Deleting a root removes its publication. A failed read
+makes dependent observations invalid instead of removing the workload.
+
+The [implementation design](../../../docs/design/metrics-exporter/README.md)
+shows the component calls. [Verification and publication](../../../docs/design/metrics-exporter/consistency.md)
+covers caching, concurrent updates and failures.

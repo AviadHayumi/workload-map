@@ -7,7 +7,8 @@ This package selects definitions from cluster and bundled catalog snapshots.
 `Lookup` selects for the observed root's group and kind.
 The returned `GVK` identifies the selected definition's API representation.
 A nil `Definition` with no error means confirmed absence after sources initialize.
-An error means lookup is unresolved or unavailable. Callers ignore that result.
+An error prevents evaluation. An invalid selected definition remains in the
+result so callers can identify the affected resource type.
 Source failure must not appear as absence or trigger a fallback selection.
 
 `Definition` uses the existing SDK Karta API type.
