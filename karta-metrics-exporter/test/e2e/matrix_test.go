@@ -31,7 +31,7 @@ type scenario struct {
 	removeTerminalPods        bool
 }
 
-var scenarios = []scenario{
+var defaultScenarios = []scenario{
 	{name: "deployment", fixture: "deployment/running.yaml", definition: "apps-deployment-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"deployment", "", ""}: 1}, ready: condition("Available")},
 	{name: "statefulset", fixture: "statefulset/running.yaml", definition: "apps-statefulset-v1", phases: []string{"Running"}, groups: map[coordinate]int{{"statefulset", "", ""}: 1}, ready: func(root *unstructured.Unstructured) bool {
 		ready, _, _ := unstructured.NestedInt64(root.Object, "status", "readyReplicas")
@@ -80,6 +80,25 @@ var scenarios = []scenario{
 	{name: "job-zero-completed", fixture: "batch-job/completed.yaml", definition: "batch-job-v1", phases: []string{"Completed"}, groups: map[coordinate]int{}, ready: condition("Complete"), removeTerminalPods: true},
 	{name: "job-zero-failed", fixture: "batch-job/failed.yaml", definition: "batch-job-v1", phases: []string{"Failed"}, groups: map[coordinate]int{}, ready: condition("Failed"), removeTerminalPods: true},
 }
+
+var alternateScenarios = []scenario{
+	{name: "dynamo-v1beta1", fixture: "local:dynamo-v1beta1.yaml", definition: "nvidia-com-dynamographdeployment-v1beta1", phases: []string{"Running"}, groups: map[coordinate]int{{"component", "Frontend", ""}: 1, {"component", "decode", ""}: 1}, ready: fieldEquals("successful", "status", "state")},
+	{name: "llmisvc-v1alpha1", fixture: "local:llmisvc-v1alpha1.yaml", definition: "serving-kserve-io-llminferenceservice-v1alpha1", phases: []string{"Running"}, groups: map[coordinate]int{{"main", "", ""}: 1}, ready: condition("Ready")},
+}
+
+// Ginkgo registers the chosen profile before BeforeSuite validates its name.
+var apiProfile = func() string {
+	if value := os.Getenv("EXPORTER_E2E_API_PROFILE"); value != "" {
+		return value
+	}
+	return "default"
+}()
+var scenarios = func() []scenario {
+	if apiProfile == "alternate" {
+		return alternateScenarios
+	}
+	return defaultScenarios
+}()
 
 var _ = Describe("operator workloads", Serial, func() {
 	for _, test := range scenarios {
@@ -208,11 +227,11 @@ func prepare(ctx context.Context, name, namespace string) {
 	case "rayservice":
 		_, _, err := createFixture(ctx, "local:ray-app.yaml", namespace)
 		Expect(err).NotTo(HaveOccurred())
-	case "llmisvc":
+	case "llmisvc", "llmisvc-v1alpha1":
 		object := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "v1", "kind": "PersistentVolumeClaim", "metadata": map[string]any{"name": "karta-e2e-llmisvc-model"}, "spec": map[string]any{"accessModes": []any{"ReadWriteOnce"}, "resources": map[string]any{"requests": map[string]any{"storage": "16Mi"}}}}}
 		_, err := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "persistentvolumeclaims"}).Namespace(namespace).Create(ctx, object, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
-	case "dynamo", "nim":
+	case "dynamo", "dynamo-v1beta1", "nim":
 		secret, key := "hf-token-secret", "HF_TOKEN"
 		if name == "nim" {
 			secret, key = "ngc-secret", "NGC_API_KEY"

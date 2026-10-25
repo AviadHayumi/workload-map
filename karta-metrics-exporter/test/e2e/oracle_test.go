@@ -333,6 +333,8 @@ func validPodCoordinates(name string, pod unstructured.Unstructured, got coordin
 		return got == coordinate{component, instance, ""}
 	case "dynamo":
 		return got == coordinate{"service", labels["nvidia.com/dynamo-component"], ""}
+	case "dynamo-v1beta1":
+		return got == coordinate{"component", labels["nvidia.com/dynamo-component"], ""}
 	case "grove":
 		return got == coordinate{"clique", "worker", labels["grove.io/podcliqueset-replica-index"]}
 	default:

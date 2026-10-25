@@ -94,6 +94,9 @@ func namespace(ctx context.Context) string {
 	Expect(api.Create(ctx, ns)).To(Succeed())
 	return ns.Name
 }
+
+// envtest runs no workload controllers. These helpers create the ownership chain
+// and seed Deployment status explicitly to test API observation and collection.
 func deployment(ctx context.Context, ns, name string) *appsv1.Deployment {
 	root := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name, Labels: map[string]string{"example.com/team": "alpha"}}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To(int32(1)), Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": name}}, Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": name}}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "main", Image: "example.test/image:v1"}}}}}}
 	Expect(api.Create(ctx, root)).To(Succeed())
@@ -128,8 +131,9 @@ func start(cfg config.Config, initialDeny ...string) (*app.Application, string, 
 	DeferCleanup(func() { cancel(); Eventually(done, 10*time.Second).Should(Receive(Succeed())) })
 	return application, "http://" + listener.Addr().String(), seen
 }
-func defaults() config.Config {
+func defaults(ns string) config.Config {
 	cfg := config.DefaultConfig()
+	cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
 	cfg.KartaDefinitionSource.Catalog.Enabled = true
 	cfg.KartaDefinitionSource.Catalog.Include = []string{"apps-deployment-v1"}
 	cfg.KartaDefinitionSource.Cluster.Enabled = false
@@ -166,11 +170,14 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		rs := replicaSet(ctx, root, "middle")
 		p := pod(ctx, rs, "first")
 		pod(ctx, rs, "second")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
-		cfg.LabelRules = []labelresolver.LabelRule{{Name: "team", Metrics: []string{"karta_pod_workload_info", "karta_workload_status"}, Sources: []labelresolver.Source{labelresolver.SourceWorkload}, Expression: `object.metadata.labels["example.com/team"]`}}
+		cfg.LabelRules = []labelresolver.LabelRule{
+			{Name: "team", Metrics: []string{"karta_pod_workload_info", "karta_workload_status"}, Sources: []labelresolver.Source{labelresolver.SourceWorkload}, Expression: `object.metadata.labels["example.com/team"]`},
+			{Name: "pod_team", Metrics: []string{"karta_pod_workload_info"}, Sources: []labelresolver.Source{labelresolver.SourcePod}, Expression: `object.metadata.labels["example.com/team"]`},
+		}
 		_, url, seen := start(cfg)
-		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`team="alpha"`), ContainSubstring(`workload_uid="`+string(root.UID)+`"`), ContainSubstring(`observation_valid="true"`)))
+		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`team="alpha"`), ContainSubstring(`pod_team="pod-team"`), ContainSubstring(`workload_uid="`+string(root.UID)+`"`), ContainSubstring(`observation_valid="true"`)))
 		text := scrape(url)
 		count := 0
 		for _, line := range strings.Split(text, "\n") {
@@ -179,6 +186,11 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 			}
 		}
 		Expect(count).To(Equal(9))
+		Expect(api.Get(ctx, client.ObjectKeyFromObject(p), p)).To(Succeed())
+		p.Labels["example.com/team"] = "updated-pod-team"
+		Expect(api.Update(ctx, p)).To(Succeed())
+		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`pod_team="updated-pod-team"`), ContainSubstring(`team="alpha"`), ContainSubstring(`observation_valid="true"`)))
+		Expect(infoFor(scrape(url), "second", ns)).To(ContainSubstring(`pod_team="pod-team"`))
 		seen.mu.Lock()
 		defer seen.mu.Unlock()
 		Expect(seen.watches["/apis/apps/v1/namespaces/"+ns+"/deployments"]).To(Equal(1))
@@ -189,7 +201,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 	It("publishes zero-Pod roots", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "empty")
-		cfg := defaults()
+		cfg := defaults(ns)
 		_, url, _ := start(cfg)
 		Eventually(func() string { return scrape(url) }).Should(ContainSubstring(`workload_uid="` + string(root.UID) + `"`))
 		Expect(infoFor(scrape(url), "empty")).To(BeEmpty())
@@ -200,7 +212,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		second := deployment(ctx, ns, "second")
 		rs := replicaSet(ctx, first, "middle")
 		p := pod(ctx, rs, "moving")
-		_, url, _ := start(defaults())
+		_, url, _ := start(defaults(ns))
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`workload_uid="` + string(first.UID) + `"`))
 		rs.OwnerReferences[0].Name = second.Name
 		rs.OwnerReferences[0].UID = second.UID
@@ -220,7 +232,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "root")
 		p := pod(ctx, replicaSet(ctx, root, "middle"), "pod")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.KartaDefinitionSource.Catalog.Enabled = false
 		cfg.KartaDefinitionSource.Cluster.Enabled = true
 		_, url, _ := start(cfg)
@@ -245,7 +257,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		root := deployment(ctx, ns, "root")
 		rs := replicaSet(ctx, root, "middle")
 		p := pod(ctx, rs, "pod")
-		_, url, seen := start(defaults())
+		_, url, seen := start(defaults(ns))
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`observation_valid="true"`))
 		seen.mu.Lock()
 		seen.deny = "/replicasets"
@@ -260,7 +272,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 	It("keeps unrelated roots available when a required API is absent", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "root")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.RequiredKinds = []schema.GroupVersionKind{{Group: "absent.example.test", Version: "v1", Kind: "Missing"}}
 		_, url, _ := start(cfg)
 		Eventually(func() string { return scrape(url) }).Should(And(ContainSubstring(`workload_uid="`+string(root.UID)+`"`), ContainSubstring(`resource_kind="Missing"`)))
@@ -272,7 +284,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 	It("treats empty namespace selectors as cluster-wide watches", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		deployment(ctx, ns, "root")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{}
 		application, _, seen := start(cfg)
 		Eventually(application.Runtime.Ready).Should(BeTrue())
@@ -285,7 +297,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "quiet")
 		p := pod(ctx, replicaSet(ctx, root, "quiet-middle"), "quiet-pod")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
 		_, url, _ := start(cfg)
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`observation_valid="true"`))
@@ -295,7 +307,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "selected")
 		p := pod(ctx, replicaSet(ctx, root, "middle"), "selected-pod")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"exporter-test": "selected", "kubernetes.io/metadata.name": ns}}
 		_, url, _ := start(cfg)
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).ShouldNot(BeEmpty())
@@ -320,7 +332,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		definition.Spec.StructureDefinition.RootComponent.Name = ""
 		Expect(api.Create(ctx, definition)).To(Succeed())
 		DeferCleanup(func() { _ = api.Delete(context.Background(), definition) })
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
 		cfg.KartaDefinitionSource.Catalog.Include = []string{"batch-job-v1"}
 		cfg.KartaDefinitionSource.Cluster.Enabled = true
@@ -341,7 +353,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "unknown-root")
 		p := pod(ctx, replicaSet(ctx, root, "denied-middle"), "initial-denied")
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.KartaDefinitionSource.Catalog.Enabled = false
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
 		_, url, seen := start(cfg, "/replicasets")
@@ -362,7 +374,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		definition.Labels = map[string]string{"test": ns}
 		Expect(api.Create(ctx, definition)).To(Succeed())
 		DeferCleanup(func() { _ = api.Delete(context.Background(), definition) })
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.KartaDefinitionSource.Catalog.Enabled = false
 		cfg.KartaDefinitionSource.Cluster.Enabled = true
 		cfg.KartaDefinitionSource.Cluster.LabelSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"test": ns}}
@@ -404,7 +416,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 			return p
 		}
 		a, b := makePod(first), makePod(second)
-		cfg := defaults()
+		cfg := defaults(first)
 		cfg.KartaDefinitionSource.Catalog.Enabled = false
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"exporter-test": "selected"}, MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn, Values: []string{first, second}}}}
 		_, url, _ := start(cfg)

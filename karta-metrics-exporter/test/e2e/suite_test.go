@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
 var (
@@ -61,6 +63,8 @@ func command(ctx context.Context, name string, args ...string) ([]byte, error) {
 }
 
 var _ = BeforeSuite(func(ctx SpecContext) {
+	Expect(apiProfile).To(BeElementOf("default", "alternate"), "EXPORTER_E2E_API_PROFILE must be default or alternate")
+	AddReportEntry("api-profile", apiProfile)
 	Expect(os.Getenv("KUBECONFIG")).NotTo(BeEmpty(), "set the isolated kind kubeconfig explicitly")
 	config, err := clientcmd.LoadFromFile(os.Getenv("KUBECONFIG"))
 	Expect(err).NotTo(HaveOccurred())
@@ -168,10 +172,19 @@ func workloadRules() []map[string]any {
 }
 
 func catalogNames() []string {
+	definitions := make(map[string]schema.GroupKind)
+	for _, definition := range catalog.List() {
+		definitions[definition.Name] = catalog.RootKey(definition).GroupKind()
+	}
+	seenKinds := make(map[schema.GroupKind]string)
 	seen := make(map[string]bool)
 	var names []string
 	for _, scenario := range scenarios {
 		if !seen[scenario.definition] {
+			kind, exists := definitions[scenario.definition]
+			Expect(exists).To(BeTrue(), "profile references an unknown catalog definition: %s", scenario.definition)
+			Expect(seenKinds[kind]).To(BeEmpty(), "profile must select only one Karta per GroupKind: %s", kind)
+			seenKinds[kind] = scenario.definition
 			names = append(names, scenario.definition)
 			seen[scenario.definition] = true
 		}

@@ -29,7 +29,7 @@ var _ = Describe("Selection transitions through the API", func() {
 			object.SetLabels(labels)
 			Expect(api.Update(ctx, object)).To(Succeed())
 		}
-		cfg := defaults()
+		cfg := defaults(ns)
 		cfg.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": ns}}
 		selector := &metav1.LabelSelector{MatchLabels: map[string]string{label: "yes"}}
 		var changed client.Object = root
