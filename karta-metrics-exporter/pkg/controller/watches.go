@@ -741,11 +741,13 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		return discovery.ErrStale
 	}
 
+	recovered := w.err != nil
 	r.recoverWatchLocked(w)
 	w.verifiedAt = verificationStarted
 	w.verifiedRead = readSequence
 	r.reader.mu.Lock()
 	read := r.reader.watchReads[watchReadScope{gvk: w.gvk, namespace: w.key.Namespace}]
+	renewals := map[types.UID]bool{}
 	for objectKey := range w.objects {
 		entry, ok := r.reader.objects[objectKey]
 		if !ok {
@@ -762,6 +764,12 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			delete(w.objects, objectKey)
 			r.deleteObjectLocked(ref)
 			continue
+		}
+		unchanged := !recovered && version == ref.ResourceVersion && r.config.Now().Before(entry.evidence.ExpiresAt)
+		for _, key := range entry.evidence.Dependencies {
+			if !r.reader.activeKeys[key] {
+				unchanged = false
+			}
 		}
 		if version != ref.ResourceVersion {
 			entry.evidence = store.Evidence{}
@@ -786,17 +794,42 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			}
 		}
 		r.reader.objects[objectKey] = entry
-		if root := r.roots[ref.UID]; root != nil {
+		rootUID := ref.UID
+		root := r.roots[rootUID]
+		if root == nil {
+			rootUID = r.podRoots[ref.UID]
+			root = r.roots[rootUID]
+		}
+		if root != nil && unchanged {
+			renewals[rootUID] = true
+			continue
+		}
+		if root != nil {
 			root.fullRefresh = true
-			r.rootQueue.Add(queueKey{Operation: "root", UID: ref.UID})
+			r.rootQueue.Add(queueKey{Operation: "root", UID: rootUID})
+			if ref.GVK == podGVK {
+				r.dirtyPod(root, ref.UID)
+			}
 		}
-		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
-			r.dirtyPod(root, ref.UID)
-		}
-		if w.discover || r.roots[ref.UID] != nil {
+		if w.discover || root != nil {
 			r.queue.Add(queueKey{Operation: "object", Object: objectKey, UID: ref.UID})
 		}
+
 	}
+	for uid := range renewals {
+		if !r.scheduleRenewalLocked(uid) {
+			root := r.roots[uid]
+			if len(root.resolutionErrors) > 0 {
+				r.queue.Add(queueKey{Operation: "object", Object: keyOf(root.ref), UID: uid})
+			}
+			for pod := range root.podErrors {
+				if path := root.paths[pod]; len(path) > 0 {
+					r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: pod})
+				}
+			}
+		}
+	}
+
 	for uid, ref := range w.pendingRoots {
 		if _, found := refs[uid]; !found {
 			r.deleteObjectLocked(ref)

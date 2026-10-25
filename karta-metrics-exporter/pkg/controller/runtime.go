@@ -111,6 +111,7 @@ type resourceWatch struct {
 	verifiedAt   time.Time
 }
 type rootState struct {
+	renewalAt           time.Time
 	resolutionErrors    map[schema.GroupVersionKind]resolutionFailure
 	labelFailures       map[types.UID]bool
 	publishedOrigin     inventory.Origin
@@ -238,19 +239,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 			return nil
 		case <-refresh.C:
 			r.controlQueue.Add(queueKey{Operation: "metadata"})
-			r.reader.expireMetadata()
 			r.mu.Lock()
 			for key := range r.watches {
 				r.controlQueue.Add(queueKey{Operation: "verify", Watch: key})
-			}
-			for uid, root := range r.roots {
-				root.fullRefresh = true
-				for podUID, path := range root.paths {
-					if len(path) > 0 {
-						r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: podUID})
-					}
-				}
-				r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
 			}
 			r.mu.Unlock()
 			r.controlQueue.Add(queueKey{Operation: "sync"})
@@ -273,19 +264,7 @@ func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingI
 		case "prime":
 			err = r.primeMetadata(ctx)
 		case "metadata":
-			r.pruneMetadata()
-			err = r.reader.refreshMetadata(ctx)
-			r.mu.Lock()
-			for uid, root := range r.roots {
-				for pod, path := range root.paths {
-					if len(path) > 0 {
-						r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: pod})
-					}
-				}
-				r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
-			}
-			r.publishHealthLocked()
-			r.mu.Unlock()
+			err = r.refreshMetadata(ctx)
 		case "object":
 			err = r.resolve(ctx, key)
 		case "root":

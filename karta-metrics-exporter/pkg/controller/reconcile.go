@@ -10,6 +10,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -203,6 +204,10 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if state == nil {
 		r.mu.Unlock()
 		return nil
+	}
+	if !state.renewalAt.IsZero() && !r.config.Now().Before(state.renewalAt) {
+		state.fullRefresh = true
+		state.renewalAt = time.Time{}
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
 	var rootFailure error
