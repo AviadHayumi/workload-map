@@ -88,6 +88,12 @@ unnoticed until refresh because traversal does not create intermediate watches.
 Queue and API delays can exceed the evidence deadline, which makes affected rows
 invalid until fresh verification succeeds.
 
+An intermediate type can already be watched because its own Karta is selected.
+Runtime records which Pods depend on each intermediate object. A change to that
+watched object invalidates and requeues those Pods. Replacing or removing a Pod
+path removes its old dependencies. This index does not create intermediate
+watches. Pod and root changes already have their own update paths.
+
 The command defaults to a 45-second refresh interval, two-minute maximum age and
 30-second request timeout. The object and root worker counts and shared API rate
 limit bound concurrent work; see [runtime settings](../../karta-metrics-exporter/configuration.md#runtime-settings).
@@ -138,6 +144,12 @@ A small Pod update rebuilds affected rows. Initial publication, root changes and
 full refresh use bulk page construction. Full expiry refresh still visits all
 rows and may allocate replacement pages. Unchanged immutable pages can be reused;
 this does not make a full refresh constant-time.
+
+After an unchanged watched source is verified, healthy roots renew at staggered
+times before their earliest evidence expires. An object update does not wait for
+that renewal. A shorter evidence lifetime moves renewal earlier. Store still
+checks the saved deadline at scrape time, so a late worker cannot keep an expired
+result valid.
 
 The stored types include:
 
@@ -190,7 +202,7 @@ because final active-key and selection checks reject obsolete work. Keys are
 opaque internal strings, not Kubernetes generations or metric labels.
 `RetirePublicationFailure` removes a key only when no current publication or
 health record refers to it. Runtime checks root and Pod generations and definition
-identity against accepted state. Reader tracks active watch, metadata and root ownership proof
+identity against accepted state. Reader tracks active watch, metadata and object ownership proof
 keys separately. Store retirement does not change those checks.
 
 Store counts those references and retires a failed key when its last reference
