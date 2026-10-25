@@ -25,10 +25,19 @@ func TestChartLabelConfiguration(t *testing.T) {
 		t.Skip("helm is needed for chart rendering")
 	}
 	chart := filepath.Join("..", "..", "..", "charts", "karta")
-	rules := []labelresolver.LabelRule{{Name: "team", Metrics: []string{"karta_pod_workload_info"}, Sources: []labelresolver.Source{labelresolver.SourceWorkload, labelresolver.SourcePod}, Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`}}
+	rules := []labelresolver.LabelRule{{
+		Name:       "team",
+		Metrics:    []string{"karta_pod_workload_info"},
+		Sources:    []labelresolver.Source{labelresolver.SourceWorkload, labelresolver.SourcePod},
+		Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`,
+	}}
 	raw, err := json.Marshal(rules)
 	require.NoError(t, err)
-	out, err := exec.Command(helm, "template", "labels", chart, "--set", "exporter.enabled=true", "--set-json", "exporter.labelRules="+string(raw), "--set", "exporter.labelLimits.maxValueBytes=32").CombinedOutput()
+	out, err := exec.Command(helm, "template", "labels", chart,
+		"--set", "exporter.enabled=true",
+		"--set-json", "exporter.labelRules="+string(raw),
+		"--set", "exporter.labelLimits.maxValueBytes=32",
+	).CombinedOutput()
 	require.NoError(t, err, string(out))
 	decoder := yaml.NewDecoder(bytes.NewReader(out))
 	found := false

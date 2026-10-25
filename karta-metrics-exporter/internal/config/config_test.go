@@ -13,22 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func loadConfig(t *testing.T, content string, env map[string]string, args ...string) (Config, error) {
-	t.Helper()
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	loader := NewLoader(fs, func(key string) (string, bool) { v, ok := env[key]; return v, ok })
-	if content != "" {
-		path := filepath.Join(t.TempDir(), "config.yaml")
-		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-		args = append([]string{"--config", path}, args...)
-	}
-	if err := fs.Parse(args); err != nil {
-		return Config{}, err
-	}
-	return loader.Load()
-}
-
 func TestConfigDefaultsAndRules(t *testing.T) {
 	cfg, err := loadConfig(t, "", nil)
 	require.NoError(t, err)
@@ -78,7 +62,7 @@ func TestConfigPrecedence(t *testing.T) {
 
 func TestConfigPathAndEmptyOverride(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0600))
+	require.NoError(t, os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0o600))
 	cfg, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_CONFIG": path})
 	require.NoError(t, err)
 	require.Equal(t, 32, cfg.LabelLimits.MaxValueBytes)
@@ -100,7 +84,10 @@ func TestConfigRejectsInvalidInput(t *testing.T) {
 		"labelRules: []\n---\nlabelRules: [", "unknown: true",
 		"labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [pod]\n  expression: object.kind",
 	} {
-		t.Run(contents, func(t *testing.T) { _, err := loadConfig(t, contents, nil); require.Error(t, err) })
+		t.Run(contents, func(t *testing.T) {
+			_, err := loadConfig(t, contents, nil)
+			require.Error(t, err)
+		})
 	}
 	for _, args := range [][]string{
 		{"--submitted-by-expression", `"alice"`}, {"--submitter-cost-limit", "1"},
@@ -120,4 +107,23 @@ func TestConfigRejectsInvalidInput(t *testing.T) {
 func TestRejectsRemovedSubmitterEnvironment(t *testing.T) {
 	_, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION": "old"})
 	require.ErrorContains(t, err, "was removed")
+}
+
+func loadConfig(t *testing.T, content string, env map[string]string, args ...string) (Config, error) {
+	t.Helper()
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	loader := NewLoader(fs, func(key string) (string, bool) {
+		v, ok := env[key]
+		return v, ok
+	})
+	if content != "" {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		args = append([]string{"--config", path}, args...)
+	}
+	if err := fs.Parse(args); err != nil {
+		return Config{}, err
+	}
+	return loader.Load()
 }

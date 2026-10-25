@@ -12,6 +12,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
+// Runner maintains publications from Kubernetes watch events.
 type Runner interface {
 	// Run owns watches and workers until cancellation. It returns after they stop.
 	Run(context.Context) error

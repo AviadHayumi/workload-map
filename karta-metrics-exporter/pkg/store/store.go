@@ -24,11 +24,13 @@ type Capturer interface {
 	Capture() CapturedView
 }
 
+// Interface combines publication updates with snapshot collection.
 type Interface interface {
 	Writer
 	Capturer
 }
 
+// Publication contains the observations for one workload and its Pods.
 type Publication struct {
 	Workload       WorkloadRecord
 	Status         Evidence
@@ -80,7 +82,9 @@ type PublishedPod struct {
 	Mapping Evidence
 }
 
-type PodPage struct{ Rows []PublishedPod }
+type PodPage struct {
+	Rows []PublishedPod
+}
 
 type Evidence struct {
 	ExpiresAt    time.Time
@@ -88,6 +92,7 @@ type Evidence struct {
 	Dependencies []string
 }
 
+// CapturedView is an immutable snapshot evaluated at At.
 type CapturedView struct {
 	At      time.Time
 	Records []*Publication

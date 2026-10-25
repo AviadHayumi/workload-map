@@ -52,7 +52,7 @@ func TestRunLifecycle(t *testing.T) {
 
 			reg := &registration{err: tc.cleanupError}
 			registered := false
-			ctx := context.Background()
+			ctx := t.Context()
 			if tc.registrationError == nil && !tc.nilRegistration {
 				runtime.EXPECT().Run(ctx).Run(func(context.Context) {
 					require.True(t, registered)
@@ -96,5 +96,5 @@ func TestRunLifecycle(t *testing.T) {
 }
 
 func TestRunRejectsIncompleteComponents(t *testing.T) {
-	require.ErrorContains(t, app.Run(context.Background(), app.Components{}, noop.NewMeterProvider().Meter("test"), collector.Options{}), "incomplete")
+	require.ErrorContains(t, app.Run(t.Context(), app.Components{}, noop.NewMeterProvider().Meter("test"), collector.Options{}), "incomplete")
 }

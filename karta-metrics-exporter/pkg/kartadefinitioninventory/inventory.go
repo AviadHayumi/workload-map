@@ -11,16 +11,19 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
+// Interface looks up the selected Karta definition for a workload type.
 type Interface interface {
 	Lookup(schema.GroupVersionKind) (Selection, error)
 }
 
+// Selection pairs a definition with the source it came from.
 type Selection struct {
 	Definition *v1alpha1.Karta
 	GVK        schema.GroupVersionKind
 	Origin     Origin
 }
 
+// Origin identifies the definition. Catalog entries have no UID or resource version.
 type Origin struct {
 	Source          Source
 	Name            string

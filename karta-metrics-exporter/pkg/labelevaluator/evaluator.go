@@ -9,10 +9,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// Evaluator runs a compiled expression with the input exposed as CEL object.
+// Calls may run concurrently. Callers must not mutate the input during evaluation.
 type Evaluator interface {
 	Evaluate(context.Context, *unstructured.Unstructured) (string, error)
 }
 
+// Compiler checks an expression and builds a reusable evaluator.
 type Compiler interface {
 	Compile(Config) (Evaluator, error)
 }
