@@ -298,5 +298,5 @@ func BuildPodPages(rows []PublishedPod, previous *Publication) []*PodPage {
 
 func equalPod(a, b PublishedPod) bool {
 	x, y := a.Record, b.Record
-	return x.Namespace == y.Namespace && x.UID == y.UID && x.Name == y.Name && x.Component == y.Component && x.Instance == y.Instance && x.Group == y.Group && x.OwnerResolution == y.OwnerResolution && maps.Equal(x.Labels, y.Labels) && a.Mapping.ExpiresAt.Equal(b.Mapping.ExpiresAt) && a.Mapping.Reason == b.Mapping.Reason && slices.Equal(a.Mapping.Dependencies, b.Mapping.Dependencies)
+	return x.WorkloadGVK == y.WorkloadGVK && x.Namespace == y.Namespace && x.UID == y.UID && x.Name == y.Name && x.Component == y.Component && x.Instance == y.Instance && x.Group == y.Group && x.OwnerResolution == y.OwnerResolution && maps.Equal(x.Labels, y.Labels) && a.Mapping.ExpiresAt.Equal(b.Mapping.ExpiresAt) && a.Mapping.Reason == b.Mapping.Reason && slices.Equal(a.Mapping.Dependencies, b.Mapping.Dependencies)
 }

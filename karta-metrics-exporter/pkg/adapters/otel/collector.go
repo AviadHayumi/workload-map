@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
@@ -137,6 +138,9 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 					reason = failureReason(reason, failure)
 				}
 				podRoot := ref
+				if pod.WorkloadGVK != (schema.GroupVersionKind{}) {
+					podRoot.GVK = pod.WorkloadGVK
+				}
 				values := []string{pod.Namespace, podRoot.Name, podRoot.GVK.Group, podRoot.GVK.Version, podRoot.GVK.Kind, string(workload.UID), string(pod.OwnerResolution), pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Group, strconv.FormatBool(valid)}
 				c.podInfo.observe(observer, 1, pod.Labels, values...)
 			}

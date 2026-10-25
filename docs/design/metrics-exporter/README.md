@@ -360,6 +360,11 @@ read-only `*Publication`. A caller replaces one Pod with
 `publication.WithPod(uid, replacement)`, then calls `Publish` with that result.
 `WithPod` is a Publication method, not a Writer operation. Nil removes the Pod.
 
+`PodRecord.WorkloadGVK` stores the verified owner GVK for each Pod when no Karta
+is selected. Pods can refer to the same root UID through different served API
+versions. A selected Karta supplies the common GVK instead. A zero value uses
+the publication root GVK, which keeps existing Store callers compatible.
+
 Collector construction and registration are separate:
 
 ```go

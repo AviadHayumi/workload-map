@@ -56,6 +56,26 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		gvk := root.GVK
 		if selection, lookupErr := r.deps.Inventory.Lookup(root.GVK); lookupErr == nil && selection.Definition != nil {
 			gvk = selection.GVK
+		} else {
+			selected, selectionErr := r.selectedResource(gvk)
+			if selectionErr != nil {
+				return selectionErr
+			}
+			if !selected {
+				r.mu.Lock()
+				if previous := r.roots[r.podRoots[ref.UID]]; previous != nil {
+					r.invalidatePodLocked(previous, ref.UID, store.ReasonUnresolvedOwner)
+					delete(previous.paths, ref.UID)
+					delete(r.podRoots, ref.UID)
+				}
+				r.mu.Unlock()
+				return nil
+			}
+			r.mu.Lock()
+			if existing := r.roots[root.UID]; existing != nil {
+				gvk = existing.ref.GVK
+			}
+			r.mu.Unlock()
 		}
 		namespace := root.Namespace
 		if r.config.NamespaceSelector == nil {
@@ -68,6 +88,18 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		}
 	}
 	if err != nil {
+		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+			return err
+		}
+		r.mu.Lock()
+		if root := r.roots[ref.UID]; root != nil {
+			if current, ok := r.reader.Cached(ref); ok && current.GetResourceVersion() == ref.ResourceVersion {
+				root.resolutionError = err
+				r.failPublicationLocked(ref.UID, err)
+				r.rootQueue.Add(queueKey{Operation: "root", UID: ref.UID})
+			}
+		}
+		r.mu.Unlock()
 		if errors.Is(err, discovery.ErrStale) || errors.Is(err, discovery.ErrPending) {
 			return err
 		}
@@ -119,8 +151,11 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		root = &rootState{ref: workload.Root, paths: map[types.UID][]discovery.ObjectRef{}, dirty: map[types.UID]bool{}, podKeys: map[types.UID]string{}, podErrors: map[types.UID]error{}, retired: map[string]bool{}, cached: map[types.UID]cachedPod{}, fullRefresh: true}
 		r.roots[workload.Root.UID] = root
 	}
+	root.resolutionError = nil
 	root.watch = rootWatch
-	root.ref = workload.Root
+	if root.ref.GVK == workload.Root.GVK {
+		root.ref = workload.Root
+	}
 	root.resolution = workload.Resolution
 	if ref.GVK == podGVK {
 		if previous := r.podRoots[ref.UID]; previous != "" && previous != workload.Root.UID {
@@ -156,9 +191,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		return nil
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
-	var rootFailure error
+	rootFailure := state.resolutionError
 	if w := r.watches[state.watch]; w != nil {
-		rootFailure = w.err
+		rootFailure = errors.Join(rootFailure, w.err)
 		if rootFailure == nil && !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)) {
 			rootFailure = discovery.ErrUnavailable
 		}
@@ -214,6 +249,14 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	}()
 	selection, selectionErr := r.deps.Inventory.Lookup(ref.GVK)
 	definitionError = errors.Join(definitionError, selectionErr)
+	interpretationOrigin, interpretationGVK := selection.Origin, selection.GVK
+	if definitionError != nil && interpretationOrigin == (inventory.Origin{}) {
+		interpretationOrigin, interpretationGVK = state.publishedOrigin, state.publishedGVK
+	}
+	compatible := previous != nil && interpretationOrigin == state.publishedOrigin && interpretationGVK == state.publishedGVK
+	if !compatible {
+		clear(state.cached)
+	}
 	if ref.GVK == podGVK && selection.Definition == nil && definitionError == nil {
 		r.mu.Lock()
 		r.deps.Publications.RemovePublication(uid)
@@ -225,6 +268,8 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	selectedRef.ResourceVersion = ""
 	if selection.Definition != nil {
 		selectedRef.GVK = selection.GVK
+	} else if definitionError != nil && interpretationOrigin != (inventory.Origin{}) {
+		selectedRef.GVK = interpretationGVK
 	}
 	object, ok := r.reader.Cached(selectedRef)
 	if !ok {
@@ -300,7 +345,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
 		}
 	}
-	if record.Status.Reason != "" && previous != nil && previous.Workload.HasStatus {
+	if record.Status.Reason != "" && compatible && previous.Workload.HasStatus {
 		record.Workload.HasStatus = true
 		record.Workload.Phases = slices.Clone(previous.Workload.Phases)
 		record.Workload.StatusLabels = previous.Workload.StatusLabels
@@ -315,7 +360,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		podObject, found := r.reader.Cached(path[0])
 		if !found {
 			r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: podUID})
-			if previous != nil {
+			if compatible {
 				if row, found := previous.Pod(podUID); found {
 					row.Mapping.Reason = store.ReasonAPIUnavailable
 					row.Record.OwnerResolution = store.UnknownOwner
@@ -330,7 +375,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		var pathFailure error
 		for _, dependency := range path {
 			// Root updates are evaluated with their current selected representation.
-			if dependency.UID == uid {
+			if dependency.UID == uid && (interpretationOrigin != (inventory.Origin{}) || dependency.GVK == selectedRef.GVK) {
 				continue
 			}
 			proof, proofErr := r.reader.evidence(dependency)
@@ -372,11 +417,15 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 				cached.record.Labels = resolved[0].Labels
 				cached.labelFailure = len(resolved[0].Errors) > 0
 			}
-			if valid && definitionError == nil {
+			if valid && definitionError == nil && rootFailure == nil {
 				state.cached[podUID] = cached
 			}
 		}
 		podRecord := cached.record
+		podRecord.WorkloadGVK = selectedRef.GVK
+		if interpretationOrigin == (inventory.Origin{}) && len(path) > 0 {
+			podRecord.WorkloadGVK = path[len(path)-1].GVK
+		}
 		if !valid || podErrors[podUID] != nil || rootFailure != nil {
 			podRecord.OwnerResolution = store.UnknownOwner
 		}
@@ -388,8 +437,13 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		} else if cached.reason != "" {
 			evidence.Reason = cached.reason
 		}
+		if state.labelFailures == nil {
+			state.labelFailures = map[types.UID]bool{}
+		}
 		if cached.labelFailure {
-			record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
+			state.labelFailures[podUID] = true
+		} else {
+			delete(state.labelFailures, podUID)
 		}
 		rows = append(rows, store.PublishedPod{Record: podRecord, Mapping: evidence})
 	}
@@ -400,6 +454,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		for pod := range state.cached {
 			if _, ok := paths[pod]; !ok {
 				delete(state.cached, pod)
+				delete(state.labelFailures, pod)
 			}
 		}
 		record.PodPages = store.BuildPodPages(rows, previous)
@@ -413,8 +468,12 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			record = record.WithPod(pod, replacements[pod])
 			if replacements[pod] == nil {
 				delete(state.cached, pod)
+				delete(state.labelFailures, pod)
 			}
 		}
+	}
+	if len(state.labelFailures) > 0 {
+		record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
 	}
 	proofKeys := map[string]bool{}
 	proofs := []store.Evidence{rootEvidence, record.Status}
@@ -462,6 +521,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 	}
 	current.publishedGeneration = generation
+	current.publishedOrigin, current.publishedGVK = interpretationOrigin, interpretationGVK
 	committed = true
 	return nil
 }

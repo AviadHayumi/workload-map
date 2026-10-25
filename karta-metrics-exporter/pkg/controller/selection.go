@@ -46,10 +46,13 @@ func (r *Runtime) selectedRoot(object *unstructured.Unstructured) (bool, error) 
 	if !r.objectSelector.Matches(labelsFor(object)) {
 		return false, nil
 	}
+	return r.selectedResource(object.GroupVersionKind())
+}
+
+func (r *Runtime) selectedResource(gvk schema.GroupVersionKind) (bool, error) {
 	if len(r.config.ResourceRules) == 0 && len(r.config.ExcludeResourceRules) == 0 {
 		return true, nil
 	}
-	gvk := object.GroupVersionKind()
 	mapping, err := r.reader.clients.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return false, err

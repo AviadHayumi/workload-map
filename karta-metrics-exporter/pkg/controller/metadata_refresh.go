@@ -105,6 +105,9 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 		}
 		tokens[options.Continue] = true
 	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if listErr == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
 		listErr = discovery.ErrStale
 	}
@@ -151,6 +154,9 @@ func (r *Reader) refreshMetadataByGet(ctx context.Context, entries map[objectKey
 		object, err := r.fetchMetadata(ctx, discovery.ObjectRef{GVK: key.GVK, Namespace: key.Namespace, Name: key.Name})
 		if err == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
 			err = discovery.ErrStale
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		r.mu.Lock()
 		current, ok := r.metadata[key]

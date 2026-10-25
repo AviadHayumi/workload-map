@@ -241,20 +241,7 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	client := r.reader.clients.Dynamic.Resource(key.Resource).Namespace(key.Namespace)
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
-			requestCtx, cancel := context.WithTimeout(requestCtx, r.reader.options.RequestTimeout)
-			defer cancel()
-			list, err := client.List(requestCtx, options)
-			r.mu.Lock()
-			if r.watches[key] == w {
-				if err != nil {
-					r.failWatchLocked(w, err)
-				} else {
-					r.recoverWatchLocked(w)
-					w.verifiedAt = r.config.Now()
-				}
-			}
-			r.mu.Unlock()
-			return list, err
+			return r.listWatch(requestCtx, w, options)
 		},
 		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			source, err := client.Watch(requestCtx, options)
@@ -313,6 +300,35 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	return key, nil
 }
 
+// A LIST can recover only failures that existed before that read started.
+func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
+	r.mu.Lock()
+	epoch := w.failureEpoch
+	r.mu.Unlock()
+	started := r.config.Now()
+	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
+	defer cancel()
+	list, err := r.reader.clients.Dynamic.Resource(w.key.Resource).Namespace(w.key.Namespace).List(requestCtx, options)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if r.watches[w.key] != w {
+		return list, err
+	}
+	if w.failureEpoch != epoch {
+		return nil, discovery.ErrStale
+	}
+	if err != nil {
+		r.failWatchLocked(w, err)
+	} else {
+		r.recoverWatchLocked(w)
+		w.verifiedAt = started
+	}
+	return list, err
+}
+
 func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source watch.Interface) watch.Interface {
 	child, cancel := context.WithCancel(ctx)
 	stream := &watchedStream{source: source, events: make(chan watch.Event), cancel: cancel}
@@ -358,9 +374,10 @@ func (w *watchedStream) Stop()                          { w.once.Do(func() { w.c
 func (w *watchedStream) ResultChan() <-chan watch.Event { return w.events }
 
 func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
-	if r.watches[w.key] != w {
+	if r.watches[w.key] != w || errors.Is(err, context.Canceled) {
 		return
 	}
+	w.failureEpoch++
 	first := w.err == nil
 	r.reader.mu.Lock()
 	delete(r.reader.activeKeys, w.failureKey)
@@ -438,7 +455,10 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 			if root := r.roots[r.podRoots[ref.UID]]; root != nil {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
-			if r.roots[ref.UID] != nil {
+			if root := r.roots[ref.UID]; root != nil {
+				if !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences()) {
+					root.resolutionError = discovery.ErrPending
+				}
 				r.failPublicationLocked(ref.UID, discovery.ErrStale)
 			}
 		}
@@ -514,7 +534,7 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		r.mu.Unlock()
 		return nil
 	}
-	generation := w.generation
+	generation, failureEpoch := w.generation, w.failureEpoch
 	r.mu.Unlock()
 	verificationStarted := r.config.Now()
 	refs := map[types.UID]string{}
@@ -527,7 +547,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		cancel()
 		if err != nil {
 			r.mu.Lock()
-			r.failWatchLocked(w, err)
+			if ctx.Err() == nil && w.failureEpoch == failureEpoch {
+				r.failWatchLocked(w, err)
+			}
 			r.mu.Unlock()
 			return err
 		}
@@ -547,10 +569,16 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 		}
 		tokens[options.Continue] = true
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.watches[key] != w {
 		return nil
+	}
+	if w.failureEpoch != failureEpoch {
+		return discovery.ErrStale
 	}
 
 	r.recoverWatchLocked(w)

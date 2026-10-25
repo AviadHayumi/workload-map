@@ -71,6 +71,7 @@ const (
 )
 
 type PodRecord struct {
+	WorkloadGVK     schema.GroupVersionKind
 	Namespace       string
 	UID             types.UID
 	Name            string

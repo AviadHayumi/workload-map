@@ -110,6 +110,9 @@ func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bo
 }
 
 func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	mapping, err := r.mapping(ref.GVK)
 	if err != nil {
 		r.mu.Lock()
@@ -174,6 +177,15 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			}
 			r.mu.Unlock()
 			return object, err
+		}
+		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+			delete(r.pending, key)
+			close(pending)
+			r.mu.Unlock()
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return nil, err
 		}
 		previous := r.metadata[key]
 		r.recordMetadataFailureLocked(key, ref.UID, object, err)

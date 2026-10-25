@@ -102,11 +102,16 @@ type resourceWatch struct {
 	cancel       context.CancelFunc
 	ready        bool
 	generation   uint64
+	failureEpoch uint64
 	failureKey   string
 	err          error
 	verifiedAt   time.Time
 }
 type rootState struct {
+	resolutionError     error
+	labelFailures       map[types.UID]bool
+	publishedOrigin     inventory.Origin
+	publishedGVK        schema.GroupVersionKind
 	dirty               map[types.UID]bool
 	podErrors           map[types.UID]error
 	podKeys             map[types.UID]string
@@ -256,6 +261,7 @@ func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingI
 		case "verify":
 			err = r.verifyWatch(ctx, key.Watch)
 		case "metadata":
+			r.pruneMetadata()
 			err = r.reader.refreshMetadata(ctx)
 			r.mu.Lock()
 			for uid, root := range r.roots {

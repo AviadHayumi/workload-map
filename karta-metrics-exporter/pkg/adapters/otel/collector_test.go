@@ -89,6 +89,30 @@ var _ = Describe("Prometheus pull collection", func() {
 			}
 		}
 	})
+	It("emits each Pod's verified workload version and falls back for older zero-value records", func() {
+		first := p.PodPages[0].Rows[0]
+		second := first
+		second.Record.UID = "other"
+		second.Record.Name = "other"
+		second.Record.WorkloadGVK = p.Workload.Ref.GVK
+		second.Record.WorkloadGVK.Version = "v2"
+		p.PodPages = store.BuildPodPages([]store.PublishedPod{first, second}, nil)
+		s.Publish(p)
+		count := 0
+		for _, line := range strings.Split(scrape(), "\n") {
+			if !strings.HasPrefix(line, MetricPodWorkloadInfo+"{") {
+				continue
+			}
+			count++
+			if strings.Contains(line, `pod_uid="other"`) {
+				Expect(line).To(ContainSubstring(`workload_version="v2"`))
+			} else {
+				Expect(line).To(ContainSubstring(`workload_version="v1"`))
+			}
+		}
+		Expect(count).To(Equal(2))
+	})
+
 	It("keeps Pod namespaces distinct beneath a cluster-scoped root", func() {
 		p.Workload.Ref.Namespace = ""
 		p.Workload.Ref.GVK = schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "ClusterWorkload"}
