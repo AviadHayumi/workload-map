@@ -37,8 +37,9 @@ are invalid. A mapping uses the earliest expiry among its required inputs.
 Root creation and status do not depend on unrelated Pod paths.
 
 A WATCH event gives Runtime a new observed object version. Periodic verification
-renews unchanged observations. Scrapes and watch bookmarks never renew evidence. Local generations detect changes already accepted
-by this exporter; they do not prove Kubernetes has no newer change.
+renews unchanged observations. Scrapes and watch bookmarks never renew evidence.
+Local generations detect changes already accepted by this exporter. They do not
+prove Kubernetes has no newer change.
 
 ## Reads and refresh
 
@@ -49,6 +50,13 @@ still current. If the API rejects metadata representation with HTTP 406 or 415,
 the reader retries the GET or LIST page as a full-object request and extracts its
 metadata. The same timeout, identity checks and expiry apply. Other errors do not
 trigger representation fallback.
+
+After the initial Pod watch synchronizes, Runtime groups missing owners by API
+resource and namespace. A background metadata LIST seeds only the owners still
+needed by those Pods. GET workers continue while the LIST runs. Newer accepted
+reads, object changes or namespace withdrawal prevent an older batch from
+replacing current data. A failed batch leaves the ordinary GET path in charge.
+Later misses use GETs. No intermediate-owner watch is added.
 
 Periodic refresh groups retained intermediate owners by API resource and
 namespace. Each group uses a paginated metadata LIST. Unrelated returned objects
@@ -66,8 +74,9 @@ an object absent from that snapshot if no newer local event superseded it.
 
 LIST pages use a limit of 500. A page-chain resourceVersion change or repeated
 continuation token rejects the round. A request timeout bounds each GET or page.
-`ExpiresAt = readStart + maxAge`; an already over-age response cannot renew it. Reads started before a newer event, failure or scope
-change cannot replace that newer state.
+`ExpiresAt = readStart + maxAge`. An already over-age response cannot renew it.
+Reads started before a newer event, failure or scope change cannot replace that
+newer state.
 
 Healthy WATCH delivery processes ordinary changes without a new LIST per event.
 Periodic verification still performs LISTs. Intermediate owner changes can remain
@@ -76,8 +85,8 @@ Queue and API delays can exceed the evidence deadline, which makes affected rows
 invalid until fresh verification succeeds.
 
 The command defaults to a 45-second refresh interval, two-minute maximum age and
-30-second request timeout. The object and root worker counts and shared API rate limit
-bound concurrent work; see [runtime settings](../../karta-metrics-exporter/configuration.md#runtime-settings).
+30-second request timeout. The object and root worker counts and shared API rate
+limit bound concurrent work; see [runtime settings](../../karta-metrics-exporter/configuration.md#runtime-settings).
 
 ## Definition agreement
 
@@ -148,9 +157,10 @@ func (p *Publication) WithPod(uid types.UID, replacement *PublishedPod) *Publica
 
 `WorkloadRecord` holds root identity, selected Karta, matching phases, creation
 time and status labels. `BuildPodPages` groups at most 256 `PublishedPod` rows
-per page. Each row
-pairs a `PodRecord` with mapping evidence. The Pod record holds its own namespace,
-UID, name, coordinates, owner resolution and labels. These pages are immutable
+per page. Each row pairs a `PodRecord` with mapping evidence. The Pod record holds
+its own namespace, UID, name, coordinates, owner resolution and labels. It also
+keeps the verified owner API version, which may differ from the version selected
+for Karta evaluation. These pages are immutable
 chunks that can be shared between publications.
 
 `Publish` transfers immutable ownership. Callers must replace nested maps and
