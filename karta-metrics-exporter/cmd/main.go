@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-// Command karta-metrics-exporter starts the exporter scaffold.
+// Command karta-metrics-exporter starts the exporter.
 package main
 
 import (
@@ -35,7 +35,6 @@ func main() {
 // run keeps the signal handler's deferred cleanup out of main, since os.Exit skips defers.
 func run() error {
 	fs := flag.NewFlagSet("karta-metrics-exporter", flag.ContinueOnError)
-	useScaffold := fs.Bool("scaffold", false, "Run the idle mock composition without Kubernetes or metrics.")
 	showVersion := fs.Bool("version", false, "Print the exporter version and exit.")
 	loader := config.NewLoader(fs, os.LookupEnv)
 	switch err := fs.Parse(os.Args[1:]); {
@@ -65,13 +64,13 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if *useScaffold {
-		slog.Info("Starting mock components; no Kubernetes watches or metrics")
-		return app.Run(ctx, scaffold.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}), noop.NewMeterProvider().Meter("karta-scaffold"), collector.Options{})
-	}
-	slog.Info("Karta metrics exporter scaffold started; metrics collection is not implemented",
+	components := scaffold.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits})
+	slog.Info("Karta metrics exporter started; metrics collection is not implemented",
 		"version", version.String(), "labelRules", len(cfg.LabelRules))
-	<-ctx.Done()
+	if err := app.Run(ctx, components, noop.NewMeterProvider().Meter("karta-metrics-exporter"), collector.Options{}); err != nil {
+		return err
+	}
+
 	slog.Info("Karta metrics exporter stopped")
 	return nil
 }
