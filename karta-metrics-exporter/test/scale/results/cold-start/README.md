@@ -48,3 +48,24 @@ Here no scrape fully converged. Those booleans do not indicate a 25-second HTTP
 timeout or oracle timeout; the separate timing fields above record their actual
 cost. The failed report remains unchanged. The partial convergence count is
 from the last scrape; total API counts include work until process shutdown.
+
+## Matched primed runtime
+
+`33d292fb-10000-1.json.gz` uses clean source
+`33d292fb6890e3afb8a5646af5b7cc812fe709c6`. Its immutable wrapper SHA-256 is
+`15de0118b6d88021a75ff109fa2402a3c62a1251f6637e24ce07fd5315dd3a87`.
+The topology, API budget, workers, refresh, page size and deadlines match the
+pre-priming baseline. The exact binary was captured before a separate alias-owner
+correctness fix; this fixture uses one representation per owner kind.
+
+Cold convergence passed in 13.463 seconds with all 10,000 roots and Pods. It
+used 20 intermediate LIST pages and 83 GETs, with 237 total API requests during
+cold start. The complete lifecycle run passed in 58.09 seconds. It made 84
+intermediate GETs and 39 LIST pages, with no intermediate WATCH. Peak sampled
+RSS was 1,094,615,040 bytes and sampled CPU time was 26.37 seconds. The final
+cold scrape used 0.9826 seconds HTTP transfer and 0.9162 seconds oracle time.
+
+The pre-priming run never reached full Pod convergence, so its lower peak RSS
+is not a matched full-population memory result. This comparison establishes
+the bounded cold-start improvement at unchanged API budgets. It requested no
+sustained churn and does not establish five-minute or 100k-root acceptance.

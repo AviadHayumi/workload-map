@@ -139,3 +139,19 @@ The node absence was also checked during the intermediate run. These remain
 bounded development smokes, not isolated-host capacity measurements. Further
 review found runtime issues outside these scenarios after `63dc9ed1`; passing
 these reports does not override those findings. No 10k run followed.
+
+## Primed 1k intermediate smoke
+
+`primed-1000-33d292fb.json.gz` uses the same immutable primed binary as the
+[10k cold comparison](../cold-start/README.md#matched-primed-runtime), with
+QPS 20, burst 40, two workers and 5-second refresh. All lifecycle, quiet and
+churn correctness checks passed in 48.40 seconds. Cold convergence took 2.052
+seconds and used two intermediate LIST pages plus 36 GETs. Peak sampled RSS
+was 171,556,864 bytes. Verified acknowledgment p99 was bounded by 50.2 ms and
+queue drain by 39.5 ms; heap gates passed.
+
+The exact event-count gate failed: 1,999 events were emitted and observed against
+a 2,000-event schedule over 20 seconds. The old scheduler could drop a final
+due tick when diagnostic polling resumed after the wall-clock boundary. The
+failed gate remains in the unchanged report. Twenty seconds also remains below
+the five-minute acceptance duration.

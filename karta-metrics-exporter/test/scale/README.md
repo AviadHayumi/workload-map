@@ -12,9 +12,10 @@ for commands, topology, diagnostic overhead and acceptance gates.
 - [Verified 1k-root smokes](results/smoke/README.md#corrected-oracle-and-verified-acknowledgment):
   direct and intermediate ownership passed bounded lifecycle and 20-second churn
   checks. These do not establish five-minute or 100k-root acceptance.
-- [Pre-priming 10k-root baseline](results/cold-start/README.md): the 180-second
-  cold deadline failed with 3,256 of 10,000 Pod mappings. Exact source, request
-  budgets, partial output and the failed raw report are preserved.
+- [Matched 10k-root cold comparison](results/cold-start/README.md): priming
+  converged in 13.46 seconds at unchanged API budgets. The pre-priming run
+  failed its 180-second deadline with 3,256 of 10,000 Pod mappings. Both raw
+  reports and their exact sources are preserved.
 - [Warm owner-walk measurements](results/owner-walk/README.md): repeated small
   comparisons with the old PoC and k8s-workload-discovery. Read the
   [comparison scope](ownership/README.md); these are not full-runtime results.
