@@ -9,7 +9,7 @@ global:
 operator:
   enabled: true
 
-# Process scaffold only; no metrics endpoint is implemented yet.
+# Read-only workload metrics. Can run with operator.enabled=false.
 exporter:
   enabled: false
   image:
@@ -17,6 +17,77 @@ exporter:
     # When empty, falls back to .Chart.AppVersion.
     tag: ""
     pullPolicy: IfNotPresent
+  replicaCount: 1
+  http:
+    port: 8080
+  namespaceSelector: {}
+  objectSelector: {}
+  podSelector: {}
+  ignoredOwnerKinds: []
+  requiredKinds: []
+  kartaDefinitionSource:
+    catalog:
+      enabled: false
+      include: []
+      exclude: [core-pod-v1]
+    cluster:
+      enabled: true
+      include: []
+      exclude: []
+      labelSelector: {}
+  serviceAccount:
+    create: true
+    name: ""
+  rbac:
+    # Workload and child kinds the exporter may read, rendered into the base
+    # ClusterRole (no wildcards). Defaults cover common built-in catalog
+    # kinds. For anything else, either extend this list or create a
+    # ClusterRole labeled karta.run.ai/exporter-rbac: "true"; the bound role
+    # aggregates it automatically.
+    workloadRules:
+      - apiGroups: [""]
+        resources: ["replicationcontrollers"]
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+      - apiGroups: ["jobset.x-k8s.io"]
+        resources: ["jobsets"]
+      - apiGroups: ["kubeflow.org"]
+        resources: ["pytorchjobs", "mpijobs"]
+      - apiGroups: ["ray.io"]
+        resources: ["rayclusters", "rayjobs", "rayservices"]
+      - apiGroups: ["leaderworkerset.x-k8s.io"]
+        resources: ["leaderworkersets"]
+      - apiGroups: ["serving.knative.dev"]
+        resources: ["services", "configurations", "revisions"]
+      - apiGroups: ["serving.kserve.io"]
+        resources: ["inferenceservices"]
+      - apiGroups: ["milvus.io"]
+        resources: ["milvuses"]
+      - apiGroups: ["apps.nvidia.com"]
+        resources: ["nimservices", "nimcaches"]
+      - apiGroups: ["nvidia.com"]
+        resources: ["dynamographdeployments", "dynamocomponentdeployments"]
+      - apiGroups: ["grove.io", "scheduler.grove.io"]
+        resources: ["podcliquesets", "podcliques", "podcliquescalinggroups", "podgangs"]
+
+  serviceMonitor:
+    # Requires Prometheus Operator ServiceMonitor CRDs.
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 25s
+    labels: {}
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   # Extra labels for Pod info and workload status. Expressions read object.
   # See karta-metrics-exporter/pkg/labelevaluator/README.md.
   labelRules: []

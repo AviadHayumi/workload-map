@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{{- if .Values.exporter.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "karta.exporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "karta.exporter.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  # Observation failures must remain scrapeable before cache readiness.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "karta.exporter.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.exporter.http.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

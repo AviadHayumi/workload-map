@@ -438,9 +438,17 @@ lint-exporter: golangci-lint ## Lint the exporter module
 exporter-generate-mocks: ## Regenerate exporter interface mocks with pinned Mockery
 	cd karta-metrics-exporter && go run github.com/vektra/mockery/v3@v3.8.1 --config .mockery.yaml
 
-.PHONY: test-exporter
-test-exporter: ## Run the exporter module tests
+.PHONY: test-exporter-unit
+test-exporter-unit: ## Run exporter unit and chart tests without a Kubernetes API server
 	cd karta-metrics-exporter && go test ./...
+
+.PHONY: test-exporter-integration
+test-exporter-integration: envtest ## Run exporter integration tests against a real Kubernetes API server
+	cd karta-metrics-exporter && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -tags=integration ./test/integration/...
+
+.PHONY: test-exporter
+test-exporter: test-exporter-unit test-exporter-integration ## Run exporter unit, chart and envtest suites
 
 .PHONY: build-exporter
 build-exporter: $(LOCALBIN) ## Build the karta-metrics-exporter binary for the host OS/arch
