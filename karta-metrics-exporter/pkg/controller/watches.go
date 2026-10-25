@@ -279,20 +279,12 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	child, cancel := context.WithCancel(ctx)
 	r.sequence++
 	w := &resourceWatch{discover: discover, objects: map[objectKey]struct{}{}, key: key, gvk: gvk, cancel: cancel, failureKey: fmt.Sprintf("watch:%s/%s:%d", key.Resource, key.Namespace, r.sequence)}
-	client := r.reader.clients.Dynamic.Resource(key.Resource).Namespace(key.Namespace)
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
 			return r.listWatch(requestCtx, w, options)
 		},
 		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			source, err := client.Watch(requestCtx, options)
-			if err != nil {
-				r.mu.Lock()
-				r.failWatchLocked(w, err)
-				r.mu.Unlock()
-				return nil, err
-			}
-			return r.monitorWatch(requestCtx, w, source), nil
+			return r.watchResource(requestCtx, w, options)
 		},
 	}
 	w.informer = cache.NewSharedIndexInformer(lw, &sourceObject{}, 0, cache.Indexers{})
@@ -409,6 +401,31 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	return result, nil
 }
 
+// WatchList is optional. Unsupported initial-event negotiation and expired
+// cursors recover through the reflector's LIST path without revoking live proof.
+func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (watch.Interface, error) {
+	source, err := r.reader.clients.Dynamic.Resource(w.key.Resource).Namespace(w.key.Namespace).Watch(ctx, options)
+	if err != nil {
+		r.mu.Lock()
+		if options.SendInitialEvents != nil && *options.SendInitialEvents && apierrors.IsBadRequest(err) {
+			r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
+		} else {
+			r.watchErrorLocked(w, err)
+		}
+		r.mu.Unlock()
+		return nil, err
+	}
+	return r.monitorWatch(ctx, w, source), nil
+}
+
+func (r *Runtime) watchErrorLocked(w *resourceWatch, cause error) {
+	if apierrors.IsGone(cause) || apierrors.IsResourceExpired(cause) {
+		r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
+	} else {
+		r.failWatchLocked(w, cause)
+	}
+}
+
 func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source watch.Interface) watch.Interface {
 	child, cancel := context.WithCancel(ctx)
 	stream := &watchedStream{source: source, events: make(chan watch.Event), cancel: cancel}
@@ -432,12 +449,7 @@ func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source wat
 				}
 				if event.Type == watch.Error {
 					r.mu.Lock()
-					cause := apierrors.FromObject(event.Object)
-					if apierrors.IsGone(cause) || apierrors.IsResourceExpired(cause) {
-						r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
-					} else {
-						r.failWatchLocked(w, cause)
-					}
+					r.watchErrorLocked(w, apierrors.FromObject(event.Object))
 					r.mu.Unlock()
 				}
 				if object, ok := event.Object.(*unstructured.Unstructured); ok {
@@ -474,9 +486,15 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 		}
 	}
 	delete(r.reader.activeKeys, w.failureKey)
+	podRoots := map[types.UID]bool{}
 	for key := range w.objects {
 		if entry, ok := r.reader.objects[key]; ok {
 			r.invalidatePathDependentsLocked(refOf(entry.object))
+			if w.gvk == podGVK {
+				if uid := r.podRoots[entry.object.GetUID()]; uid != "" {
+					podRoots[uid] = true
+				}
+			}
 		}
 	}
 	r.reader.mu.Unlock()
@@ -491,7 +509,7 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 	}
 	r.deps.Publications.SetPublicationFailure(w.failureKey, failureReason(err))
 	for uid, root := range r.roots {
-		if root.watch == w.key || w.gvk == podGVK {
+		if root.watch == w.key || podRoots[uid] {
 			root.fullRefresh = true
 			r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
 		}
