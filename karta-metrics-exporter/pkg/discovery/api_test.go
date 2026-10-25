@@ -1,3 +1,5 @@
+//go:build integration
+
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
@@ -29,7 +31,7 @@ func (r apiReader) GetMetadata(ctx context.Context, ref ObjectRef) (*metav1.Part
 var _ = Describe("API ownership resolution", func() {
 	It("reads real metadata and keeps a deleted owner unresolved", func() {
 		if os.Getenv("KUBEBUILDER_ASSETS") == "" {
-			Skip("KUBEBUILDER_ASSETS is required for envtest")
+			Fail("KUBEBUILDER_ASSETS is required for integration tests")
 		}
 		environment := &envtest.Environment{}
 		cfg, err := environment.Start()

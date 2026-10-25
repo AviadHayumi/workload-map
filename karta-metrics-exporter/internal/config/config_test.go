@@ -128,3 +128,20 @@ func loadConfig(content string, env map[string]string, args ...string) (Config, 
 	}
 	return loader.Load()
 }
+
+var _ = Describe("runtime configuration", func() {
+	It("loads resource filters and bounded worker/API settings with flag precedence", func() {
+		cfg, err := loadConfig("resourceRules:\n- apiGroups: [batch]\n  apiVersions: [v1]\n  resources: [jobs]\napiQPS: 30\nworkers: 3\n", map[string]string{"KARTA_EXPORTER_API_QPS": "40"}, "--api-qps=50", "--api-burst=100")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg.APIQPS).To(Equal(float32(50)))
+		Expect(cfg.APIBurst).To(Equal(100))
+		Expect(cfg.Workers).To(Equal(3))
+		Expect(cfg.ResourceRules).To(HaveLen(1))
+	})
+	It("rejects malformed resources and unbounded runtime settings", func() {
+		for _, body := range []string{"apiQPS: 0", "apiBurst: 0", "workers: 0", "maxAge: 1s", "resourceRules: [{apiGroups: [batch], apiVersions: [v1], resources: [jobs/status]}]", "requiredKinds: [{kind: Job}]"} {
+			_, err := loadConfig(body, nil)
+			Expect(err).To(HaveOccurred(), body)
+		}
+	})
+})

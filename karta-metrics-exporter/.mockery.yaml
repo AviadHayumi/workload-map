@@ -4,15 +4,9 @@
 template: testify
 template-data:
   boilerplate-file: mockery-header.txt
-dir: internal/scaffold/mocks
+dir: internal/testutil/mocks
 pkgname: mocks
 packages:
-  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory:
-    interfaces:
-      Interface:
-        config:
-          structname: Inventory
-          filename: inventory_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery:
     interfaces:
       Discoverer:
@@ -47,6 +41,10 @@ packages:
           filename: store_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller:
     interfaces:
+      Inventory:
+        config:
+          structname: Inventory
+          filename: inventory_mock.go
       Runner:
         config:
           structname: Runtime

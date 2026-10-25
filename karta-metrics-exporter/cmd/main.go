@@ -14,13 +14,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"go.opentelemetry.io/otel/metric/noop"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 )
 
@@ -34,6 +31,8 @@ func main() {
 // run keeps the signal handler's deferred cleanup out of main, since os.Exit skips defers.
 func run() error {
 	fs := flag.NewFlagSet("karta-metrics-exporter", flag.ContinueOnError)
+	kubeconfig := fs.String("kubeconfig", "", "Path to a kubeconfig; defaults to in-cluster credentials or the default kubeconfig.")
+	address := fs.String("metrics-bind-address", ":8080", "Listen address for metrics and health probes.")
 	showVersion := fs.Bool("version", false, "Print the exporter version and exit.")
 	loader := config.NewLoader(fs, os.LookupEnv)
 	switch err := fs.Parse(os.Args[1:]); {
@@ -54,19 +53,19 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("invalid exporter configuration: %w", err)
 	}
-	compiler := labelevaluator.NewCompiler()
-	for _, rule := range cfg.LabelRules {
-		if _, err := compiler.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits}); err != nil {
-			return fmt.Errorf("invalid label %q: %w", rule.Name, err)
-		}
-	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	components := scaffold.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits})
-	slog.Info("Karta metrics exporter started; metrics collection is not implemented",
-		"version", version.String(), "labelRules", len(cfg.LabelRules))
-	if err := app.Run(ctx, components, noop.NewMeterProvider().Meter("karta-metrics-exporter")); err != nil {
+	kubeConfig, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		return fmt.Errorf("Kubernetes configuration: %w", err)
+	}
+	application, err := app.New(cfg, kubeConfig)
+	if err != nil {
+		return err
+	}
+	slog.Info("Karta metrics exporter started", "version", version.String(), "address", *address)
+	if err := application.Serve(ctx, *address); err != nil {
 		return err
 	}
 

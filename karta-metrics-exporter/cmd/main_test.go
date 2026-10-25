@@ -42,9 +42,11 @@ var _ = Describe("startup rejects invalid expressions", func() {
 			path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
 			contents := "labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [workload]\n  expression: '" + tc.expression + "'\n" + tc.limits
 			Expect(os.WriteFile(path, []byte(contents), 0o600)).To(Succeed())
+			kubeconfig := filepath.Join(GinkgoT().TempDir(), "client.yaml")
+			Expect(os.WriteFile(kubeconfig, []byte("apiVersion: v1\nkind: Config\nclusters:\n- name: test\n  cluster:\n    server: http://127.0.0.1:1\ncontexts:\n- name: test\n  context:\n    cluster: test\ncurrent-context: test\n"), 0o600)).To(Succeed())
 			ctx, cancel := context.WithTimeout(specCtx, 5*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCommand$", "--", "--config", path)
+			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCommand$", "--", "--config", path, "--kubeconfig", kubeconfig)
 			for _, entry := range os.Environ() {
 				if !strings.HasPrefix(entry, "KARTA_EXPORTER_") && !strings.HasPrefix(entry, "KARTA_TEST_COMMAND_PROCESS=") {
 					cmd.Env = append(cmd.Env, entry)

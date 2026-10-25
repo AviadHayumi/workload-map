@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold/mocks"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/testutil/mocks"
 	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 )
 

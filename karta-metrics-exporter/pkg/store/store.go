@@ -17,6 +17,8 @@ type Writer interface {
 	Published(types.UID) *Publication
 	RemovePublication(types.UID)
 	SetPublicationFailure(key, reason string)
+	// RetirePublicationFailure drops an abandoned key only when no current publication or health record refers to it.
+	RetirePublicationFailure(key string)
 	SetPublicationHealth([]HealthRecord)
 }
 

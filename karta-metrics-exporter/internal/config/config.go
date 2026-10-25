@@ -7,14 +7,21 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
+	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"go.yaml.in/yaml/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	sigyaml "sigs.k8s.io/yaml"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
@@ -30,8 +37,22 @@ type Loader struct {
 // Config is the exporter configuration. It is read from the YAML file named by
 // --config. A flag, or its environment variable, overrides the file when set.
 type Config struct {
-	LabelRules  []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
-	LabelLimits labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
+	ResourceRules         []controller.ResourceRule `json:"resourceRules"`
+	ExcludeResourceRules  []controller.ResourceRule `json:"excludeResourceRules"`
+	NamespaceSelector     *metav1.LabelSelector     `json:"namespaceSelector"`
+	ObjectSelector        *metav1.LabelSelector     `json:"objectSelector"`
+	PodSelector           *metav1.LabelSelector     `json:"podSelector"`
+	KartaDefinitionSource inventory.Config          `json:"kartaDefinitionSource"`
+	IgnoredOwnerKinds     []schema.GroupVersionKind `json:"ignoredOwnerKinds"`
+	RequiredKinds         []schema.GroupVersionKind `json:"requiredKinds"`
+	RefreshInterval       string                    `json:"refreshInterval"`
+	MaxAge                string                    `json:"maxAge"`
+	RequestTimeout        string                    `json:"requestTimeout"`
+	APIQPS                float32                   `json:"apiQPS"`
+	APIBurst              int                       `json:"apiBurst"`
+	Workers               int                       `json:"workers"`
+	LabelRules            []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
+	LabelLimits           labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
 }
 
 // setting is one configuration value with its flag and environment variable.
@@ -39,6 +60,7 @@ type Config struct {
 type setting struct {
 	flag, env, usage string
 	apply            func(*labelevaluator.Limits, string) error
+	applyConfig      func(*Config, string) error
 }
 
 const (
@@ -108,11 +130,20 @@ var labelSettings = []setting{
 	},
 }
 
+var runtimeSettings = []setting{
+	{flag: "api-qps", env: "KARTA_EXPORTER_API_QPS", usage: "Shared Kubernetes API request rate (default 20).", applyConfig: func(c *Config, v string) error { n, e := strconv.ParseFloat(v, 32); c.APIQPS = float32(n); return e }},
+	{flag: "api-burst", env: "KARTA_EXPORTER_API_BURST", usage: "Shared Kubernetes API request burst (default 40).", applyConfig: func(c *Config, v string) error { n, e := strconv.Atoi(v); c.APIBurst = n; return e }},
+	{flag: "workers", env: "KARTA_EXPORTER_WORKERS", usage: "Workers per object resolution and root publication queue (default 2).", applyConfig: func(c *Config, v string) error { n, e := strconv.Atoi(v); c.Workers = n; return e }},
+	{flag: "refresh-interval", env: "KARTA_EXPORTER_REFRESH_INTERVAL", usage: "Interval between source and ownership proof refreshes (default 45s).", applyConfig: func(c *Config, v string) error { c.RefreshInterval = v; return nil }},
+	{flag: "max-age", env: "KARTA_EXPORTER_MAX_AGE", usage: "Maximum source and ownership proof age (default 2m).", applyConfig: func(c *Config, v string) error { c.MaxAge = v; return nil }},
+	{flag: "request-timeout", env: "KARTA_EXPORTER_REQUEST_TIMEOUT", usage: "Timeout per metadata GET or LIST page (default 30s).", applyConfig: func(c *Config, v string) error { c.RequestTimeout = v; return nil }},
+}
+
 // NewLoader registers the configuration flags on fs. Each flag can also be set
 // from its KARTA_EXPORTER_* environment variable, read with lookupEnv.
 func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader {
 	l := &Loader{flags: map[string]*string{}, lookupEnv: lookupEnv, flagSet: fs}
-	for _, s := range append([]setting{configSetting}, labelSettings...) {
+	for _, s := range append(append([]setting{configSetting}, labelSettings...), runtimeSettings...) {
 		l.flags[s.flag] = fs.String(s.flag, "", fmt.Sprintf("%s Environment variable: %s.", s.usage, s.env))
 	}
 	return l
@@ -122,7 +153,7 @@ func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader 
 // and then the flags, so a flag wins. Explicit flags win even when empty. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	cfg := Config{LabelLimits: defaultLabelLimits}
+	cfg := DefaultConfig()
 
 	if path, _ := l.value(configSetting); path != "" {
 		data, err := os.ReadFile(path)
@@ -130,13 +161,26 @@ func (l *Loader) Load() (Config, error) {
 			return Config{}, fmt.Errorf("config file %s: %w", path, err)
 		}
 		dec := yaml.NewDecoder(bytes.NewReader(data))
-		dec.KnownFields(true)
+		var document yaml.Node
 		// An empty file decodes to io.EOF and keeps the defaults.
-		switch err := dec.Decode(&cfg); {
+		switch err := dec.Decode(&document); {
 		case errors.Is(err, io.EOF):
 		case err != nil:
 			return Config{}, fmt.Errorf("config file %s: %w", path, err)
 		default:
+			encoded, err := yaml.Marshal(&document)
+			if err != nil {
+				return Config{}, err
+			}
+			jsonData, err := sigyaml.YAMLToJSONStrict(encoded)
+			if err != nil {
+				return Config{}, err
+			}
+			jsonDecoder := json.NewDecoder(bytes.NewReader(jsonData))
+			jsonDecoder.DisallowUnknownFields()
+			if err := jsonDecoder.Decode(&cfg); err != nil {
+				return Config{}, fmt.Errorf("config file %s: %w", path, err)
+			}
 			// A trailing "---" yields an empty document, which is not a second config.
 			for {
 				var extra any
@@ -159,6 +203,13 @@ func (l *Loader) Load() (Config, error) {
 		}
 	}
 
+	for _, s := range runtimeSettings {
+		if v, set := l.value(s); set {
+			if err := s.applyConfig(&cfg, v); err != nil {
+				return Config{}, fmt.Errorf("--%s (%s): %w", s.flag, s.env, err)
+			}
+		}
+	}
 	if cfg.LabelLimits.InterruptCheckFrequency == 0 {
 		return Config{}, errZeroInterruptCheckFrequency
 	}
@@ -166,6 +217,9 @@ func (l *Loader) Load() (Config, error) {
 		return Config{}, labelevaluator.ErrNegativeLimit
 	}
 	if err := labelresolver.ValidateConfig(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}); err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
@@ -183,4 +237,51 @@ func (l *Loader) value(s setting) (string, bool) {
 		return *l.flags[s.flag], true
 	}
 	return l.lookupEnv(s.env)
+}
+
+// DefaultConfig selects cluster definitions and bounds evidence age and worker concurrency.
+func DefaultConfig() Config {
+	return Config{LabelLimits: defaultLabelLimits, KartaDefinitionSource: inventory.Config{Catalog: inventory.CatalogConfig{Exclude: []string{"core-pod-v1"}}, Cluster: inventory.ClusterConfig{Enabled: true}}, RefreshInterval: "45s", MaxAge: "2m", RequestTimeout: "30s", Workers: 2, APIQPS: 20, APIBurst: 40}
+}
+
+// Validate rejects runtime settings before any clients start.
+func (cfg Config) Validate() error {
+	for _, selector := range []*metav1.LabelSelector{cfg.NamespaceSelector, cfg.ObjectSelector, cfg.PodSelector, cfg.KartaDefinitionSource.Cluster.LabelSelector} {
+		if selector != nil {
+			if _, err := metav1.LabelSelectorAsSelector(selector); err != nil {
+				return err
+			}
+		}
+	}
+	if err := controller.ValidateResourceRules(append(append([]controller.ResourceRule{}, cfg.ResourceRules...), cfg.ExcludeResourceRules...)); err != nil {
+		return err
+	}
+	for _, kinds := range [][]schema.GroupVersionKind{cfg.IgnoredOwnerKinds, cfg.RequiredKinds} {
+		seen := map[schema.GroupVersionKind]bool{}
+		for _, kind := range kinds {
+			if kind.Kind == "" || kind.Version == "" || seen[kind] {
+				return fmt.Errorf("invalid or repeated kind %s", kind)
+			}
+			seen[kind] = true
+		}
+	}
+	refresh, err := time.ParseDuration(cfg.RefreshInterval)
+	if err != nil || refresh <= 0 {
+		return errors.New("refreshInterval must be a positive duration")
+	}
+	maxAge, err := time.ParseDuration(cfg.MaxAge)
+	if err != nil || maxAge <= refresh {
+		return errors.New("maxAge must exceed refreshInterval")
+	}
+	timeout, err := time.ParseDuration(cfg.RequestTimeout)
+	if err != nil || timeout <= 0 {
+		return errors.New("requestTimeout must be a positive duration")
+	}
+	if cfg.APIQPS <= 0 || cfg.APIBurst <= 0 {
+		return errors.New("apiQPS and apiBurst must be positive")
+	}
+	if cfg.Workers <= 0 {
+		return errors.New("workers must be positive")
+	}
+	return nil
 }

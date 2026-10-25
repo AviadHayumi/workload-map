@@ -1,3 +1,5 @@
+//go:build integration
+
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
@@ -35,7 +37,7 @@ func (s apiSource) Watch(ctx context.Context, options metav1.ListOptions) (watch
 var _ = Describe("Karta API source", func() {
 	It("tracks actual LIST/WATCH creation updates and deletion", func() {
 		if os.Getenv("KUBEBUILDER_ASSETS") == "" {
-			Skip("KUBEBUILDER_ASSETS is required for envtest")
+			Fail("KUBEBUILDER_ASSETS is required for integration tests")
 		}
 		environment := &envtest.Environment{CRDDirectoryPaths: []string{"../../../charts/karta/crds"}, ErrorIfCRDPathMissing: true}
 		cfg, err := environment.Start()

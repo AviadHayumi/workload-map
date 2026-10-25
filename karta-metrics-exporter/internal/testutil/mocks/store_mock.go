@@ -226,6 +226,46 @@ func (_c *Store_RemovePublication_Call) RunAndReturn(run func(uID types.UID)) *S
 	return _c
 }
 
+// RetirePublicationFailure provides a mock function for the type Store
+func (_mock *Store) RetirePublicationFailure(key string) {
+	_mock.Called(key)
+	return
+}
+
+// Store_RetirePublicationFailure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RetirePublicationFailure'
+type Store_RetirePublicationFailure_Call struct {
+	*mock.Call
+}
+
+// RetirePublicationFailure is a helper method to define mock.On call
+//   - key string
+func (_e *Store_Expecter) RetirePublicationFailure(key any) *Store_RetirePublicationFailure_Call {
+	return &Store_RetirePublicationFailure_Call{Call: _e.mock.On("RetirePublicationFailure", key)}
+}
+
+func (_c *Store_RetirePublicationFailure_Call) Run(run func(key string)) *Store_RetirePublicationFailure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_RetirePublicationFailure_Call) Return() *Store_RetirePublicationFailure_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Store_RetirePublicationFailure_Call) RunAndReturn(run func(key string)) *Store_RetirePublicationFailure_Call {
+	_c.Run(run)
+	return _c
+}
+
 // SetPublicationFailure provides a mock function for the type Store
 func (_mock *Store) SetPublicationFailure(key string, reason string) {
 	_mock.Called(key, reason)
