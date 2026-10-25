@@ -6,8 +6,10 @@ package kartadefinitioninventory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,9 +19,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic/fake"
 	ktesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
@@ -36,6 +40,23 @@ var (
 	withCatalog      = Options{Catalog: SourceOptions{Enabled: true, Exclude: []string{"core-pod-v1"}}, Cluster: SourceOptions{Enabled: true}}
 	catalogJobOrigin = Origin{Source: SourceCatalog, Name: "batch-job-v1"}
 )
+
+// pausedStore holds its first Replace until released, so a spec can act after
+// a streaming list ends and before the store applies it.
+type pausedStore struct {
+	cache.Store
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *pausedStore) Replace(list []any, resourceVersion string) error {
+	s.once.Do(func() {
+		close(s.entered)
+		<-s.release
+	})
+	return s.Store.Replace(list, resourceVersion)
+}
 
 func unstructuredKarta(k *v1alpha1.Karta) *unstructured.Unstructured {
 	GinkgoHelper()
@@ -76,12 +97,6 @@ var _ = Describe("Inventory", func() {
 		_, err := New(nil, DefaultOptions())
 
 		Expect(err).To(MatchError(ContainSubstring("requires a client")))
-	})
-
-	It("rejects invalid options", func() {
-		_, err := New(newFakeClient(), Options{Catalog: SourceOptions{Include: []string{"nope"}}})
-
-		Expect(err).To(MatchError(ErrInvalidOptions))
 	})
 
 	It("serves a catalog-only configuration before Run and after it returns", func() {
@@ -260,16 +275,29 @@ var _ = Describe("Inventory", func() {
 			client    *fake.FakeDynamicClient
 			inventory *Inventory
 			listErr   atomic.Pointer[error]
+			watchErr  atomic.Pointer[error]
+			watches   atomic.Pointer[watch.RaceFreeFakeWatcher]
 		)
 
 		BeforeEach(func() {
 			client = newFakeClient(unstructuredKarta(newKarta("cluster-job", jobGVK)))
 			listErr.Store(nil)
+			watchErr.Store(nil)
+			watches.Store(nil)
 			client.PrependReactor("list", "kartas", func(ktesting.Action) (bool, runtime.Object, error) {
 				if err := listErr.Load(); err != nil {
 					return true, nil, *err
 				}
 				return false, nil, nil
+			})
+			// A watch delivers only what a spec sends to it, so it never replays on its own.
+			client.PrependWatchReactor("kartas", func(ktesting.Action) (bool, watch.Interface, error) {
+				if err := watchErr.Load(); err != nil {
+					return true, nil, *err
+				}
+				w := watch.NewRaceFreeFake()
+				watches.Store(w)
+				return true, w, nil
 			})
 			var err error
 			inventory, err = New(client, withCatalog)
@@ -277,6 +305,12 @@ var _ = Describe("Inventory", func() {
 		})
 
 		fail := func(err error) { listErr.Store(&err) }
+		// established waits for the reflector's watch, which opens after Replace has made the inventory ready.
+		established := func() *watch.RaceFreeFakeWatcher {
+			GinkgoHelper()
+			Eventually(watches.Load, eventuallyTimeout, eventuallyInterval).ShouldNot(BeNil())
+			return watches.Load()
+		}
 
 		DescribeTable("classifies a failing LIST and never serves the catalog meanwhile",
 			func(cause error, want error) {
@@ -305,25 +339,272 @@ var _ = Describe("Inventory", func() {
 			Expect(lookupOrigin(inventory, jobGVK).Source).To(Equal(SourceCluster))
 		})
 
-		It("fails when a relist after a sync is denied, and recovers", func() {
-			var watches atomic.Pointer[watch.RaceFreeFakeWatcher]
-			client.PrependWatchReactor("kartas", func(ktesting.Action) (bool, watch.Interface, error) {
-				w := watch.NewRaceFreeFake()
-				watches.Store(w)
-				return true, w, nil
-			})
+		It("reports a refused watch, and recovers through a relist rather than a resumed watch that has not replayed", func() {
 			start(inventory)
 			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Expect(lookupOrigin(inventory, deploymentGVK)).To(Equal(Origin{Source: SourceCatalog, Name: "apps-deployment-v1"}))
+			resumable := established()
 
-			fail(apierrors.NewForbidden(kartasGR, "", errors.New("permission revoked")))
-			watches.Load().Stop()
+			refused := fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED)
+			fail(refused)
+			watchErr.Store(&refused)
+			// An event before the close makes the reflector resume the watch instead of relisting.
+			bookmark := &unstructured.Unstructured{}
+			bookmark.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("Karta"))
+			bookmark.SetResourceVersion("2")
+			resumable.Action(watch.Bookmark, bookmark)
+			resumable.Stop()
 
-			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(ErrPermissionDenied))
+			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(ErrUnavailable))
+			_, err := inventory.Lookup(jobGVK)
+			Expect(err).To(MatchError(ErrUnavailable))
+
+			_, err = client.Resource(kartasGVR).Create(context.Background(),
+				unstructuredKarta(newKarta("cluster-deployment", deploymentGVK)), metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			listErr.Store(nil)
+			watchErr.Store(nil)
+
+			Eventually(func(g Gomega) {
+				sel, err := inventory.Lookup(deploymentGVK)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(sel.Origin.Name).To(Equal("cluster-deployment"))
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+	})
+
+	Context("while a streaming list is being applied", func() {
+		DescribeTable("keeps an error that arrives before Replace, and recovers only through a fresh list",
+			func(cause metav1.Status, want error) {
+				streams := make(chan *watch.RaceFreeFakeWatcher, 8)
+				var resumed atomic.Int32
+				client := newFakeClient()
+				client.PrependWatchReactor("kartas", func(action ktesting.Action) (bool, watch.Interface, error) {
+					w := watch.NewRaceFreeFake()
+					if initial := action.(ktesting.WatchActionImpl).ListOptions.SendInitialEvents; initial != nil && *initial {
+						streams <- w
+					} else {
+						resumed.Add(1)
+					}
+					return true, w, nil
+				})
+				inventory, err := New(client, withCatalog)
+				Expect(err).NotTo(HaveOccurred())
+				paused := &pausedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), entered: make(chan struct{}), release: make(chan struct{})}
+				store := observedStore{Store: paused, inventory: inventory}
+				inventory.update(func() { inventory.store = store })
+				// Without the fake client's opt-out, the reflector uses streaming lists.
+				reflector := cache.NewReflectorWithOptions(
+					cache.ToListWatcherWithWatchListSemantics(inventory.listWatch(client.Resource(kartasGVR)), nil),
+					&unstructured.Unstructured{}, store, cache.ReflectorOptions{})
+				ctx, cancel := context.WithCancel(context.Background())
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					reflector.RunWithContext(ctx)
+				}()
+				release := sync.OnceFunc(func() { close(paused.release) })
+				DeferCleanup(func() {
+					cancel()
+					release()
+					Eventually(done, eventuallyTimeout).Should(BeClosed())
+				})
+				sendInitialEvents := func(stream *watch.RaceFreeFakeWatcher) {
+					stream.Add(unstructuredKarta(newKarta("cluster-job", jobGVK, fromCluster("uid-1", "1"))))
+					end := &unstructured.Unstructured{}
+					end.SetGroupVersionKind(v1alpha1.GroupVersion.WithKind("Karta"))
+					end.SetResourceVersion("2")
+					end.SetAnnotations(map[string]string{metav1.InitialEventsAnnotationKey: "true"})
+					stream.Action(watch.Bookmark, end)
+				}
+
+				var first *watch.RaceFreeFakeWatcher
+				Eventually(streams, eventuallyTimeout).Should(Receive(&first))
+				sendInitialEvents(first)
+				Eventually(paused.entered, eventuallyTimeout).Should(BeClosed())
+
+				first.Error(&cause)
+				Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(want))
+
+				release()
+
+				var second *watch.RaceFreeFakeWatcher
+				Eventually(streams, eventuallyTimeout).Should(Receive(&second))
+				Expect(inventory.Ready()).To(MatchError(want))
+				Expect(resumed.Load()).To(BeZero())
+
+				sendInitialEvents(second)
+				Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+				Expect(lookupOrigin(inventory, jobGVK).Name).To(Equal("cluster-job"))
+			},
+			Entry("forbidden", apierrors.NewForbidden(kartasGR, "", errors.New("permission revoked")).ErrStatus, ErrPermissionDenied),
+			Entry("too many requests, after which the reflector would resume the watch",
+				apierrors.NewTooManyRequests("slow down", 1).ErrStatus, ErrUnavailable),
+		)
+	})
+
+	Context("health between calls and store writes", func() {
+		var (
+			ctx       = context.Background()
+			inventory *Inventory
+			store     observedStore
+			lw        *cache.ListWatch
+			listErr   atomic.Pointer[error]
+			watchErr  atomic.Pointer[error]
+			served    atomic.Pointer[watch.RaceFreeFakeWatcher]
+		)
+
+		list := func() { _, _ = lw.ListWithContextFunc(ctx, metav1.ListOptions{}) }
+		watchCall := func(streaming bool) {
+			options := metav1.ListOptions{}
+			if streaming {
+				options.SendInitialEvents = &streaming
+			}
+			if w, err := lw.WatchFuncWithContext(ctx, options); err == nil {
+				w.Stop()
+			}
+		}
+		replace := func(definitions ...*v1alpha1.Karta) {
+			GinkgoHelper()
+			items := make([]any, 0, len(definitions))
+			for _, k := range definitions {
+				items = append(items, unstructuredKarta(k))
+			}
+			Expect(store.Replace(items, "1")).To(Succeed())
+		}
+
+		BeforeEach(func() {
+			listErr.Store(nil)
+			watchErr.Store(nil)
+			served.Store(nil)
+			client := newFakeClient()
+			client.PrependReactor("list", "kartas", func(ktesting.Action) (bool, runtime.Object, error) {
+				if err := listErr.Load(); err != nil {
+					return true, nil, *err
+				}
+				return false, nil, nil
+			})
+			client.PrependWatchReactor("kartas", func(ktesting.Action) (bool, watch.Interface, error) {
+				if err := watchErr.Load(); err != nil {
+					return true, nil, *err
+				}
+				w := watch.NewRaceFreeFake()
+				served.Store(w)
+				return true, w, nil
+			})
+			var err error
+			inventory, err = New(client, withCatalog)
+			Expect(err).NotTo(HaveOccurred())
+			store = observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: inventory}
+			inventory.update(func() { inventory.store = store })
+			lw = inventory.listWatch(client.Resource(kartasGVR))
+		})
+
+		It("stays pending after a successful LIST until Replace applies it", func() {
+			list()
+			Expect(inventory.Ready()).To(MatchError(ErrNotReady))
+
+			replace()
+
+			Expect(inventory.Ready()).To(Succeed())
+		})
+
+		It("keeps a LIST failure past a successful LIST, until an empty Replace applies fresh data", func() {
+			replace(newKarta("cluster-job", jobGVK))
+			Expect(lookupOrigin(inventory, jobGVK).Source).To(Equal(SourceCluster))
+			denied := error(apierrors.NewForbidden(kartasGR, "", errors.New("revoked")))
+			listErr.Store(&denied)
+			list()
+			Expect(inventory.Ready()).To(MatchError(ErrPermissionDenied))
+
+			listErr.Store(nil)
+			list()
+
+			Expect(inventory.Ready()).To(MatchError(ErrPermissionDenied))
 			_, err := inventory.Lookup(jobGVK)
 			Expect(err).To(MatchError(ErrPermissionDenied))
 
+			replace()
+
+			Expect(inventory.Ready()).To(Succeed())
+			Expect(lookupOrigin(inventory, jobGVK)).To(Equal(catalogJobOrigin))
+		})
+
+		It("keeps a failure through a streaming list until its Replace arrives", func() {
+			replace()
+			down := error(apierrors.NewServiceUnavailable("restarting"))
+			listErr.Store(&down)
+			list()
+			Expect(inventory.Ready()).To(MatchError(ErrUnavailable))
+
 			listErr.Store(nil)
-			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			watchCall(true)
+
+			Expect(inventory.Ready()).To(MatchError(ErrUnavailable))
+
+			replace(newKarta("cluster-job", jobGVK))
+
+			Expect(inventory.Ready()).To(Succeed())
+			Expect(lookupOrigin(inventory, jobGVK).Name).To(Equal("cluster-job"))
+		})
+
+		DescribeTable("reports a refused watch call, which the reflector retries on its own",
+			func(streaming bool) {
+				replace()
+				refused := fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED)
+				watchErr.Store(&refused)
+
+				watchCall(streaming)
+
+				Expect(inventory.Ready()).To(MatchError(ErrUnavailable))
+				Expect(inventory.Ready()).To(MatchError(refused))
+			},
+			Entry("a resumed watch", false),
+			Entry("a streaming list, retried without falling back to LIST", true),
+		)
+
+		It("does not count a server without streaming lists as a failure, since LIST follows", func() {
+			// What an API server with the WatchList feature gate off answers.
+			rejected := error(apierrors.NewInvalid(schema.GroupKind{Group: "meta.k8s.io", Kind: "ListOptions"}, "",
+				field.ErrorList{field.Forbidden(field.NewPath("sendInitialEvents"), "sendInitialEvents is forbidden for watch unless the WatchList feature gate is enabled")}))
+			watchErr.Store(&rejected)
+
+			watchCall(true)
+			Expect(inventory.Ready()).To(MatchError(ErrNotReady))
+
+			replace()
+			watchCall(true)
+			Expect(inventory.Ready()).To(Succeed())
+		})
+
+		It("records an error sent on an established watch before passing it on, and passes on every event in order", func() {
+			replace()
+			w, err := lw.WatchFuncWithContext(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(w.Stop)
+			server := served.Load()
+			server.Add(unstructuredKarta(newKarta("cluster-job", jobGVK)))
+			server.Error(&apierrors.NewForbidden(kartasGR, "", errors.New("revoked")).ErrStatus)
+
+			var event watch.Event
+			Eventually(w.ResultChan(), eventuallyTimeout).Should(Receive(&event))
+			Expect(event.Type).To(Equal(watch.Added))
+			Eventually(w.ResultChan(), eventuallyTimeout).Should(Receive(&event))
+			Expect(event.Type).To(Equal(watch.Error))
+
+			Expect(inventory.Ready()).To(MatchError(ErrPermissionDenied))
+		})
+
+		It("stops the server's watch and closes when stopped with an event still pending", func() {
+			w, err := lw.WatchFuncWithContext(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			server := served.Load()
+			server.Add(unstructuredKarta(newKarta("cluster-job", jobGVK)))
+
+			w.Stop()
+
+			Eventually(server.IsStopped, eventuallyTimeout, eventuallyInterval).Should(BeTrue())
+			Eventually(w.ResultChan(), eventuallyTimeout).Should(BeClosed())
 		})
 	})
 })

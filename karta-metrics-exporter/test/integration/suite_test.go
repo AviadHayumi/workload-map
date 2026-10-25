@@ -42,6 +42,8 @@ var _ = BeforeSuite(func() {
 	testCtx, testCancel = context.WithCancel(context.Background())
 
 	testEnv = &envtest.Environment{CRDDirectoryPaths: crdPaths, ErrorIfCRDPathMissing: true}
+	// Kubernetes 1.31 serves streaming lists only behind this alpha gate; client-go uses them by default.
+	testEnv.ControlPlane.GetAPIServer().Configure().Append("feature-gates", "WatchList=true")
 	var err error
 	adminConfig, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())

@@ -34,6 +34,7 @@ var (
 	ErrPermissionDenied = errors.New("definition source permission denied")
 
 	errStopped = errors.New("inventory stopped")
+	errRelist  = errors.New("watch not resumed after a failure; relisting to confirm fresh data")
 )
 
 // Inventory selects definitions from the catalog and the cluster's Karta objects;
@@ -47,11 +48,17 @@ type Inventory struct {
 
 	current atomic.Pointer[published]
 
-	mu                sync.Mutex
-	started           bool
-	store             cache.Store
-	synced            bool
+	mu      sync.Mutex
+	started bool
+	store   cache.Store
+	// synced turns true at the first Replace, when a complete list is in the store.
+	synced bool
+	// failure holds the last error from a call or a watch, and failures counts
+	// them. listedFrom is that count when the latest LIST or streaming list
+	// began; Replace clears failure only when nothing failed since.
 	failure           error
+	failures          uint64
+	listedFrom        uint64
 	stopped           bool
 	unkeyable         []string
 	unmatchedIncludes []string
@@ -60,6 +67,14 @@ type Inventory struct {
 type published struct {
 	resolved snapshot
 	err      error
+}
+
+// observedStore republishes the snapshot after every write. Replace is where a
+// LIST or a streaming list is applied, so it marks the store synced, even when
+// the list is empty, and clears the failures that list replaces.
+type observedStore struct {
+	cache.Store
+	inventory *Inventory
 }
 
 var _ Interface = (*Inventory)(nil)
@@ -106,61 +121,138 @@ func (i *Inventory) Run(ctx context.Context) error {
 		return nil
 	}
 
-	// A successful call clears a failure; failures arrive through the watch
-	// error handler, after the reflector gives up on an attempt, so a server
-	// that only rejects streaming lists never reads as failed.
+	store := observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: i}
+	i.update(func() { i.store = store })
 	resource := i.client.Resource(v1alpha1.GroupVersion.WithResource("kartas"))
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			list, err := resource.List(ctx, options)
-			i.recover(err)
-			return list, err
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			w, err := resource.Watch(ctx, options)
-			i.recover(err)
-			return w, err
-		},
-	}
-	informer := cache.NewSharedIndexInformerWithOptions(
-		cache.ToListWatcherWithWatchListSemantics(lw, i.client),
-		&unstructured.Unstructured{},
-		cache.SharedIndexInformerOptions{ObjectDescription: "Karta definitions"})
-	if err := informer.SetWatchErrorHandlerWithContext(func(ctx context.Context, r *cache.Reflector, err error) {
-		i.update(func() { i.failure = err })
-		cache.DefaultWatchErrorHandler(ctx, r, err)
-	}); err != nil {
-		return err
-	}
-	registration, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(any) { i.update(nil) },
-		UpdateFunc: func(any, any) { i.update(nil) },
-		DeleteFunc: func(any) { i.update(nil) },
-	})
-	if err != nil {
-		return err
-	}
-	i.update(func() { i.store = informer.GetStore() })
-
-	var wg sync.WaitGroup
-	wg.Go(func() { informer.RunWithContext(ctx) })
-	if cache.WaitForCacheSync(ctx.Done(), registration.HasSynced) {
-		i.update(func() { i.synced = true })
-		i.log.Info("Karta definition inventory synced", "selected", len(i.current.Load().resolved.selections), "error", i.Ready())
-	}
-	wg.Wait()
+	reflector := cache.NewReflectorWithOptions(
+		cache.ToListWatcherWithWatchListSemantics(i.listWatch(resource), i.client),
+		&unstructured.Unstructured{}, store,
+		cache.ReflectorOptions{Name: "karta-definitions", TypeDescription: "Karta definitions"})
+	reflector.RunWithContext(ctx)
 	i.update(func() { i.stopped = true })
 	return nil
 }
 
-func (i *Inventory) recover(err error) {
-	if err != nil {
-		return
+// listWatch records every failure of a call or of an established watch. The
+// reflector retries some failures, such as a refused connection or a 429,
+// without reporting them, so the calls and the stream are the only reliable
+// signal. Only Replace clears a failure.
+func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWatch {
+	return &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			// Later pages continue the same list.
+			if options.Continue == "" {
+				i.mu.Lock()
+				i.listedFrom = i.failures
+				i.mu.Unlock()
+			}
+			list, err := resource.List(ctx, options)
+			if err != nil {
+				i.update(func() { i.fail(err) })
+			}
+			return list, err
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			streaming := options.SendInitialEvents != nil && *options.SendInitialEvents
+			i.mu.Lock()
+			failed := i.failure != nil
+			if streaming {
+				i.listedFrom = i.failures
+			}
+			i.mu.Unlock()
+			// A resumed watch has no marker for the end of its replay, so after a
+			// failure only a new list can confirm fresh data.
+			if failed && !streaming {
+				return nil, errRelist
+			}
+			w, err := resource.Watch(ctx, options)
+			switch {
+			// A server without streaming lists rejects the request as invalid, and LIST follows.
+			case err != nil && streaming && apierrors.IsInvalid(err):
+				return nil, err
+			case err != nil:
+				i.update(func() { i.fail(err) })
+				return nil, err
+			}
+			events := make(chan watch.Event)
+			proxy := watch.NewProxyWatcher(events)
+			go func() {
+				defer close(events)
+				defer w.Stop()
+				for {
+					select {
+					case event, ok := <-w.ResultChan():
+						if !ok {
+							return
+						}
+						// Recorded before the reflector reads the error and relists. The
+						// reflector stops a watch before its next list begins, so an error
+						// from a stopped watch must not outlive that list.
+						if event.Type == watch.Error {
+							err := apierrors.FromObject(event.Object)
+							i.update(func() {
+								if !proxy.Stopping() {
+									i.fail(err)
+								}
+							})
+						}
+						select {
+						case events <- event:
+						case <-proxy.StopChan():
+							return
+						}
+					case <-proxy.StopChan():
+						return
+					}
+				}
+			}()
+			return proxy, nil
+		},
 	}
-	i.update(func() { i.failure = nil })
 }
 
-// update applies change, then republishes from the informer store. The snapshot
+// fail records err; callers hold i.mu.
+func (i *Inventory) fail(err error) {
+	i.failure = err
+	i.failures++
+}
+
+func (s observedStore) Add(obj any) error {
+	err := s.Store.Add(obj)
+	s.inventory.update(nil)
+	return err
+}
+
+func (s observedStore) Update(obj any) error {
+	err := s.Store.Update(obj)
+	s.inventory.update(nil)
+	return err
+}
+
+func (s observedStore) Delete(obj any) error {
+	err := s.Store.Delete(obj)
+	s.inventory.update(nil)
+	return err
+}
+
+func (s observedStore) Replace(list []any, resourceVersion string) error {
+	err := s.Store.Replace(list, resourceVersion)
+	first := false
+	s.inventory.update(func() {
+		first = !s.inventory.synced
+		s.inventory.synced = true
+		// A failure recorded after this list began is newer than the list.
+		if s.inventory.failures == s.inventory.listedFrom {
+			s.inventory.failure = nil
+		}
+	})
+	if first {
+		s.inventory.log.Info("Karta definition inventory synced", "listed", len(list), "error", s.inventory.Ready())
+	}
+	return err
+}
+
+// update applies change, then republishes from the store. The snapshot
 // is rebuilt from the store on every change rather than patched per event.
 func (i *Inventory) update(change func()) {
 	i.mu.Lock()

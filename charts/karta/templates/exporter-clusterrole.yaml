@@ -2,11 +2,11 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "karta.exporter.fullname" . }}
+  name: {{ include "karta.exporter.clusterScopedName" . }}
   labels:
     {{- include "karta.exporter.labels" . | nindent 4 }}
 rules:
-  # Read the cluster's Karta definitions; the informer only lists and watches.
+  # Read the cluster's Karta definitions; the inventory only lists and watches.
   - apiGroups: ["run.ai"]
     resources: ["kartas"]
     verbs: ["list", "watch"]

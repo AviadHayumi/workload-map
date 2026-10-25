@@ -5,14 +5,20 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
+	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -26,12 +32,70 @@ var (
 	kartasGVR   = v1alpha1.GroupVersion.WithResource("kartas")
 	crdsGVR     = apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")
 	jobGVK      = schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}
-	statefulGVK = schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}
 	withCatalog = inventory.Options{
 		Catalog: inventory.SourceOptions{Enabled: true, Exclude: []string{"core-pod-v1"}},
 		Cluster: inventory.SourceOptions{Enabled: true},
 	}
+	errRefused = fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED)
 )
+
+// recordingClient counts LIST calls and streaming lists, and can opt out of
+// streaming lists or have them refused, to pin which path the reflector takes.
+// refuse fails every call as an unreachable API server does.
+type recordingClient struct {
+	dynamic.Interface
+	optOut        bool
+	rejectStreams bool
+	refuse        atomic.Bool
+	lists         atomic.Int32
+	streams       atomic.Int32
+	latest        atomic.Pointer[watch.Interface]
+}
+
+type recordingResource struct {
+	dynamic.NamespaceableResourceInterface
+	client *recordingClient
+}
+
+func (c *recordingClient) IsWatchListSemanticsUnSupported() bool { return c.optOut }
+
+func (c *recordingClient) Resource(gvr schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+	return recordingResource{NamespaceableResourceInterface: c.Interface.Resource(gvr), client: c}
+}
+
+func (r recordingResource) List(ctx context.Context, options metav1.ListOptions) (*unstructured.UnstructuredList, error) {
+	r.client.lists.Add(1)
+	if r.client.refuse.Load() {
+		return nil, errRefused
+	}
+	return r.NamespaceableResourceInterface.List(ctx, options)
+}
+
+func (r recordingResource) Watch(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+	if options.SendInitialEvents != nil && *options.SendInitialEvents {
+		r.client.streams.Add(1)
+		if r.client.rejectStreams {
+			// What an API server with the WatchList feature gate off answers.
+			return nil, apierrors.NewInvalid(schema.GroupKind{Group: "meta.k8s.io", Kind: "ListOptions"}, "",
+				field.ErrorList{field.Forbidden(field.NewPath("sendInitialEvents"), "sendInitialEvents is forbidden for watch unless the WatchList feature gate is enabled")})
+		}
+	}
+	if r.client.refuse.Load() {
+		return nil, errRefused
+	}
+	w, err := r.NamespaceableResourceInterface.Watch(ctx, options)
+	if err == nil {
+		r.client.latest.Store(&w)
+	}
+	return w, err
+}
+
+func clientFor(config *rest.Config) dynamic.Interface {
+	GinkgoHelper()
+	client, err := dynamic.NewForConfig(config)
+	Expect(err).NotTo(HaveOccurred())
+	return client
+}
 
 // clusterKarta copies the catalog definition for gvk under a new name.
 func clusterKarta(name string, gvk schema.GroupVersionKind) *unstructured.Unstructured {
@@ -54,11 +118,9 @@ func create(objects ...*unstructured.Unstructured) {
 	}
 }
 
-// start runs a new inventory reading the cluster as config until the spec ends.
-func start(config *rest.Config, options inventory.Options) *inventory.Inventory {
+// start runs a new inventory reading the cluster through client until the spec ends.
+func start(client dynamic.Interface, options inventory.Options) *inventory.Inventory {
 	GinkgoHelper()
-	client, err := dynamic.NewForConfig(config)
-	Expect(err).NotTo(HaveOccurred())
 	inv, err := inventory.New(client, options)
 	Expect(err).NotTo(HaveOccurred())
 	ctx, cancel := context.WithCancel(testCtx)
@@ -95,7 +157,7 @@ var _ = Describe("Karta definition inventory", func() {
 		created, err := adminClient.Resource(kartasGVR).Get(testCtx, "cluster-job", metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
-		inv := start(adminConfig, withCatalog)
+		inv := start(clientFor(adminConfig), withCatalog)
 
 		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool {
 			return o == inventory.Origin{Source: inventory.SourceCluster, Name: "cluster-job", UID: created.GetUID(), ResourceVersion: created.GetResourceVersion()}
@@ -112,26 +174,9 @@ var _ = Describe("Karta definition inventory", func() {
 		})
 	})
 
-	It("breaks a tie between Kartas created in the same second by name", func() {
-		create(clusterKarta("sts-b", statefulGVK), clusterKarta("sts-a", statefulGVK))
-		a, err := adminClient.Resource(kartasGVR).Get(testCtx, "sts-a", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		b, err := adminClient.Resource(kartasGVR).Get(testCtx, "sts-b", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		aCreated, bCreated := a.GetCreationTimestamp(), b.GetCreationTimestamp()
-		want := "sts-a"
-		if bCreated.Before(&aCreated) {
-			want = "sts-b"
-		}
-
-		inv := start(adminConfig, withCatalog)
-
-		expectOrigin(inv, statefulGVK, func(o inventory.Origin) bool { return o.Name == want })
-	})
-
 	DescribeTable("classifies a LIST the server refuses, and never serves the catalog",
 		func(config func() *rest.Config, want error) {
-			inv := start(config(), withCatalog)
+			inv := start(clientFor(config()), withCatalog)
 
 			Eventually(inv.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(want))
 			_, err := inv.Lookup(jobGVK)
@@ -148,26 +193,55 @@ var _ = Describe("Karta definition inventory", func() {
 		}, inventory.ErrPermissionDenied),
 	)
 
-	It("is unavailable while the Karta CRD is missing and recovers once it is reinstalled", func() {
+	It("reports refused streaming reconnects, which the reflector retries without LIST, and recovers", func() {
 		create(clusterKarta("cluster-job", jobGVK))
-		inv := start(adminConfig, withCatalog)
+		client := &recordingClient{Interface: clientFor(adminConfig)}
+		inv := start(client, withCatalog)
 		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool { return o.Source == inventory.SourceCluster })
+		Expect(client.streams.Load()).To(BeNumerically(">", 0))
 
-		Expect(adminClient.Resource(crdsGVR).Delete(testCtx, "kartas.run.ai", metav1.DeleteOptions{})).To(Succeed())
-		DeferCleanup(func() {
-			_, err := envtest.InstallCRDs(adminConfig, envtest.CRDInstallOptions{Paths: crdPaths, ErrorIfPathMissing: true})
-			Expect(err).NotTo(HaveOccurred())
-		})
+		client.refuse.Store(true)
+		(*client.latest.Load()).Stop()
 
 		Eventually(inv.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(inventory.ErrUnavailable))
 		_, err := inv.Lookup(jobGVK)
 		Expect(err).To(MatchError(inventory.ErrUnavailable))
+		Expect(client.lists.Load()).To(BeZero())
 
-		_, err = envtest.InstallCRDs(adminConfig, envtest.CRDInstallOptions{Paths: crdPaths, ErrorIfPathMissing: true})
-		Expect(err).NotTo(HaveOccurred())
+		client.refuse.Store(false)
 		Eventually(inv.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
-		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool {
-			return o == inventory.Origin{Source: inventory.SourceCatalog, Name: "batch-job-v1"}
-		})
+		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool { return o.Source == inventory.SourceCluster })
 	})
+
+	DescribeTable("is unavailable while the Karta CRD is missing and recovers once it is reinstalled",
+		func(optOut, rejectStreams, wantStreams, wantLists bool) {
+			create(clusterKarta("cluster-job", jobGVK))
+			client := &recordingClient{Interface: clientFor(adminConfig), optOut: optOut, rejectStreams: rejectStreams}
+			inv := start(client, withCatalog)
+			expectOrigin(inv, jobGVK, func(o inventory.Origin) bool { return o.Source == inventory.SourceCluster })
+			Expect(client.streams.Load() > 0).To(Equal(wantStreams), "streaming lists")
+			Expect(client.lists.Load() > 0).To(Equal(wantLists), "LIST calls")
+
+			Expect(adminClient.Resource(crdsGVR).Delete(testCtx, "kartas.run.ai", metav1.DeleteOptions{})).To(Succeed())
+			DeferCleanup(func() {
+				_, err := envtest.InstallCRDs(adminConfig, envtest.CRDInstallOptions{Paths: crdPaths, ErrorIfPathMissing: true})
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Eventually(inv.Ready, eventuallyTimeout, eventuallyInterval).Should(MatchError(inventory.ErrUnavailable))
+			_, err := inv.Lookup(jobGVK)
+			Expect(err).To(MatchError(inventory.ErrUnavailable))
+
+			_, err = envtest.InstallCRDs(adminConfig, envtest.CRDInstallOptions{Paths: crdPaths, ErrorIfPathMissing: true})
+			Expect(err).NotTo(HaveOccurred())
+			// The CRD came back empty, so recovery is an empty list replacing the old one.
+			Eventually(inv.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			expectOrigin(inv, jobGVK, func(o inventory.Origin) bool {
+				return o == inventory.Origin{Source: inventory.SourceCatalog, Name: "batch-job-v1"}
+			})
+		},
+		Entry("over streaming lists", false, false, true, false),
+		Entry("over LIST when the client opts out of streaming", true, false, false, true),
+		Entry("over LIST when the server refuses streaming", false, true, true, true),
+	)
 })

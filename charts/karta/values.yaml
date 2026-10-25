@@ -38,9 +38,10 @@ exporter:
       # evaluation. Must be greater than 0.
       interruptCheckFrequency: 100
   # Karta definitions describe each workload type. Rendered verbatim into the
-  # exporter's config file. include and exclude take definition names and
-  # exclude wins. A definition is selected when its name is included or its
-  # labels match labelSelector, or always when both are empty.
+  # exporter's config file. include and exclude take definition names. A
+  # definition is selected when its name is included and its labels match
+  # labelSelector; an empty include or labelSelector does not restrict, and
+  # exclude wins.
   kartaDefinitionSource:
     # Built-in definitions shipped with the exporter. Unknown names fail startup.
     catalog:
