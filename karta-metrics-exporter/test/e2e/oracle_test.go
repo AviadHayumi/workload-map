@@ -331,6 +331,8 @@ func validPodCoordinates(name string, pod unstructured.Unstructured, got coordin
 			instance = labels["ray.io/group"]
 		}
 		return got == coordinate{component, instance, ""}
+	case "dynamo":
+		return got == coordinate{"service", labels["nvidia.com/dynamo-component"], ""}
 	case "grove":
 		return got == coordinate{"clique", "worker", labels["grove.io/podcliqueset-replica-index"]}
 	default:

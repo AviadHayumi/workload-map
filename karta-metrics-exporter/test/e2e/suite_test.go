@@ -21,6 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -131,6 +133,11 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 		}
 		return nil
 	}, time.Minute, time.Second).Should(Succeed())
+	pods, err := client.Resource(schema.GroupVersionResource{Version: "v1", Resource: "pods"}).Namespace(systemNamespace).List(ctx, metav1.ListOptions{LabelSelector: "app.kubernetes.io/instance=" + release})
+	Expect(err).NotTo(HaveOccurred())
+	podEvidence, err := json.MarshalIndent(pods, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(outputDir, "exporter-pods.json"), podEvidence, 0600)).To(Succeed())
 	AddReportEntry("exporter-image", image)
 	AddReportEntry("evidence-directory", outputDir)
 })
