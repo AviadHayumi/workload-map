@@ -4,24 +4,28 @@
 package labelresolver
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestValidateConfig(t *testing.T) {
-	base := LabelRule{
-		Name:       "team",
-		Metrics:    []string{"karta_pod_workload_info"},
-		Sources:    []Source{SourceWorkload, SourcePod},
-		Expression: `object.metadata.labels["team"]`,
-	}
-	require.NoError(t, ValidateConfig(Config{}))
-	require.NoError(t, ValidateConfig(Config{Rules: []LabelRule{base}}))
-	status := base
-	status.Metrics = []string{"karta_workload_status"}
-	status.Sources = []Source{SourceWorkload}
-	require.NoError(t, ValidateConfig(Config{Rules: []LabelRule{base, status}}))
+var _ = Describe("ValidateConfig", func() {
+	var base LabelRule
+	BeforeEach(func() {
+		base = LabelRule{
+			Name:       "team",
+			Metrics:    []string{"karta_pod_workload_info"},
+			Sources:    []Source{SourceWorkload, SourcePod},
+			Expression: `object.metadata.labels["team"]`,
+		}
+	})
+	It("accepts empty rules and the same label on different metrics", func() {
+		Expect(ValidateConfig(Config{})).To(Succeed())
+		Expect(ValidateConfig(Config{Rules: []LabelRule{base}})).To(Succeed())
+		status := base
+		status.Metrics = []string{"karta_workload_status"}
+		status.Sources = []Source{SourceWorkload}
+		Expect(ValidateConfig(Config{Rules: []LabelRule{base, status}})).To(Succeed())
+	})
 	for _, tc := range []struct {
 		name   string
 		change func(*LabelRule)
@@ -40,11 +44,13 @@ func TestValidateConfig(t *testing.T) {
 		{"pod for status", func(r *LabelRule) { r.Metrics = []string{"karta_workload_status"} }},
 		{"empty expression", func(r *LabelRule) { r.Expression = " " }},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		It("rejects "+tc.name, func() {
 			rule := base
 			tc.change(&rule)
-			require.Error(t, ValidateConfig(Config{Rules: []LabelRule{rule}}))
+			Expect(ValidateConfig(Config{Rules: []LabelRule{rule}})).To(HaveOccurred())
 		})
 	}
-	require.Error(t, ValidateConfig(Config{Rules: []LabelRule{base, base}}))
-}
+	It("rejects duplicate labels on the same metric", func() {
+		Expect(ValidateConfig(Config{Rules: []LabelRule{base, base}})).To(HaveOccurred())
+	})
+})

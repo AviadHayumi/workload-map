@@ -5,10 +5,10 @@ package scaffold_test
 
 import (
 	"context"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
@@ -17,18 +17,20 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 )
 
-func TestScaffoldStopsOnCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	components := scaffold.New(labelresolver.Config{})
-	done := make(chan error, 1)
-	go func() { done <- app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{}) }()
-	cancel()
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("mock runtime did not stop")
-	}
-	require.Empty(t, components.Store.Capture().Records)
-}
+var _ = Describe("scaffold stops on cancellation", func() {
+	It("stops on cancellation without publishing data", func(specCtx SpecContext) {
+		ctx, cancel := context.WithCancel(specCtx)
+		defer cancel()
+		components := scaffold.New(labelresolver.Config{})
+		done := make(chan error, 1)
+		go func() { done <- app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{}) }()
+		cancel()
+		select {
+		case err := <-done:
+			Expect(err).To(Succeed())
+		case <-time.After(5 * time.Second):
+			Fail("mock runtime did not stop")
+		}
+		Expect(components.Store.Capture().Records).To(BeEmpty())
+	})
+})

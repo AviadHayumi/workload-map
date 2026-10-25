@@ -6,10 +6,10 @@ package app_test
 import (
 	"context"
 	"errors"
-	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 
@@ -29,7 +29,7 @@ func (r *registration) Unregister() error {
 	return r.err
 }
 
-func TestRunLifecycle(t *testing.T) {
+var _ = Describe("App lifecycle", func() {
 	runtimeFailure := errors.New("runtime failed")
 	cleanupFailure := errors.New("unregister failed")
 	for _, tc := range []struct {
@@ -46,23 +46,22 @@ func TestRunLifecycle(t *testing.T) {
 		{name: "both failures", runtimeError: runtimeFailure, cleanupError: cleanupFailure},
 		{name: "missing registration", nilRegistration: true},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			publications := mocks.NewStore(t)
-			runtime := mocks.NewRuntime(t)
+		It(tc.name, func(ctx SpecContext) {
+			publications := mocks.NewStore(GinkgoT())
+			runtime := mocks.NewRuntime(GinkgoT())
 
 			reg := &registration{err: tc.cleanupError}
 			registered := false
-			ctx := t.Context()
 			if tc.registrationError == nil && !tc.nilRegistration {
 				runtime.EXPECT().Run(ctx).Run(func(context.Context) {
-					require.True(t, registered)
+					Expect(registered).To(BeTrue())
 				}).Return(tc.runtimeError).Once()
 			}
-			registrar := mocks.NewRegistrar(t)
+			registrar := mocks.NewRegistrar(GinkgoT())
 			registrar.EXPECT().Register(mock.Anything, publications, collector.Options{WorkloadPhases: []string{"Running"}}).RunAndReturn(
 				func(_ metric.Meter, source collector.Capturer, options collector.Options) (metric.Registration, error) {
-					require.Same(t, publications, source)
-					require.Equal(t, []string{"Running"}, options.WorkloadPhases)
+					Expect(source).To(BeIdenticalTo(publications))
+					Expect(options.WorkloadPhases).To(Equal([]string{"Running"}))
 					registered = true
 					if tc.registrationError != nil || tc.nilRegistration {
 						return nil, tc.registrationError
@@ -74,27 +73,29 @@ func TestRunLifecycle(t *testing.T) {
 			err := app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{WorkloadPhases: []string{"Running"}})
 			switch {
 			case tc.registrationError != nil:
-				require.ErrorIs(t, err, tc.registrationError)
-				require.Zero(t, reg.calls)
+				Expect(err).To(MatchError(tc.registrationError))
+				Expect(reg.calls).To(BeZero())
 			case tc.nilRegistration:
-				require.ErrorContains(t, err, "no registration")
-				require.Zero(t, reg.calls)
+				Expect(err).To(MatchError(ContainSubstring("no registration")))
+				Expect(reg.calls).To(BeZero())
 			default:
-				require.Equal(t, 1, reg.calls)
+				Expect(reg.calls).To(Equal(1))
 				if tc.runtimeError != nil {
-					require.ErrorIs(t, err, tc.runtimeError)
+					Expect(err).To(MatchError(tc.runtimeError))
 				}
 				if tc.cleanupError != nil {
-					require.ErrorIs(t, err, tc.cleanupError)
+					Expect(err).To(MatchError(tc.cleanupError))
 				}
 				if tc.runtimeError == nil && tc.cleanupError == nil {
-					require.NoError(t, err)
+					Expect(err).To(Succeed())
 				}
 			}
 		})
 	}
-}
+})
 
-func TestRunRejectsIncompleteComponents(t *testing.T) {
-	require.ErrorContains(t, app.Run(t.Context(), app.Components{}, noop.NewMeterProvider().Meter("test"), collector.Options{}), "incomplete")
-}
+var _ = Describe("run rejects incomplete components", func() {
+	It("rejects missing dependencies before registering collection", func(specCtx SpecContext) {
+		Expect(app.Run(specCtx, app.Components{}, noop.NewMeterProvider().Meter("test"), collector.Options{})).To(MatchError(ContainSubstring("incomplete")))
+	})
+})

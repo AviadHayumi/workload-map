@@ -8,22 +8,23 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestConfigDefaultsAndRules(t *testing.T) {
-	cfg, err := loadConfig(t, "", nil)
-	require.NoError(t, err)
-	require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
-	require.Empty(t, cfg.LabelRules)
-	for _, contents := range []string{"\n", "labelRules: []\n---\n"} {
-		cfg, err = loadConfig(t, contents, nil)
-		require.NoError(t, err)
-		require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
-	}
-	cfg, err = loadConfig(t, `labelRules:
+var _ = Describe("config defaults and rules", func() {
+	It("loads label rules while retaining unspecified defaults", func() {
+		cfg, err := loadConfig("", nil)
+		Expect(err).To(Succeed())
+		Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
+		Expect(cfg.LabelRules).To(BeEmpty())
+		for _, contents := range []string{"\n", "labelRules: []\n---\n"} {
+			cfg, err = loadConfig(contents, nil)
+			Expect(err).To(Succeed())
+			Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
+		}
+		cfg, err = loadConfig(`labelRules:
 - name: team
   metrics: [karta_pod_workload_info]
   sources: [workload, pod]
@@ -32,15 +33,16 @@ func TestConfigDefaultsAndRules(t *testing.T) {
 labelLimits:
   maxValueBytes: 32
 `, nil)
-	require.NoError(t, err)
-	require.Len(t, cfg.LabelRules, 1)
-	require.Equal(t, "team", cfg.LabelRules[0].Name)
-	require.Contains(t, cfg.LabelRules[0].Expression, "object.metadata.labels")
-	require.Equal(t, 32, cfg.LabelLimits.MaxValueBytes)
-	require.Equal(t, defaultLabelLimits.CostLimit, cfg.LabelLimits.CostLimit)
-}
+		Expect(err).To(Succeed())
+		Expect(cfg.LabelRules).To(HaveLen(1))
+		Expect(cfg.LabelRules[0].Name).To(Equal("team"))
+		Expect(cfg.LabelRules[0].Expression).To(ContainSubstring("object.metadata.labels"))
+		Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
+		Expect(cfg.LabelLimits.CostLimit).To(Equal(defaultLabelLimits.CostLimit))
+	})
+})
 
-func TestConfigPrecedence(t *testing.T) {
+var _ = Describe("config precedence", func() {
 	for _, tc := range []struct {
 		name string
 		env  map[string]string
@@ -52,65 +54,71 @@ func TestConfigPrecedence(t *testing.T) {
 		{name: "flag", env: map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, args: []string{"--label-cost-limit", "9"}, want: 9},
 		{name: "explicit zero", args: []string{"--label-cost-limit", "0"}, want: 0},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := loadConfig(t, "labelLimits:\n  costLimit: 5\n", tc.env, tc.args...)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, cfg.LabelLimits.CostLimit)
+		It(tc.name, func() {
+			cfg, err := loadConfig("labelLimits:\n  costLimit: 5\n", tc.env, tc.args...)
+			Expect(err).To(Succeed())
+			Expect(cfg.LabelLimits.CostLimit).To(Equal(tc.want))
 		})
 	}
-}
+})
 
-func TestConfigPathAndEmptyOverride(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0o600))
-	cfg, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_CONFIG": path})
-	require.NoError(t, err)
-	require.Equal(t, 32, cfg.LabelLimits.MaxValueBytes)
-	cfg, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_CONFIG": path}, "--config=")
-	require.NoError(t, err)
-	require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
-	_, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, "--label-cost-limit=")
-	require.Error(t, err)
-	_, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": ""})
-	require.Error(t, err)
-}
+var _ = Describe("config path and empty override", func() {
+	It("lets explicit empty flags override environment values", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
+		Expect(os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0o600)).To(Succeed())
+		cfg, err := loadConfig("", map[string]string{"KARTA_EXPORTER_CONFIG": path})
+		Expect(err).To(Succeed())
+		Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
+		cfg, err = loadConfig("", map[string]string{"KARTA_EXPORTER_CONFIG": path}, "--config=")
+		Expect(err).To(Succeed())
+		Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
+		_, err = loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, "--label-cost-limit=")
+		Expect(err).To(HaveOccurred())
+		_, err = loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": ""})
+		Expect(err).To(HaveOccurred())
+	})
+})
 
-func TestConfigRejectsInvalidInput(t *testing.T) {
-	for _, contents := range []string{
-		"attribution: {}", "labelLimits:\n  maxIdentityBytes: 1", "labelLimits:\n  costLimit: lots",
-		"labelLimits:\n  maxValueBytes: -1", "labelLimits:\n  maxExpressionBytes: -1",
-		"labelLimits:\n  interruptCheckFrequency: 0", "labelLimits:\n  interruptCheckFrequency: -1",
-		"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
-		"labelRules: []\n---\nlabelRules: [", "unknown: true",
-		"labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [pod]\n  expression: object.kind",
-	} {
-		t.Run(contents, func(t *testing.T) {
-			_, err := loadConfig(t, contents, nil)
-			require.Error(t, err)
-		})
-	}
-	for _, args := range [][]string{
-		{"--submitted-by-expression", `"alice"`}, {"--submitter-cost-limit", "1"},
-		{"--config", "/does-not-exist/config.yaml"}, {"--label-cost-limit", "lots"},
-		{"--label-interrupt-check-frequency", "0"}, {"--label-interrupt-check-frequency", "-1"},
-		{"--label-max-value-bytes", "-1"},
-	} {
-		_, err := loadConfig(t, "", nil, args...)
-		require.Error(t, err)
-	}
-	for _, value := range []string{"lots", "0", "-1"} {
-		_, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY": value})
-		require.Error(t, err)
-	}
-}
+var _ = Describe("config rejects invalid input", func() {
+	It("rejects invalid files, flags and environment values", func() {
+		for _, contents := range []string{
+			"attribution: {}", "labelLimits:\n  maxIdentityBytes: 1", "labelLimits:\n  costLimit: lots",
+			"labelLimits:\n  maxValueBytes: -1", "labelLimits:\n  maxExpressionBytes: -1",
+			"labelLimits:\n  interruptCheckFrequency: 0", "labelLimits:\n  interruptCheckFrequency: -1",
+			"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
+			"labelRules: []\n---\nlabelRules: [", "unknown: true",
+			"labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [pod]\n  expression: object.kind",
+		} {
+			By(contents, func() {
+				_, err := loadConfig(contents, nil)
+				Expect(err).To(HaveOccurred())
+			})
+		}
+		for _, args := range [][]string{
+			{"--submitted-by-expression", `"alice"`}, {"--submitter-cost-limit", "1"},
+			{"--config", "/does-not-exist/config.yaml"}, {"--label-cost-limit", "lots"},
+			{"--label-interrupt-check-frequency", "0"}, {"--label-interrupt-check-frequency", "-1"},
+			{"--label-max-value-bytes", "-1"},
+		} {
+			_, err := loadConfig("", nil, args...)
+			Expect(err).To(HaveOccurred())
+		}
+		for _, value := range []string{"lots", "0", "-1"} {
+			_, err := loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY": value})
+			Expect(err).To(HaveOccurred())
+		}
+	})
+})
 
-func TestRejectsRemovedSubmitterEnvironment(t *testing.T) {
-	_, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION": "old"})
-	require.ErrorContains(t, err, "was removed")
-}
+var _ = Describe("rejects removed submitter environment", func() {
+	It("rejects removed submitter environment settings", func() {
+		_, err := loadConfig("", map[string]string{"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION": "old"})
+		Expect(err).To(MatchError(ContainSubstring("was removed")))
+	})
+})
 
-func loadConfig(t *testing.T, content string, env map[string]string, args ...string) (Config, error) {
-	t.Helper()
+func loadConfig(content string, env map[string]string, args ...string) (Config, error) {
+	GinkgoHelper()
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	loader := NewLoader(fs, func(key string) (string, bool) {
@@ -118,8 +126,8 @@ func loadConfig(t *testing.T, content string, env map[string]string, args ...str
 		return v, ok
 	})
 	if content != "" {
-		path := filepath.Join(t.TempDir(), "config.yaml")
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
+		Expect(os.WriteFile(path, []byte(content), 0o600)).To(Succeed())
 		args = append([]string{"--config", path}, args...)
 	}
 	if err := fs.Parse(args); err != nil {
