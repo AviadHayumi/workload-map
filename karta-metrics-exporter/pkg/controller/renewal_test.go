@@ -223,7 +223,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		entry.object.SetOwnerReferences(middle.GetOwnerReferences())
 		r.reader.saveMetadataLocked(key, entry)
 		state := seedRoot(r, root, pod)
-		state.paths[pod.GetUID()] = []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(root)}
+		r.setPodPathLocked(state, pod.GetUID(), []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		drainQueue(r.queue)
 		drainQueue(r.rootQueue)
@@ -404,7 +404,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 			r.reader.saveMetadataLocked(key, entry)
 		}
 		state := seedRoot(r, root, pod)
-		state.paths[pod.GetUID()] = []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(ancestor), refOf(root)}
+		r.setPodPathLocked(state, pod.GetUID(), []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(ancestor), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		drainQueue(r.queue)
 		drainQueue(r.rootQueue)

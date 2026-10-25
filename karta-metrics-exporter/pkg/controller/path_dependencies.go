@@ -12,8 +12,9 @@ import (
 )
 
 type pathDependent struct {
-	owner types.UID
-	pod   discovery.ObjectRef
+	owner    types.UID
+	pod      discovery.ObjectRef
+	position int
 }
 
 // Runtime owns this index. Leaf and root changes already have direct generation
@@ -26,7 +27,7 @@ func (r *Runtime) setPodPathLocked(root *rootState, pod types.UID, path []discov
 		if r.pathDependents[key] == nil {
 			r.pathDependents[key] = map[types.UID]pathDependent{}
 		}
-		r.pathDependents[key][pod] = pathDependent{owner: path[i].UID, pod: path[0]}
+		r.pathDependents[key][pod] = pathDependent{owner: path[i].UID, pod: path[0], position: i}
 	}
 }
 

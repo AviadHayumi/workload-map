@@ -9,10 +9,19 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
+
+type metadataPathFailure struct {
+	reason   string
+	position int
+	pod      discovery.ObjectRef
+}
 
 // Runtime and Reader are locked. Only already-valid observations may wait;
 // mutations use Add and overtake delayed renewal on the same serialized key.
@@ -73,8 +82,8 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 	return true
 }
 
-// A source with no cached, failed or pending owner inputs has no graph work.
-// Capture this before expiry/pruning so removed dependencies still re-resolve.
+// Retained paths still need recovery when expiry or pruning removed their last
+// metadata entry. Roots without intermediate inputs have no work in this lane.
 func (r *Runtime) refreshMetadata(ctx context.Context) error {
 	r.reader.mu.RLock()
 	hadInputs := len(r.reader.metadata) > 0 || len(r.reader.failures) > 0 || len(r.reader.pending) > 0 || len(r.reader.priming) > 0
@@ -83,21 +92,110 @@ func (r *Runtime) refreshMetadata(ctx context.Context) error {
 		r.pruneMetadata()
 	}
 	r.reader.expireMetadata()
-	if !hadInputs {
-		return nil
+	var err error
+	if hadInputs {
+		err = r.reader.refreshMetadata(ctx)
 	}
-	err := r.reader.refreshMetadata(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for uid, root := range r.roots {
-		for pod, path := range root.paths {
-			if len(path) > 0 {
-				r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: pod})
-			}
-		}
-		root.fullRefresh = true
-		r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
+	if !hadInputs && len(r.pathDependents) == 0 {
+		return nil
 	}
+	r.reader.mu.RLock()
+	r.scheduleMetadataPathsLocked()
+	r.reader.mu.RUnlock()
 	r.publishHealthLocked()
 	return err
+}
+
+// Runtime and Reader are locked. Each edge is inspected once and each root is
+// scheduled once, so a shared ancestor cannot cause repeated Pod-page scans.
+func (r *Runtime) scheduleMetadataPathsLocked() {
+	roots := map[types.UID]bool{}
+	invalid := map[types.UID]metadataPathFailure{}
+	failedSources := map[string]string{}
+	for _, source := range r.watches {
+		if source.err != nil {
+			failedSources[source.failureKey] = failureReason(source.err)
+		}
+	}
+	for key, dependents := range r.pathDependents {
+		for pod, dependency := range dependents {
+			root := r.roots[r.podRoots[pod]]
+			if root == nil {
+				continue
+			}
+			path := root.paths[pod]
+			position := dependency.position
+			if position <= 0 || position+1 >= len(path) {
+				continue
+			}
+			reason := r.metadataPathReasonLocked(key, path[position], path[position+1], failedSources)
+			if reason == "" && root.podErrors[pod] != nil {
+				reason = failureReason(root.podErrors[pod])
+			}
+			if reason == "" && len(root.resolutionErrors) > 0 {
+				reason = store.ReasonAPIUnavailable
+			}
+			uid := root.ref.UID
+			roots[uid] = roots[uid] || reason != ""
+			if previous, found := invalid[pod]; reason != "" && (!found || position < previous.position) {
+				invalid[pod] = metadataPathFailure{reason: reason, position: position, pod: dependency.pod}
+			}
+		}
+	}
+	for pod, failure := range invalid {
+		r.invalidatePodLocked(r.roots[r.podRoots[pod]], pod, failure.reason)
+		r.queue.Add(queueKey{Operation: "object", Object: keyOf(failure.pod), UID: pod})
+	}
+	for uid, urgent := range roots {
+		if urgent {
+			r.rootQueue.Add(queueKey{Operation: "root", UID: uid})
+		} else {
+			r.scheduleRenewalLocked(uid)
+		}
+	}
+}
+
+func (r *Runtime) metadataPathReasonLocked(key objectKey, expected, parent discovery.ObjectRef, failedSources map[string]string) string {
+	var object metav1.Object
+	var proof store.Evidence
+	if entry, watched := r.reader.objects[key]; watched {
+		object, proof = entry.object, entry.evidence
+	} else {
+		if failure, failed := r.reader.failures[key]; failed && r.reader.options.Now().Before(failure.expires) {
+			return failureReason(failure.cause)
+		}
+		if entry, found := r.reader.metadata[key]; found {
+			object = entry.object
+			proof = store.Evidence{ExpiresAt: entry.expires, Dependencies: []string{entry.failureKey}}
+		}
+	}
+	if object == nil {
+		return store.ReasonAPIUnavailable
+	}
+	owner, valid := controllerOwner(object)
+	if object.GetUID() != expected.UID || !valid || owner.GVK != parent.GVK || owner.Name != parent.Name || owner.UID != parent.UID {
+		return store.ReasonUnresolvedOwner
+	}
+	for _, key := range proof.Dependencies {
+		if reason := failedSources[key]; reason != "" {
+			return reason
+		}
+	}
+	if object.GetResourceVersion() != expected.ResourceVersion || !r.config.Now().Before(proof.ExpiresAt) {
+		return store.ReasonAPIUnavailable
+	}
+	if proof.Reason != "" && proof.Reason != store.ReasonNone {
+		return proof.Reason
+	}
+	for _, key := range proof.Dependencies {
+		if !r.reader.activeKeys[key] {
+			return store.ReasonAPIUnavailable
+		}
+	}
+	return ""
 }
