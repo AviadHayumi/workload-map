@@ -38,9 +38,13 @@ replaces the complete health list.
 
 `New(Options)` constructs the Store. `CapturedView.Valid(evidence)` checks an
 explicit failure first, then shared dependency failures, then expiry at the
-captured time. Zero expiry and the expiry instant are invalid. Shared failure
-keys remain until Runtime explicitly clears them, including failures set before
-publication. Runtime clears keys when their dependencies leave its scope.
+captured time. Zero expiry and the expiry instant are invalid. Failures set before their first publication remain available. Store counts
+publication and health references to each key. It removes a retired key when its
+last reference disappears. Replacement adds new references before removing old
+ones. Shared Pod pages retain their references without scanning their rows.
+Runtime keeps a health reference for each active stream and explicitly clears
+failures after invalidating affected evidence. A never-referenced failure must
+also be cleared explicitly when its dependency leaves scope.
 
 Publication ownership transfers on `Publish`. The publication and all nested
 maps, slices and pages must remain immutable, including values returned by

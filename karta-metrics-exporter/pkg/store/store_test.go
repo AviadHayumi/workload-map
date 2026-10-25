@@ -79,6 +79,58 @@ var _ = Describe("Store", func() {
 		Expect(old.Records).To(HaveLen(1))
 		Expect(s.Published("root")).To(BeNil())
 	})
+	It("retires failure keys only after all publication and health references disappear", func() {
+		s.SetPublicationFailure("root", ReasonPermissionDenied)
+		one := &Publication{Workload: WorkloadRecord{UID: "one"}, Status: evidence}
+		two := &Publication{Workload: WorkloadRecord{UID: "two"}, PodPages: []*PodPage{{Rows: []PublishedPod{{Mapping: evidence}}}}}
+		s.Publish(one)
+		s.Publish(two)
+		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
+		captured := s.Capture()
+		next := *one
+		s.Publish(&next)
+		valid, _ := s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.RemovePublication("one")
+		s.RemovePublication("two")
+		valid, _ = s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.SetPublicationHealth(nil)
+		concrete := s.(*Store)
+		Expect(concrete.failures).To(BeEmpty())
+		Expect(concrete.failureRefs).To(BeEmpty())
+		valid, reason := captured.Valid(evidence)
+		Expect(valid).To(BeFalse())
+		Expect(reason).To(Equal(ReasonPermissionDenied))
+	})
+	It("retains references on shared Pod pages across single-Pod replacement", func() {
+		shared := &PodPage{Rows: []PublishedPod{{Record: PodRecord{UID: "shared"}, Mapping: evidence}}}
+		changed := &PodPage{Rows: []PublishedPod{{Record: PodRecord{UID: "changed"}, Mapping: evidence}}}
+		p := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: []*PodPage{shared, changed}}
+		s.Publish(p)
+		s.SetPublicationFailure("root", ReasonPermissionDenied)
+		row := changed.Rows[0]
+		row.Record.Labels = map[string]string{"team": "new"}
+		s.Publish(p.WithPod("changed", &row))
+		concrete := s.(*Store)
+		Expect(concrete.failureRefs["root"]).To(Equal(2))
+		valid, _ := s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.RemovePublication("root")
+		Expect(concrete.failureRefs).To(BeEmpty())
+		Expect(concrete.failures).To(BeEmpty())
+	})
+
+	It("keeps a health-only failure through replacement then retires it", func() {
+		s.SetPublicationFailure("root", ReasonAPIUnavailable)
+		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
+		s.SetPublicationHealth([]HealthRecord{{Namespace: "new", Evidence: evidence}})
+		valid, _ := s.Capture().Valid(evidence)
+		Expect(valid).To(BeFalse())
+		s.SetPublicationHealth(nil)
+		Expect(s.(*Store).failures).To(BeEmpty())
+	})
+
 	It("supports concurrent publication, capture, failure and health updates", func() {
 		var wg sync.WaitGroup
 		for i := 0; i < 8; i++ {
@@ -142,3 +194,30 @@ var _ = Describe("Pod pages", func() {
 		Expect(p.WithPod("absent", nil).PodPages[0]).To(BeIdenticalTo(p.PodPages[0]))
 	})
 })
+
+func BenchmarkPublishOnePodChange(b *testing.B) {
+	for _, count := range []int{1000, 100000} {
+		b.Run(fmt.Sprint(count), func(b *testing.B) {
+			s := New(Options{})
+			rows := make([]PublishedPod, count)
+			evidence := Evidence{Dependencies: []string{"stream"}, ExpiresAt: time.Now().Add(time.Hour)}
+			for i := range rows {
+				rows[i] = PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprint(i))}, Mapping: evidence}
+			}
+			original := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: BuildPodPages(rows, nil)}
+			replacement := rows[0]
+			replacement.Record.Labels = map[string]string{"team": "new"}
+			changed := original.WithPod(replacement.Record.UID, &replacement)
+			s.Publish(original)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if i%2 == 0 {
+					s.Publish(changed)
+				} else {
+					s.Publish(original)
+				}
+			}
+		})
+	}
+}

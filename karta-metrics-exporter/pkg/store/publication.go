@@ -19,6 +19,7 @@ type Store struct {
 	now          func() time.Time
 	publications map[types.UID]*Publication
 	failures     map[string]string
+	failureRefs  map[string]int
 	health       []HealthRecord
 }
 
@@ -38,7 +39,7 @@ func New(options Options) Interface {
 	if now == nil {
 		now = time.Now
 	}
-	return &Store{now: now, publications: make(map[types.UID]*Publication), failures: make(map[string]string)}
+	return &Store{now: now, publications: make(map[types.UID]*Publication), failures: make(map[string]string), failureRefs: make(map[string]int)}
 }
 
 // Publish transfers ownership of the publication and all nested maps and slices.
@@ -46,6 +47,10 @@ func New(options Options) Interface {
 func (s *Store) Publish(record *Publication) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	previous := s.publications[record.Workload.UID]
+	// Add references first so replacement cannot clear a still-live failure.
+	s.adjustPublicationReferences(record, previous, 1)
+	s.adjustPublicationReferences(previous, record, -1)
 	s.publications[record.Workload.UID] = record
 }
 
@@ -58,6 +63,7 @@ func (s *Store) Published(uid types.UID) *Publication {
 func (s *Store) RemovePublication(uid types.UID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.adjustPublicationReferences(s.publications[uid], nil, -1)
 	delete(s.publications, uid)
 }
 
@@ -78,7 +84,48 @@ func (s *Store) SetPublicationHealth(health []HealthRecord) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, health := range next {
+		s.adjustEvidenceReferences(health.Evidence, 1)
+	}
+	for _, health := range s.health {
+		s.adjustEvidenceReferences(health.Evidence, -1)
+	}
 	s.health = next
+}
+
+// Shared immutable pages keep their existing dependency references. A single-Pod
+// update visits only changed rows and the page pointer lists, not every Pod.
+func (s *Store) adjustPublicationReferences(record, sharedWith *Publication, delta int) {
+	if record == nil {
+		return
+	}
+	s.adjustEvidenceReferences(record.Status, delta)
+	s.adjustEvidenceReferences(record.Creation, delta)
+	var shared map[*PodPage]bool
+	if sharedWith != nil {
+		shared = make(map[*PodPage]bool, len(sharedWith.PodPages))
+		for _, page := range sharedWith.PodPages {
+			shared[page] = true
+		}
+	}
+	for _, page := range record.PodPages {
+		if shared[page] {
+			continue
+		}
+		for _, row := range page.Rows {
+			s.adjustEvidenceReferences(row.Mapping, delta)
+		}
+	}
+}
+
+func (s *Store) adjustEvidenceReferences(e Evidence, delta int) {
+	for _, key := range e.Dependencies {
+		s.failureRefs[key] += delta
+		if s.failureRefs[key] == 0 {
+			delete(s.failureRefs, key)
+			delete(s.failures, key)
+		}
+	}
 }
 
 // Capture shares immutable publications and copies the mutable failure state.
