@@ -92,7 +92,7 @@ This is a retained failure, not a passing capacity result. No one-Pod run follow
 
 The final samples show a different backlog from the earlier candidate:
 
-| Elapsed seconds | Root queue | Object queue | Root retries |
+| Elapsed seconds | Root queue | Object queue | Raw root retry counter |
 | --- | ---: | ---: | ---: |
 | 480.871 | 0 | 0 | 1,229,220 |
 | 481.880 | 0 | 0 | 1,229,321 |
@@ -120,3 +120,12 @@ ERROR event. `watch_expirations` counts the 410, not normal EOF. This global
 retention model is not a claim about Kubernetes per-resource watch-cache
 retention. The recorded failure includes this supported source-recovery event;
 no gate or model behavior was changed after the result.
+
+The raw retry counter above includes healthy delayed renewals. The pinned
+client-go v0.37.1 `delaying_queue.go` calls `metrics.retry()` for every
+`AddAfter`, and `metrics.go` increments `NewRetriesMetric`. The wrapper forwards
+that counter unchanged. `AddRateLimited` also delegates to `AddAfter`. Therefore
+1.2 million retries are not evidence of 1.2 million failed reconciles. The
+recorded ready-queue depth surge is separate evidence; raw counters are retained.
+The small stale-reconnect reproduction returns HTTP 200 followed by an in-stream
+ERROR 410. It does not establish an HTTP 410 response while opening the stream.

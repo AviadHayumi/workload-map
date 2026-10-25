@@ -153,7 +153,10 @@ python3 karta-metrics-exporter/test/scale/runtime_scale.py \
 
 The wrapper records `runtime.ReadMemStats` and named client-go queue metrics.
 Queue metrics include depth, additions, retries, work/queue duration count, sum
-and maximum. Drain requires two diagnostic samples with zero queued and active
+and maximum. In client-go v0.37.1, every `AddAfter` call increments the retry
+counter, including healthy delayed renewals. `AddRateLimited` also uses that
+path. The raw retry counter is not a failed-reconcile count; queue depth,
+completed work and separate error evidence are needed to interpret a backlog. Drain requires two diagnostic samples with zero queued and active
 work. Active work is observed queue starts minus completed durations. A saturated
 maintenance queue fails the drain gate even if current metric rows are correct.
 The harness records that failure and continues the lifecycle correctness stages.
