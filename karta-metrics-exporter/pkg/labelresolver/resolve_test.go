@@ -221,6 +221,32 @@ var _ = Describe("Resolver", func() {
 		Expect(result[0].Labels["team"]).To(Equal("new"))
 		Expect(compiler.evaluations.Load()).To(Equal(int64(2)))
 	})
+	It("keeps converted API representations separate for the same UID and resourceVersion", func() {
+		cfg.Rules[0].Expression = `object.apiVersion + "/" + object.kind`
+		input.Workload.SetUID("root")
+		input.Workload.SetResourceVersion("1")
+		input.Workload.SetAPIVersion("example.com/v1")
+		input.Workload.SetKind("Workload")
+		r, err := New(cfg, Dependencies{Compiler: compiler})
+		Expect(err).NotTo(HaveOccurred())
+		result, err := r.Resolve(context.Background(), input)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result[0].Labels["team"]).To(Equal("example.com/v1/Workload"))
+		input.Workload = input.Workload.DeepCopy()
+		input.Workload.SetAPIVersion("example.com/v2")
+		result, err = r.Resolve(context.Background(), input)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result[0].Labels["team"]).To(Equal("example.com/v2/Workload"))
+		input.Workload = input.Workload.DeepCopy()
+		input.Workload.SetKind("ConvertedWorkload")
+		for i := 0; i < 2; i++ {
+			result, err = r.Resolve(context.Background(), input)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result[0].Labels["team"]).To(Equal("example.com/v2/ConvertedWorkload"))
+		}
+		Expect(compiler.evaluations.Load()).To(Equal(int64(3)))
+	})
+
 	It("does not cache objects without resource versions", func() {
 		input.Workload.SetUID("root")
 		r, err := New(cfg, Dependencies{Compiler: compiler})

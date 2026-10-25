@@ -25,9 +25,11 @@ type resolver struct {
 }
 
 type workloadKey struct {
-	uid     types.UID
-	version string
-	rule    int
+	apiVersion string
+	kind       string
+	uid        types.UID
+	version    string
+	rule       int
 }
 
 type evaluation struct {
@@ -120,13 +122,13 @@ func (r *resolver) Resolve(ctx context.Context, input Input) ([]ResolvedMetricLa
 	return results, nil
 }
 
-// Kubernetes objects with the same UID and resourceVersion have identical input
-// data. Cache only workload results; each Pod still gets its own evaluation.
+// Kubernetes objects with the same GVK, UID and resourceVersion have identical
+// input data. Cache only workload results; each Pod still gets its own evaluation.
 func (r *resolver) evaluateWorkload(ctx context.Context, rule compiledRule, object *unstructured.Unstructured) (string, error) {
 	if object == nil || object.GetUID() == "" || object.GetResourceVersion() == "" {
 		return rule.evaluator.Evaluate(ctx, object)
 	}
-	key := workloadKey{uid: object.GetUID(), version: object.GetResourceVersion(), rule: rule.id}
+	key := workloadKey{apiVersion: object.GetAPIVersion(), kind: object.GetKind(), uid: object.GetUID(), version: object.GetResourceVersion(), rule: rule.id}
 	r.mu.Lock()
 	cached, ok := r.workloadCache[key]
 	r.mu.Unlock()
