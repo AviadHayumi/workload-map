@@ -107,7 +107,9 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 		for _, failure := range publication.FailureReasons {
 			reason = failureReason(reason, failure)
 		}
-		if valid, _ := view.Valid(publication.Creation); valid && workload.CreatedTimestamp > 0 {
+		if valid, failure := view.Valid(publication.Creation); !valid {
+			reason = failureReason(reason, failure)
+		} else if workload.CreatedTimestamp > 0 {
 			c.workloadCreated.observe(observer, float64(workload.CreatedTimestamp), nil, ref.Namespace, ref.Name, string(workload.UID))
 		}
 		if workload.HasStatus {

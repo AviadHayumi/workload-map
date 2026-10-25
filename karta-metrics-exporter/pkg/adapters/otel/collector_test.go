@@ -18,6 +18,7 @@ import (
 	exporter "go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
@@ -44,7 +45,7 @@ var _ = Describe("Prometheus pull collection", func() {
 		registry := prom.NewRegistry()
 		reader, err := exporter.New(exporter.WithRegisterer(registry), exporter.WithoutTargetInfo(), exporter.WithoutScopeInfo())
 		Expect(err).NotTo(HaveOccurred())
-		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithCardinalityLimit(0))
 		DeferCleanup(func() { Expect(provider.Shutdown(context.Background())).To(Succeed()) })
 		source = &countingCapturer{Capturer: s}
 		registration, err := New().Register(provider.Meter("test"), source)
@@ -116,6 +117,64 @@ var _ = Describe("Prometheus pull collection", func() {
 		Expect(output).To(ContainSubstring(`reason="permission_denied"`))
 		Expect(output).To(ContainSubstring(`scope="resource_type"`))
 		Expect(output).NotTo(ContainSubstring(`scope="workload"`))
+	})
+
+	It("exposes the scope labels reserved by the default Prometheus exporter", func() {
+		registry := prom.NewRegistry()
+		reader, err := exporter.New(exporter.WithRegisterer(registry), exporter.WithoutTargetInfo())
+		Expect(err).NotTo(HaveOccurred())
+		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithCardinalityLimit(0))
+		DeferCleanup(func() { Expect(provider.Shutdown(context.Background())).To(Succeed()) })
+		registration, err := New().Register(provider.Meter("scope-test"), s)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { Expect(registration.Unregister()).To(Succeed()) })
+		p.Workload.StatusLabels = map[string]string{"team": "research"}
+		s.Publish(p)
+		response := httptest.NewRecorder()
+		promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+		Expect(response.Code).To(Equal(200))
+		for _, label := range []string{"otel_scope_name", "otel_scope_version", "otel_scope_schema_url"} {
+			Expect(response.Body.String()).To(ContainSubstring(label + "="))
+		}
+		Expect(response.Body.String()).To(ContainSubstring(`team="research"`))
+	})
+
+	It("exports more than 5000 distinct Pod identities without overflow", func() {
+		rows := make([]store.PublishedPod, 5001)
+		for i := range rows {
+			rows[i] = store.PublishedPod{Record: store.PodRecord{UID: types.UID(fmt.Sprintf("pod-%d", i)), Name: fmt.Sprintf("pod-%d", i)}, Mapping: p.Status}
+		}
+		p.PodPages = store.BuildPodPages(rows, nil)
+		s.Publish(p)
+		output := scrape()
+		Expect(strings.Count(output, MetricPodWorkloadInfo+"{")).To(Equal(5001))
+		Expect(output).NotTo(ContainSubstring("otel_metric_overflow"))
+		seen := make(map[string]bool)
+		for _, line := range strings.Split(output, "\n") {
+			if strings.HasPrefix(line, MetricPodWorkloadInfo+"{") {
+				start := strings.Index(line, `pod_uid="`) + len(`pod_uid="`)
+				uid, _, _ := strings.Cut(line[start:], `"`)
+				seen[uid] = true
+			}
+		}
+		for i := range rows {
+			Expect(seen).To(HaveKey(fmt.Sprintf("pod-%d", i)))
+		}
+	})
+	It("reports creation failure independently when there is no status or Pod mapping", func() {
+		p.Workload.HasStatus = false
+		p.PodPages = nil
+		p.Creation.Reason = store.ReasonPermissionDenied
+		s.Publish(p)
+		output := scrape()
+		Expect(output).NotTo(ContainSubstring(MetricWorkloadCreatedTimestamp + "{"))
+		Expect(output).To(ContainSubstring(`reason="permission_denied"`))
+		Expect(output).To(ContainSubstring(`scope="workload"`))
+		next := *p
+		next.Creation.Reason = ""
+		next.Creation.ExpiresAt = now
+		s.Publish(&next)
+		Expect(scrape()).To(ContainSubstring(`reason="api_unavailable"`))
 	})
 
 	It("removes old label and UID series on replacement and deletion", func() {
