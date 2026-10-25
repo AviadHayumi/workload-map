@@ -239,7 +239,10 @@ func (r *Reader) fetchMetadata(ctx context.Context, ref discovery.ObjectRef) (*m
 func (r *Reader) evidence(ref discovery.ObjectRef) (store.Evidence, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if entry, ok := r.objects[keyOf(ref)]; ok && entry.object.GetUID() == ref.UID && entry.object.GetResourceVersion() == ref.ResourceVersion {
+	if entry, ok := r.objects[keyOf(ref)]; ok {
+		if entry.object.GetUID() != ref.UID || entry.object.GetResourceVersion() != ref.ResourceVersion {
+			return store.Evidence{}, discovery.ErrStale
+		}
 		if entry.evidence.ExpiresAt.IsZero() {
 			return store.Evidence{}, discovery.ErrPending
 		}

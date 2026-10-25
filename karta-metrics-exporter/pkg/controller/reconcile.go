@@ -454,6 +454,10 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		for pod := range state.cached {
 			if _, ok := paths[pod]; !ok {
 				delete(state.cached, pod)
+			}
+		}
+		for pod := range state.labelFailures {
+			if _, ok := paths[pod]; !ok {
 				delete(state.labelFailures, pod)
 			}
 		}
