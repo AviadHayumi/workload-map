@@ -26,19 +26,16 @@ import (
 )
 
 var (
-	// ErrNotReady reports a cluster source that has not completed its first sync.
-	ErrNotReady = errors.New("definition sources not ready")
-	// ErrUnavailable reports a cluster source that cannot be read, including a missing Karta CRD.
-	ErrUnavailable = errors.New("definition source unavailable")
-	// ErrPermissionDenied reports a cluster source the exporter is not allowed to read.
+	ErrNotReady         = errors.New("definition sources not ready")
+	ErrUnavailable      = errors.New("definition source unavailable")
 	ErrPermissionDenied = errors.New("definition source permission denied")
 
 	errStopped = errors.New("inventory stopped")
 	errRelist  = errors.New("watch not resumed after a failure; relisting to confirm fresh data")
 )
 
-// Inventory selects definitions from the catalog and the cluster's Karta objects;
-// Run keeps the cluster side current. Reads never call the API server.
+// Inventory serves definitions from the catalog and the cluster. Reads never
+// call the API server.
 type Inventory struct {
 	client        dynamic.Interface
 	catalog       []*v1alpha1.Karta
@@ -52,12 +49,10 @@ type Inventory struct {
 	started bool
 	store   cache.Store
 	// synced turns true at the first Replace, when a complete list is in the store.
-	synced bool
-	// failure holds the last error from a call or a watch, and failures counts
-	// them. listedFrom is that count when the latest LIST or streaming list
-	// began; Replace clears failure only when nothing failed since.
-	failure           error
-	failures          uint64
+	synced   bool
+	failure  error
+	failures uint64
+	// listedFrom is the failure count when the latest list began.
 	listedFrom        uint64
 	stopped           bool
 	unkeyable         []string
@@ -69,9 +64,7 @@ type published struct {
 	err      error
 }
 
-// observedStore republishes the snapshot after every write. Replace is where a
-// LIST or a streaming list is applied, so it marks the store synced, even when
-// the list is empty, and clears the failures that list replaces.
+// observedStore republishes the snapshot after every write.
 type observedStore struct {
 	cache.Store
 	inventory *Inventory
@@ -133,10 +126,7 @@ func (i *Inventory) Run(ctx context.Context) error {
 	return nil
 }
 
-// listWatch records every failure of a call or of an established watch. The
-// reflector retries some failures, such as a refused connection or a 429,
-// without reporting them, so the calls and the stream are the only reliable
-// signal. Only Replace clears a failure.
+// listWatch records every failure; the reflector retries some without reporting them.
 func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWatch {
 	return &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -160,14 +150,13 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 				i.listedFrom = i.failures
 			}
 			i.mu.Unlock()
-			// A resumed watch has no marker for the end of its replay, so after a
-			// failure only a new list can confirm fresh data.
+			// A resumed watch never marks the end of its replay; only a new list is fresh.
 			if failed && !streaming {
 				return nil, errRelist
 			}
 			w, err := resource.Watch(ctx, options)
 			switch {
-			// A server without streaming lists rejects the request as invalid, and LIST follows.
+			// A server without streaming lists answers invalid; LIST follows.
 			case err != nil && streaming && apierrors.IsInvalid(err):
 				return nil, err
 			case err != nil:
@@ -185,9 +174,7 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 						if !ok {
 							return
 						}
-						// Recorded before the reflector reads the error and relists. The
-						// reflector stops a watch before its next list begins, so an error
-						// from a stopped watch must not outlive that list.
+						// Recorded before the reflector sees it. A stopped watch is abandoned.
 						if event.Type == watch.Error {
 							err := apierrors.FromObject(event.Object)
 							i.update(func() {
@@ -241,7 +228,7 @@ func (s observedStore) Replace(list []any, resourceVersion string) error {
 	s.inventory.update(func() {
 		first = !s.inventory.synced
 		s.inventory.synced = true
-		// A failure recorded after this list began is newer than the list.
+		// A failure after this list began is newer than the list.
 		if s.inventory.failures == s.inventory.listedFrom {
 			s.inventory.failure = nil
 		}
@@ -252,8 +239,7 @@ func (s observedStore) Replace(list []any, resourceVersion string) error {
 	return err
 }
 
-// update applies change, then republishes from the store. The snapshot
-// is rebuilt from the store on every change rather than patched per event.
+// update applies change, then rebuilds the snapshot from the store.
 func (i *Inventory) update(change func()) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -289,7 +275,7 @@ func (i *Inventory) update(change func()) {
 	}
 	resolved := resolve(i.catalog, definitions, i.catalogFilter, i.clusterFilter)
 
-	// Log a report only when it changes; every event rebuilds the snapshot.
+	// Log reports only when they change.
 	if !slices.Equal(resolved.unkeyable, i.unkeyable) {
 		i.unkeyable = resolved.unkeyable
 		if len(i.unkeyable) > 0 {
