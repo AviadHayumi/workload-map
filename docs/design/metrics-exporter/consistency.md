@@ -36,8 +36,10 @@ the captured dependency failures, then expiry. Zero expiry and the expiry instan
 are invalid. A mapping uses the earliest expiry among its required inputs.
 Root creation and status do not depend on unrelated Pod paths.
 
-A WATCH event records a new observed object version with expiry at its local
-acceptance time plus `maxAge`. Periodic verification renews unchanged observations. Scrapes and watch bookmarks never renew evidence.
+Runtime timestamps a WATCH event when it receives it. A LIST uses the time its
+read started. That timestamp follows the object through the informer queue, so
+delayed delivery does not extend its lifetime. Periodic verification renews
+unchanged observations. Scrapes and watch bookmarks never renew evidence.
 Local generations detect changes already accepted by this exporter. They do not
 prove Kubernetes has no newer change.
 
@@ -123,7 +125,9 @@ A root can be served through several API versions. Admission and final publicati
 check the accepted representations of that UID. If any still has a controller
 owner outside an explicit ignore boundary, the object cannot be published as a
 root. Removing its old publication does not remove that ownership evidence.
-Retiring a conflicting version requires fresh verification of its replacement.
+A conflicting version invalidates the root's ownership key immediately, including
+results already in Store. Removing that conflict cannot make an older read or
+buffered informer event valid again. Fresh verification is required.
 
 Each root queue key has one worker at a time. This also serializes use of that
 root's calculation cache and the read/replace/publish sequence. Store
@@ -186,7 +190,7 @@ because final active-key and selection checks reject obsolete work. Keys are
 opaque internal strings, not Kubernetes generations or metric labels.
 `RetirePublicationFailure` removes a key only when no current publication or
 health record refers to it. Runtime checks root and Pod generations and definition
-identity against accepted state. Reader tracks active watch and metadata proof
+identity against accepted state. Reader tracks active watch, metadata and root ownership proof
 keys separately. Store retirement does not change those checks.
 
 Store counts those references and retires a failed key when its last reference
