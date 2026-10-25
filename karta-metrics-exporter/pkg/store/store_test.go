@@ -121,6 +121,22 @@ var _ = Describe("Store", func() {
 		Expect(concrete.failures).To(BeEmpty())
 	})
 
+	It("keeps a failing stream invalid across removal and republication while health holds it", func() {
+		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
+		s.SetPublicationFailure("root", ReasonPermissionDenied)
+		p := &Publication{Workload: WorkloadRecord{UID: "one"}, Status: evidence}
+		s.Publish(p)
+		s.RemovePublication("one")
+		next := *p
+		next.Status.ExpiresAt = now.Add(time.Hour)
+		s.Publish(&next)
+		valid, reason := s.Capture().Valid(next.Status)
+		Expect(valid).To(BeFalse())
+		Expect(reason).To(Equal(ReasonPermissionDenied))
+		s.SetPublicationFailure("root", ReasonNone)
+		Expect(s.(*Store).failures).To(BeEmpty())
+	})
+
 	It("keeps a health-only failure through replacement then retires it", func() {
 		s.SetPublicationFailure("root", ReasonAPIUnavailable)
 		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
@@ -158,6 +174,59 @@ var _ = Describe("Store", func() {
 })
 
 var _ = Describe("Pod pages", func() {
+	It("keeps sorted pages bounded through inserts, replacements and deletion", func() {
+		rows := make([]PublishedPod, PodPageSize*2)
+		for i := range rows {
+			rows[i].Record.UID = types.UID(fmt.Sprintf("%04d", i*2))
+		}
+		p := &Publication{PodPages: BuildPodPages(rows, nil)}
+		original := p
+		for i := 0; i < 40; i++ {
+			row := PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprintf("%04d", i*2+1))}}
+			p = p.WithPod(row.Record.UID, &row)
+		}
+		for i := 0; i < 40; i++ {
+			uid := types.UID(fmt.Sprintf("%04d", i*2+1))
+			row, ok := p.Pod(uid)
+			Expect(ok).To(BeTrue())
+			Expect(row.Record.UID).To(Equal(uid))
+			p = p.WithPod(uid, nil)
+		}
+		previous := types.UID("")
+		count := 0
+		for _, page := range p.PodPages {
+			Expect(len(page.Rows)).To(BeNumerically("<=", PodPageSize))
+			for _, row := range page.Rows {
+				Expect(row.Record.UID > previous).To(BeTrue())
+				previous = row.Record.UID
+				count++
+			}
+		}
+		Expect(count).To(Equal(len(rows)))
+		Expect(original.PodPages).To(HaveLen(2))
+		_, ok := original.Pod("0001")
+		Expect(ok).To(BeFalse())
+	})
+	It("supports caller-provided unsorted pages", func() {
+		p := &Publication{PodPages: []*PodPage{{Rows: []PublishedPod{{Record: PodRecord{UID: "z"}}, {Record: PodRecord{UID: "a"}}}}}}
+		row, ok := p.Pod("a")
+		Expect(ok).To(BeTrue())
+		row.Record.Name = "new"
+		next := p.WithPod("a", &row)
+		result, ok := next.Pod("a")
+		Expect(ok).To(BeTrue())
+		Expect(result.Record.Name).To(Equal("new"))
+		original, _ := p.Pod("a")
+		Expect(original.Record.Name).To(BeEmpty())
+	})
+	It("reuses equal evidence instants regardless of time representation", func() {
+		instant := time.Now()
+		rows := []PublishedPod{{Record: PodRecord{UID: "one"}, Mapping: Evidence{ExpiresAt: instant}}}
+		p := &Publication{PodPages: BuildPodPages(rows, nil)}
+		rows[0].Mapping.ExpiresAt = instant.Round(0).UTC()
+		Expect(BuildPodPages(rows, p)[0]).To(BeIdenticalTo(p.PodPages[0]))
+	})
+
 	It("copies only changed pages and never reorders the input", func() {
 		rows := make([]PublishedPod, PodPageSize+1)
 		for i := range rows {

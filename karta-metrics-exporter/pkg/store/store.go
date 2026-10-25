@@ -4,6 +4,7 @@
 package store
 
 import (
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -83,7 +84,10 @@ type PublishedPod struct {
 }
 
 type PodPage struct {
-	Rows []PublishedPod
+	Rows         []PublishedPod
+	prepared     sync.Once
+	dependencies map[string]int
+	sorted       bool
 }
 
 type Evidence struct {

@@ -32,13 +32,14 @@ replaces the complete health list.
 - `Publish` replaces a root's complete publication. Do not mutate it afterward.
 - `Published` returns the immutable publication, or nil.
 - `RemovePublication` removes the root and its Pod rows. An absent UID is safe.
-- `SetPublicationFailure` sets a shared failure. An empty reason clears it.
+- `SetPublicationFailure` sets a shared failure. An empty reason or `none` clears it.
 - `SetPublicationHealth` replaces the resource health list.
 - `Capture` returns a view that later writes cannot change.
 
 `New(Options)` constructs the Store. `CapturedView.Valid(evidence)` checks an
 explicit failure first, then shared dependency failures, then expiry at the
-captured time. Zero expiry and the expiry instant are invalid. Failures set before their first publication remain available. Store counts
+captured time. Zero expiry and the expiry instant are invalid. Failures set
+before their first publication remain available. Store counts
 publication and health references to each key. It removes a retired key when its
 last reference disappears. Replacement adds new references before removing old
 ones. Shared Pod pages retain their references without scanning their rows.
@@ -52,11 +53,21 @@ maps, slices and pages must remain immutable, including values returned by
 rows on every scrape. Runtime creates replacement maps and slices when inputs
 change. Health inputs are copied, including dependency slices.
 
-`Publication.WithPod(uid, replacement)` copies only the changed page. A nil
+`Publication.WithPod(uid, replacement)` copies changed pages and the page pointer
+list. Sorted pages stay ordered, split at capacity and merge after deletion when
+they fit. A nil
 replacement removes the Pod. A replacement must have the requested UID and its
 nested data follows the same immutable ownership contract. `BuildPodPages` sorts
 a copy of the input rows and reuses unchanged pages. `Publication.Pod` returns an
-immutable row. Helpers share nested label maps and evidence dependency slices;
+immutable row. Page-bound validation takes time proportional to the number of
+pages. Lookup then searches sorted rows. Arbitrary caller-provided unsorted pages
+use a linear fallback. Runtime builds initial and refreshed populations with
+`BuildPodPages`, rather than repeatedly inserting every Pod with `WithPod`.
+
+Each immutable page caches its dependency counts before Store takes its write
+lock. Shared pages reuse these counts. A full expiry refresh still creates new
+rows, but shared stream dependencies are counted once per page under the lock.
+Helpers share nested label maps and evidence dependency slices;
 callers must replace these rather than mutate them.
 
 Store owns its data types and does not import discovery. Runtime translates the

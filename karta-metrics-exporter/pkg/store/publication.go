@@ -4,10 +4,9 @@
 package store
 
 import (
+	"cmp"
 	"maps"
-	"reflect"
 	"slices"
-	"sort"
 	"sync"
 	"time"
 
@@ -45,6 +44,9 @@ func New(options Options) Interface {
 // Publish transfers ownership of the publication and all nested maps and slices.
 // Callers must never mutate them after publishing, including through returned views.
 func (s *Store) Publish(record *Publication) {
+	for _, page := range record.PodPages {
+		page.prepare()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	previous := s.publications[record.Workload.UID]
@@ -70,7 +72,7 @@ func (s *Store) RemovePublication(uid types.UID) {
 func (s *Store) SetPublicationFailure(key, reason string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if reason == "" {
+	if reason == "" || reason == ReasonNone {
 		delete(s.failures, key)
 	} else {
 		s.failures[key] = reason
@@ -112,20 +114,40 @@ func (s *Store) adjustPublicationReferences(record, sharedWith *Publication, del
 		if shared[page] {
 			continue
 		}
-		for _, row := range page.Rows {
-			s.adjustEvidenceReferences(row.Mapping, delta)
+		for key, count := range page.dependencies {
+			s.adjustFailureReferences(key, count*delta)
 		}
 	}
 }
 
 func (s *Store) adjustEvidenceReferences(e Evidence, delta int) {
 	for _, key := range e.Dependencies {
-		s.failureRefs[key] += delta
-		if s.failureRefs[key] == 0 {
-			delete(s.failureRefs, key)
-			delete(s.failures, key)
-		}
+		s.adjustFailureReferences(key, delta)
 	}
+}
+
+func (s *Store) adjustFailureReferences(key string, delta int) {
+	s.failureRefs[key] += delta
+	if s.failureRefs[key] == 0 {
+		delete(s.failureRefs, key)
+		delete(s.failures, key)
+	}
+}
+
+// prepare caches only derived immutable data. Publish calls it before locking.
+func (p *PodPage) prepare() {
+	p.prepared.Do(func() {
+		p.dependencies = make(map[string]int)
+		p.sorted = true
+		for i, row := range p.Rows {
+			if i > 0 && p.Rows[i-1].Record.UID >= row.Record.UID {
+				p.sorted = false
+			}
+			for _, key := range row.Mapping.Dependencies {
+				p.dependencies[key]++
+			}
+		}
+	})
 }
 
 // Capture shares immutable publications and copies the mutable failure state.
@@ -154,69 +176,116 @@ func (v CapturedView) Valid(e Evidence) (bool, string) {
 	return true, ReasonNone
 }
 
-// WithPod replaces only the page containing a changed Pod. A nil replacement
-// removes the row. Existing captured views retain their original pages.
+// WithPod replaces a Pod using copy-on-write pages. Bulk initialization and
+// refreshes use BuildPodPages. Sorted pages stay sorted and bounded in size.
 func (p *Publication) WithPod(uid types.UID, replacement *PublishedPod) *Publication {
 	next := *p
 	next.PodPages = slices.Clone(p.PodPages)
-	for i, page := range p.PodPages {
-		for j, row := range page.Rows {
-			if row.Record.UID != uid {
-				continue
-			}
-			rows := slices.Clone(page.Rows)
-			if replacement == nil {
-				rows = slices.Delete(rows, j, j+1)
-			} else {
-				rows[j] = *replacement
-			}
-			next.PodPages[i] = &PodPage{Rows: rows}
-			if len(rows) == 0 {
-				next.PodPages = slices.Delete(next.PodPages, i, i+1)
-			}
-			return &next
-		}
-	}
-	if replacement == nil {
+	pageIndex, rowIndex, found, sorted := p.podPosition(uid)
+	if !found && replacement == nil {
 		return &next
 	}
-	if len(next.PodPages) != 0 {
-		last := len(next.PodPages) - 1
-		if len(next.PodPages[last].Rows) < PodPageSize {
-			rows := slices.Clone(next.PodPages[last].Rows)
-			next.PodPages[last] = &PodPage{Rows: append(rows, *replacement)}
-			return &next
+	if len(p.PodPages) == 0 {
+		next.PodPages = []*PodPage{{Rows: []PublishedPod{*replacement}}}
+		return &next
+	}
+	rows := slices.Clone(p.PodPages[pageIndex].Rows)
+	switch {
+	case found && replacement == nil:
+		rows = slices.Delete(rows, rowIndex, rowIndex+1)
+	case found:
+		rows[rowIndex] = *replacement
+	default:
+		rows = slices.Insert(rows, rowIndex, *replacement)
+	}
+	next.PodPages[pageIndex] = &PodPage{Rows: rows}
+	switch {
+	case len(rows) == 0:
+		next.PodPages = slices.Delete(next.PodPages, pageIndex, pageIndex+1)
+	case len(rows) > PodPageSize:
+		middle := len(rows) / 2
+		next.PodPages[pageIndex] = &PodPage{Rows: rows[:middle:middle]}
+		next.PodPages = slices.Insert(next.PodPages, pageIndex+1, &PodPage{Rows: rows[middle:]})
+	case replacement == nil && sorted && len(next.PodPages) > 1:
+		left := pageIndex
+		if left == len(next.PodPages)-1 {
+			left--
+		}
+		a, b := next.PodPages[left], next.PodPages[left+1]
+		if len(a.Rows)+len(b.Rows) <= PodPageSize {
+			merged := make([]PublishedPod, 0, len(a.Rows)+len(b.Rows))
+			merged = append(merged, a.Rows...)
+			merged = append(merged, b.Rows...)
+			next.PodPages[left] = &PodPage{Rows: merged}
+			next.PodPages = slices.Delete(next.PodPages, left+1, left+2)
 		}
 	}
-	next.PodPages = append(next.PodPages, &PodPage{Rows: []PublishedPod{*replacement}})
 	return &next
 }
 
 func (p *Publication) Pod(uid types.UID) (PublishedPod, bool) {
-	for _, page := range p.PodPages {
-		for _, row := range page.Rows {
-			if row.Record.UID == uid {
-				return row, true
+	page, row, found, _ := p.podPosition(uid)
+	if !found {
+		return PublishedPod{}, false
+	}
+	return p.PodPages[page].Rows[row], true
+}
+
+// Public callers can supply arbitrary pages. Validate page bounds using cached
+// metadata before taking the sorted fast path; never assume caller ordering.
+func (p *Publication) podPosition(uid types.UID) (page, row int, found, sorted bool) {
+	sorted = true
+	for i, current := range p.PodPages {
+		current.prepare()
+		if !current.sorted || len(current.Rows) == 0 || (i > 0 && (len(p.PodPages[i-1].Rows) == 0 || p.PodPages[i-1].Rows[len(p.PodPages[i-1].Rows)-1].Record.UID >= current.Rows[0].Record.UID)) {
+			sorted = false
+			break
+		}
+	}
+	if len(p.PodPages) == 0 {
+		return 0, 0, false, sorted
+	}
+	if sorted {
+		page, _ = slices.BinarySearchFunc(p.PodPages, uid, func(page *PodPage, key types.UID) int {
+			return cmp.Compare(page.Rows[len(page.Rows)-1].Record.UID, key)
+		})
+		if page == len(p.PodPages) {
+			page--
+		}
+		row, found = slices.BinarySearchFunc(p.PodPages[page].Rows, uid, func(row PublishedPod, key types.UID) int { return cmp.Compare(row.Record.UID, key) })
+		return
+	}
+	for i, current := range p.PodPages {
+		for j, entry := range current.Rows {
+			if entry.Record.UID == uid {
+				return i, j, true, false
 			}
 		}
 	}
-	return PublishedPod{}, false
+	page = len(p.PodPages) - 1
+	row = len(p.PodPages[page].Rows)
+	return
 }
 
-// BuildPodPages creates a full replacement in linear space, sharing pages whose
-// rows are unchanged. Sorting keeps page positions stable across map iteration.
+// BuildPodPages sorts a copy of the input and reuses unchanged immutable pages.
+// Use this for initial publication and full refreshes instead of repeated WithPod.
 func BuildPodPages(rows []PublishedPod, previous *Publication) []*PodPage {
 	rows = slices.Clone(rows)
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Record.UID < rows[j].Record.UID })
+	slices.SortFunc(rows, func(a, b PublishedPod) int { return cmp.Compare(a.Record.UID, b.Record.UID) })
 	pages := make([]*PodPage, 0, (len(rows)+PodPageSize-1)/PodPageSize)
 	for start := 0; start < len(rows); start += PodPageSize {
 		end := min(start+PodPageSize, len(rows))
 		i := start / PodPageSize
-		if previous != nil && i < len(previous.PodPages) && reflect.DeepEqual(previous.PodPages[i].Rows, rows[start:end]) {
+		if previous != nil && i < len(previous.PodPages) && slices.EqualFunc(previous.PodPages[i].Rows, rows[start:end], equalPod) {
 			pages = append(pages, previous.PodPages[i])
 		} else {
 			pages = append(pages, &PodPage{Rows: slices.Clone(rows[start:end])})
 		}
 	}
 	return pages
+}
+
+func equalPod(a, b PublishedPod) bool {
+	x, y := a.Record, b.Record
+	return x.UID == y.UID && x.Name == y.Name && x.Component == y.Component && x.Instance == y.Instance && x.Group == y.Group && x.OwnerResolution == y.OwnerResolution && maps.Equal(x.Labels, y.Labels) && a.Mapping.ExpiresAt.Equal(b.Mapping.ExpiresAt) && a.Mapping.Reason == b.Mapping.Reason && slices.Equal(a.Mapping.Dependencies, b.Mapping.Dependencies)
 }
