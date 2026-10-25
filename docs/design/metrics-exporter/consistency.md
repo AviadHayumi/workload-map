@@ -68,6 +68,11 @@ reader refreshes retained owners with individual GETs, preserving GET-only owner
 permissions. Other LIST failures remain failures. There is no count threshold
 for switching between these paths.
 
+After refresh, Runtime compares each retained path with the current owner and its
+proof. Healthy, unchanged paths renew their root without repeating Pod discovery.
+Changed or failed paths requeue their dependent Pods. Each affected root is
+scheduled once, even when several Pods share an owner.
+
 Watched resources have separate periodic metadata verification. Runtime compares
 the returned UID and resourceVersion with the accepted informer observation for
 the same API representation. Matching metadata renews the full object's evidence.
