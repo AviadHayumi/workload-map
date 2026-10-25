@@ -11,7 +11,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 - [Current 100k-root outcomes](results/full-scale/README.md): source `535c5e93`
   passed every zero-Pod gate. Its one-Pod hierarchy run passed cold/quiet checks
-  but failed sustained-churn scheduling. Earlier failures remain preserved.
+  but failed sustained-churn scheduling. The later `f868589a` hierarchy repeat
+  also failed scheduling with a smaller root-only backlog. Earlier failures
+  remain preserved.
 
 - [Optional heap-profile diagnosis](results/heap-diagnostic/a52b1216/README.md):
   a separate short run reproduces heap oscillation with 13 sampled profiles.

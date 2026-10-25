@@ -280,3 +280,48 @@ counters include healthy AddAfter renewals and are not error counts. The pending
 continuity HTTP request closed after the failed run terminated the process;
 it does not establish an independent source outage. Earlier failures remain
 unchanged, including the 941b heap-growth result.
+
+## Targeted metadata-renewal hierarchy repeat
+
+Source `f868589a334e917dee0cfb4e1d258e28bb94a19a` uses immutable binary SHA256
+`ff1ac2def810610706ca4d4fcee7bfbc32ddd0900a58408aeedf022ec7d32b17`.
+The matching compressed report/log and host context are retained. All four kind
+nodes were stopped; no profiles, concurrent benchmarks or heavy checks ran.
+The 100k-root/one-Pod scenario kept every budget and gate unchanged. The earlier
+zero-Pod pass belongs to `535c5e93`; it was not rerun on this source.
+
+Cold convergence passed in 155.7478 seconds. Exact roots, Pod mappings and phase
+rows passed steady and quiet checks. Peak RSS was 7,551,877,120 bytes, below 8 GiB.
+HTTP and oracle timing gates passed. Full acceptance failed scheduler lateness
+at 13.1904 seconds of churn: 1,219 emitted, 1,126 verified and 93 pending, versus
+30,000 required. Maximum lateness among emitted events was 0.3342 seconds; the
+next blocked tick exceeded one second. Final latency, heap, drain and cleanup
+gates were not reached. No dense scenario followed.
+
+Unlike the prior 72k-object/root surge, object and source ready queues remained
+zero while root renewal work accumulated:
+
+| Process seconds | Object queue | Root queue | Source queue | Root completions |
+| --- | ---: | ---: | ---: | ---: |
+| 432.465 | 0 | 0 | 0 | 1051006 |
+| 433.485 | 0 | 521 | 0 | 1057478 |
+| 434.491 | 1 | 1463 | 0 | 1065560 |
+| 435.509 | 0 | 3391 | 0 | 1072287 |
+| 436.516 | 0 | 8753 | 0 | 1074938 |
+
+Churn began at 424.1883 seconds. The first churn HTTP response ran from
+429.1980 to 445.3440 seconds. Offline Python validation began after the emitter
+failure around 437.379 seconds. No forced GC was scheduled yet; the first was
+due at churn second 90. Natural GC count increased from 186 to 193 across
+429.430-436.516 seconds, and sampled CPU approached four cores. Source completed
+work stayed at 51 until the last sample, then rose to 52 after an 11.168-second
+operation. These are timing clues, not isolated causal profiling. Raw retry
+counts still include healthy delayed scheduling.
+
+Cold API counts included 842 intermediate metadata GETs and 547 intermediate
+LIST pages, 200 full Job plus 740 metadata Job pages, and 200 full Pod plus 600
+metadata Pod pages: 3,145 total requests by cold convergence. Across the run,
+intermediate GETs remained 842 and LIST pages reached 1,800. Exact per-request
+start/end times were not instrumented. The successful continuity response was
+followed by a diagnostic connection error during failure shutdown; that error
+does not establish a separate API outage. No gates were changed.
