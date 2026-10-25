@@ -481,6 +481,8 @@ def run(args):
     with open(binary, "rb") as binary_file:
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
+    report["source_revision"] = args.source_revision
+    report["binary_build_info"] = subprocess.run(["go", "version", "-m", str(binary)], capture_output=True, text=True, check=False).stdout
     fixture = LoopbackAPI(args.roots, args.pods, args.page_size, intermediate=not args.direct_owner)
     report["topology"] = "Job->Pod" if args.direct_owner else "Job->ReplicaSet->Pod"
     endpoint = fixture.start()
@@ -781,6 +783,7 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True)
+    parser.add_argument("--source-revision", help="Exact checkout revision used to build the binary; build info also records dirty state")
     parser.add_argument("--api-qps", type=float)
     parser.add_argument("--api-burst", type=int)
     parser.add_argument("--workers", type=int)
