@@ -14,7 +14,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.opentelemetry.io/otel/metric/noop"
+
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
+	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 )
@@ -29,6 +34,7 @@ func main() {
 // run keeps the signal handler's deferred cleanup out of main, since os.Exit skips defers.
 func run() error {
 	fs := flag.NewFlagSet("karta-metrics-exporter", flag.ContinueOnError)
+	useScaffold := fs.Bool("scaffold", false, "Run the idle mock composition without Kubernetes or metrics.")
 	showVersion := fs.Bool("version", false, "Print the exporter version and exit.")
 	loader := config.NewLoader(fs, os.Getenv)
 	switch err := fs.Parse(os.Args[1:]); {
@@ -63,6 +69,10 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if *useScaffold {
+		slog.Info("Starting mock components; no Kubernetes watches or metrics")
+		return app.Run(ctx, scaffold.New(), noop.NewMeterProvider().Meter("karta-scaffold"), collector.Options{})
+	}
 	slog.Info("Karta metrics exporter scaffold started; metrics collection is not implemented",
 		"version", version.String(), "submitterExtraction", submitterextractor.IsEnabled(extractor))
 	<-ctx.Done()

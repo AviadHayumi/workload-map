@@ -1,14 +1,18 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# OpenTelemetry adapter
+# OTel Collector
 
-This adapter will turn published workload observations into OpenTelemetry metrics.
-It will support the delivery modes defined by the exporter design: Prometheus
-scraping or periodic OTLP export.
+`RegisterFunc` is the constructor contract: an OTel Meter, a Store `Capturer`
+and phase options produce a `metric.Registration`. Nil `WorkloadPhases` selects
+all phases. A real constructor can be passed directly as this function.
 
-Collection will read calculated observations. Kubernetes reads, ownership walks,
-Karta evaluation and submitter extraction belong outside this adapter.
+The implementation will register one callback for the four KEP metric families.
+Each collection captures Store once, checks evidence validity and emits saved
+values. It does not read Kubernetes or run expressions.
 
-This scaffold adds no OpenTelemetry dependency or metrics endpoint. Implementation
-follows in a separate change.
+The command owns the reader, HTTP endpoint and provider shutdown. It unregisters
+the callback after Runtime stops, before shutting down the provider.
+
+No instruments or collection callback are implemented here. The scaffold uses
+a no-op meter and registers no instruments.

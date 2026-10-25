@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+template: testify
+template-data:
+  boilerplate-file: mockery-header.txt
+dir: internal/scaffold/mocks
+pkgname: mocks
+packages:
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory:
+    interfaces:
+      Interface:
+        config:
+          structname: Inventory
+          filename: inventory_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery:
+    interfaces:
+      Discoverer:
+        config:
+          structname: Discovery
+          filename: discovery_mock.go
+      ObjectReader:
+        config:
+          structname: ObjectReader
+          filename: object_reader_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator:
+    interfaces:
+      Evaluator:
+        config:
+          structname: LabelEvaluator
+          filename: label_evaluator_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver:
+    interfaces:
+      Resolver:
+        config:
+          structname: LabelResolver
+          filename: label_resolver_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store:
+    interfaces:
+      Interface:
+        config:
+          structname: Store
+          filename: store_mock.go
+  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller:
+    interfaces:
+      Runner:
+        config:
+          structname: Runtime
+          filename: runtime_mock.go
