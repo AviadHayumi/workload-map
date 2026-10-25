@@ -47,7 +47,7 @@ type cachedSelection struct {
 
 var ErrInvalidDefinition = errors.New("invalid Karta definition")
 
-var ErrPending = errors.New("Karta inventory not synchronized")
+var ErrPending = errors.New("karta inventory not synchronized")
 var ErrUnavailable = errors.New("Karta inventory unavailable")
 
 func New(config Config, source ClusterSource) (*Inventory, error) {
