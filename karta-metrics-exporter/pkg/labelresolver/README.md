@@ -5,7 +5,7 @@
 
 `Config.Rules` is the `labelRules` list. Each rule names a label, its metrics,
 ordered sources and expression. `Dependencies.Compiler` supplies the compiler.
-`Config.Limits` supplies its evaluation bounds. The resolver will compile rules
+`Config.Limits` supplies its evaluation bounds. `New(Config, Dependencies)` validates and compiles each rule once
 at construction.
 
 `Resolve` receives metric names, a workload object and an optional Pod object.
@@ -23,4 +23,7 @@ Collector reads those saved labels. Evaluation modes are not part of this
 configuration.
 
 `ValidateConfig` checks the rules at startup. Helm and the command accept the
-configuration. Source selection, fallback and caching are not implemented yet.
+configuration. Resolve creates fresh result maps on every call. Missing source
+objects are per-label errors and permit fallback. Unknown or duplicate requested
+metrics are invalid input. A canceled context stops resolution immediately.
+The resolver supports concurrent calls with immutable input objects.
