@@ -48,7 +48,7 @@ type cachedSelection struct {
 var ErrInvalidDefinition = errors.New("invalid Karta definition")
 
 var ErrPending = errors.New("karta inventory not synchronized")
-var ErrUnavailable = errors.New("Karta inventory unavailable")
+var ErrUnavailable = errors.New("karta inventory unavailable")
 
 func New(config Config, source ClusterSource) (*Inventory, error) {
 	selector, err := metav1.LabelSelectorAsSelector(config.Cluster.LabelSelector)
@@ -201,7 +201,7 @@ func (i *Inventory) stream(ctx context.Context) error {
 			return ctx.Err()
 		case event, ok := <-stream.ResultChan():
 			if !ok {
-				return errors.New("Karta watch closed")
+				return errors.New("karta watch closed")
 			}
 			if event.Type == watch.Bookmark {
 				continue
