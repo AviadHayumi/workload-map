@@ -14,6 +14,8 @@ This example deploys only the exporter and selects catalog definitions:
 ```yaml
 operator:
   enabled: false
+crdUpgrader:
+  enabled: false
 exporter:
   enabled: true
   image:
