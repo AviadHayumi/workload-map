@@ -74,6 +74,8 @@ an object absent from that snapshot if no newer local event superseded it.
 
 LIST pages use a limit of 500. A page-chain resourceVersion change or repeated
 continuation token rejects the round. A request timeout bounds each GET or page.
+A complete metadata LIST and the initial priming round are also bounded by
+`maxAge`. An incomplete round cannot establish absence.
 `ExpiresAt = readStart + maxAge`. An already over-age response cannot renew it.
 Reads started before a newer event, failure or scope change cannot replace that
 newer state.
@@ -116,6 +118,12 @@ Pod paths. It evaluates JQ and CEL outside Runtime's guard. Before saving, it
 checks that the root still exists, its generation and definition agree, the root
 object version matches and required evidence keys remain active. A superseded
 result is discarded and retried.
+
+A root can be served through several API versions. Admission and final publication
+check the accepted representations of that UID. If any still has a controller
+owner outside an explicit ignore boundary, the object cannot be published as a
+root. Removing its old publication does not remove that ownership evidence.
+Retiring a conflicting version requires fresh verification of its replacement.
 
 Each root queue key has one worker at a time. This also serializes use of that
 root's calculation cache and the read/replace/publish sequence. Store
