@@ -20,10 +20,14 @@ import (
 // Priming runs on the source queue. Discovery GETs keep making progress and any
 // newer accepted per-object result wins over this optional collection read.
 func (r *Runtime) primeMetadata(ctx context.Context) error {
+	parent := ctx
+	deadline := r.reader.options.Now().Add(r.reader.options.TTL)
+	ctx, cancelRound := context.WithTimeout(ctx, r.reader.options.TTL)
+	defer cancelRound()
 	attempted := map[objectKey]types.UID{}
 	rounds := map[watchKey]bool{}
 	scopes := map[schema.GroupVersionKind]*meta.RESTMapping{}
-	for ctx.Err() == nil {
+	for ctx.Err() == nil && r.reader.options.Now().Before(deadline) {
 		r.mu.Lock()
 		r.reader.mu.RLock()
 		demand := r.metadataDemandLocked()
@@ -31,6 +35,9 @@ func (r *Runtime) primeMetadata(ctx context.Context) error {
 		r.mu.Unlock()
 		groups := map[watchKey]map[objectKey]types.UID{}
 		for key, uid := range demand {
+			if ctx.Err() != nil || !r.reader.options.Now().Before(deadline) {
+				return parent.Err()
+			}
 			if uid == "" {
 				continue
 			}
@@ -61,6 +68,9 @@ func (r *Runtime) primeMetadata(ctx context.Context) error {
 		}
 		progress := false
 		for group, keys := range groups {
+			if ctx.Err() != nil || !r.reader.options.Now().Before(deadline) {
+				return parent.Err()
+			}
 			r.mu.Lock()
 			if r.primeAttempts == nil {
 				r.primeAttempts = map[watchKey]time.Time{}
@@ -77,9 +87,9 @@ func (r *Runtime) primeMetadata(ctx context.Context) error {
 			for key, uid := range keys {
 				attempted[key] = uid
 			}
-			added, err := r.primeMetadataGroup(ctx, group, keys, scopes)
+			added, err := r.primeMetadataGroup(ctx, group, keys, scopes, deadline)
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return parent.Err()
 			}
 			// A failed optimization leaves ordinary GET workers in charge, including
 			// GET-only permission and partial or unavailable collection responses.
@@ -91,10 +101,10 @@ func (r *Runtime) primeMetadata(ctx context.Context) error {
 			return nil
 		}
 	}
-	return ctx.Err()
+	return parent.Err()
 }
 
-func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand map[objectKey]types.UID, scopes map[schema.GroupVersionKind]*meta.RESTMapping) (int, error) {
+func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand map[objectKey]types.UID, scopes map[schema.GroupVersionKind]*meta.RESTMapping, deadline time.Time) (int, error) {
 	markers := map[objectKey]uint64{}
 	byName := map[string]objectKey{}
 	r.reader.mu.Lock()
@@ -129,7 +139,7 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 	if len(markers) == 0 {
 		return 0, nil
 	}
-	found, started, err := r.reader.readMetadataPages(ctx, group, byName, markers)
+	found, started, err := r.reader.readMetadataPages(ctx, group, byName, markers, deadline)
 	if err != nil {
 		return 0, err
 	}
@@ -140,7 +150,7 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 	if ctx.Err() != nil {
 		return 0, ctx.Err()
 	}
-	if !r.reader.options.Now().Before(started.Add(r.reader.options.TTL)) {
+	if !r.reader.options.Now().Before(started.Add(r.reader.options.TTL)) || !r.reader.options.Now().Before(deadline) {
 		return 0, discovery.ErrStale
 	}
 	live := r.metadataDemandLocked()
@@ -166,7 +176,7 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 		}
 		r.reader.retireMetadataLocked(r.reader.metadata[key], store.ReasonAPIUnavailable)
 		proof := fmt.Sprintf("metadata:%s:%d", key, marker)
-		r.reader.metadata[key] = metadataEntry{object: object, sequence: marker, failureKey: proof, expires: started.Add(r.reader.options.TTL)}
+		r.reader.saveMetadataLocked(key, metadataEntry{object: object, sequence: marker, failureKey: proof, expires: started.Add(r.reader.options.TTL)})
 		r.reader.observed[key] = marker
 		r.reader.activeKeys[proof] = true
 		delete(r.reader.failures, key)

@@ -26,7 +26,7 @@ func rememberOwner(r *Reader, name, version string) objectKey {
 	key := objectKey{GVK: testRootGVK, Namespace: "ns", Name: name}
 	r.sequence++
 	proof := fmt.Sprintf("metadata:%s:%d", name, r.sequence)
-	r.metadata[key] = metadataEntry{object: ownerMetadata(name, version), expires: time.Now().Add(time.Minute), failureKey: proof, sequence: r.sequence}
+	r.saveMetadataLocked(key, metadataEntry{object: ownerMetadata(name, version), expires: time.Now().Add(time.Minute), failureKey: proof, sequence: r.sequence})
 	r.observed[key] = r.sequence
 	r.activeKeys[proof] = true
 	return key

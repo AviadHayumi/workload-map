@@ -69,7 +69,7 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 	for key := range entries {
 		byName[key.Name] = key
 	}
-	found, started, listErr := r.readMetadataPages(ctx, group, byName, nil)
+	found, started, listErr := r.readMetadataPages(ctx, group, byName, nil, time.Time{})
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -102,25 +102,38 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 			r.activeKeys[proofKey] = true
 			r.sequence++
 			r.observed[key] = r.sequence
-			r.metadata[key] = metadataEntry{sequence: r.sequence, object: object, expires: started.Add(r.options.TTL), failureKey: proofKey}
+			r.saveMetadataLocked(key, metadataEntry{sequence: r.sequence, object: object, expires: started.Add(r.options.TTL), failureKey: proofKey})
 		}
 	}
 	return listErr
 }
 
 // Only requested names are retained from each page; unrelated objects are discarded.
-func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName map[string]objectKey, markers map[objectKey]uint64) (map[objectKey]*metav1.PartialObjectMetadata, time.Time, error) {
+func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName map[string]objectKey, markers map[objectKey]uint64, deadline time.Time) (map[objectKey]*metav1.PartialObjectMetadata, time.Time, error) {
 	started := r.options.Now()
+	if deadline.IsZero() || started.Add(r.options.TTL).Before(deadline) {
+		deadline = started.Add(r.options.TTL)
+	}
+	remaining := deadline.Sub(r.options.Now())
+	if remaining <= 0 {
+		return nil, started, discovery.ErrStale
+	}
+	ctx, cancelRound := context.WithTimeout(ctx, remaining)
+	defer cancelRound()
 	found := make(map[objectKey]*metav1.PartialObjectMetadata, len(byName))
 	options := metav1.ListOptions{Limit: 500}
 	tokens := map[string]bool{}
 	version := ""
 	var listErr error
 	for {
+		remaining := deadline.Sub(r.options.Now())
+		if remaining <= 0 {
+			return nil, started, discovery.ErrStale
+		}
 		if markers != nil && !r.hasPrimeDemand(markers) {
 			return nil, started, discovery.ErrStale
 		}
-		requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
+		requestCtx, cancel := context.WithTimeout(ctx, min(r.options.RequestTimeout, remaining))
 		page, err := r.listMetadata(requestCtx, group.Resource, group.Namespace, options)
 		cancel()
 		if err != nil {
@@ -153,7 +166,7 @@ func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName m
 	if ctx.Err() != nil {
 		return nil, started, ctx.Err()
 	}
-	if listErr == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
+	if listErr == nil && !r.options.Now().Before(deadline) {
 		listErr = discovery.ErrStale
 	}
 	return found, started, listErr
@@ -187,7 +200,7 @@ func (r *Reader) refreshMetadataByGet(ctx context.Context, entries map[objectKey
 				r.activeKeys[proofKey] = true
 				r.sequence++
 				r.observed[key] = r.sequence
-				r.metadata[key] = metadataEntry{sequence: r.sequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey}
+				r.saveMetadataLocked(key, metadataEntry{sequence: r.sequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey})
 			}
 		}
 		r.mu.Unlock()

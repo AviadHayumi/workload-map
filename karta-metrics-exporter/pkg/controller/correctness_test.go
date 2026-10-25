@@ -34,7 +34,10 @@ type testInventory struct {
 	err       error
 }
 
-func (i *testInventory) Lookup(schema.GroupVersionKind) (inventory.Selection, error) {
+func (i *testInventory) Lookup(gvk schema.GroupVersionKind) (inventory.Selection, error) {
+	if gvk.GroupKind() != i.selection.GVK.GroupKind() {
+		return inventory.Selection{}, nil
+	}
 	return i.selection, i.err
 }
 func (i *testInventory) Selections() ([]inventory.Selection, error) {

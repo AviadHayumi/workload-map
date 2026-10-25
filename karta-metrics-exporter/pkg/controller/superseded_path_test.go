@@ -207,4 +207,104 @@ var _ = Describe("Superseded dependency paths", func() {
 		Expect(valid).To(BeTrue())
 	})
 
+	DescribeTable("does not invent a workload for never-resolved ownership and recovers after correction", func(ctx SpecContext, cycle bool) {
+		r, _, publications := testRuntime(nil)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		if cycle {
+			ownedBy(pod, pod)
+		} else {
+			ownedBy(pod, root)
+			refs := pod.GetOwnerReferences()
+			refs = append(refs, refs[0])
+			pod.SetOwnerReferences(refs)
+		}
+		seedWatch(r, testRootGVK, "jobs", root)
+		pw := seedWatch(r, podGVK, "pods", pod)
+		err := r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})
+		Expect(err).To(MatchError(ContainSubstring(discovery.ErrUnresolvedOwner.Error())))
+		Expect(r.roots).To(BeEmpty())
+		Expect(publications.Capture().Records).To(BeEmpty())
+		Expect(r.reader.failureHealth()).To(BeEmpty(), "a structural error has no invented resource-read failure")
+		corrected := pod.DeepCopy()
+		corrected.SetResourceVersion("2")
+		ownedBy(corrected, root)
+		r.accept(pw, corrected, false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(corrected)), UID: corrected.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		record := publications.Published(root.GetUID())
+		Expect(record).NotTo(BeNil())
+		row, found := record.Pod(pod.GetUID())
+		Expect(found).To(BeTrue())
+		valid, _ := publications.Capture().Valid(row.Mapping)
+		Expect(valid).To(BeTrue())
+	}, Entry("multiple controller references", false), Entry("owner cycle", true))
+
+	DescribeTable("cannot recreate a former root through an alias after successful reparenting", func(ctx SpecContext, selected, retire bool) {
+		r, _, publications := testRuntime(nil)
+		canonical, alias, parent := testObject(testRootGVK, "root"), testObject(testRootGVK, "root"), testObject(testRootGVK, "parent")
+		if retire {
+			parentGVK := testRootGVK
+			parentGVK.Kind = "Parent"
+			parent.SetGroupVersionKind(parentGVK)
+			r.reader.clients.Mapper.(*meta.DefaultRESTMapper).Add(parentGVK, meta.RESTScopeNamespace)
+			seedWatch(r, parentGVK, "parents", parent)
+		}
+		v2 := testRootGVK
+		v2.Version = "v2"
+		alias.SetGroupVersionKind(v2)
+		r.reader.clients.Mapper.(*meta.DefaultRESTMapper).Add(v2, meta.RESTScopeNamespace)
+		pod := testObject(podGVK, "pod")
+		ownedBy(pod, alias)
+		cw := seedWatch(r, testRootGVK, "jobs", canonical)
+		if !retire {
+			r.accept(cw, parent, false)
+		}
+		aw := seedWatch(r, v2, "jobs", alias)
+		seedWatch(r, podGVK, "pods", pod)
+		state := seedRoot(r, canonical, pod)
+		state.watch = cw.key
+		if selected {
+			r.deps.Inventory = jobInventory()
+		}
+		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
+		paused := &pausedPodDiscovery{Discoverer: r.deps.Discovery, entered: make(chan struct{}), resume: make(chan struct{})}
+		r.deps.Discovery = paused
+		done := make(chan error, 1)
+		go func() { done <- r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
+		Eventually(paused.entered).Should(BeClosed())
+		changed := canonical.DeepCopy()
+		changed.SetResourceVersion("2")
+		ownedBy(changed, parent)
+		r.accept(cw, changed, false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(Succeed())
+		Expect(r.roots).NotTo(HaveKey(canonical.GetUID()))
+		if retire {
+			r.mu.Lock()
+			delete(r.watches, cw.key)
+			r.reader.mu.Lock()
+			r.retireWatchObjectsLocked(cw)
+			r.reader.mu.Unlock()
+			r.mu.Unlock()
+		}
+		close(paused.resume)
+		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
+		r.deps.Discovery = paused.Discoverer
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
+		Expect(r.roots).NotTo(HaveKey(canonical.GetUID()))
+		Expect(publications.Published(canonical.GetUID())).To(BeNil())
+		updatedAlias := alias.DeepCopy()
+		updatedAlias.SetResourceVersion("2")
+		ownedBy(updatedAlias, parent)
+		r.accept(aw, updatedAlias, false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, parent.GetUID())).To(Succeed())
+		record := publications.Published(parent.GetUID())
+		Expect(record).NotTo(BeNil())
+		valid, _ := publications.Capture().Valid(record.Creation)
+		Expect(valid).To(BeTrue())
+		_, found := record.Pod(pod.GetUID())
+		Expect(found).To(BeTrue())
+		Expect(publications.Published(canonical.GetUID())).To(BeNil())
+	}, Entry("generic identity", false, false), Entry("selected Karta representation", true, false), Entry("generic identity after contradictory watch retirement", false, true), Entry("selected Karta after contradictory watch retirement", true, true))
+
 })

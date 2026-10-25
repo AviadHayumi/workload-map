@@ -172,6 +172,7 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 
 // Retiring a representation does not retire a UID already assigned to another source.
 func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
+	r.trackWatchVersion(w.gvk, -1)
 	delete(r.reader.activeKeys, w.failureKey)
 	r.deps.Publications.SetPublicationFailure(w.failureKey, store.ReasonAPIUnavailable)
 	for key := range w.objects {
@@ -181,6 +182,15 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 		}
 		ref := refOf(entry.object)
 		delete(r.reader.objects, key)
+		if !r.terminalOwnerBoundary(entry.object) {
+			r.reader.invalidateAliasesLocked(key, ref.UID)
+			for gvk := range r.reader.versions[ref.GVK.GroupKind()] {
+				aliasKey := objectKey{GVK: gvk, Namespace: ref.Namespace, Name: ref.Name}
+				if alias, found := r.reader.objects[aliasKey]; found && alias.object.GetUID() == ref.UID {
+					r.controlQueue.Add(queueKey{Operation: "verify", Watch: alias.stream})
+				}
+			}
+		}
 		root := r.roots[ref.UID]
 		if root != nil && root.watch != w.key {
 			if replacement := r.watches[root.watch]; replacement != nil {
@@ -289,6 +299,7 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	}
 	r.watches[key] = w
 	r.reader.mu.Lock()
+	r.trackWatchVersion(gvk, 1)
 	r.reader.activeKeys[w.failureKey] = true
 	r.reader.mu.Unlock()
 	r.wg.Add(1)
@@ -575,17 +586,25 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 	readSequence := r.sequence
 	r.mu.Unlock()
 	verificationStarted := r.config.Now()
+	deadline := verificationStarted.Add(r.config.MaxAge)
+	parent := ctx
+	ctx, cancelRound := context.WithTimeout(ctx, r.config.MaxAge)
+	defer cancelRound()
 	refs := map[types.UID]string{}
 	options := metav1.ListOptions{Limit: 500}
 	tokens := map[string]bool{}
 	resourceVersion := ""
 	for {
-		requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
+		remaining := deadline.Sub(r.config.Now())
+		if remaining <= 0 {
+			return discovery.ErrStale
+		}
+		requestCtx, cancel := context.WithTimeout(ctx, min(r.reader.options.RequestTimeout, remaining))
 		list, err := r.reader.listMetadata(requestCtx, key.Resource, key.Namespace, options)
 		cancel()
 		if err != nil {
 			r.mu.Lock()
-			if ctx.Err() == nil && w.failureEpoch == failureEpoch {
+			if parent.Err() == nil && w.failureEpoch == failureEpoch {
 				r.failWatchLocked(w, err)
 			}
 			r.mu.Unlock()
@@ -609,6 +628,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if !r.config.Now().Before(deadline) {
+		return discovery.ErrStale
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

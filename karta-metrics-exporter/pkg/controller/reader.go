@@ -26,6 +26,7 @@ import (
 
 // Reader shares accepted watch objects with discovery and caches metadata GETs.
 type Reader struct {
+	versions        versionCounts
 	mapperMu        sync.Mutex
 	lastMapperReset time.Time
 	failures        map[objectKey]metadataFailure
@@ -208,10 +209,10 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 				proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
 			}
 			r.activeKeys[proofKey] = true
-			r.metadata[key] = metadataEntry{sequence: acceptedSequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey}
+			r.saveMetadataLocked(key, metadataEntry{sequence: acceptedSequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey})
 		} else {
 			r.retireMetadataLocked(previous, failureReason(err))
-			delete(r.metadata, key)
+			r.deleteMetadataLocked(key)
 		}
 		delete(r.pending, key)
 		if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
@@ -306,7 +307,7 @@ func (r *Reader) failureHealth() map[discovery.WatchRequest]error {
 
 func (r *Reader) removeMetadataLocked(key objectKey, reason string) {
 	r.retireMetadataLocked(r.metadata[key], reason)
-	delete(r.metadata, key)
+	r.deleteMetadataLocked(key)
 	if r.pending[key] != nil || r.priming[key] != 0 {
 		r.sequence++
 		r.observed[key] = r.sequence
@@ -359,5 +360,51 @@ func failureReason(err error) string {
 		return store.ReasonEvaluationFailed
 	default:
 		return store.ReasonAPIUnavailable
+	}
+}
+
+func (r *Reader) saveMetadataLocked(key objectKey, entry metadataEntry) {
+	if _, found := r.metadata[key]; !found {
+		trackVersion(&r.versions, key.GVK, 1)
+	}
+	r.metadata[key] = entry
+}
+
+func (r *Reader) deleteMetadataLocked(key objectKey) {
+	entry, found := r.metadata[key]
+	if !found {
+		return
+	}
+	// An alias cannot become affirmative root proof merely because a conflicting
+	// metadata observation expires or its last dependent input disappears.
+	if _, watched := r.objects[key]; !watched && metav1.GetControllerOf(entry.object) != nil {
+		r.invalidateAliasesLocked(key, entry.object.GetUID())
+	}
+	delete(r.metadata, key)
+	trackVersion(&r.versions, key.GVK, -1)
+}
+
+// Retiring a contradictory representation requires a fresh observation of its aliases.
+func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
+	for gvk := range r.versions[key.GVK.GroupKind()] {
+		aliasKey := objectKey{GVK: gvk, Namespace: key.Namespace, Name: key.Name}
+		if aliasKey == key {
+			continue
+		}
+		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
+			alias.evidence = store.Evidence{}
+			r.objects[aliasKey] = alias
+		}
+		if alias, exists := r.metadata[aliasKey]; exists && alias.object.GetUID() == uid {
+			r.retireMetadataLocked(alias, store.ReasonUnresolvedOwner)
+			delete(r.metadata, aliasKey)
+			trackVersion(&r.versions, gvk, -1)
+			if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {
+				r.sequence++
+				r.observed[aliasKey] = r.sequence
+			} else {
+				delete(r.observed, aliasKey)
+			}
+		}
 	}
 }

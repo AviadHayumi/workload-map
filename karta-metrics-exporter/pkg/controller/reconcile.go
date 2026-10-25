@@ -136,6 +136,12 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 	if current, ok := r.reader.Cached(ref); !ok || current.GetResourceVersion() != ref.ResourceVersion {
 		return discovery.ErrStale
 	}
+	r.reader.mu.RLock()
+	terminal := r.rootBoundaryLocked(workload.Root)
+	r.reader.mu.RUnlock()
+	if !terminal {
+		return discovery.ErrStale
+	}
 	if old := r.roots[ref.UID]; old != nil && workload.Root.UID != ref.UID {
 		for uid, path := range old.paths {
 			r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: uid})
@@ -215,6 +221,11 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			failedSources[w.failureKey] = w.err
 		}
 	}
+	r.reader.mu.RLock()
+	if !r.rootBoundaryLocked(ref) {
+		rootFailure = errors.Join(rootFailure, discovery.ErrUnresolvedOwner)
+	}
+	r.reader.mu.RUnlock()
 	previous := r.deps.Publications.Published(uid)
 	resolutionChanged := previous != nil && ((rootFailure != nil && previous.Workload.OwnerResolution != store.UnknownOwner) || (rootFailure == nil && previous.Workload.OwnerResolution == store.UnknownOwner))
 	full := resolutionChanged || state.fullRefresh || previous == nil || state.publishedGeneration != generation || len(state.dirty) > store.PodPageSize
@@ -523,6 +534,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	}
 	r.reader.mu.RLock()
 	defer r.reader.mu.RUnlock()
+	if rootFailure == nil && !r.rootBoundaryLocked(selectedRef) {
+		return discovery.ErrStale
+	}
 	for key := range proofKeys {
 		if !r.reader.activeKeys[key] {
 			return discovery.ErrStale

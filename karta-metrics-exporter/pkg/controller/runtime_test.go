@@ -91,7 +91,10 @@ func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects
 	key := watchKey{Resource: gvk.GroupVersion().WithResource(resource)}
 	w := &resourceWatch{key: key, gvk: gvk, objects: map[objectKey]struct{}{}, ready: true, discover: true, failureKey: "watch:" + key.Resource.String() + "/" + key.Namespace, verifiedAt: time.Now()}
 	r.watches[key] = w
+	r.reader.mu.Lock()
+	r.trackWatchVersion(gvk, 1)
 	r.reader.activeKeys[w.failureKey] = true
+	r.reader.mu.Unlock()
 	for _, o := range objects {
 		r.accept(w, o, false)
 	}

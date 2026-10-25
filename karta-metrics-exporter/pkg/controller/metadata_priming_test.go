@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -353,5 +354,60 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		Expect(client.Actions()).To(HaveLen(1))
 		Expect(r.reader.metadata[keyOf(refOf(owner))].object.Name).To(Equal("owner"))
 	}, Entry("not acceptable", 406), Entry("unsupported media type", 415))
+
+	It("stops a partial page chain once its read-start proof lifetime is spent", func(ctx SpecContext) {
+		r, metadata, _ := testRuntime(nil)
+		now := time.Unix(100, 0)
+		r.reader.options.Now = func() time.Time { return now }
+		r.reader.options.TTL = time.Minute
+		owner, pod := testObject(testRootGVK, "owner"), testObject(podGVK, "pod")
+		ownedBy(pod, owner)
+		seedWatch(r, podGVK, "pods", pod)
+		pages := 0
+		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			pages++
+			page := metadataList(ownerMetadata("owner", "1"))
+			if pages == 1 {
+				now = now.Add(time.Minute)
+				page.Continue = "next"
+			}
+			return true, page, nil
+		})
+		Expect(r.primeMetadata(ctx)).To(Succeed())
+		Expect(pages).To(Equal(1))
+		Expect(r.reader.metadata).To(BeEmpty())
+		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.failures).To(BeEmpty())
+	})
+	It("uses one proof-lifetime budget across newly discovered chain layers", func(ctx SpecContext) {
+		r, metadata, _ := testRuntime(nil)
+		now := time.Unix(100, 0)
+		r.reader.options.Now = func() time.Time { return now }
+		r.reader.options.TTL = 100 * time.Second
+		child, parent, grand := testObject(testRootGVK, "child"), testObject(testRootGVK, "parent"), testObject(testRootGVK, "grand")
+		ownedBy(child, parent)
+		ownedBy(parent, grand)
+		pod := testObject(podGVK, "pod")
+		ownedBy(pod, child)
+		seedWatch(r, podGVK, "pods", pod)
+		cm, pm := ownerMetadata("child", "1"), ownerMetadata("parent", "1")
+		cm.OwnerReferences = child.GetOwnerReferences()
+		pm.OwnerReferences = parent.GetOwnerReferences()
+		pages := 0
+		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			pages++
+			now = now.Add(60 * time.Second)
+			return true, metadataList(cm, pm, ownerMetadata("grand", "1")), nil
+		})
+		Expect(r.primeMetadata(ctx)).To(Succeed())
+		Expect(pages).To(Equal(2))
+		Expect(r.reader.metadata).To(HaveLen(1))
+		Expect(r.reader.metadata).To(HaveKey(keyOf(refOf(child))))
+		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.failures).To(BeEmpty())
+		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) { return true, pm, nil })
+		_, err := r.reader.GetMetadata(ctx, refOf(parent))
+		Expect(err).NotTo(HaveOccurred(), "ordinary GETs remain usable after the priming budget ends")
+	})
 
 })

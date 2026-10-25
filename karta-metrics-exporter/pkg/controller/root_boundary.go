@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package controller
+
+import (
+	"slices"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
+)
+
+type versionCounts map[schema.GroupKind]map[schema.GroupVersionKind]int
+
+// Counts cover watch scopes and metadata entries, not a second object cache.
+func trackVersion(index *versionCounts, gvk schema.GroupVersionKind, delta int) {
+	if *index == nil {
+		*index = versionCounts{}
+	}
+	versions := (*index)[gvk.GroupKind()]
+	if versions == nil {
+		versions = map[schema.GroupVersionKind]int{}
+		(*index)[gvk.GroupKind()] = versions
+	}
+	versions[gvk] += delta
+	if versions[gvk] <= 0 {
+		delete(versions, gvk)
+	}
+	if len(versions) == 0 {
+		delete(*index, gvk.GroupKind())
+	}
+}
+
+// Caller holds Reader's lock after Runtime's guard.
+func (r *Runtime) trackWatchVersion(gvk schema.GroupVersionKind, delta int) {
+	trackVersion(&r.reader.versions, gvk, delta)
+}
+
+func (r *Runtime) terminalOwnerBoundary(object metav1.Object) bool {
+	var controller *metav1.OwnerReference
+	for _, owner := range object.GetOwnerReferences() {
+		if owner.Controller == nil || !*owner.Controller {
+			continue
+		}
+		if controller != nil {
+			return false
+		}
+		candidate := owner
+		controller = &candidate
+	}
+	if controller == nil {
+		return true
+	}
+	gv, err := schema.ParseGroupVersion(controller.APIVersion)
+	if err != nil || gv.Version == "" || controller.Name == "" || controller.Kind == "" || controller.UID == "" {
+		return false
+	}
+	return slices.Contains(r.config.IgnoredOwnerKinds, gv.WithKind(controller.Kind))
+}
+
+// Runtime and Reader are locked by the caller. A publication's removal must not
+// erase accepted evidence that its former root still has a controller owner.
+func (r *Runtime) rootBoundaryLocked(ref discovery.ObjectRef) bool {
+	for gvk := range r.reader.versions[ref.GVK.GroupKind()] {
+		key := objectKey{GVK: gvk, Namespace: ref.Namespace, Name: ref.Name}
+		if entry, found := r.reader.objects[key]; found {
+			if entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
+				return false
+			}
+			continue
+		}
+		// Expired contradictions remain barriers until retirement also withdraws alias proof.
+		if entry, found := r.reader.metadata[key]; found && entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
+			return false
+		}
+	}
+	return true
+}
