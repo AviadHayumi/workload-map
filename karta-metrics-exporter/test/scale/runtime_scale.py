@@ -373,7 +373,7 @@ class FixedSchedule:
         if self.emitted >= self.target or elapsed < self.emitted/self.rate:
             return False
         if elapsed-self.emitted/self.rate > self.lateness_limit:
-            raise RuntimeError("emitter exceeded the scheduling lateness limit")
+            raise RuntimeError("emitter exceeded the scheduling lateness limit: " + ("pending publication blocks rotation" if blocked else "emitter scheduling delay"))
         return not blocked
 
     def record(self, elapsed):
@@ -382,6 +382,10 @@ class FixedSchedule:
         scheduled = self.emitted/self.rate
         self.emitted += 1
         return scheduled, elapsed-scheduled
+
+
+def churn_root_count(roots, rate, publication_limit, lateness_limit, poll_seconds):
+    return min(roots,max(100,math.ceil(rate*(publication_limit+2*lateness_limit+2*poll_seconds))))
 
 
 class CollectionGate:
@@ -612,7 +616,7 @@ def run(args):
     with open(binary, "rb") as binary_file:
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
-    report["measurement_protocol"] = "2: HTTP-excluded post-GC heap; independent queue-drain polling"
+    report["measurement_protocol"] = "3: latency-budgeted hot set; bounded full-round ACK batches; protocol-2 heap/drain sampling"
     report["heap_profiles_enabled"] = args.heap_profiles
     report["source_revision"] = args.source_revision
     report["publication_latency_limit_seconds"] = args.publication_latency_seconds
@@ -774,7 +778,7 @@ def run(args):
         if args.churn_seconds:
             if not diagnostics_port:
                 raise RuntimeError("sustained churn requires --diagnostics")
-            for root in range(min(100,args.roots)):
+            for root in range(churn_root_count(args.roots,args.churn_rate,args.publication_latency_seconds,args.max_scheduling_lateness_seconds,args.diagnostic_poll_seconds)):
                 fixture.change(root,change_pods=False)
             converge("churn_baseline")
             continuity_stop=threading.Event()
@@ -799,7 +803,11 @@ def run(args):
             emission_errors=[]
             report["sustained_churn"]["scheduling_lateness_limit_seconds"]=args.max_scheduling_lateness_seconds
             report["sustained_churn"]["max_scheduling_lateness_seconds"]=0
-            pool=min(100,args.roots)
+            pool=churn_root_count(args.roots,args.churn_rate,args.publication_latency_seconds,args.max_scheduling_lateness_seconds,args.diagnostic_poll_seconds)
+            report["sustained_churn"].update({"hot_root_count":pool,"hot_root_rotation_seconds":pool/args.churn_rate,
+                "hot_root_formula":"min(roots,max(100,ceil(rate*(publication_limit+2*lateness_limit+2*poll_seconds))))",
+                "hot_root_population_capped":pool==args.roots,"publication_limit_seconds":args.publication_latency_seconds,
+                "diagnostic_poll_seconds":args.diagnostic_poll_seconds,"ack_batch_limit":100,"ack_poll_rounds":[]})
             gc_samples=[]
             report["sustained_churn"]["gc_samples"]=gc_samples
             gc_errors=[]
@@ -861,20 +869,37 @@ def run(args):
                 with emission_condition:
                     pending_snapshot=dict(pending)
                 if pending_snapshot:
-                    query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in pending_snapshot])
-                    publications=diagnostic("/publications?"+query)
-                    observed=time.monotonic()
-                    with emission_condition:
-                        for root,(version,sent) in pending_snapshot.items():
-                            uid=f"job-{root}-g{fixture.generations.get(root,0)}"
-                            publication=publications.get(uid,{})
-                            if verified_publication(publication,fixture,root,version):
-                                churn_intervals.acknowledge(root,observed)
-                                latencies.append(observed-sent)
-                                del pending[root]
-                                report["sustained_churn"]["observed"]=len(latencies)
-                                report["sustained_churn"]["last_verified_ack_seconds"]=observed-churn_started
-                        emission_condition.notify_all()
+                    round_started=time.monotonic()
+                    batch_timings=[]
+                    rejections=collections.Counter()
+                    entries=list(pending_snapshot.items())
+                    for offset in range(0,len(entries),100):
+                        batch=dict(entries[offset:offset+100])
+                        query=urllib.parse.urlencode([("uid",f"job-{root}-g{fixture.generations.get(root,0)}") for root in batch])
+                        batch_started=time.monotonic()
+                        publications=diagnostic("/publications?"+query)
+                        observed=time.monotonic()
+                        batch_timings.append({"started_seconds":batch_started-churn_started,"completed_seconds":observed-churn_started,"requested_roots":len(batch)})
+                        with emission_condition:
+                            for root,(version,sent) in batch.items():
+                                uid=f"job-{root}-g{fixture.generations.get(root,0)}"
+                                publication=publications.get(uid,{})
+                                if verified_publication(publication,fixture,root,version):
+                                    churn_intervals.acknowledge(root,observed)
+                                    latencies.append(observed-sent)
+                                    del pending[root]
+                                    report["sustained_churn"]["observed"]=len(latencies)
+                                    report["sustained_churn"]["last_verified_ack_seconds"]=observed-churn_started
+                                elif not publication:
+                                    rejections["absent"]+=1
+                                elif publication.get("valid") is not True:
+                                    rejections["invalid_proof"]+=1
+                                elif publication.get("resource_version") != version:
+                                    rejections["different_resource_version"]+=1
+                                else:
+                                    rejections["identity_or_content_mismatch"]+=1
+                            emission_condition.notify_all()
+                    report["sustained_churn"]["ack_poll_rounds"].append({"started_seconds":round_started-churn_started,"completed_seconds":time.monotonic()-churn_started,"pending_roots":len(entries),"batches":batch_timings,"rejections":dict(rejections)})
                 time.sleep(args.diagnostic_poll_seconds)
             emission_thread.join(timeout=1)
             if emission_errors:

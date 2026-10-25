@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, FixedSchedule, CollectionGate, heap_window, read_metrics, verified_publication
+from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, FixedSchedule, CollectionGate, heap_window, churn_root_count, read_metrics, verified_publication
 
 
 class APIFixtureTests(unittest.TestCase):
@@ -454,6 +454,47 @@ class ConvergeWiringTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(errors,[])
         self.assertTrue(namespace["report"]["stages"][0]["scrapes"][0]["complete"])
+
+
+class HotRootTests(unittest.TestCase):
+    def test_declared_shapes_preserve_fractional_giant_rate(self):
+        self.assertEqual(churn_root_count(100000,100,5,1,0.25),750)
+        self.assertEqual(churn_root_count(100000,100,10,1,0.25),1250)
+        self.assertEqual(churn_root_count(1,0.05,15,1,0.25),1)
+        self.assertEqual(churn_root_count(10,100,5,1,0.25),10)
+
+    def test_three_second_acks_survive_multiple_rotations_with_five_second_budget(self):
+        pool=churn_root_count(100000,100,5,1,0.25)
+        schedule=FixedSchedule(30,100,1)
+        pending={}
+        intervals=ChurnIntervals()
+        acknowledged=0
+        for tick in range(3301):
+            now=tick/100
+            for root,sent in list(pending.items()):
+                if now-sent >= 3:
+                    intervals.acknowledge(root,now)
+                    del pending[root]
+                    acknowledged+=1
+            self.assertFalse(intervals.overdue(now,5))
+            if tick < schedule.target:
+                root=tick%pool
+                self.assertTrue(schedule.due(now,root in pending))
+                schedule.record(now)
+                intervals.begin(root,now)
+                pending[root]=now
+        self.assertEqual(schedule.emitted,3000)
+        self.assertEqual(acknowledged,3000)
+        self.assertFalse(pending)
+
+    def test_overbudget_publication_and_real_emitter_delay_still_fail(self):
+        intervals=ChurnIntervals()
+        intervals.begin(0,0)
+        self.assertEqual(intervals.overdue(5.001,5),{0})
+        with self.assertRaisesRegex(RuntimeError,"emitter scheduling delay"):
+            FixedSchedule(300,100,1).due(1.001)
+        with self.assertRaisesRegex(RuntimeError,"pending publication blocks rotation"):
+            FixedSchedule(300,100,1).due(1.001,blocked=True)
 
 
 if __name__ == "__main__":

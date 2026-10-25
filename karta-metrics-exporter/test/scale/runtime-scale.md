@@ -173,8 +173,14 @@ These polls do not format metrics, but Capture scans the publication set and
 selected Pod records add diagnostic CPU and response size, especially for the
 giant-root case. That overhead is included in reported latency.
 
-Sustained churn uses an independent paced emitter and rotates through up to 100
-roots. Event `i` is scheduled at `i/rate`, for an exact target of 30,000 events
+Protocol 3 uses an independent paced emitter and sizes its hot-root set as
+`min(roots, max(100, ceil(rate * (publication_limit + 2 * lateness_limit + 2 * poll_seconds))))`.
+At 100 events/s, 250 ms polling and one-second scheduling lateness, this is 750
+roots for the five-second publication limit and 1,250 for the ten-second limit.
+The giant-root case stays at one root and 0.05 events/s, a 20-second rotation.
+Reports record the formula, count, rotation time and population cap. A smaller
+available population can intrinsically constrain rate; the harness records that
+cap rather than inventing roots. Event `i` is scheduled at `i/rate`, for an exact target of 30,000 events
 over 300 seconds at 100 events/s. Diagnostic HTTP calls and forced exporter GC
 do not block that emitter. Each root has at most one pending event, so a later
 generation cannot falsely acknowledge an older one. The emitter waits for that
@@ -188,11 +194,31 @@ count and verified publication recovery remain independent requirements.
 
 Before the large runs, the scheduling lateness limit is declared as one second
 (`--max-scheduling-lateness-seconds`). This is one complete rotation of the
-100-root pool at 100 events/s. Exceeding it fails the run before a large catch-up
+original 100-root pool at 100 events/s. This limit stays unchanged in protocol 3.
+Exceeding it fails the run before a large catch-up
 burst; it does not waive exporter backpressure or publication latency limits.
 The limit and actual maximum lateness are recorded. The earlier 1,999-event
 report is retained unchanged. Deterministic tests cover the final boundary,
 pending-root backpressure and long stalls.
+
+Each ACK round covers the entire current pending snapshot in sequential batches
+of at most 100 UIDs. Each batch is acknowledged immediately after its response.
+HTTP runs outside the emitter condition lock. The polling interval follows the
+full round, not one batch per interval. Batch/round start and completion times,
+request counts and rejection categories are recorded. Each batch calls
+Store.Capture, so larger pending sets increase observer CPU, allocation and
+traffic. These costs remain included in latency/RSS. A diagnostic timeout is an
+observer failure, not proof of an exact exporter publication timestamp.
+
+Protocol 2 used 100 hot roots at 100 events/s with one pending event per root.
+Its one-second rotation plus one-second scheduler allowance could abort around
+two seconds, before the declared five-second publication bound. Protocol 3
+changes this load shape, not rates, counts, ACK validity or acceptance limits.
+Earlier failures remain recorded under their actual protocol, without
+reclassification. Their aggregate timing supports the rotation constraint,
+but missing per-root ACK history prevents proving each root's exact blocking
+sequence retrospectively. Tests cover three-second ACKs over multiple rotations,
+over-budget publication and actual emitter stalls.
 
 Reported publication latency
 is an upper bound from just before event emission to the first verified diagnostic response.
