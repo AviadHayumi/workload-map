@@ -3,7 +3,7 @@
 
 # Karta metrics exporter: implementation design
 
-[KEP-0001](../../../keps/0001-metrics-exporter/README.md) defines the metrics.
+[KEP-0001](../../keps/0001-metrics-exporter/README.md) defines the metrics.
 This design shows how the exporter builds them for namespaced workloads.
 The Go examples define the proposed component contracts.
 

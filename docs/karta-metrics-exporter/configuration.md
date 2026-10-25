@@ -3,7 +3,7 @@
 
 # Karta metrics exporter configuration
 
-Proposed configuration for [KEP-0001](../../keps/0001-metrics-exporter/README.md).
+Proposed configuration for [KEP-0001](../keps/0001-metrics-exporter/README.md).
 The exporter runs separately from the Karta controller. Helm configures its
 definitions, observation scope and metric delivery.
 
@@ -254,7 +254,7 @@ from other exporters; the [query guide](README.md) shows how to join them.
 
 ### Prometheus
 
-![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../../keps/0001-metrics-exporter/metrics-architecture.png)
+![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../keps/0001-metrics-exporter/metrics-architecture.png)
 
 `serviceMonitor.enabled: true` creates a ServiceMonitor. Its CRD must be installed
 and the Prometheus selector must match it. The Prometheus Operator turns it into

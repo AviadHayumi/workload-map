@@ -32,10 +32,10 @@ Examples:
 - LWS: find a quiet worker group hidden by the workload average.
 - Workload state: see Running, Failed or Degraded workloads and their observed history.
 
-See [queries](../../docs/karta-metrics-exporter/README.md) for CPU, memory and GPU
-joins, and [configuration](../../docs/karta-metrics-exporter/configuration.md) for
+See [queries](../../karta-metrics-exporter/README.md) for CPU, memory and GPU
+joins, and [configuration](../../karta-metrics-exporter/configuration.md) for
 Helm, selection and metric delivery.
-See the [implementation design](../../docs/design/metrics-exporter/README.md) for
+See the [implementation design](../../design/metrics-exporter/README.md) for
 runtime ownership and verification.
 
 ## Metrics
@@ -135,7 +135,7 @@ Examples of component attribution:
 `exporter.metricLabels` adds labels using CEL expressions over a resolved workload
 root or Pod. For example, a `team` label can read the root first and fall back to
 the Pod. Rules select metrics, source order and evaluation events without changing
-Kubernetes objects. See [metric label configuration](../../docs/karta-metrics-exporter/configuration.md#metric-labels)
+Kubernetes objects. See [metric label configuration](../../karta-metrics-exporter/configuration.md#metric-labels)
 for the input object, evaluation modes and cache lifetime.
 
 ## History
