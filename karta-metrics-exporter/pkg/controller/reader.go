@@ -39,6 +39,7 @@ type Reader struct {
 	objects         map[objectKey]observation
 	metadata        map[objectKey]metadataEntry
 	pending         map[objectKey]chan struct{}
+	priming         map[objectKey]uint64
 }
 
 type metadataFailure struct {
@@ -91,7 +92,7 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.TTL < 0 || options.RequestTimeout < 0 {
 		return nil, errors.New("reader durations must be positive")
 	}
-	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, pending: map[objectKey]chan struct{}{}, failures: map[objectKey]metadataFailure{}, observed: map[objectKey]uint64{}, activeKeys: map[string]bool{}}, nil
+	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, pending: map[objectKey]chan struct{}{}, priming: map[objectKey]uint64{}, failures: map[objectKey]metadataFailure{}, observed: map[objectKey]uint64{}, activeKeys: map[string]bool{}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
@@ -172,7 +173,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			}
 			delete(r.pending, key)
 			close(pending)
-			if _, ok := r.metadata[key]; !ok {
+			if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
 				delete(r.observed, key)
 			}
 			r.mu.Unlock()
@@ -206,7 +207,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			delete(r.metadata, key)
 		}
 		delete(r.pending, key)
-		if _, ok := r.metadata[key]; !ok {
+		if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
 			delete(r.observed, key)
 		}
 		close(pending)
@@ -299,7 +300,7 @@ func (r *Reader) failureHealth() map[discovery.WatchRequest]error {
 func (r *Reader) removeMetadataLocked(key objectKey, reason string) {
 	r.retireMetadataLocked(r.metadata[key], reason)
 	delete(r.metadata, key)
-	if r.pending[key] != nil {
+	if r.pending[key] != nil || r.priming[key] != 0 {
 		r.sequence++
 		r.observed[key] = r.sequence
 	} else {

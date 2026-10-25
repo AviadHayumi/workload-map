@@ -42,6 +42,7 @@ type Inventory interface {
 }
 
 type Config struct {
+	IgnoredOwnerKinds    []schema.GroupVersionKind
 	ResourceRules        []ResourceRule
 	ExcludeResourceRules []ResourceRule
 	NamespaceSelector    *metav1.LabelSelector
@@ -58,6 +59,7 @@ type Config struct {
 // Runtime orders accepted events and final publication under its own guard.
 // Store methods acquire only Store's lock, after the Runtime guard.
 type Runtime struct {
+	primeAttempts                                  map[watchKey]time.Time
 	watchFailures                                  map[discovery.WatchRequest]error
 	mu                                             sync.Mutex
 	config                                         Config
@@ -260,6 +262,8 @@ func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingI
 			err = r.syncWatches(ctx)
 		case "verify":
 			err = r.verifyWatch(ctx, key.Watch)
+		case "prime":
+			err = r.primeMetadata(ctx)
 		case "metadata":
 			r.pruneMetadata()
 			err = r.reader.refreshMetadata(ctx)

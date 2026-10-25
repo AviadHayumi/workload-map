@@ -104,7 +104,7 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 		return nil, err
 	}
 	publications := store.New(store.Options{})
-	runtime, err := controller.New(controller.Config{ResourceRules: cfg.ResourceRules, ExcludeResourceRules: cfg.ExcludeResourceRules, NamespaceSelector: cfg.NamespaceSelector, ObjectSelector: cfg.ObjectSelector, PodSelector: cfg.PodSelector, Definitions: cfg.KartaDefinitionSource, RequiredKinds: cfg.RequiredKinds, RefreshInterval: refresh, MaxAge: maxAge, Workers: cfg.Workers}, controller.Dependencies{Discovery: ownership, Inventory: definitions, Labels: labels, Publications: publications}, reader)
+	runtime, err := controller.New(controller.Config{IgnoredOwnerKinds: cfg.IgnoredOwnerKinds, ResourceRules: cfg.ResourceRules, ExcludeResourceRules: cfg.ExcludeResourceRules, NamespaceSelector: cfg.NamespaceSelector, ObjectSelector: cfg.ObjectSelector, PodSelector: cfg.PodSelector, Definitions: cfg.KartaDefinitionSource, RequiredKinds: cfg.RequiredKinds, RefreshInterval: refresh, MaxAge: maxAge, Workers: cfg.Workers}, controller.Dependencies{Discovery: ownership, Inventory: definitions, Labels: labels, Publications: publications}, reader)
 	if err != nil {
 		return nil, err
 	}

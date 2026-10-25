@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,52 +65,13 @@ func (r *Reader) refreshMetadata(ctx context.Context) error {
 }
 
 func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entries map[objectKey]metadataEntry) error {
-	started := r.options.Now()
-	found := make(map[objectKey]*metav1.PartialObjectMetadata, len(entries))
 	byName := make(map[string]objectKey, len(entries))
 	for key := range entries {
 		byName[key.Name] = key
 	}
-	options := metav1.ListOptions{Limit: 500}
-	tokens := map[string]bool{}
-	version := ""
-	var listErr error
-	for {
-		requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
-		page, err := r.listMetadata(requestCtx, group.Resource, group.Namespace, options)
-		cancel()
-		if err != nil {
-			listErr = err
-			break
-		}
-		if version != "" && page.ResourceVersion != version {
-			listErr = discovery.ErrStale
-			break
-		}
-		version = page.ResourceVersion
-		for i := range page.Items {
-			object := &page.Items[i]
-			if key, ok := byName[object.Name]; ok && key.Namespace == object.Namespace {
-				copy := object.DeepCopy()
-				copy.SetGroupVersionKind(key.GVK)
-				found[key] = copy
-			}
-		}
-		options.Continue = page.Continue
-		if options.Continue == "" {
-			break
-		}
-		if tokens[options.Continue] {
-			listErr = errors.New("repeated owner metadata LIST continuation")
-			break
-		}
-		tokens[options.Continue] = true
-	}
+	found, started, listErr := r.readMetadataPages(ctx, group, byName, nil)
 	if ctx.Err() != nil {
 		return ctx.Err()
-	}
-	if listErr == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
-		listErr = discovery.ErrStale
 	}
 	if apierrors.IsForbidden(listErr) || apierrors.IsUnauthorized(listErr) {
 		return r.refreshMetadataByGet(ctx, entries)
@@ -144,6 +106,57 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 		}
 	}
 	return listErr
+}
+
+// Only requested names are retained from each page; unrelated objects are discarded.
+func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName map[string]objectKey, markers map[objectKey]uint64) (map[objectKey]*metav1.PartialObjectMetadata, time.Time, error) {
+	started := r.options.Now()
+	found := make(map[objectKey]*metav1.PartialObjectMetadata, len(byName))
+	options := metav1.ListOptions{Limit: 500}
+	tokens := map[string]bool{}
+	version := ""
+	var listErr error
+	for {
+		if markers != nil && !r.hasPrimeDemand(markers) {
+			return nil, started, discovery.ErrStale
+		}
+		requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
+		page, err := r.listMetadata(requestCtx, group.Resource, group.Namespace, options)
+		cancel()
+		if err != nil {
+			listErr = err
+			break
+		}
+		if version != "" && page.ResourceVersion != version {
+			listErr = discovery.ErrStale
+			break
+		}
+		version = page.ResourceVersion
+		for i := range page.Items {
+			object := &page.Items[i]
+			if key, ok := byName[object.Name]; ok && key.Namespace == object.Namespace {
+				copy := object.DeepCopy()
+				copy.SetGroupVersionKind(key.GVK)
+				found[key] = copy
+			}
+		}
+		options.Continue = page.Continue
+		if options.Continue == "" {
+			break
+		}
+		if tokens[options.Continue] {
+			listErr = errors.New("repeated owner metadata LIST continuation")
+			break
+		}
+		tokens[options.Continue] = true
+	}
+	if ctx.Err() != nil {
+		return nil, started, ctx.Err()
+	}
+	if listErr == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
+		listErr = discovery.ErrStale
+	}
+	return found, started, listErr
 }
 
 // A GET-only owner permission remains sufficient when collection LIST is denied.

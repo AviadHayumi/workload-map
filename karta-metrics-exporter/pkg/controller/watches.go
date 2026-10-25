@@ -296,6 +296,9 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 		}
 		r.mu.Unlock()
 		r.controlQueue.Add(queueKey{Operation: "verify", Watch: key})
+		if gvk == podGVK {
+			r.controlQueue.Add(queueKey{Operation: "prime"})
+		}
 	}()
 	return key, nil
 }
@@ -380,6 +383,12 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 	w.failureEpoch++
 	first := w.err == nil
 	r.reader.mu.Lock()
+	for key := range r.reader.priming {
+		if key.GVK == w.gvk && (w.key.Namespace == "" || key.Namespace == w.key.Namespace) {
+			r.reader.sequence++
+			r.reader.observed[key] = r.reader.sequence
+		}
+	}
 	delete(r.reader.activeKeys, w.failureKey)
 	r.reader.mu.Unlock()
 	w.err = err
@@ -437,6 +446,13 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		r.reader.mu.Unlock()
 		return
 	}
+	if r.reader.priming[key] != 0 {
+		r.reader.sequence++
+		r.reader.observed[key] = r.reader.sequence
+	}
+	if old.object != nil && (deleted || old.object.GetUID() != ref.UID || !reflect.DeepEqual(old.object.GetOwnerReferences(), object.GetOwnerReferences())) {
+		r.reader.invalidatePrimeOwnersLocked(old.object)
+	}
 	if old.object != nil && old.object.GetUID() != ref.UID {
 		r.deleteObjectLocked(refOf(old.object))
 		delete(r.reader.objects, key)
@@ -493,6 +509,9 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		}
 	}
 	if w.gvk == namespaceGVK && (deleted || !r.namespaceSelector.Matches(labelsFor(object))) {
+		r.reader.mu.Lock()
+		r.pruneMetadataLocked()
+		r.reader.mu.Unlock()
 		for uid, root := range r.roots {
 			if root.ref.Namespace == object.GetName() {
 				r.removeRoot(uid)
