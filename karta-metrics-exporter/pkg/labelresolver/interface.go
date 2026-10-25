@@ -28,7 +28,8 @@ type ResolvedMetricLabels struct {
 }
 
 type Config struct {
-	Rules []LabelRule `json:"labelRules" yaml:"labelRules"`
+	Rules  []LabelRule           `json:"labelRules" yaml:"labelRules"`
+	Limits labelevaluator.Limits `json:"labelLimits" yaml:"labelLimits"`
 }
 
 type LabelRule struct {
@@ -46,5 +47,5 @@ const (
 )
 
 type Dependencies struct {
-	Compile labelevaluator.CompileFunc
+	Compiler labelevaluator.Compiler
 }

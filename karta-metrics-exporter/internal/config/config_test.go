@@ -8,235 +8,116 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
+	"github.com/stretchr/testify/require"
 )
 
-const multiLineExpression = `("karta.run.ai/submitted-by" in annotations)
-  ? annotations["karta.run.ai/submitted-by"]
-  : ""
-`
-
-var defaultLimits = AttributionLimits{
-	CostLimit:               submitterextractor.DefaultCostLimit,
-	MaxExpressionBytes:      submitterextractor.DefaultMaxExpressionBytes,
-	MaxIdentityBytes:        submitterextractor.DefaultMaxIdentityBytes,
-	InterruptCheckFrequency: submitterextractor.DefaultInterruptCheckFrequency,
-}
-
-func writeConfig(content string) string {
-	path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
-	Expect(os.WriteFile(path, []byte(content), 0o600)).To(Succeed())
-	return path
-}
-
-func loadWithArgs(args ...string) (Config, error) {
+func loadConfig(t *testing.T, content string, env map[string]string, args ...string) (Config, error) {
+	t.Helper()
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	loader := NewLoader(fs, os.Getenv)
+	loader := NewLoader(fs, func(key string) (string, bool) { v, ok := env[key]; return v, ok })
+	if content != "" {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+		args = append([]string{"--config", path}, args...)
+	}
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
 	return loader.Load()
 }
 
-func setEnv(key, value string) {
-	GinkgoHelper()
-	DeferCleanup(os.Unsetenv, key)
-	Expect(os.Setenv(key, value)).To(Succeed())
+func TestConfigDefaultsAndRules(t *testing.T) {
+	cfg, err := loadConfig(t, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
+	require.Empty(t, cfg.LabelRules)
+	for _, contents := range []string{"\n", "labelRules: []\n---\n"} {
+		cfg, err = loadConfig(t, contents, nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
+	}
+	cfg, err = loadConfig(t, `labelRules:
+- name: team
+  metrics: [karta_pod_workload_info]
+  sources: [workload, pod]
+  expression: |
+    has(object.metadata.labels) ? object.metadata.labels["team"] : ""
+labelLimits:
+  maxValueBytes: 32
+`, nil)
+	require.NoError(t, err)
+	require.Len(t, cfg.LabelRules, 1)
+	require.Equal(t, "team", cfg.LabelRules[0].Name)
+	require.Contains(t, cfg.LabelRules[0].Expression, "object.metadata.labels")
+	require.Equal(t, 32, cfg.LabelLimits.MaxValueBytes)
+	require.Equal(t, defaultLabelLimits.CostLimit, cfg.LabelLimits.CostLimit)
 }
 
-var _ = Describe("config loading", func() {
-	It("uses the defaults without a file or flags", func() {
-		cfg, err := loadWithArgs()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution).To(Equal(AttributionConfig{Limits: defaultLimits}))
-	})
-
-	It("keeps the defaults for an empty file", func() {
-		cfg, err := loadWithArgs("--config", writeConfig(""))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution).To(Equal(AttributionConfig{Limits: defaultLimits}))
-	})
-
-	It("accepts a trailing document separator", func() {
-		cfg, err := loadWithArgs("--config", writeConfig("attribution:\n  submittedByExpression: '\"x\"'\n---\n"))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`"x"`))
-	})
-
-	It("reads a multi-line expression and limits from the file", func() {
-		path := writeConfig(`attribution:
-  submittedByExpression: |
-    ("karta.run.ai/submitted-by" in annotations)
-      ? annotations["karta.run.ai/submitted-by"]
-      : ""
-  limits:
-    costLimit: 2000000
-    maxIdentityBytes: 64
-    interruptCheckFrequency: 10
-`)
-
-		cfg, err := loadWithArgs("--config", path)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.SubmittedByExpression).To(Equal(multiLineExpression))
-		Expect(cfg.Attribution.Limits).To(Equal(AttributionLimits{
-			CostLimit:               2000000,
-			MaxExpressionBytes:      submitterextractor.DefaultMaxExpressionBytes,
-			MaxIdentityBytes:        64,
-			InterruptCheckFrequency: 10,
-		}))
-	})
-
-	It("lets explicit flags override the file", func() {
-		path := writeConfig(`attribution:
-  submittedByExpression: '"from-file"'
-  limits:
-    costLimit: 5
-    maxIdentityBytes: 64
-`)
-
-		cfg, err := loadWithArgs("--config", path,
-			"--"+flagSubmittedByExpression, `"from-flag"`,
-			"--"+flagCostLimit, "7",
-			"--"+flagInterruptCheckFrequency, "3")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`"from-flag"`))
-		Expect(cfg.Attribution.Limits).To(Equal(AttributionLimits{
-			CostLimit:               7,
-			MaxExpressionBytes:      submitterextractor.DefaultMaxExpressionBytes,
-			MaxIdentityBytes:        64,
-			InterruptCheckFrequency: 3,
-		}))
-	})
-
-	It("does not let unset flag defaults override the file", func() {
-		cfg, err := loadWithArgs("--config", writeConfig("attribution:\n  limits:\n    costLimit: 5\n"))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.Limits.CostLimit).To(BeEquivalentTo(5))
-	})
-
-	It("works with flags alone", func() {
-		cfg, err := loadWithArgs("--"+flagSubmittedByExpression, `labels["owner"]`, "--"+flagMaxIdentityBytes, "32")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`labels["owner"]`))
-		Expect(cfg.Attribution.Limits.MaxIdentityBytes).To(Equal(32))
-	})
-
-	Context("environment variables", func() {
-		It("reads the config path and settings from the environment", func() {
-			setEnv("KARTA_EXPORTER_CONFIG", writeConfig("attribution:\n  limits:\n    maxIdentityBytes: 64\n"))
-			setEnv("KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", `labels["owner"]`)
-			setEnv("KARTA_EXPORTER_SUBMITTER_COST_LIMIT", "7")
-
-			cfg, err := loadWithArgs()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`labels["owner"]`))
-			Expect(cfg.Attribution.Limits.CostLimit).To(BeEquivalentTo(7))
-			Expect(cfg.Attribution.Limits.MaxIdentityBytes).To(Equal(64))
+func TestConfigPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		args []string
+		want uint64
+	}{
+		{name: "file", want: 5},
+		{name: "environment", env: map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, want: 7},
+		{name: "flag", env: map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, args: []string{"--label-cost-limit", "9"}, want: 9},
+		{name: "explicit zero", args: []string{"--label-cost-limit", "0"}, want: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := loadConfig(t, "labelLimits:\n  costLimit: 5\n", tc.env, tc.args...)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, cfg.LabelLimits.CostLimit)
 		})
+	}
+}
 
-		It("overrides the file", func() {
-			setEnv("KARTA_EXPORTER_SUBMITTER_MAX_IDENTITY_BYTES", "32")
+func TestConfigPathAndEmptyOverride(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0600))
+	cfg, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_CONFIG": path})
+	require.NoError(t, err)
+	require.Equal(t, 32, cfg.LabelLimits.MaxValueBytes)
+	cfg, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_CONFIG": path}, "--config=")
+	require.NoError(t, err)
+	require.Equal(t, defaultLabelLimits, cfg.LabelLimits)
+	_, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, "--label-cost-limit=")
+	require.Error(t, err)
+	_, err = loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": ""})
+	require.Error(t, err)
+}
 
-			cfg, err := loadWithArgs("--config", writeConfig("attribution:\n  limits:\n    maxIdentityBytes: 64\n"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cfg.Attribution.Limits.MaxIdentityBytes).To(Equal(32))
-		})
+func TestConfigRejectsInvalidInput(t *testing.T) {
+	for _, contents := range []string{
+		"attribution: {}", "labelLimits:\n  maxIdentityBytes: 1", "labelLimits:\n  costLimit: lots",
+		"labelLimits:\n  maxValueBytes: -1", "labelLimits:\n  maxExpressionBytes: -1",
+		"labelLimits:\n  interruptCheckFrequency: 0", "labelLimits:\n  interruptCheckFrequency: -1",
+		"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
+		"labelRules: []\n---\nlabelRules: [", "unknown: true",
+		"labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [pod]\n  expression: object.kind",
+	} {
+		t.Run(contents, func(t *testing.T) { _, err := loadConfig(t, contents, nil); require.Error(t, err) })
+	}
+	for _, args := range [][]string{
+		{"--submitted-by-expression", `"alice"`}, {"--submitter-cost-limit", "1"},
+		{"--config", "/does-not-exist/config.yaml"}, {"--label-cost-limit", "lots"},
+		{"--label-interrupt-check-frequency", "0"}, {"--label-interrupt-check-frequency", "-1"},
+		{"--label-max-value-bytes", "-1"},
+	} {
+		_, err := loadConfig(t, "", nil, args...)
+		require.Error(t, err)
+	}
+	for _, value := range []string{"lots", "0", "-1"} {
+		_, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY": value})
+		require.Error(t, err)
+	}
+}
 
-		It("is overridden by a flag", func() {
-			setEnv("KARTA_EXPORTER_SUBMITTER_COST_LIMIT", "7")
-
-			cfg, err := loadWithArgs("--"+flagCostLimit, "9")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cfg.Attribution.Limits.CostLimit).To(BeEquivalentTo(9))
-		})
-	})
-
-	DescribeTable("treats an empty value as unset",
-		func(args func() []string) {
-			path := writeConfig("attribution:\n  submittedByExpression: '\"from-file\"'\n  limits:\n    costLimit: 5\n")
-
-			cfg, err := loadWithArgs(append([]string{"--config", path}, args()...)...)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`"from-file"`))
-			Expect(cfg.Attribution.Limits.CostLimit).To(BeEquivalentTo(5))
-		},
-		Entry("empty environment variables", func() []string {
-			setEnv("KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", "")
-			setEnv("KARTA_EXPORTER_SUBMITTER_COST_LIMIT", "")
-			return nil
-		}),
-		Entry("empty expression flag", func() []string { return []string{"--" + flagSubmittedByExpression + "="} }),
-		Entry("whitespace environment variables", func() []string {
-			setEnv("KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", "  \n")
-			setEnv("KARTA_EXPORTER_SUBMITTER_COST_LIMIT", " ")
-			return nil
-		}),
-		Entry("whitespace expression flag", func() []string { return []string{"--" + flagSubmittedByExpression, "  "} }),
-	)
-
-	It("falls back to the environment variable when the flag is whitespace", func() {
-		setEnv("KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", `"from-env"`)
-
-		cfg, err := loadWithArgs("--"+flagSubmittedByExpression, " ")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cfg.Attribution.SubmittedByExpression).To(Equal(`"from-env"`))
-	})
-
-	DescribeTable("rejects a zero interrupt check frequency",
-		func(args func() []string) {
-			_, err := loadWithArgs(args()...)
-			Expect(err).To(MatchError(errZeroInterruptCheckFrequency))
-		},
-		Entry("from the file", func() []string {
-			return []string{"--config", writeConfig("attribution:\n  limits:\n    interruptCheckFrequency: 0\n")}
-		}),
-		Entry("from a flag", func() []string { return []string{"--" + flagInterruptCheckFrequency, "0"} }),
-		Entry("from the environment", func() []string {
-			setEnv("KARTA_EXPORTER_SUBMITTER_INTERRUPT_CHECK_FREQUENCY", "0")
-			return nil
-		}),
-	)
-
-	DescribeTable("rejects invalid input",
-		func(args func() []string) {
-			_, err := loadWithArgs(args()...)
-			Expect(err).To(HaveOccurred())
-		},
-		Entry("missing file", func() []string {
-			return []string{"--config", filepath.Join(GinkgoT().TempDir(), "absent.yaml")}
-		}),
-		Entry("unknown key", func() []string {
-			return []string{"--config", writeConfig("attribution:\n  submittedBy: x\n")}
-		}),
-		Entry("wrong type", func() []string {
-			return []string{"--config", writeConfig("attribution:\n  limits:\n    costLimit: lots\n")}
-		}),
-		Entry("negative interrupt check frequency in the file", func() []string {
-			return []string{"--config", writeConfig("attribution:\n  limits:\n    interruptCheckFrequency: -1\n")}
-		}),
-		Entry("malformed yaml", func() []string { return []string{"--config", writeConfig("attribution: [\n")} }),
-		Entry("multiple documents", func() []string {
-			return []string{"--config", writeConfig("attribution: {}\n---\nattribution:\n  submittedByExpression: '\"x\"'\n")}
-		}),
-		Entry("second document after an empty one", func() []string {
-			return []string{"--config", writeConfig("attribution: {}\n---\n---\nattribution: {}\n")}
-		}),
-		Entry("malformed second document", func() []string {
-			return []string{"--config", writeConfig("attribution: {}\n---\nattribution: [\n")}
-		}),
-		Entry("negative interrupt check frequency flag", func() []string {
-			return []string{"--" + flagInterruptCheckFrequency, "-1"}
-		}),
-		Entry("non-numeric limit flag", func() []string { return []string{"--" + flagMaxIdentityBytes, "lots"} }),
-		Entry("non-numeric limit environment variable", func() []string {
-			setEnv("KARTA_EXPORTER_SUBMITTER_COST_LIMIT", "lots")
-			return nil
-		}),
-		Entry("unknown flag", func() []string { return []string{"--submitter-unknown", "1"} }),
-	)
-})
+func TestRejectsRemovedSubmitterEnvironment(t *testing.T) {
+	_, err := loadConfig(t, "", map[string]string{"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION": "old"})
+	require.ErrorContains(t, err, "was removed")
+}

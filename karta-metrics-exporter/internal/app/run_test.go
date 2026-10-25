@@ -6,9 +6,7 @@ package app_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -51,9 +49,7 @@ func TestRunLifecycle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			publications := mocks.NewStore(t)
 			runtime := mocks.NewRuntime(t)
-			lock := &sync.Mutex{}
-			bound := false
-			publications.EXPECT().BindPublication(lock, mock.Anything).Run(func(*sync.Mutex, func() time.Time) { bound = true }).Once()
+
 			reg := &registration{err: tc.cleanupError}
 			registered := false
 			ctx := context.Background()
@@ -62,10 +58,9 @@ func TestRunLifecycle(t *testing.T) {
 					require.True(t, registered)
 				}).Return(tc.runtimeError).Once()
 			}
-			components := app.Components{
-				Runtime: runtime, Store: publications, PublicationLock: lock,
-				Register: func(_ metric.Meter, source collector.Capturer, options collector.Options) (metric.Registration, error) {
-					require.True(t, bound)
+			registrar := mocks.NewRegistrar(t)
+			registrar.EXPECT().Register(mock.Anything, publications, collector.Options{WorkloadPhases: []string{"Running"}}).RunAndReturn(
+				func(_ metric.Meter, source collector.Capturer, options collector.Options) (metric.Registration, error) {
 					require.Same(t, publications, source)
 					require.Equal(t, []string{"Running"}, options.WorkloadPhases)
 					registered = true
@@ -73,8 +68,9 @@ func TestRunLifecycle(t *testing.T) {
 						return nil, tc.registrationError
 					}
 					return reg, nil
-				},
-			}
+				}).Once()
+			components := app.Components{Runtime: runtime, Store: publications, Registrar: registrar}
+
 			err := app.Run(ctx, components, noop.NewMeterProvider().Meter("test"), collector.Options{WorkloadPhases: []string{"Running"}})
 			switch {
 			case tc.registrationError != nil:

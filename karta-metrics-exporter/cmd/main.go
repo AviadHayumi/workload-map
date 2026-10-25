@@ -20,7 +20,8 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
 	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 )
 
@@ -36,7 +37,7 @@ func run() error {
 	fs := flag.NewFlagSet("karta-metrics-exporter", flag.ContinueOnError)
 	useScaffold := fs.Bool("scaffold", false, "Run the idle mock composition without Kubernetes or metrics.")
 	showVersion := fs.Bool("version", false, "Print the exporter version and exit.")
-	loader := config.NewLoader(fs, os.Getenv)
+	loader := config.NewLoader(fs, os.LookupEnv)
 	switch err := fs.Parse(os.Args[1:]); {
 	case errors.Is(err, flag.ErrHelp):
 		return nil
@@ -55,26 +56,21 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("invalid exporter configuration: %w", err)
 	}
-	attribution := cfg.Attribution
-	extractor, err := submitterextractor.New(submitterextractor.Config{
-		Expression:              attribution.SubmittedByExpression,
-		CostLimit:               attribution.Limits.CostLimit,
-		MaxExpressionBytes:      attribution.Limits.MaxExpressionBytes,
-		MaxIdentityBytes:        attribution.Limits.MaxIdentityBytes,
-		InterruptCheckFrequency: attribution.Limits.InterruptCheckFrequency,
-	})
-	if err != nil {
-		return fmt.Errorf("invalid submitter configuration: %w", err)
+	compiler := labelevaluator.NewCompiler()
+	for _, rule := range cfg.LabelRules {
+		if _, err := compiler.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits}); err != nil {
+			return fmt.Errorf("invalid label %q: %w", rule.Name, err)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if *useScaffold {
 		slog.Info("Starting mock components; no Kubernetes watches or metrics")
-		return app.Run(ctx, scaffold.New(), noop.NewMeterProvider().Meter("karta-scaffold"), collector.Options{})
+		return app.Run(ctx, scaffold.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}), noop.NewMeterProvider().Meter("karta-scaffold"), collector.Options{})
 	}
 	slog.Info("Karta metrics exporter scaffold started; metrics collection is not implemented",
-		"version", version.String(), "submitterExtraction", submitterextractor.IsEnabled(extractor))
+		"version", version.String(), "labelRules", len(cfg.LabelRules))
 	<-ctx.Done()
 	slog.Info("Karta metrics exporter stopped")
 	return nil

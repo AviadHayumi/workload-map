@@ -8,9 +8,6 @@ Copyright (c) 2026 NVIDIA Corporation */
 package mocks
 
 import (
-	"sync"
-	"time"
-
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 	mock "github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/types"
@@ -50,52 +47,6 @@ type Store_Expecter struct {
 
 func (_m *Store) EXPECT() *Store_Expecter {
 	return &Store_Expecter{mock: &_m.Mock}
-}
-
-// BindPublication provides a mock function for the type Store
-func (_mock *Store) BindPublication(lock *sync.Mutex, now func() time.Time) {
-	_mock.Called(lock, now)
-	return
-}
-
-// Store_BindPublication_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BindPublication'
-type Store_BindPublication_Call struct {
-	*mock.Call
-}
-
-// BindPublication is a helper method to define mock.On call
-//   - lock *sync.Mutex
-//   - now func() time.Time
-func (_e *Store_Expecter) BindPublication(lock any, now any) *Store_BindPublication_Call {
-	return &Store_BindPublication_Call{Call: _e.mock.On("BindPublication", lock, now)}
-}
-
-func (_c *Store_BindPublication_Call) Run(run func(lock *sync.Mutex, now func() time.Time)) *Store_BindPublication_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *sync.Mutex
-		if args[0] != nil {
-			arg0 = args[0].(*sync.Mutex)
-		}
-		var arg1 func() time.Time
-		if args[1] != nil {
-			arg1 = args[1].(func() time.Time)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Store_BindPublication_Call) Return() *Store_BindPublication_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *Store_BindPublication_Call) RunAndReturn(run func(lock *sync.Mutex, now func() time.Time)) *Store_BindPublication_Call {
-	_c.Run(run)
-	return _c
 }
 
 // Capture provides a mock function for the type Store

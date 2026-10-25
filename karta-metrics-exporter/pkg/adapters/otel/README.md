@@ -3,9 +3,9 @@
 
 # OTel Collector
 
-`RegisterFunc` is the constructor contract: an OTel Meter, a Store `Capturer`
+`Registrar.Register` is the registration contract: an OTel Meter, a Store `Capturer`
 and phase options produce a `metric.Registration`. Nil `WorkloadPhases` selects
-all phases. A real constructor can be passed directly as this function.
+all phases. The generated Registrar mock lets startup be tested independently.
 
 The implementation will register one callback for the four KEP metric families.
 Each collection captures Store once, checks evidence validity and emits saved

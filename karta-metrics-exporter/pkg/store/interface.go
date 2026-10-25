@@ -4,16 +4,14 @@
 package store
 
 import (
-	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// Writer is used under Runtime's publication mutex after input verification.
+// Writer owns synchronization. Each method is atomic and safe for concurrent use.
 type Writer interface {
-	BindPublication(lock *sync.Mutex, now func() time.Time)
 	Publish(*Publication)
 	Published(types.UID) *Publication
 	RemovePublication(types.UID)
@@ -21,7 +19,7 @@ type Writer interface {
 	SetPublicationHealth([]HealthRecord)
 }
 
-// Capturer returns an immutable view. It acquires the publication mutex itself.
+// Capturer returns an immutable view under Store's own lock.
 type Capturer interface {
 	Capture() CapturedView
 }
@@ -100,4 +98,9 @@ type HealthRecord struct {
 	GVK       schema.GroupVersionKind
 	Namespace string
 	Evidence  Evidence
+}
+
+// Options supplies the Store clock. Nil uses time.Now.
+type Options struct {
+	Now func() time.Time
 }

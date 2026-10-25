@@ -5,7 +5,6 @@ package controller
 
 import (
 	"context"
-	"sync"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
@@ -19,9 +18,8 @@ type Runner interface {
 }
 
 type Dependencies struct {
-	Discovery       discovery.Discoverer
-	Inventory       inventory.Interface
-	Labels          labelresolver.Resolver
-	Publications    store.Writer
-	PublicationLock *sync.Mutex
+	Discovery    discovery.Discoverer
+	Inventory    inventory.Interface
+	Labels       labelresolver.Resolver
+	Publications store.Writer
 }

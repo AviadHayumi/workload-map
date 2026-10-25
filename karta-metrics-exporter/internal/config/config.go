@@ -13,113 +13,89 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/submitterextractor"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 )
 
 const (
 	flagConfig                  = "config"
-	flagSubmittedByExpression   = "submitted-by-expression"
-	flagCostLimit               = "submitter-cost-limit"
-	flagMaxExpressionBytes      = "submitter-max-expression-bytes"
-	flagMaxIdentityBytes        = "submitter-max-identity-bytes"
-	flagInterruptCheckFrequency = "submitter-interrupt-check-frequency"
+	flagCostLimit               = "label-cost-limit"
+	flagMaxExpressionBytes      = "label-max-expression-bytes"
+	flagMaxValueBytes           = "label-max-value-bytes"
+	flagInterruptCheckFrequency = "label-interrupt-check-frequency"
 )
 
 // errZeroInterruptCheckFrequency rejects a setting that would stop CEL from
 // checking for cancellation during evaluation.
-var errZeroInterruptCheckFrequency = errors.New("attribution.limits.interruptCheckFrequency must be greater than 0")
+var errZeroInterruptCheckFrequency = errors.New("labelLimits.interruptCheckFrequency must be greater than 0")
 
 var errMultipleDocuments = errors.New("must contain a single YAML document")
 
 // Config is the exporter configuration. It is read from the YAML file named by
 // --config. A flag, or its environment variable, overrides the file when set.
 type Config struct {
-	Attribution AttributionConfig `yaml:"attribution" json:"attribution"`
+	LabelRules  []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
+	LabelLimits labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
 }
 
-type AttributionConfig struct {
-	// SubmittedByExpression is the CEL expression returning the submitter. Empty disables extraction.
-	SubmittedByExpression string            `yaml:"submittedByExpression" json:"submittedByExpression"`
-	Limits                AttributionLimits `yaml:"limits" json:"limits"`
-}
-
-// AttributionLimits bounds submitter extraction. A zero value selects the
-// default, except InterruptCheckFrequency, which must be greater than 0.
-type AttributionLimits struct {
-	CostLimit               uint64 `yaml:"costLimit" json:"costLimit"`
-	MaxExpressionBytes      int    `yaml:"maxExpressionBytes" json:"maxExpressionBytes"`
-	MaxIdentityBytes        int    `yaml:"maxIdentityBytes" json:"maxIdentityBytes"`
-	InterruptCheckFrequency uint   `yaml:"interruptCheckFrequency" json:"interruptCheckFrequency"`
-}
-
-var defaultAttributionLimits = AttributionLimits{
-	CostLimit:               submitterextractor.DefaultCostLimit,
-	MaxExpressionBytes:      submitterextractor.DefaultMaxExpressionBytes,
-	MaxIdentityBytes:        submitterextractor.DefaultMaxIdentityBytes,
-	InterruptCheckFrequency: submitterextractor.DefaultInterruptCheckFrequency,
+var defaultLabelLimits = labelevaluator.Limits{
+	CostLimit:               labelevaluator.DefaultCostLimit,
+	MaxExpressionBytes:      labelevaluator.DefaultMaxExpressionBytes,
+	MaxValueBytes:           labelevaluator.DefaultMaxValueBytes,
+	InterruptCheckFrequency: labelevaluator.DefaultInterruptCheckFrequency,
 }
 
 // setting is one configuration value with its flag and environment variable.
-// apply parses the raw value into the attribution config.
+// apply parses the raw value into the label limits.
 type setting struct {
 	flag, env, usage string
-	apply            func(*AttributionConfig, string) error
+	apply            func(*labelevaluator.Limits, string) error
 }
 
 var configSetting = setting{flag: flagConfig, env: "KARTA_EXPORTER_CONFIG", usage: "Path to the exporter YAML config file."}
 
-var attributionSettings = []setting{
-	{
-		flag:  flagSubmittedByExpression,
-		env:   "KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION",
-		usage: "CEL expression returning the submitter identity. Overrides attribution.submittedByExpression.",
-		apply: func(a *AttributionConfig, v string) error {
-			a.SubmittedByExpression = v
-			return nil
-		},
-	},
+var labelSettings = []setting{
 	{
 		flag: flagCostLimit,
-		env:  "KARTA_EXPORTER_SUBMITTER_COST_LIMIT",
-		usage: fmt.Sprintf("CEL cost units one submitter evaluation may spend (default %d). Overrides attribution.limits.costLimit.",
-			defaultAttributionLimits.CostLimit),
-		apply: func(a *AttributionConfig, v string) (err error) {
-			a.Limits.CostLimit, err = strconv.ParseUint(v, 10, 64)
+		env:  "KARTA_EXPORTER_LABEL_COST_LIMIT",
+		usage: fmt.Sprintf("CEL cost units one label evaluation may spend (default %d). Overrides labelLimits.costLimit.",
+			defaultLabelLimits.CostLimit),
+		apply: func(limits *labelevaluator.Limits, v string) (err error) {
+			limits.CostLimit, err = strconv.ParseUint(v, 10, 64)
 			return err
 		},
 	},
 	{
 		flag: flagMaxExpressionBytes,
-		env:  "KARTA_EXPORTER_SUBMITTER_MAX_EXPRESSION_BYTES",
-		usage: fmt.Sprintf("Maximum length of the submitter expression (default %d). Overrides attribution.limits.maxExpressionBytes.",
-			defaultAttributionLimits.MaxExpressionBytes),
-		apply: func(a *AttributionConfig, v string) (err error) {
-			a.Limits.MaxExpressionBytes, err = strconv.Atoi(v)
+		env:  "KARTA_EXPORTER_LABEL_MAX_EXPRESSION_BYTES",
+		usage: fmt.Sprintf("Maximum length of the label expression (default %d). Overrides labelLimits.maxExpressionBytes.",
+			defaultLabelLimits.MaxExpressionBytes),
+		apply: func(limits *labelevaluator.Limits, v string) (err error) {
+			limits.MaxExpressionBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
 	{
-		flag: flagMaxIdentityBytes,
-		env:  "KARTA_EXPORTER_SUBMITTER_MAX_IDENTITY_BYTES",
-		usage: fmt.Sprintf("Maximum length of an extracted submitter identity (default %d). Overrides attribution.limits.maxIdentityBytes.",
-			defaultAttributionLimits.MaxIdentityBytes),
-		apply: func(a *AttributionConfig, v string) (err error) {
-			a.Limits.MaxIdentityBytes, err = strconv.Atoi(v)
+		flag: flagMaxValueBytes,
+		env:  "KARTA_EXPORTER_LABEL_MAX_VALUE_BYTES",
+		usage: fmt.Sprintf("Maximum length of an extracted label value (default %d). Overrides labelLimits.maxValueBytes.",
+			defaultLabelLimits.MaxValueBytes),
+		apply: func(limits *labelevaluator.Limits, v string) (err error) {
+			limits.MaxValueBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
 	{
 		flag: flagInterruptCheckFrequency,
-		env:  "KARTA_EXPORTER_SUBMITTER_INTERRUPT_CHECK_FREQUENCY",
-		usage: fmt.Sprintf("Comprehension iterations between cancellation checks; must be greater than 0 (default %d). Overrides attribution.limits.interruptCheckFrequency.",
-			defaultAttributionLimits.InterruptCheckFrequency),
-		apply: func(a *AttributionConfig, v string) error {
+		env:  "KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY",
+		usage: fmt.Sprintf("Comprehension iterations between cancellation checks; must be greater than 0 (default %d). Overrides labelLimits.interruptCheckFrequency.",
+			defaultLabelLimits.InterruptCheckFrequency),
+		apply: func(limits *labelevaluator.Limits, v string) error {
 			n, err := strconv.ParseUint(v, 10, 0)
-			a.Limits.InterruptCheckFrequency = uint(n)
+			limits.InterruptCheckFrequency = uint(n)
 			return err
 		},
 	},
@@ -127,27 +103,37 @@ var attributionSettings = []setting{
 
 // Loader resolves the configuration from the file, environment variables and flags.
 type Loader struct {
-	flags  map[string]*string
-	getenv func(string) string
+	flags     map[string]*string
+	lookupEnv func(string) (string, bool)
+	flagSet   *flag.FlagSet
 }
 
 // NewLoader registers the configuration flags on fs. Each flag can also be set
-// from its KARTA_EXPORTER_* environment variable, read with getenv.
-func NewLoader(fs *flag.FlagSet, getenv func(string) string) *Loader {
-	l := &Loader{flags: map[string]*string{}, getenv: getenv}
-	for _, s := range append([]setting{configSetting}, attributionSettings...) {
+// from its KARTA_EXPORTER_* environment variable, read with lookupEnv.
+func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader {
+	l := &Loader{flags: map[string]*string{}, lookupEnv: lookupEnv, flagSet: fs}
+	for _, s := range append([]setting{configSetting}, labelSettings...) {
 		l.flags[s.flag] = fs.String(s.flag, "", fmt.Sprintf("%s Environment variable: %s.", s.usage, s.env))
 	}
 	return l
 }
 
 // Load reads the config file, when set, and applies the environment variables
-// and then the flags, so a flag wins. Empty or whitespace-only values count as unset. Unknown keys
+// and then the flags, so a flag wins. Explicit flags win even when empty. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	cfg := Config{Attribution: AttributionConfig{Limits: defaultAttributionLimits}}
+	for _, name := range []string{
+		"KARTA_EXPORTER_SUBMITTED_BY_EXPRESSION", "KARTA_EXPORTER_SUBMITTER_COST_LIMIT",
+		"KARTA_EXPORTER_SUBMITTER_MAX_EXPRESSION_BYTES", "KARTA_EXPORTER_SUBMITTER_MAX_IDENTITY_BYTES",
+		"KARTA_EXPORTER_SUBMITTER_INTERRUPT_CHECK_FREQUENCY",
+	} {
+		if _, set := l.lookupEnv(name); set {
+			return Config{}, fmt.Errorf("%s was removed; use labelRules and labelLimits", name)
+		}
+	}
+	cfg := Config{LabelLimits: defaultLabelLimits}
 
-	if path := l.value(configSetting); path != "" {
+	if path, _ := l.value(configSetting); path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return Config{}, fmt.Errorf("config file %s: %w", path, err)
@@ -174,25 +160,36 @@ func (l *Loader) Load() (Config, error) {
 		}
 	}
 
-	for _, s := range attributionSettings {
-		if v := l.value(s); strings.TrimSpace(v) != "" {
-			if err := s.apply(&cfg.Attribution, v); err != nil {
+	for _, s := range labelSettings {
+		if v, set := l.value(s); set {
+			if err := s.apply(&cfg.LabelLimits, v); err != nil {
 				return Config{}, fmt.Errorf("--%s (%s): %w", s.flag, s.env, err)
 			}
 		}
 	}
 
-	if cfg.Attribution.Limits.InterruptCheckFrequency == 0 {
+	if cfg.LabelLimits.InterruptCheckFrequency == 0 {
 		return Config{}, errZeroInterruptCheckFrequency
+	}
+	if cfg.LabelLimits.MaxExpressionBytes < 0 || cfg.LabelLimits.MaxValueBytes < 0 {
+		return Config{}, labelevaluator.ErrNegativeLimit
+	}
+	if err := labelresolver.ValidateConfig(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}); err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
 }
 
-// value returns the setting's flag value, or its environment variable when the
-// flag is empty.
-func (l *Loader) value(s setting) string {
-	if v := *l.flags[s.flag]; strings.TrimSpace(v) != "" {
-		return v
+// value distinguishes an explicit empty flag from an unset one.
+func (l *Loader) value(s setting) (string, bool) {
+	set := false
+	l.flagSet.Visit(func(f *flag.Flag) {
+		if f.Name == s.flag {
+			set = true
+		}
+	})
+	if set {
+		return *l.flags[s.flag], true
 	}
-	return l.getenv(s.env)
+	return l.lookupEnv(s.env)
 }

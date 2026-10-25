@@ -17,5 +17,7 @@ type Options struct {
 	WorkloadPhases []string
 }
 
-// RegisterFunc registers a collection callback. The caller must unregister it.
-type RegisterFunc func(metric.Meter, Capturer, Options) (metric.Registration, error)
+// Registrar registers a collection callback. The caller must unregister it.
+type Registrar interface {
+	Register(metric.Meter, Capturer, Options) (metric.Registration, error)
+}
