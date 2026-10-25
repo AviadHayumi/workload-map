@@ -384,6 +384,29 @@ class FixedSchedule:
         return scheduled, elapsed-scheduled
 
 
+class CollectionGate:
+    """Exclude client metrics HTTP requests from forced GC, not ACKs or emission."""
+    def __init__(self):
+        self.lock = threading.Lock()
+
+    def run(self, action, scheduled=None):
+        waiting = time.monotonic()
+        with self.lock:
+            started = time.monotonic()
+            result = action()
+            completed = time.monotonic()
+        return result, {"scheduled_at": scheduled, "wait_started_at": waiting,
+                        "request_started_at": started, "completed_at": completed,
+                        "gate_wait_seconds": started-waiting}
+
+
+def heap_window(samples, duration):
+    coverage = samples[-1]["completed_at"]-samples[0]["completed_at"] if len(samples)>1 else 0
+    growth = samples[-1]["heap_alloc_bytes"]/samples[0]["heap_alloc_bytes"]-1 if len(samples)>1 else None
+    complete = coverage >= 180 and samples[0]["completed_at"] <= duration-180 and samples[-1]["completed_at"] >= duration
+    return coverage, growth, complete
+
+
 class ChurnIntervals:
     """Only roots with emitted, not yet verified changes may be temporarily invalid."""
     def __init__(self):
@@ -589,6 +612,7 @@ def run(args):
     with open(binary, "rb") as binary_file:
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
+    report["measurement_protocol"] = "2: HTTP-excluded post-GC heap; independent queue-drain polling"
     report["source_revision"] = args.source_revision
     report["publication_latency_limit_seconds"] = args.publication_latency_seconds
     report["queue_drain_limit_seconds"] = args.queue_drain_seconds
@@ -636,6 +660,9 @@ def run(args):
     continuity_thread = None
     emission_stop = threading.Event()
     emission_thread = None
+    gc_thread = None
+    gc_stop = threading.Event()
+    collection_gate = CollectionGate()
 
     diagnostic_traffic = collections.Counter()
     diagnostic_lock = threading.Lock()
@@ -683,18 +710,24 @@ def run(args):
             scrape_started = time.monotonic()
             try:
                 request = urllib.request.Request(f"http://127.0.0.1:{metrics_port}/metrics", headers={"Accept": "text/plain; version=0.0.4"})
-                with urllib.request.urlopen(request, timeout=args.scrape_seconds) as response:
-                    headers_seconds = time.monotonic() - scrape_started
-                    with tempfile.TemporaryFile() as body:
-                        shutil.copyfileobj(response,body)
-                        http_seconds = time.monotonic() - scrape_started
-                        body.seek(0)
-                        oracle_started = time.monotonic()
-                        changing = churn_intervals.overlapping(scrape_started, scrape_started+http_seconds) if name == "churn_continuity" else frozenset()
-                        last = read_metrics(body, fixture, oracle_started + args.oracle_seconds, changing)
-                        last["changing_roots"] = sorted(changing)
-                        last["oracle_seconds"] = round(time.monotonic()-oracle_started,4)
-                        last["http_seconds"] = round(http_seconds,4)
+                with tempfile.TemporaryFile() as body:
+                    def transfer():
+                        request_started=time.monotonic()
+                        with urllib.request.urlopen(request, timeout=args.scrape_seconds) as response:
+                            headers=time.monotonic()-request_started
+                            shutil.copyfileobj(response,body)
+                        return headers
+                    headers_seconds, http_timing = collection_gate.run(transfer)
+                    scrape_started=http_timing["request_started_at"]
+                    http_seconds=http_timing["completed_at"]-scrape_started
+                    body.seek(0)
+                    oracle_started = time.monotonic()
+                    changing = churn_intervals.overlapping(scrape_started, http_timing["completed_at"]) if name == "churn_continuity" else frozenset()
+                    last = read_metrics(body, fixture, oracle_started + args.oracle_seconds, changing)
+                    last["changing_roots"] = sorted(changing)
+                    last["oracle_seconds"] = round(time.monotonic()-oracle_started,4)
+                    last["http_seconds"] = round(http_seconds,4)
+                    last["http_gate_wait_seconds"] = http_timing["gate_wait_seconds"]
                 last["started_seconds"] = round(scrape_started-started,6)
                 last["finished_seconds"] = round(time.monotonic()-started,6)
                 last["response_headers_seconds"] = round(headers_seconds, 4)
@@ -711,7 +744,7 @@ def run(args):
                         stage["diagnostics"] = diagnostic()
                     print(json.dumps({"stage": name, "seconds": stage["seconds"], "rss_bytes": stage["rss_bytes"], "counts": last["counts"]}), flush=True)
                     return
-                print(json.dumps({"stage": name, "complete": False, "scrape_seconds": last["scrape_seconds"], "counts": last["counts"]}), flush=True)
+                print(json.dumps({"stage": name, "complete": False, "scrape_seconds": last["scrape_seconds"], "counts": last["counts"], "examples": last.get("examples", [])}), flush=True)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 stage["scrapes"].append({"error": str(exc), "scrape_seconds": round(time.monotonic() - scrape_started, 4)})
             time.sleep(args.poll_seconds)
@@ -756,7 +789,25 @@ def run(args):
             pool=min(100,args.roots)
             gc_samples=[]
             report["sustained_churn"]["gc_samples"]=gc_samples
-            next_gc=churn_started+max(0,args.churn_seconds-180)
+            gc_errors=[]
+            def sample_gc():
+                try:
+                    offset=max(0,args.churn_seconds-180-args.gc_sample_seconds)
+                    while True:
+                        scheduled=churn_started+offset
+                        if gc_stop.wait(max(0,scheduled-time.monotonic())):
+                            return
+                        sample,timing=collection_gate.run(lambda: diagnostic("/gc",method="POST"),scheduled)
+                        sample.update({key:value-churn_started if key.endswith("_at") and value is not None else value for key,value in timing.items()})
+                        sample["seconds"]=sample["completed_at"]
+                        gc_samples.append(sample)
+                        if offset >= args.churn_seconds:
+                            return
+                        offset=min(args.churn_seconds,offset+args.gc_sample_seconds)
+                except Exception as exc:
+                    gc_errors.append(str(exc))
+            gc_thread=threading.Thread(target=sample_gc,daemon=True)
+            gc_thread.start()
             def emit_changes():
                 try:
                     while schedule.emitted < schedule.target and not emission_stop.is_set():
@@ -779,6 +830,7 @@ def run(args):
                     emission_errors.append(str(exc))
                     report["sustained_churn"]["scheduler_error"]=str(exc)
                 finally:
+                    report["sustained_churn"]["emitter_completed_seconds"]=time.monotonic()-churn_started
                     emission_done.set()
 
             emission_thread=threading.Thread(target=emit_changes,daemon=True)
@@ -793,9 +845,6 @@ def run(args):
                     raise RuntimeError("exporter exited during sustained churn")
                 if churn_intervals.overdue(now,args.publication_latency_seconds):
                     raise RuntimeError("changed root did not recover a verified publication within the latency bound")
-                if now >= next_gc and now-churn_started < args.churn_seconds:
-                    gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(now-churn_started,4)))
-                    next_gc+=args.gc_sample_seconds
                 with emission_condition:
                     pending_snapshot=dict(pending)
                 if pending_snapshot:
@@ -811,6 +860,7 @@ def run(args):
                                 latencies.append(observed-sent)
                                 del pending[root]
                                 report["sustained_churn"]["observed"]=len(latencies)
+                                report["sustained_churn"]["last_verified_ack_seconds"]=observed-churn_started
                         emission_condition.notify_all()
                 time.sleep(args.diagnostic_poll_seconds)
             emission_thread.join(timeout=1)
@@ -819,24 +869,38 @@ def run(args):
             emitted=schedule.emitted
             report["sustained_churn"]["emission_and_observation_seconds"]=time.monotonic()-churn_started
             report["sustained_churn"]["observed_events_per_elapsed_second"]=len(latencies)/report["sustained_churn"]["emission_and_observation_seconds"]
-            gc_samples.append(dict(diagnostic("/gc",method="POST"),seconds=round(time.monotonic()-churn_started,4)))
             continuity_stop.set()
-            continuity_thread.join(timeout=args.stage_seconds+args.scrape_seconds+args.oracle_seconds)
-            if continuity_thread.is_alive() or continuity_errors:
-                raise RuntimeError(f"churn continuity failed: {continuity_errors}")
+            drain_started=time.monotonic()
+            drain_polls=[]
             queue_idle_samples=0
             while queue_idle_samples < 2:
+                poll_started=time.monotonic()
                 queue_stats=diagnostic()["queues"]
+                poll_completed=time.monotonic()
                 depth=sum(metric["value"] for name,metric in queue_stats.items() if name.endswith(".depth"))
                 starts=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".queue_latency_seconds"))
                 finishes=sum(metric["count"] for name,metric in queue_stats.items() if name.endswith(".work_duration_seconds"))
                 queue_idle_samples=queue_idle_samples+1 if queue_stats and depth==0 and starts==finishes else 0
-                if time.monotonic()-churn_started > args.churn_seconds+args.queue_drain_seconds:
+                drain_polls.append({"started_seconds":poll_started-churn_started,"completed_seconds":poll_completed-churn_started,"depth":depth,"active":starts-finishes})
+                if poll_completed-drain_started > args.queue_drain_seconds:
                     break
-                time.sleep(args.diagnostic_poll_seconds)
+                if queue_idle_samples < 2:
+                    time.sleep(args.diagnostic_poll_seconds)
+            drain_completed=time.monotonic()
+            report["sustained_churn"]["drain_started_seconds"]=drain_started-churn_started
+            report["sustained_churn"]["drain_completed_seconds"]=drain_completed-churn_started
+            report["sustained_churn"]["drain_polls"]=drain_polls
+            continuity_thread.join(timeout=args.stage_seconds+args.scrape_seconds+args.oracle_seconds)
+            gc_thread.join(timeout=args.scrape_seconds+10)
+            if continuity_thread.is_alive() or continuity_errors:
+                raise RuntimeError(f"churn continuity failed: {continuity_errors}")
+            if gc_thread.is_alive() or gc_errors:
+                raise RuntimeError(f"GC sampling failed: {gc_errors}")
+            heap_coverage,heap_growth,heap_complete=heap_window(gc_samples,args.churn_seconds)
+            report["sustained_churn"]["heap_sampling_coverage_seconds"]=heap_coverage
+            report["sustained_churn"]["heap_sampling_full_window"]=heap_complete
             latencies.sort()
-            elapsed=time.monotonic()-churn_started
-            report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":max(0,elapsed-args.churn_seconds),"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":(gc_samples[-1]["heap_alloc_bytes"] / gc_samples[0]["heap_alloc_bytes"] - 1) if len(gc_samples)>1 else None,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first captured valid creation/status and current Pod mapping at exact root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
+            report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":drain_completed-drain_started,"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":heap_growth,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first captured valid creation/status and current Pod mapping at exact root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
             converge("after_sustained_churn")
         churn_count = max(1, min(args.churn_roots, args.roots))
         if args.pods:
@@ -900,6 +964,7 @@ def run(args):
         report["complete"] = False
         report["failure"] = str(exc)
     finally:
+        gc_stop.set()
         emission_stop.set()
         if emission_thread is not None:
             emission_thread.join(timeout=2)
@@ -916,6 +981,8 @@ def run(args):
                 process.wait()
         if continuity_thread is not None:
             continuity_thread.join(timeout=args.poll_seconds+5)
+        if gc_thread is not None:
+            gc_thread.join(timeout=6)
         report["returncode"] = process.returncode
         completed = [scrape for stage in report["stages"] for scrape in stage["scrapes"] if scrape.get("complete")]
         report["measured_gates"] = {"http_scrapes_under_25s": bool(completed) and all(scrape["http_seconds"] <= 25 for scrape in completed), "oracle_under_deadline": bool(completed) and all(scrape["oracle_seconds"] <= args.oracle_seconds for scrape in completed)}
@@ -929,7 +996,7 @@ def run(args):
             report["measured_gates"]["scheduler_lateness"]=not churn.get("scheduler_error") and churn["max_scheduling_lateness_seconds"]<=churn["scheduling_lateness_limit_seconds"]
         if "sustained_churn" in report and "drain_seconds" in report["sustained_churn"]:
             churn=report["sustained_churn"]
-            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= args.publication_latency_seconds,"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= args.queue_drain_seconds,"live_heap_growth":churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
+            report["measured_gates"].update({"sustained_churn_full_duration":churn["requested_seconds"]>=300,"sustained_churn_event_count":churn["emitted"]==churn["target_event_count"],"publication_p99_upper_bound":churn["publication_upper_bound_p99_seconds"] is not None and churn["publication_upper_bound_p99_seconds"] <= args.publication_latency_seconds,"queue_drain":churn.get("all_queues_drained",False) and churn["drain_seconds"] <= args.queue_drain_seconds,"heap_sampling_full_window":churn["heap_sampling_full_window"],"live_heap_growth":churn["heap_sampling_full_window"] and churn["final_window_heap_growth_fraction"] is not None and churn["final_window_heap_growth_fraction"]<=0.05})
         if "post_delete_heap_gate" in report:
             report["measured_gates"]["delete_all_heap"] = report["post_delete_heap_gate"]
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)

@@ -4,12 +4,14 @@
 import copy
 import io
 import json
+import threading
+import time
 import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, FixedSchedule, read_metrics, verified_publication
+from runtime_scale import CREATED, PHASES, LoopbackAPI, ChurnIntervals, FixedSchedule, CollectionGate, heap_window, read_metrics, verified_publication
 
 
 class APIFixtureTests(unittest.TestCase):
@@ -310,3 +312,81 @@ class OracleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CollectionGateTests(unittest.TestCase):
+    def test_http_and_gc_exclude_each_other_in_both_directions(self):
+        for first, second in (("http", "gc"), ("gc", "http")):
+            with self.subTest(first=first):
+                gate=CollectionGate()
+                entered=threading.Event()
+                release=threading.Event()
+                second_entered=threading.Event()
+                def hold():
+                    entered.set()
+                    release.wait(2)
+                a=threading.Thread(target=lambda: gate.run(hold))
+                b=threading.Thread(target=lambda: gate.run(second_entered.set))
+                a.start()
+                self.assertTrue(entered.wait(1))
+                b.start()
+                try:
+                    self.assertFalse(second_entered.wait(0.02))
+                finally:
+                    release.set()
+                    a.join(1)
+                    b.join(1)
+                self.assertTrue(second_entered.is_set())
+
+    def test_exception_releases_gate(self):
+        gate=CollectionGate()
+        def fail():
+            raise OSError("HTTP read failed")
+        with self.assertRaises(OSError):
+            gate.run(fail)
+        self.assertTrue(gate.lock.acquire(timeout=0.1))
+        gate.lock.release()
+
+    def test_ack_and_multiple_emitter_rotations_continue_while_gc_waits(self):
+        gate=CollectionGate()
+        gate.lock.acquire()
+        waiting=threading.Event()
+        samples=[]
+        def gc():
+            waiting.set()
+            samples.append(gate.run(lambda: {"heap_alloc_bytes":100},time.monotonic()))
+        thread=threading.Thread(target=gc)
+        thread.start()
+        self.assertTrue(waiting.wait(1))
+        schedule=FixedSchedule(0.06,100,1)
+        intervals=ChurnIntervals()
+        try:
+            for i in range(6):
+                root=i%2
+                schedule.record(i/100)
+                intervals.begin(root,i/100)
+                intervals.acknowledge(root,i/100+0.001)
+            self.assertEqual(schedule.emitted,6)
+            self.assertEqual(samples,[])
+        finally:
+            gate.lock.release()
+            thread.join(1)
+        timing=samples[0][1]
+        self.assertLessEqual(timing["scheduled_at"],timing["wait_started_at"])
+        self.assertLessEqual(timing["wait_started_at"],timing["request_started_at"])
+        self.assertLessEqual(timing["request_started_at"],timing["completed_at"])
+
+    def test_heap_window_uses_actual_completion_not_scheduled_offsets(self):
+        samples=[{"scheduled_at":90,"completed_at":130,"heap_alloc_bytes":100},
+                 {"scheduled_at":300,"completed_at":305,"heap_alloc_bytes":104}]
+        coverage,growth,complete=heap_window(samples,300)
+        self.assertFalse(complete)
+        self.assertEqual(coverage,175)
+        self.assertLess(coverage,180)
+        self.assertAlmostEqual(growth,0.04)
+        samples[0]["completed_at"]=120
+        self.assertEqual(heap_window(samples,300)[0],185)
+        self.assertTrue(heap_window(samples,300)[2])
+        samples[0]["completed_at"]=130
+        samples[-1]["completed_at"]=320
+        self.assertFalse(heap_window(samples,300)[2])

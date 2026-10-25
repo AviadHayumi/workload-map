@@ -157,7 +157,11 @@ and maximum. In client-go v0.37.1, every `AddAfter` call increments the retry
 counter, including healthy delayed renewals. `AddRateLimited` also uses that
 path. The raw retry counter is not a failed-reconcile count; queue depth,
 completed work and separate error evidence are needed to interpret a backlog. Drain requires two diagnostic samples with zero queued and active
-work. Active work is observed queue starts minus completed durations. A saturated
+work. Protocol 2 polls immediately after emission and verified ACK completion
+and the requested churn window, before joining the oracle or GC sampler. It
+records each poll start/completion, emitter completion and last verified ACK.
+Drain duration excludes later oracle/sampler joins. Earlier reports included
+those joins in a conservative upper bound; their raw values remain unchanged. Active work is observed queue starts minus completed durations. A saturated
 maintenance queue fails the drain gate even if current metric rows are correct.
 The harness records that failure and continues the lifecycle correctness stages.
 Publication polls take one `Store.Capture` and select at most 100 requested
@@ -201,13 +205,30 @@ time to the observed latency bound. Reports include diagnostic request count,
 response bytes and cumulative HTTP time. Wrapper CPU and TotalAlloc include
 diagnostics; their exclusive cost is not separated from concurrent runtime work.
 
-During the final three minutes, explicit test GC requests sample retained heap
-at 30-second intervals and once after the last publication is observed. The
-sample timestamps expose the measured window. These pauses are included in
-observed latency. A final GC after delete-all compares retained heap with the pre-worker GC baseline.
-Total allocation, heap objects and GC counts are sampled too. The production
-command does not force these collections. The wrapper is an instrumented
-production composition, not an unmodified production binary.
+Measurement protocol 2 records post-GC heap outside client metrics scrape
+requests. A separate sampler thread and the metrics HTTP reader share one gate.
+HTTP holds it through the complete response read and close, then releases it
+before the offline Python oracle. GC holds it through its complete request and
+response. The emitter and publication ACK loop never acquire or wait on this
+gate. Background runtime work, diagnostic captures and resulting GC pauses still
+contribute to measured latency and RSS.
+
+For a 300-second run with 30-second samples, the baseline is scheduled at 90
+seconds, one sampling interval before the final 180-second window. Further
+samples are scheduled every 30 seconds, including the final 300-second sample.
+Each records scheduled time, gate-wait start, request start and completion,
+relative to churn start. Acceptance requires the baseline to complete by 120
+seconds, the final sample at or after 300 seconds, and actual completion-to-
+completion coverage of at least 180 seconds. Short or delayed coverage fails;
+it is not substituted with nominal scheduled time. The growth threshold remains
+5%. The final sampler join is bounded and occurs after queue-drain polling.
+
+This measures post-GC HeapAlloc outside client scrape requests, not isolated
+Store heap. Other exporter work can remain reachable. RSS includes all work.
+Post-delete GC still tests baseline + max(256 MiB, 10% peak) recovery. Protocol 1
+reports, including the 17be01f1 failure whose final GC overlapped collection,
+remain unchanged and do not become passes under this protocol. The production
+command does not force GC; this remains an instrumented production composition.
 
 Large scenario gates remain unverified until their full runs complete.
 
