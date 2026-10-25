@@ -21,15 +21,15 @@ The command reads `labelRules` and `labelLimits`, validates the rules and compil
 their expressions at startup. The remaining components expose interfaces and
 data types for their implementations.
 
-## Run the mock composition
+## Run
 
 ```sh
 make build-exporter
 ./bin/karta-metrics-exporter --version
-./bin/karta-metrics-exporter --scaffold
+./bin/karta-metrics-exporter
 ```
 
-`--scaffold` uses generated Mockery mocks and an OTel no-op meter. The runtime
+Startup currently uses generated Mockery mocks and an OTel no-op meter. The runtime
 waits for SIGINT or SIGTERM. It does not process example workloads, open an HTTP
 endpoint or produce metrics. Discovery and label calls return
 `ErrNotImplemented`. Unexpected Store writes fail rather than silently losing data.
