@@ -1,0 +1,24 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/run-ai/k8s-workload-discovery/internal/controller
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 2242840	       262.6 ns/op	     624 B/op	       9 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	 1000000	       566.4 ns/op	    1040 B/op	      14 allocs/op
+PASS
+ok  	github.com/run-ai/k8s-workload-discovery/internal/controller	2.028s
+goos: darwin
+goarch: arm64
+pkg: github.com/run-ai/k8s-workload-discovery/internal/controller
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 2262789	       274.0 ns/op	     624 B/op	       9 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	 1067667	       484.3 ns/op	    1040 B/op	      14 allocs/op
+PASS
+ok  	github.com/run-ai/k8s-workload-discovery/internal/controller	2.525s
+goos: darwin
+goarch: arm64
+pkg: github.com/run-ai/k8s-workload-discovery/internal/controller
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 2063418	       264.4 ns/op	     624 B/op	       9 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	 1227330	       544.7 ns/op	    1040 B/op	      14 allocs/op
+PASS
+ok  	github.com/run-ai/k8s-workload-discovery/internal/controller	2.606s
