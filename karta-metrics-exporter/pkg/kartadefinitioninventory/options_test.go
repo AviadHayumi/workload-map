@@ -86,20 +86,22 @@ var _ = Describe("Options", func() {
 		}
 
 		DescribeTable("selects",
-			func(selector *metav1.LabelSelector, want []string) {
-				_, cluster, err := Options{Cluster: SourceOptions{Enabled: true, LabelSelector: selector}}.compile()
+			func(selector *metav1.LabelSelector, include []string, want []string) {
+				_, cluster, err := Options{Cluster: SourceOptions{Enabled: true, Include: include, LabelSelector: selector}}.compile()
 				Expect(err).NotTo(HaveOccurred())
 
 				Expect(selectedNames(resolve(nil, definitions, disabled, cluster))).To(Equal(want))
 			},
-			Entry("everything for a nil selector, not nothing", nil, []string{"a", "b"}),
-			Entry("everything for an empty selector", &metav1.LabelSelector{}, []string{"a", "b"}),
-			Entry("by matchLabels", &metav1.LabelSelector{MatchLabels: map[string]string{"team": "x"}}, []string{"a"}),
+			Entry("everything for a nil selector, not nothing", nil, nil, []string{"a", "b"}),
+			Entry("everything for an empty selector", &metav1.LabelSelector{}, nil, []string{"a", "b"}),
+			Entry("only the included names when there is no selector", nil, []string{"b"}, []string{"b"}),
+			Entry("only the included names when the selector is empty", &metav1.LabelSelector{}, []string{"b"}, []string{"b"}),
+			Entry("by matchLabels", &metav1.LabelSelector{MatchLabels: map[string]string{"team": "x"}}, nil, []string{"a"}),
 			Entry("by matchExpressions, where NotIn also matches a missing label",
 				&metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 					{Key: "team", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				}},
-				[]string{"b"}),
+				nil, []string{"b"}),
 		)
 	})
 })
