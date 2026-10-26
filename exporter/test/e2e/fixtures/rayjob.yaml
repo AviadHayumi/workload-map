@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{
+  "apiVersion": "ray.io/v1",
+  "kind": "RayJob",
+  "metadata": {
+    "name": "matrix-rayjob"
+  },
+  "spec": {
+    "entrypoint": "echo matrix-job-complete",
+    "shutdownAfterJobFinishes": false,
+    "rayClusterSpec": {
+      "rayVersion": "2.40.0",
+      "headGroupSpec": {
+        "rayStartParams": {},
+        "template": {
+          "spec": {
+            "containers": [
+              {
+                "name": "ray-head",
+                "image": "ray-e2e:local",
+                "imagePullPolicy": "IfNotPresent",
+                "resources": {
+                  "requests": {
+                    "cpu": "250m",
+                    "memory": "1Gi"
+                  },
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "2Gi"
+                  }
+                },
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 6379
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 5,
+                  "failureThreshold": 30
+                },
+                "livenessProbe": {
+                  "tcpSocket": {
+                    "port": 6379
+                  },
+                  "initialDelaySeconds": 30,
+                  "periodSeconds": 10,
+                  "failureThreshold": 30
+                }
+              }
+            ]
+          }
+        }
+      },
+      "workerGroupSpecs": [
+        {
+          "rayStartParams": {},
+          "template": {
+            "spec": {
+              "containers": [
+                {
+                  "name": "ray-worker",
+                  "image": "ray-e2e:local",
+                  "imagePullPolicy": "IfNotPresent",
+                  "resources": {
+                    "requests": {
+                      "cpu": "250m",
+                      "memory": "1Gi"
+                    },
+                    "limits": {
+                      "cpu": "1",
+                      "memory": "2Gi"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "groupName": "workers",
+          "replicas": 1,
+          "minReplicas": 1,
+          "maxReplicas": 1
+        }
+      ]
+    }
+  }
+}

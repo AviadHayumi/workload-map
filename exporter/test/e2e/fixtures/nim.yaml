@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{
+  "apiVersion": "apps.nvidia.com/v1alpha1",
+  "kind": "NIMService",
+  "metadata": {
+    "name": "matrix-nim"
+  },
+  "spec": {
+    "image": {
+      "repository": "nim-cpu",
+      "tag": "e2e",
+      "pullPolicy": "IfNotPresent"
+    },
+    "authSecret": "matrix-ngc-placeholder",
+    "storage": {
+      "pvc": {
+        "create": true,
+        "size": "1Gi",
+        "volumeAccessMode": "ReadWriteOnce"
+      }
+    },
+    "replicas": 1,
+    "expose": {
+      "service": {
+        "type": "ClusterIP",
+        "port": 8000
+      }
+    },
+    "env": [
+      {
+        "name": "NIM_REQUEST_LATENCY",
+        "value": "2"
+      }
+    ]
+  }
+}

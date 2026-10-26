@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package main
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/run-ai/fake-gpu-operator/internal/common/topology"
+	"k8s.io/apimachinery/pkg/types"
+	"testing"
+	"time"
+)
+
+func TestAllocationUIDAndAtomicSamples(t *testing.T) {
+	p := newProducer("node")
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(p)
+	fixture := &topology.NodeTopology{GpuMemory: 12000, Gpus: []topology.GpuDetails{{ID: "gpu", Status: topology.GpuStatus{AllocatedBy: topology.ContainerDetails{Namespace: "demo", Pod: "same-name", Container: "worker"}, PodGpuUsageStatus: topology.PodGpuUsageStatusMap{types.UID("old-uid"): {Utilization: topology.Range{Min: 3, Max: 3}, FbUsed: 100}}}}}}
+	for _, uid := range []string{"old-uid", "new-uid", ""} {
+		if uid != "" {
+			fixture.Gpus[0].Status.PodGpuUsageStatus = topology.PodGpuUsageStatusMap{types.UID(uid): {Utilization: topology.Range{Min: 3, Max: 3}, FbUsed: 100}}
+		} else {
+			fixture.Gpus[0].Status.PodGpuUsageStatus["second-owner"] = topology.GpuUsageStatus{}
+		}
+		now := time.Now()
+		p.update(fixture, now)
+		families, err := registry.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		for _, f := range families {
+			if f.GetName() == "fake_gpu_source_healthy" {
+				continue
+			}
+			count++
+			for _, m := range f.Metric {
+				got := "unset"
+				for _, l := range m.Label {
+					if l.GetName() == "pod_uid" {
+						got = l.GetValue()
+					}
+				}
+				if got != uid {
+					t.Fatalf("%s UID=%q want %q", f.GetName(), got, uid)
+				}
+				if f.GetName() == "fake_gpu_source_sample_timestamp_seconds" && m.GetGauge().GetValue() != float64(now.UnixNano())/1e9 {
+					t.Fatal("timestamp not same snapshot")
+				}
+			}
+		}
+		if count != 4 {
+			t.Fatalf("families %d", count)
+		}
+	}
+	p.update(nil, time.Now())
+	families, _ := registry.Gather()
+	if len(families) != 1 || families[0].Metric[0].GetGauge().GetValue() != 0 {
+		t.Fatal("failure retained evidence")
+	}
+}
+func TestInvalidAndKnativeSourceNotZero(t *testing.T) {
+	p := newProducer("node")
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(p)
+	for _, usage := range []topology.GpuUsageStatus{{Utilization: topology.Range{Min: 90, Max: 10}}, {UseKnativeUtilization: true}, {Utilization: topology.Range{Min: -1, Max: 0}}} {
+		p.update(&topology.NodeTopology{GpuMemory: 12000, Gpus: []topology.GpuDetails{{ID: "gpu", Status: topology.GpuStatus{PodGpuUsageStatus: topology.PodGpuUsageStatusMap{"uid": usage}}}}}, time.Now())
+		families, _ := registry.Gather()
+		if len(families) != 1 {
+			t.Fatal("unsupported source emitted zero as a measurement")
+		}
+	}
+}

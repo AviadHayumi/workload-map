@@ -1,0 +1,26 @@
+{
+  "scenario": {
+    "Workloads": 10000,
+    "Pods": 0
+  },
+  "scrapes": 3,
+  "method": "sampled allocation profile after-minus-before; fixture and oracle excluded",
+  "baseline_flat_percent": {
+    "collector_attribute_slice": 14.2,
+    "WithAttributes_copy": 13.99,
+    "attribute_representation": 13.78,
+    "prometheus_label_pairs": 19.29,
+    "prometheus_descriptor": 15.9,
+    "prometheus_attribute_translation": 6.43,
+    "store_snapshot": 0.87
+  },
+  "final_flat_percent": {
+    "attribute_representation": 18.59,
+    "prometheus_label_pairs": 28.9,
+    "prometheus_descriptor": 22.1,
+    "prometheus_attribute_translation": 7.25,
+    "store_snapshot": 1.1
+  },
+  "baseline_cpu_gcDrain_cumulative_percent": 21.21,
+  "profiled_runs_are_not_unprofiled_capacity_results": true
+}

@@ -1,0 +1,18 @@
+{
+  "after_churn": {
+    "bytes": 249870493,
+    "health": 90000,
+    "pods": 90000,
+    "status": 810000
+  },
+  "exit_status": 0,
+  "initial": {
+    "bytes": 277633829,
+    "health": 100000,
+    "pods": 100000,
+    "status": 900000
+  },
+  "pods_per_workload": 1,
+  "raw_output": "churn-100000-1.log",
+  "workloads": 100000
+}

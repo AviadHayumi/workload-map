@@ -1,0 +1,4 @@
+=== RUN   TestScaleHealthVerification
+=== RUN   TestScaleHealthVerification/workloads_100000/pods_1
+--- FAIL: TestScaleHealthVerification (0.00s)
+    --- FAIL: TestScaleHealthVerification/workloads_100000/pods_1 (0.00s)

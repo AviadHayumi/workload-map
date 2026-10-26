@@ -1,0 +1,22 @@
+{
+  "scenario": {
+    "Workloads": 100000,
+    "Pods": 1
+  },
+  "deleted_roots": 10000,
+  "replaced_root_uids": 10000,
+  "before_samples": {
+    "Status": 900000,
+    "Health": 100000,
+    "Pods": 100000
+  },
+  "after_samples": {
+    "Status": 810000,
+    "Health": 90000,
+    "Pods": 90000
+  },
+  "before_bytes": 277633829,
+  "after_bytes": 249870493,
+  "passed": true,
+  "oracle": "full independent label/identity/phase/value/uniqueness scan"
+}

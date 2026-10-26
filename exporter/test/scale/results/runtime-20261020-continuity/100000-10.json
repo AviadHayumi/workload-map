@@ -1,0 +1,388 @@
+{
+  "model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel",
+  "identity_enabled": true,
+  "expected_submitter": "scale-user@example.test",
+  "harness_sha256": "08d1ffe0959eacf3f46ec25b13064d8ec66f6673d9ccde73559a0ff481788936",
+  "roots": 100000,
+  "pods_per_root": 10,
+  "page_size": 500,
+  "poll_seconds": 5,
+  "settle_seconds": 30,
+  "delete_percent": 10,
+  "scrape_timing": "HTTP request through streaming oracle completion",
+  "gomaxprocs": 4,
+  "memory_limit_bytes": 8589934592,
+  "max_seconds": 480,
+  "stage_seconds": 180,
+  "scrape_seconds": 60,
+  "binary_sha256": "b4cc31cca216b9b8fe2fa99a2a71e51c3e5f94a89837292876a9a9a7d80e404b",
+  "stages": [
+    {
+      "name": "cold_start",
+      "scrapes": [
+        {
+          "error": "<urlopen error [Errno 61] Connection refused>",
+          "scrape_seconds": 0.013
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 7853,
+            "missing_created": 100000,
+            "missing_pods": 1000000,
+            "missing_status_roots": 100000,
+            "missing_health": 2
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 1250189200.0,
+            "process_resident_memory_bytes": 1378959360.0
+          },
+          "examples": [],
+          "response_headers_seconds": 0.0016,
+          "scrape_seconds": 0.0074
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 7869,
+            "missing_created": 100000,
+            "missing_pods": 1000000,
+            "missing_status_roots": 100000,
+            "missing_health": 2
+          },
+          "process_metrics": {
+            "go_goroutines": 59.0,
+            "go_memstats_heap_alloc_bytes": 4616250688.0,
+            "process_resident_memory_bytes": 4984815616.0
+          },
+          "examples": [],
+          "response_headers_seconds": 0.0036,
+          "scrape_seconds": 0.0095
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 7875,
+            "missing_created": 100000,
+            "missing_pods": 1000000,
+            "missing_status_roots": 100000,
+            "missing_health": 2
+          },
+          "process_metrics": {
+            "go_goroutines": 58.0,
+            "go_memstats_heap_alloc_bytes": 5529903184.0,
+            "process_resident_memory_bytes": 6301040640.0
+          },
+          "examples": [],
+          "response_headers_seconds": 0.018,
+          "scrape_seconds": 0.0242
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 11432,
+            "health_rows": 2,
+            "health_failures": 1,
+            "created": 1,
+            "wrong_submitter": 9,
+            "status": 9,
+            "missing_created": 99999,
+            "missing_pods": 1000000,
+            "missing_status_roots": 99999,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 60.0,
+            "go_memstats_heap_alloc_bytes": 5245914328.0,
+            "process_resident_memory_bytes": 6436470784.0
+          },
+          "examples": [],
+          "response_headers_seconds": 0.0206,
+          "scrape_seconds": 0.0271
+        },
+        {
+          "complete": false,
+          "counts": {
+            "bytes": 96801781,
+            "health_rows": 2,
+            "health_failures": 1,
+            "created": 35125,
+            "wrong_submitter": 316125,
+            "status": 316125,
+            "missing_created": 64875,
+            "missing_pods": 1000000,
+            "missing_status_roots": 64875,
+            "missing_health": 0
+          },
+          "process_metrics": {
+            "go_goroutines": 60.0,
+            "go_memstats_heap_alloc_bytes": 5497527960.0,
+            "process_resident_memory_bytes": 6466928640.0
+          },
+          "examples": [],
+          "response_headers_seconds": 7.2283,
+          "scrape_seconds": 12.1368
+        },
+        {
+          "error": "Remote end closed connection without response",
+          "scrape_seconds": 10.4604
+        }
+      ],
+      "api_before": {
+        "requests": {},
+        "max_page_objects": 0,
+        "active_watches": 0,
+        "revision": 1,
+        "completed_metadata_lists": {},
+        "delivered_watch_versions": {}
+      }
+    }
+  ],
+  "completed_all_stages": false,
+  "complete": false,
+  "failure": "exporter exited -9, limit=['rss']",
+  "returncode": -9,
+  "elapsed_seconds": 57.7164,
+  "peak_sampled_rss_bytes": 8796864512,
+  "rss_samples": [
+    {
+      "seconds": 1.011,
+      "rss_bytes": 565559296
+    },
+    {
+      "seconds": 2.021,
+      "rss_bytes": 793296896
+    },
+    {
+      "seconds": 3.038,
+      "rss_bytes": 974372864
+    },
+    {
+      "seconds": 4.046,
+      "rss_bytes": 1275707392
+    },
+    {
+      "seconds": 5.054,
+      "rss_bytes": 1394655232
+    },
+    {
+      "seconds": 6.063,
+      "rss_bytes": 2059010048
+    },
+    {
+      "seconds": 7.071,
+      "rss_bytes": 3028631552
+    },
+    {
+      "seconds": 8.077,
+      "rss_bytes": 3383230464
+    },
+    {
+      "seconds": 9.087,
+      "rss_bytes": 4022648832
+    },
+    {
+      "seconds": 10.097,
+      "rss_bytes": 5063344128
+    },
+    {
+      "seconds": 11.11,
+      "rss_bytes": 5877678080
+    },
+    {
+      "seconds": 12.122,
+      "rss_bytes": 6146637824
+    },
+    {
+      "seconds": 13.131,
+      "rss_bytes": 6294519808
+    },
+    {
+      "seconds": 14.145,
+      "rss_bytes": 6299893760
+    },
+    {
+      "seconds": 15.151,
+      "rss_bytes": 6301040640
+    },
+    {
+      "seconds": 16.157,
+      "rss_bytes": 6301040640
+    },
+    {
+      "seconds": 17.163,
+      "rss_bytes": 6301057024
+    },
+    {
+      "seconds": 18.171,
+      "rss_bytes": 6341427200
+    },
+    {
+      "seconds": 19.184,
+      "rss_bytes": 6352748544
+    },
+    {
+      "seconds": 20.199,
+      "rss_bytes": 6436503552
+    },
+    {
+      "seconds": 21.208,
+      "rss_bytes": 6466732032
+    },
+    {
+      "seconds": 22.214,
+      "rss_bytes": 6466732032
+    },
+    {
+      "seconds": 23.222,
+      "rss_bytes": 6466781184
+    },
+    {
+      "seconds": 24.232,
+      "rss_bytes": 6466813952
+    },
+    {
+      "seconds": 25.249,
+      "rss_bytes": 6466945024
+    },
+    {
+      "seconds": 26.266,
+      "rss_bytes": 6467452928
+    },
+    {
+      "seconds": 27.279,
+      "rss_bytes": 6468042752
+    },
+    {
+      "seconds": 28.292,
+      "rss_bytes": 6468141056
+    },
+    {
+      "seconds": 29.298,
+      "rss_bytes": 6468222976
+    },
+    {
+      "seconds": 30.305,
+      "rss_bytes": 6568493056
+    },
+    {
+      "seconds": 31.313,
+      "rss_bytes": 6860210176
+    },
+    {
+      "seconds": 32.319,
+      "rss_bytes": 7052460032
+    },
+    {
+      "seconds": 33.34,
+      "rss_bytes": 7199604736
+    },
+    {
+      "seconds": 34.355,
+      "rss_bytes": 7200014336
+    },
+    {
+      "seconds": 35.368,
+      "rss_bytes": 7200030720
+    },
+    {
+      "seconds": 36.385,
+      "rss_bytes": 7200030720
+    },
+    {
+      "seconds": 37.392,
+      "rss_bytes": 7200047104
+    },
+    {
+      "seconds": 38.407,
+      "rss_bytes": 7204880384
+    },
+    {
+      "seconds": 39.422,
+      "rss_bytes": 7232569344
+    },
+    {
+      "seconds": 40.434,
+      "rss_bytes": 7232880640
+    },
+    {
+      "seconds": 41.449,
+      "rss_bytes": 7181123584
+    },
+    {
+      "seconds": 42.464,
+      "rss_bytes": 7015350272
+    },
+    {
+      "seconds": 43.481,
+      "rss_bytes": 7188348928
+    },
+    {
+      "seconds": 44.493,
+      "rss_bytes": 7243071488
+    },
+    {
+      "seconds": 45.507,
+      "rss_bytes": 7423934464
+    },
+    {
+      "seconds": 46.531,
+      "rss_bytes": 7593295872
+    },
+    {
+      "seconds": 47.538,
+      "rss_bytes": 7760740352
+    },
+    {
+      "seconds": 48.553,
+      "rss_bytes": 7940112384
+    },
+    {
+      "seconds": 49.566,
+      "rss_bytes": 8128053248
+    },
+    {
+      "seconds": 50.578,
+      "rss_bytes": 8330870784
+    },
+    {
+      "seconds": 51.59,
+      "rss_bytes": 8552103936
+    },
+    {
+      "seconds": 52.61,
+      "rss_bytes": 8796864512
+    }
+  ],
+  "limit_triggered": [
+    "rss"
+  ],
+  "api": {
+    "requests": {
+      "all_requests": 1989,
+      "response_bytes": 835327325,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "jobs.list.metadata": 222,
+      "jobs.objects.metadata": 111000,
+      "pods.list.full": 1554,
+      "pods.objects.full": 777000,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "jobs.list.full": 200,
+      "jobs.objects.full": 100000,
+      "jobs.watch": 1
+    },
+    "max_page_objects": 500,
+    "active_watches": 2,
+    "revision": 1,
+    "completed_metadata_lists": {
+      "namespaces": 1,
+      "jobs": 1
+    },
+    "delivered_watch_versions": {}
+  },
+  "harness_rss_bytes": 37027840
+}

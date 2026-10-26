@@ -1,0 +1,290 @@
+# Default values for the karta operator chart.
+# Override with --set key=value or -f my-values.yaml.
+
+# Set false to install only the CRD, without deploying the operator workload.
+operator:
+  enabled: true
+
+# Overrides for resource names. Rarely needed.
+fullnameOverride: ""
+
+# Keep at 1 unless leaderElection.enabled is true; without leader election
+# multiple replicas would reconcile concurrently.
+replicaCount: 1
+
+# When enabled, only the replica holding the lease reconciles (active/passive).
+# The chart also creates a namespaced Role/RoleBinding for the lease object.
+leaderElection:
+  enabled: false
+  id: karta-operator.run.ai
+
+image:
+  repository: ghcr.io/dsx-ai-factory/workload-map/karta-operator
+  # When empty, falls back to .Chart.AppVersion so chart and image versions
+  # stay in lockstep.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Image pull secrets for private registries.
+imagePullSecrets: []
+
+# Pod annotations (e.g. Prometheus scrape hints).
+podAnnotations: {}
+
+serviceAccount:
+  # Set false to use an externally managed ServiceAccount (set name below).
+  create: true
+  # Only used when create: false — name of the externally managed SA.
+  name: ""
+
+ports:
+  metrics: 8080
+  health: 8081
+
+webhook:
+  enabled: true
+  port: 9443
+  cert:
+    # auto: the operator self-signs and rotates the serving cert (no cert-manager).
+    # manual: certs are supplied externally (cert-manager, an admin, ...); the
+    #   operator only reads the mounted Secret and never touches the cert.
+    provisionMode: auto
+    # manual mode only: a static CA bundle to stamp on the webhook configs.
+    caBundle: ""
+    # manual mode only: annotations for the webhook configs. Wire cert-manager
+    # here, e.g. cert-manager.io/inject-ca-from: <namespace>/<certificate-name>
+    annotations: {}
+
+logLevel: info
+
+# Extra flags appended after the chart's default args. Use this to add flags
+# without replacing the defaults entirely.
+extraArgs: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 0
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# A pre-install/pre-upgrade Job server-side-applies the bundled CRD, so
+# `helm upgrade` rolls the schema forward (Helm never upgrades crds/ itself).
+crdUpgrader:
+  enabled: true
+  image:
+    repository: registry.k8s.io/kubectl
+    tag: v1.34.0
+    pullPolicy: IfNotPresent
+  backoffLimit: 3
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Karta metrics exporter. Publishes Pod attribution, root workload status
+# and observation health. Platform teams own measurement queries and rules.
+exporter:
+  enabled: false
+  fullnameOverride: ""
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/dsx-ai-factory/workload-map/karta-exporter
+    # When empty, falls back to .Chart.AppVersion.
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  # Health endpoints in both modes; /metrics only in Prometheus mode.
+  http:
+    port: 8080
+
+  metricsExporter: prometheus
+  otlp:
+    protocol: http/protobuf
+    endpoint: ""
+    interval: 30s
+    timeout: 10s
+    headersSecretRef: {} # Optional {name: secret-name, key: headers}.
+    tls:
+      caSecretRef: {} # Optional {name: secret-name, key: ca.crt}.
+      clientCertSecretRef: {} # Requires clientKeySecretRef.
+      clientKeySecretRef: {} # Requires clientCertSecretRef.
+
+  # Namespace selection controls watches. Root/Pod selectors only filter output.
+  namespaceSelector: {}
+  objectSelector: {}
+  podSelector: {}
+  resourceRules: []
+  excludeResourceRules: []
+
+  # Exact group/version/Kind boundaries; stop before reading the ignored owner.
+  ignoredOwnerKinds: []
+
+  # Expected APIs, even before discovery. Missing or unreadable APIs fail health.
+  requiredKinds: []
+
+  # Selected cluster definitions override catalog definitions for the same kind.
+  # Include names OR match cluster labels; exclusions take precedence.
+  kartaDefinitionSource:
+    catalog:
+      enabled: false
+      include: []
+      exclude: [core-pod-v1]
+    cluster:
+      enabled: true
+      include: []
+      exclude: []
+      labelSelector: {}
+
+  # CEL is evaluated from cached metadata, once per observed update. Configuration
+  # changes roll the exporter; invalid rules fail startup rather than run silently.
+  attribution:
+    # A nonempty expression enables submitted_by on the existing Pod/workload metrics.
+    submittedByExpression: ""
+
+  metrics:
+    # all, none, or an explicit list. Selected states retain 0/1 samples.
+    workloadPhases: ["all"]
+
+  podAnnotations: {}
+
+  serviceAccount:
+    create: true
+    # Only used when create: false.
+    name: ""
+
+  rbac:
+    # Workload and child kinds the exporter may read, rendered into the base
+    # ClusterRole (no wildcards). Defaults cover common built-in catalog
+    # kinds. For anything else, either extend this list or create a
+    # ClusterRole labeled karta.run.ai/exporter-rbac: "true"; the bound role
+    # aggregates it automatically.
+    workloadRules:
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets", "replicasets"]
+      - apiGroups: ["jobset.x-k8s.io"]
+        resources: ["jobsets"]
+      - apiGroups: ["kubeflow.org"]
+        resources: ["pytorchjobs", "mpijobs"]
+      - apiGroups: ["ray.io"]
+        resources: ["rayclusters", "rayjobs", "rayservices"]
+      - apiGroups: ["leaderworkerset.x-k8s.io"]
+        resources: ["leaderworkersets"]
+      - apiGroups: ["serving.knative.dev"]
+        resources: ["services", "configurations", "revisions"]
+      - apiGroups: ["serving.kserve.io"]
+        resources: ["inferenceservices"]
+      - apiGroups: ["milvus.io"]
+        resources: ["milvuses"]
+      - apiGroups: ["apps.nvidia.com"]
+        resources: ["nimservices", "nimcaches"]
+      - apiGroups: ["nvidia.com"]
+        resources: ["dynamographdeployments", "dynamocomponentdeployments"]
+      - apiGroups: ["grove.io", "scheduler.grove.io"]
+        resources: ["podcliquesets", "podcliques", "podcliquescalinggroups", "podgangs"]
+
+  serviceMonitor:
+    # Requires the prometheus-operator CRDs.
+    enabled: false
+    interval: 30s
+    # The exposition grows with pod count; 10s is too tight on large clusters.
+    scrapeTimeout: 25s
+
+  networkPolicy:
+    # The metrics endpoint serves cluster-wide workload identity
+    # unauthenticated; restrict who can reach it.
+    enabled: false
+    # Optional namespaceSelector for allowed scrapers, e.g.
+    # matchLabels: {kubernetes.io/metadata.name: monitoring}
+    allowedNamespaceSelector: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 0
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Native API-server capture, independent of the operator and exporter.
+# Requires MAP v1 (Kubernetes 1.36+) or enabled v1beta1 (1.34-1.35), plus VAP v1.
+# UPDATE protection is rendered whenever VAP v1 is served, even with capture off.
+# Protection policies survive Helm uninstall and require administrator removal.
+submitterAdmission:
+  enabled: false
+  matchConstraints:
+    # Empty matches all namespaces. Use labels to narrow capture.
+    namespaceSelector: {}
+    resourceRules:
+      - operations: ["CREATE"]
+        apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        resources: ["deployments"]
+        scope: Namespaced
+      - operations: ["CREATE"]
+        apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        resources: ["jobs"]
+        scope: Namespaced
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        scope: Namespaced
+    excludeResourceRules: []
+  # Native CEL conditions apply only to CREATE capture and validation.
+  matchConditions: []

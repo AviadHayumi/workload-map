@@ -1,0 +1,28 @@
+{
+  "scenario": {
+    "Workloads": 1000,
+    "Pods": 0
+  },
+  "go_version": "go1.26.3",
+  "platform": "darwin/arm64",
+  "gomaxprocs": 14,
+  "samples": {
+    "Status": 9000,
+    "Health": 1000,
+    "Pods": 0
+  },
+  "exposition_bytes": 2425136,
+  "fixture_build_ms": 0.600667,
+  "verification_ms": 60.103667,
+  "scrape_ms": [
+    47.268459,
+    43.684,
+    42.70225
+  ],
+  "allocated_bytes_per_scrape": 37940973,
+  "allocations_per_scrape": 633117,
+  "gc_cycles_during_scrapes": 12,
+  "retained_heap_bytes": 1585608,
+  "process_peak_rss_bytes": 62259200,
+  "peak_rss_available": true
+}

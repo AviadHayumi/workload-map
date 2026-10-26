@@ -1,0 +1,7 @@
+=== RUN   TestScalePrometheusExposition
+=== RUN   TestScalePrometheusExposition/workloads_100000/pods_1
+    scale_test.go:36: initial exposition: status=900000 health=100000 pods=100000 bytes=277633829 verification_wall=10.289815s
+    scale_test.go:50: after 10% deletion and 10% UID replacement: status=810000 health=90000 pods=90000 bytes=249870493
+--- PASS: TestScalePrometheusExposition (19.14s)
+    --- PASS: TestScalePrometheusExposition/workloads_100000/pods_1 (19.14s)
+PASS

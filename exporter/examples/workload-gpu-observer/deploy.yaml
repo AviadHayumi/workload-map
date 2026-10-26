@@ -1,0 +1,277 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karta-demo-dcgm
+  namespace: karta-metrics-poc
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karta-workload-gpu-observer
+  namespace: karta-metrics-poc
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: karta-demo-dcgm-read
+  namespace: gpu-operator
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - topology-example-gpu-node
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: karta-demo-dcgm-read
+  namespace: gpu-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: karta-demo-dcgm-read
+subjects:
+- kind: ServiceAccount
+  name: karta-demo-dcgm
+  namespace: karta-metrics-poc
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: karta-workload-gpu-observer-read
+  namespace: karta-metrics-workloads
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - list
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - karta-gpu-demo-round
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: karta-workload-gpu-observer-read
+  namespace: karta-metrics-workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: karta-workload-gpu-observer-read
+subjects:
+- kind: ServiceAccount
+  name: karta-workload-gpu-observer
+  namespace: karta-metrics-poc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karta-demo-dcgm
+  namespace: karta-metrics-poc
+  labels: &id001
+    app: karta-demo-dcgm
+    app.kubernetes.io/part-of: karta-metrics-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: karta-demo-dcgm
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      serviceAccountName: karta-demo-dcgm
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: karta-demo-dcgm
+        image: ghcr.io/example/karta-demo-dcgm:reviewed-source
+        args:
+        - --namespace=gpu-operator
+        - --configmap=topology-example-gpu-node
+        - --node=example-gpu-node
+        ports:
+        - name: metrics
+          containerPort: 9400
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karta-demo-dcgm
+  namespace: karta-metrics-poc
+  labels:
+    app: karta-demo-dcgm
+    app.kubernetes.io/part-of: karta-metrics-poc
+spec:
+  selector:
+    app: karta-demo-dcgm
+  ports:
+  - name: metrics
+    port: 9400
+    targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: karta-demo-dcgm
+  namespace: karta-metrics-poc
+  labels:
+    monitoring: karta-metrics-poc
+spec:
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - karta-metrics-poc
+  selector:
+    matchLabels:
+      app: karta-demo-dcgm
+  endpoints:
+  - port: metrics
+    interval: 10s
+    scrapeTimeout: 5s
+    honorLabels: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karta-workload-gpu-observer
+  namespace: karta-metrics-poc
+  labels: &id001
+    app: karta-workload-gpu-observer
+    app.kubernetes.io/part-of: karta-metrics-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: karta-workload-gpu-observer
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      serviceAccountName: karta-workload-gpu-observer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: karta-workload-gpu-observer
+        image: ghcr.io/example/karta-workload-gpu-observer:reviewed-source
+        args:
+        - --source-url=http://karta-demo-dcgm.karta-metrics-poc.svc:9400/metrics
+        - --karta-url=http://karta-exporter.karta-metrics-poc.svc:8080/metrics
+        - --namespace=karta-metrics-workloads
+        - --node=example-gpu-node
+        - --window=180s
+        - --threshold-ratio=0.05
+        - --poll-interval=10s
+        - --max-gap=25s
+        - --demo-configmap=karta-gpu-demo-round
+        ports:
+        - name: metrics
+          containerPort: 9092
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karta-workload-gpu-observer
+  namespace: karta-metrics-poc
+  labels:
+    app: karta-workload-gpu-observer
+    app.kubernetes.io/part-of: karta-metrics-poc
+spec:
+  selector:
+    app: karta-workload-gpu-observer
+  ports:
+  - name: metrics
+    port: 9092
+    targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: karta-workload-gpu-observer
+  namespace: karta-metrics-poc
+  labels:
+    monitoring: karta-metrics-poc
+spec:
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - karta-metrics-poc
+  selector:
+    matchLabels:
+      app: karta-workload-gpu-observer
+  endpoints:
+  - port: metrics
+    interval: 10s
+    scrapeTimeout: 5s
+    honorLabels: true

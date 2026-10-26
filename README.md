@@ -23,6 +23,13 @@
 
 Karta lets you define a portable, declarative blueprint for any Kubernetes workload - whether it's a simple Deployment, a distributed PyTorchJob, or a custom CRD. Controllers and platforms can then use that blueprint to inspect, modify, and manage workloads without hard-coding knowledge of each type.
 
+## Metrics exporter PoC
+
+The original implementation is in [exporter](exporter/), including submitter CEL,
+Prometheus/OTLP delivery, tests and lab examples. The newer implementation is in
+[karta-metrics-exporter](karta-metrics-exporter/). Each directory documents its own
+build and configuration.
+
 ## The Problem
 
 In Kubernetes, and especially in AI systems, a workload is not a standalone execution unit such as a single Pod. Instead, it is composed of multiple components organized in a complex hierarchy of resources, often exposed via custom resource definitions (CRDs) - for example: PyTorchJob, RayCluster, and MPIJob. Each of these CRDs structures the workload configuration differently, but they all share the same conceptual building blocks: pod specifications, scaling parameters, and status definitions.

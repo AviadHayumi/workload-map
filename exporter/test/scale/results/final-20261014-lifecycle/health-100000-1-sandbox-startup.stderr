@@ -1,0 +1,23 @@
+panic: httptest: failed to listen on a port: listen tcp6 <loopback-address>:0: bind: operation not permitted [recovered, repanicked]
+
+goroutine 6 [running]:
+testing.tRunner.func1.2({0x1024d9c00, 0x6ddb722e4570})
+	<go-toolchain>/src/testing/testing.go:1974 +0x1a0
+testing.tRunner.func1()
+	<go-toolchain>/src/testing/testing.go:1977 +0x318
+panic({0x1024d9c00?, 0x6ddb722e4570?})
+	<go-toolchain>/src/runtime/panic.go:860 +0x12c
+net/http/httptest.newLocalListener()
+	<go-toolchain>/src/net/http/httptest/server.go:72 +0xd4
+net/http/httptest.NewUnstartedServer(...)
+	<go-toolchain>/src/net/http/httptest/server.go:120
+net/http/httptest.NewServer({0x1027bdf60, 0x6ddb7235eeb0})
+	<go-toolchain>/src/net/http/httptest/server.go:107 +0x28
+github.com/dsx-ai-factory/workload-map/exporter/pkg/controller.newHealthScaleFixture({0x1027d9e98, 0x6ddb7235a6c8}, {0x6ddb71fb9f58?, 0x100ce8cd8?})
+	exporter/pkg/controller/scale_test.go:56 +0x110
+github.com/dsx-ai-factory/workload-map/exporter/pkg/controller.TestScaleHealthVerification.func1(0x6ddb7235a6c8)
+	exporter/pkg/controller/scale_test.go:279 +0x30
+testing.tRunner(0x6ddb7235a6c8, 0x6ddb71f42f78)
+	<go-toolchain>/src/testing/testing.go:2036 +0xc4
+created by testing.(*T).Run in goroutine 5
+	<go-toolchain>/src/testing/testing.go:2101 +0x3a8

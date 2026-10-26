@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+exporter:
+  enabled: true
+  kartaDefinitionSource:
+    catalog:
+      enabled: true
+  attribution:
+    submittedByExpression: |
+      (
+        [
+          "workload.dgxc.nvidia.com/submitter-id",
+          "karta.run.ai/submitted-by",
+          "workflow.example.com/submitter",
+          "platform.example.com/username",
+          "platform.example.com/created-by"
+        ]
+        .filter(key, key in annotations && annotations[key] != "")
+        .map(key, annotations[key])
+        +
+        [
+          "identity.example.com/submitted-by",
+          "osmo.submitted_by",
+          "workflow.example.com/submitter",
+          "platform.example.com/username",
+          "platform.example.com/created-by"
+        ]
+        .filter(key, key in labels && labels[key] != "")
+        .map(key, labels[key])
+        + [""]
+      )[0]
+
+submitterAdmission:
+  enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        karta.run.ai/capture-submitter: "true"
