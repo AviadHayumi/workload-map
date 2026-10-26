@@ -104,6 +104,11 @@ Merge identical mappings and reject differences in identity, configured labels o
 observation validity. Check conflicts before filtering for valid mappings so that
 one valid replica cannot hide a failing replica.
 
+Here, `team` is the custom label from the
+[label rule example](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration).
+That rule reads the workload root's `metadata.labels["example.com/team"]`.
+For `example.com/team: research`, the expected metric label is `team="research"`.
+
 ```yaml
 groups:
   - name: karta-attribution
@@ -126,10 +131,9 @@ groups:
           ) == 1)
 ```
 
-This example preserves a configured `team` label. For other `labelRules`, add
-those label names to both lists above and to the `group_left` and `sum by` lists
-in the following queries. Otherwise aggregation drops them and the conflict check
-cannot detect disagreements in those values.
+For other `labelRules`, add those label names to both lists above and to the
+`group_left` and `sum by` lists in the following queries. Otherwise aggregation
+drops them and the conflict check cannot detect disagreements in those values.
 
 An absent `team` label also works. The rule rejects conflicting Pod UIDs for the
 same name while both are visible. The following queries use this rule; its

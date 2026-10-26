@@ -77,6 +77,13 @@ exporter:
   requiredKinds: [] # Optional expected APIs; failed checks mark dependent observations unhealthy.
     # Example: ["jobset.x-k8s.io/v1alpha2/JobSet"]
   labelRules: [] # Extra labels for Pod info and workload status.
+  # Example entry: read example.com/team from the workload object.
+  # - name: team
+  #   metrics: [karta_pod_workload_info, karta_workload_status]
+  #   sources: [workload]
+  #   expression: |
+  #     has(object.metadata.labels) && "example.com/team" in object.metadata.labels
+  #       ? object.metadata.labels["example.com/team"] : ""
   labelLimits: # Bounds for each CEL evaluation.
     costLimit: 10000
     maxExpressionBytes: 4096

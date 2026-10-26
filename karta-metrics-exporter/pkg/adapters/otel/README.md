@@ -11,8 +11,10 @@ The implementation will register one callback for the four KEP metric families.
 Each collection captures Store once, checks evidence validity and emits saved
 values. It does not read Kubernetes or run expressions.
 
-The command owns the reader, HTTP endpoint and provider shutdown. It unregisters
-the callback after Runtime stops, before shutting down the provider.
+`app.Run` calls `registration.Unregister()` after `Runtime.Run` returns. This
+removes the callback from the meter. Any unregister error is returned alongside
+the runtime error. The reader, HTTP endpoint and provider shutdown are not
+implemented.
 
 No instruments or collection callback are implemented here. The scaffold uses
 a no-op meter and registers no instruments.
