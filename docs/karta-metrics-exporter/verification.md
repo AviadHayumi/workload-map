@@ -50,7 +50,7 @@ are retained for passing and failing runs.
 | 100k workloads, one Pod each | PASS | 30k updates over five minutes; publication p99 upper bound 1.57s; peak RSS 7.57 GB. |
 | 100k workloads, ten Pods each, 20 API requests/s | FAIL | Startup did not converge within 300s. Later checks were not reached. |
 | Same shape, 100 API requests/s | FAIL | RSS exceeded 16 GiB. A partial HTTP scrape took 48.66s against a 25s limit. |
-| One workload, 100k Pods | PASS | 15 updates over five minutes; maximum measured publication latency 2.47s; peak RSS 3.00 GB. |
+| One workload, 100k Pods | PASS | 15 updates over five minutes; maximum publication-latency upper bound 2.47s; peak RSS 3.00 GB. |
 
 GB is decimal. Passing rows met every declared gate, including cleanup.
 The zero-Pod heap samples fluctuated rather than increasing steadily. That
