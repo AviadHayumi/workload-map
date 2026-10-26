@@ -87,6 +87,32 @@ host. A missing measurement leaves its gate unverified.
 reports observed performance limits. A short smoke run cannot satisfy the
 five-minute churn duration gate.
 
+## Overall runner guard
+
+Full acceptance runs prospectively use `--max-seconds 1800`. This is an
+aggregate anti-hang guard for the complete lifecycle, separate from each
+stage and performance deadline above. Short smoke runs retain their explicit
+shorter guard. The Python command default is unchanged.
+
+| Full profile | Overall runner guard |
+| --- | --- |
+| 100k roots, 0 or 1 Pod | 1,800 s |
+| 100k roots, 10 Pods, default or tuned API budget | 1,800 s |
+| One root, 100k Pods | 1,800 s |
+
+The previous 1,200-second run remains a failure in the
+[full-scale evidence](results/full-scale/README.md). Its completed sequential
+stages consumed 802.173 seconds. Churn, acknowledgment, drain and sampler join
+consumed another 321.991 seconds; polling and synchronization brought final
+deletion to process time 1,184.546 seconds. Allowing that last stage its existing
+180-second deadline and the final five-second GC request requires at least
+1,369.546 seconds for that observed sequence, before shutdown/report overhead.
+The prospective 1,800-second guard provides margin without changing cold-start,
+per-stage, scrape, oracle, rate, latency, RSS, queue-drain or heap limits.
+A fresh full run must still prove cleanup after the same long churn workload.
+The earlier failure is not reclassified, and the arithmetic is not a worst-case
+runtime guarantee.
+
 ## Dense default and tuned API profiles
 
 The 100k-root/10-Pod fixture contains 100,000 Jobs, 100,000 intermediate
