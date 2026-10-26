@@ -41,13 +41,16 @@ exporter:
   # definition when its name is in include and its labels match
   # labelSelector. Empty selects all; exclude wins.
   kartaDefinitionSource:
-    # Definitions built into the exporter. Unknown names fail startup.
+    # Definitions built into the exporter, named as in docs/catalog, for
+    # example batch-job-v1. Unknown names fail startup.
     catalog:
       enabled: false
       include: []
       exclude: []
-    # Karta objects in the cluster. A selected one replaces the built-in
-    # definition for the same group and kind. Grants read access to Kartas.
+    # Karta objects in the cluster, named by metadata.name. A selected one
+    # replaces the built-in catalog definition for the same group and kind;
+    # an excluded one does not, so exclude a kind in both sources to drop it.
+    # Grants read access to Kartas.
     cluster:
       enabled: true
       include: []
