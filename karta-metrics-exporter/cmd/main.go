@@ -65,19 +65,17 @@ func run() error {
 		return fmt.Errorf("invalid submitter configuration: %w", err)
 	}
 
-	options := cfg.KartaDefinitionSource.Options()
-	var client dynamic.Interface
-	if options.Cluster.Enabled {
-		// Falls back to the in-cluster service account when no kubeconfig is found.
-		restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{}).ClientConfig()
-		if err != nil {
-			return fmt.Errorf("kubernetes client configuration: %w", err)
-		}
-		if client, err = dynamic.NewForConfig(restConfig); err != nil {
-			return fmt.Errorf("kubernetes client: %w", err)
-		}
+	// Falls back to the in-cluster service account when no kubeconfig is found.
+	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		return fmt.Errorf("kubernetes client configuration: %w", err)
 	}
+	client, err := dynamic.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("kubernetes client: %w", err)
+	}
+	options := cfg.KartaDefinitionSource.Options()
 	inventory, err := kartadefinitioninventory.New(client, options)
 	if err != nil {
 		return fmt.Errorf("invalid Karta definition sources: %w", err)
@@ -94,6 +92,10 @@ func run() error {
 	case <-ctx.Done():
 		err = <-inventoryDone
 	case err = <-inventoryDone:
+		// Run returns only after ctx ends, so an early return is a failure.
+		if err == nil {
+			err = errors.New("stopped before shutdown")
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("karta definition inventory: %w", err)

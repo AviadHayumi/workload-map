@@ -26,9 +26,10 @@ import (
 )
 
 var (
-	ErrNotReady         = errors.New("definition sources not ready")
-	ErrUnavailable      = errors.New("definition source unavailable")
-	ErrPermissionDenied = errors.New("definition source permission denied")
+	ErrNotReady          = errors.New("definition sources not ready")
+	ErrUnavailable       = errors.New("definition source unavailable")
+	ErrPermissionDenied  = errors.New("definition source permission denied")
+	ErrInvalidDefinition = errors.New("invalid Karta definition")
 
 	errStopped = errors.New("inventory stopped")
 	errRelist  = errors.New("watch not resumed after a failure; relisting to confirm fresh data")

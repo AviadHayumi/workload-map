@@ -24,8 +24,7 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/exporter-configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "karta.exporter.fullname" . }}
-      # Only the cluster definition source reads the Kubernetes API.
-      automountServiceAccountToken: {{ .Values.exporter.kartaDefinitionSource.cluster.enabled }}
+      automountServiceAccountToken: true
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
