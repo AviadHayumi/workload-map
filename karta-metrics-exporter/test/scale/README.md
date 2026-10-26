@@ -13,8 +13,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
   harness `b234bfc8` passed every protocol-3 one-Pod gate in a fresh full run
   using the prospectively declared 1,800-second overall guard. `535c5e93`
   passed protocol-2 zero-Pod gates. Earlier failures remain preserved;
-  the default dense profile failed cold startup at 20 QPS/burst 40. The tuned
-  dense profile, final-source zero-Pod and giant-root results remain pending.
+  the default dense profile failed cold startup at 20 QPS/burst 40; the separately
+  tuned 100/200 profile exceeded 16 GiB RSS before cold convergence. Final-source
+  zero-Pod and giant-root results remain pending.
 
 - [Fixture contention diagnostic](results/fixture-capacity/README.md): bounded
   before/after tests remove proven API-lock and WATCH-scan overhead. Both sustain

@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8, tuned 100/200 | 3 | 100k roots / 10 Pods | FAIL: RSS cap before cold convergence | Incomplete | 17.254 GB | Not reached |
 | f868589a, harness b234bfc8, default 20/40 | 3 | 100k roots / 10 Pods | FAIL: Pod source unsynced at cold deadline | >300 s | 10.788 GB | Not reached |
 | f868589a, harness b234bfc8, guard 1800 s | 3 | 100k roots / 1 Pod | PASS: every applicable gate | 157.490 s | 7.573 GB | p99 upper bound 1.570 s |
 | f868589a, harness b234bfc8 | 3 | 100k roots / 1 Pod | FAIL: total wall cap during final deletion; churn gates pass | 159.976 s | 7.552 GB | p99 upper bound 1.531 s |
@@ -17,6 +18,55 @@
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
 where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
 established. Earlier raw results and their interpretations remain below.
+
+## 100k roots / ten Pods: tuned API profile RSS failure
+
+The separately predeclared tuned profile A used 100 QPS/burst 200. Runtime
+`f868589a`, harness `b234bfc8`, immutable binary, workload and every other dense
+setting were unchanged from the default-profile failure below. No heap profiles
+were enabled. Raw report, log and host context use prefix
+`f868589a-b234bfc8-tuned-100000-10`.
+
+The monitor killed the exporter at process time 218.898 s when sampled RSS
+reached 17,253,629,952 bytes, above the 16 GiB cap (17,179,869,184 bytes).
+GOMEMLIMIT remained 12 GiB. Total elapsed including shutdown was 224.150 s.
+Cold convergence, steady state, churn and lifecycle gates were not reached.
+The default 20/40 profile remains failed independently.
+
+The last completed partial scrape had 100,000 workload rows, 900,000 phase rows
+and 283,180 Pod mappings, with no resource health failures. The final scrape
+was interrupted, so the mapping count at termination is unknown. Collection
+pressure is visible independently of startup API synchronization:
+
+| Partial scrape interval | Pod mappings | HTTP transfer | Oracle |
+| --- | ---: | ---: | ---: |
+| 65.778-100.852 s | 4,700 | 24.871 s | 10.196 s |
+| 105.856-167.208 s | 283,180 | 48.660 s | 12.686 s |
+
+The second partial HTTP transfer exceeded the 25-second target. A full-shape
+scrape was never completed, so full-shape HTTP/oracle gates remain unverified.
+The report's false completed-scrape gate flags alone do not establish a timing
+overrun; the explicit partial transfer measurement above does.
+
+At the last diagnostic sample (218.917 s), the object queue was empty and the
+root queue held 35,363 entries. The source queue depth was zero with 24.43 s
+of active source work. HeapAlloc was 15,079,565,160 bytes, TotalAlloc was
+118,579,353,120 bytes and GC count was 103. Last sampled CPU was 376.1%, with
+701.06 CPU seconds accumulated. HeapAlloc is an unforced in-flight sample,
+not a post-GC retained-heap measurement.
+
+All four metadata collections had completed at least once. The fixture served
+16,429 API requests: 2,000 full Pod LIST pages (one million objects), 11,499
+Pod metadata pages (5,749,500 objects), 200 full Job pages, 1,200 Job metadata
+pages, 712 intermediate GETs and 800 intermediate LIST pages. There were
+Namespace, Job and Pod WATCH streams, and no intermediate WATCH. These data
+show the increased API budget passed source synchronization while memory and
+collection costs remained limiting. They do not establish the exact allocation
+cause or production capacity.
+
+All four kind nodes were stopped, the 48 GiB host started with zero swap, and
+no concurrent heavy work ran. This is a single scenario outcome. No budgets,
+limits or algorithms were changed in response to this failure.
 
 ## 100k roots / ten Pods: default API budget cold failure
 
