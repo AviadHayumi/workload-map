@@ -48,7 +48,7 @@ exporter:
       # core-pod-v1 would make every bare Pod a workload of its own.
       exclude: [core-pod-v1]
     # Karta objects in the cluster. A selected one replaces the built-in
-    # definition for the same group and kind. Grants read access to Kartas.
+    # definition for the same group and kind.
     cluster:
       enabled: true
       include: []
