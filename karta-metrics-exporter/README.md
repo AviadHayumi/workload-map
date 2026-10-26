@@ -60,6 +60,7 @@ Run commands from the repository root unless shown otherwise:
 ```sh
 make test-exporter-unit
 make test-exporter-integration
+make build-exporter-e2e
 make exporter-rules-test
 make check-exporter
 ```
@@ -74,7 +75,13 @@ go test -race ./pkg/store ./pkg/adapters/otel ./pkg/labelevaluator ./pkg/labelre
 ```
 
 The [operator matrix](test/e2e/) installs the real exporter into an isolated
-cluster with the repository's pinned operators. The [scale harness](test/scale/)
+cluster with the repository's pinned operators. Run `make test-exporter-e2e`
+from the repository root after building and loading a fresh exporter image.
+Set `KUBECONFIG` and `EXPORTER_E2E_IMAGE` explicitly; the matrix guide documents
+context, focus, API profile and report options. `make check-exporter` compiles
+the matrix and monitoring suites without running their deployed tests.
+The separate [monitoring suite](test/monitoring/) verifies deployed Prometheus,
+RBAC, Helm and NetworkPolicy behavior. The [scale harness](test/scale/)
 uses a modeled Kubernetes API; its results do not establish production capacity.
 Prometheus query examples have separate promtool fixtures in [test/rules](test/rules/).
 

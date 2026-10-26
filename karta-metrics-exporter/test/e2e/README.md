@@ -8,29 +8,57 @@ It creates workload objects in separate labeled namespaces and scrapes the real
 exporter Service through a loopback port-forward. It requires the operators and
 images installed by the repository's pinned `hack/e2e/up.sh` workflow.
 
-Use an isolated kind cluster and load the exporter image before running:
+## Run
+
+Use an isolated kind cluster with the pinned operators installed.
+Rebuild and load a fresh image after changing the exporter:
 
 ```sh
-cd karta-metrics-exporter
+# From the repository root, with the prepared exporter-e2e kind cluster running:
+image_tag="e2e-$(git rev-parse --short HEAD)-$(date +%s)"
+make exporter-image EXPORTER_IMAGE_REPOSITORY=karta-metrics-exporter IMAGE_TAG="$image_tag"
+kind load docker-image "karta-metrics-exporter:$image_tag" --name exporter-e2e
+
 KUBECONFIG=/tmp/exporter-e2e.kubeconfig \
-EXPORTER_E2E_CONTEXT=kind-exporter-e2e \
-EXPORTER_E2E_IMAGE=karta-metrics-exporter:e2e \
+EXPORTER_E2E_IMAGE="karta-metrics-exporter:$image_tag" \
 EXPORTER_E2E_INCLUDE_BARE_PODS=true \
-EXPORTER_E2E_API_PROFILE=default \
-EXPORTER_E2E_OUTPUT=/tmp/exporter-e2e-results \
-go test -v -tags=e2e ./test/e2e -timeout 90m -ginkgo.v \
-  -ginkgo.json-report=/tmp/exporter-e2e-results/report.json \
-  -ginkgo.junit-report=/tmp/exporter-e2e-results/junit.xml
+make test-exporter-e2e
+```
+
+The command requires an explicit kubeconfig and image. It checks the expected
+context before creating resources and uses `-count=1` to run every time.
+Relative paths start at the repository root.
+
+| Setting | Default or requirement |
+| --- | --- |
+| `KUBECONFIG` | Required; one isolated kind kubeconfig file |
+| `EXPORTER_E2E_IMAGE` | Required; image already loaded into kind |
+| `EXPORTER_E2E_CONTEXT` | `kind-exporter-e2e` |
+| `EXPORTER_E2E_API_PROFILE` | `default`; or `alternate` |
+| `EXPORTER_E2E_FOCUS` | Empty; optional Ginkgo focus expression |
+| `EXPORTER_E2E_OUTPUT` | `/tmp/exporter-e2e-results`; choose a separate path to retain each run |
+| `EXPORTER_E2E_TIMEOUT` | `90m` |
+| `EXPORTER_E2E_INCLUDE_BARE_PODS` | Unset; `true` opts bare Pods into the catalog |
+
+For a targeted JobSet and native Job run:
+
+```sh
+KUBECONFIG=/tmp/exporter-e2e.kubeconfig \
+EXPORTER_E2E_IMAGE="karta-metrics-exporter:$image_tag" \
+make test-exporter-e2e \
+  EXPORTER_E2E_FOCUS='operator workloads (jobset|job-zero-suspended|job-zero-completed|job-zero-failed)$' \
+  EXPORTER_E2E_OUTPUT=/tmp/exporter-e2e-targeted \
+  EXPORTER_E2E_TIMEOUT=30m
 ```
 
 Run the `pod` case again without `EXPORTER_E2E_INCLUDE_BARE_PODS` to verify the
 default catalog exclusion. It checks that a Ready bare Pod produces no workload
 or Pod-info series. The opt-in run clears that exclusion and checks its metrics.
 
-For a small first run, append `-ginkgo.focus='job-zero|lws'`. The suite rejects an
-unexpected kubeconfig context. Helm and kubectl receive the kubeconfig and
-context explicitly. It uninstalls its exporter release and deletes its workload
-namespaces during cleanup. It does not install or remove operators.
+Cleanup removes the exporter release and test namespaces. The cluster and its
+operators remain available. `make check` compiles both deployed suites through
+`build-exporter-e2e`. The [monitoring suite](../monitoring/README.md) has separate
+setup and run commands.
 
 ## API profiles
 
@@ -46,13 +74,11 @@ Run the alternate profile against the same pinned operators after the default ru
 
 ```sh
 KUBECONFIG=/tmp/exporter-e2e.kubeconfig \
-EXPORTER_E2E_CONTEXT=kind-exporter-e2e \
-EXPORTER_E2E_IMAGE=karta-metrics-exporter:e2e \
-EXPORTER_E2E_API_PROFILE=alternate \
-EXPORTER_E2E_OUTPUT=/tmp/exporter-e2e-alternate-results \
-go test -v -tags=e2e ./test/e2e -timeout 30m -ginkgo.v \
-  -ginkgo.json-report=/tmp/exporter-e2e-alternate-results/report.json \
-  -ginkgo.junit-report=/tmp/exporter-e2e-alternate-results/junit.xml
+EXPORTER_E2E_IMAGE="karta-metrics-exporter:$image_tag" \
+make test-exporter-e2e \
+  EXPORTER_E2E_API_PROFILE=alternate \
+  EXPORTER_E2E_OUTPUT=/tmp/exporter-e2e-alternate-results \
+  EXPORTER_E2E_TIMEOUT=30m
 ```
 
 Dynamo v1beta1 uses `spec.components` and `podTemplate.spec.containers[name=main]`

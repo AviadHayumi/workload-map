@@ -13,6 +13,11 @@ as `karta-metrics-exporter:alignment-c4a44553`. Later commits add test fixes,
 documentation and evidence. The [monitoring report](../../karta-metrics-exporter/test/monitoring/results/2026-10-26.md)
 records the source and image digests.
 
+The later controller cleanup at `cf0b9c8e` passed the controller race suite,
+17 API integration cases and [five deployed cases](../../karta-metrics-exporter/test/e2e/results/controller-cleanup.md)
+on a rebuilt image. The full operator and scale results below remain from the
+earlier image.
+
 ## Components and deployment
 
 `make check` passed from a clean checkout. It covers Go tests, vet, lint,

@@ -447,6 +447,36 @@ test-exporter-integration: envtest ## Run exporter integration tests against a r
 	cd karta-metrics-exporter && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 		go test -tags=integration ./pkg/discovery ./pkg/kartadefinitioninventory ./test/integration/...
 
+EXPORTER_E2E_CONTEXT ?= kind-exporter-e2e
+EXPORTER_E2E_API_PROFILE ?= default
+EXPORTER_E2E_OUTPUT ?= /tmp/exporter-e2e-results
+EXPORTER_E2E_TIMEOUT ?= 90m
+EXPORTER_E2E_FOCUS ?=
+
+.PHONY: build-exporter-e2e
+build-exporter-e2e: ## Compile the deployed exporter suites without running them (no cluster needed)
+	cd karta-metrics-exporter && go test -tags=e2e -run '^$$' ./test/e2e/...
+	cd karta-metrics-exporter && go test -tags=monitoring -run '^$$' ./test/monitoring/...
+
+# Live acceptance is deliberately separate from check-exporter.
+.PHONY: test-exporter-e2e
+test-exporter-e2e: ## Run the deployed exporter matrix (explicit KUBECONFIG and EXPORTER_E2E_IMAGE required)
+	@set -e; \
+	export KUBECONFIG="$(KUBECONFIG)" EXPORTER_E2E_IMAGE="$(EXPORTER_E2E_IMAGE)"; \
+	: "$${KUBECONFIG:?set KUBECONFIG to the isolated kind kubeconfig}"; \
+	: "$${EXPORTER_E2E_IMAGE:?build and load an image, then set EXPORTER_E2E_IMAGE=repository:tag}"; \
+	export EXPORTER_E2E_CONTEXT="$(EXPORTER_E2E_CONTEXT)" EXPORTER_E2E_API_PROFILE="$(EXPORTER_E2E_API_PROFILE)"; \
+	export EXPORTER_E2E_OUTPUT="$(EXPORTER_E2E_OUTPUT)" EXPORTER_E2E_INCLUDE_BARE_PODS="$(EXPORTER_E2E_INCLUDE_BARE_PODS)"; \
+	case "$$KUBECONFIG" in /*) ;; *) KUBECONFIG="$(PROJECT_DIR)/$$KUBECONFIG" ;; esac; \
+	case "$$EXPORTER_E2E_OUTPUT" in /*) ;; *) EXPORTER_E2E_OUTPUT="$(PROJECT_DIR)/$$EXPORTER_E2E_OUTPUT" ;; esac; \
+	mkdir -p "$$EXPORTER_E2E_OUTPUT"; \
+	set --; \
+	if [ -n "$(EXPORTER_E2E_FOCUS)" ]; then set -- "$$@" "-ginkgo.focus=$(EXPORTER_E2E_FOCUS)"; fi; \
+	cd karta-metrics-exporter; \
+	go test -count=1 -v -tags=e2e ./test/e2e -timeout "$(EXPORTER_E2E_TIMEOUT)" -ginkgo.v \
+		"-ginkgo.json-report=$$EXPORTER_E2E_OUTPUT/report.json" \
+		"-ginkgo.junit-report=$$EXPORTER_E2E_OUTPUT/junit.xml" "$$@"
+
 .PHONY: test-exporter
 test-exporter: test-exporter-unit test-exporter-integration ## Run exporter unit, chart and envtest suites
 
@@ -463,7 +493,7 @@ exporter-version-smoke: build-exporter ## Verify the exporter reports the stampe
 		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
 
 .PHONY: check-exporter
-check-exporter: fmt-check-exporter vet-exporter lint-exporter modules-check-exporter test-exporter exporter-version-smoke ## Full exporter presubmit
+check-exporter: fmt-check-exporter vet-exporter lint-exporter modules-check-exporter build-exporter-e2e test-exporter exporter-version-smoke ## Full exporter presubmit
 
 EXPORTER_GO_VERSION := $(shell awk '/^go /{print $$2; exit}' karta-metrics-exporter/go.mod)
 EXPORTER_IMAGE_REPOSITORY ?= $(IMAGE_REGISTRY)/karta-metrics-exporter
