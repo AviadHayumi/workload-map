@@ -42,8 +42,13 @@ var _ = BeforeSuite(func() {
 	testCtx, testCancel = context.WithCancel(context.Background())
 
 	testEnv = &envtest.Environment{CRDDirectoryPaths: crdPaths, ErrorIfCRDPathMissing: true}
+	apiServer := testEnv.ControlPlane.GetAPIServer()
 	// Kubernetes 1.31 serves streaming lists only behind this alpha gate; client-go uses them by default.
-	testEnv.ControlPlane.GetAPIServer().Configure().Append("feature-gates", "WatchList=true")
+	apiServer.Configure().Append("feature-gates", "WatchList=true")
+	// A spec restarts the API server: keep its certificates, and stop it without waiting out open watches.
+	apiServer.CertDir = GinkgoT().TempDir()
+	apiServer.Configure().Append("shutdown-watch-termination-grace-period", "1s")
+	apiServer.StopTimeout = time.Minute
 	var err error
 	adminConfig, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())

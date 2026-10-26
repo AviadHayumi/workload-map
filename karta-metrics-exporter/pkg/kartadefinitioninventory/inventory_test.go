@@ -4,9 +4,12 @@
 package kartadefinitioninventory
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -58,6 +61,23 @@ func (s *pausedStore) Replace(list []any, resourceVersion string) error {
 	return s.Store.Replace(list, resourceVersion)
 }
 
+// lateStatus holds the forwarder while it decodes a watch error, so a spec can
+// stop the watch before the error is recorded.
+type lateStatus struct {
+	*unstructured.Unstructured
+	read    chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *lateStatus) UnstructuredContent() map[string]any {
+	s.once.Do(func() {
+		close(s.read)
+		<-s.release
+	})
+	return s.Object
+}
+
 func unstructuredKarta(k *v1alpha1.Karta) *unstructured.Unstructured {
 	GinkgoHelper()
 	m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(k)
@@ -97,6 +117,12 @@ var _ = Describe("Inventory", func() {
 		_, err := New(nil, DefaultOptions())
 
 		Expect(err).To(MatchError(ContainSubstring("requires a client")))
+	})
+
+	It("rejects invalid options", func() {
+		_, err := New(newFakeClient(), Options{Catalog: SourceOptions{Include: []string{"nope"}}})
+
+		Expect(err).To(MatchError(ErrInvalidOptions))
 	})
 
 	It("serves a catalog-only configuration before Run and after it returns", func() {
@@ -562,6 +588,71 @@ var _ = Describe("Inventory", func() {
 			Entry("a resumed watch", false),
 			Entry("a streaming list, retried without falling back to LIST", true),
 		)
+
+		It("does not let a later page clear a failure recorded after its list began", func() {
+			list()
+			inventory.update(func() { inventory.fail(apierrors.NewServiceUnavailable("after the first page")) })
+			_, err := lw.ListWithContextFunc(ctx, metav1.ListOptions{Continue: "page-2"})
+			Expect(err).NotTo(HaveOccurred())
+
+			replace()
+
+			Expect(inventory.Ready()).To(MatchError(ErrUnavailable))
+			list()
+			replace()
+			Expect(inventory.Ready()).To(Succeed())
+		})
+
+		It("drops an error from a watch stopped before a fresh list", func() {
+			replace()
+			w, err := lw.WatchFuncWithContext(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			late := &lateStatus{
+				Unstructured: &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": "v1", "kind": "Status", "status": "Failure", "reason": "Forbidden", "code": int64(403),
+				}},
+				read:    make(chan struct{}),
+				release: make(chan struct{}),
+			}
+			release := sync.OnceFunc(func() { close(late.release) })
+			DeferCleanup(release)
+			served.Load().Error(late)
+			Eventually(late.read, eventuallyTimeout).Should(BeClosed())
+			w.Stop()
+			list()
+			replace()
+
+			release()
+
+			Eventually(w.ResultChan(), eventuallyTimeout).Should(BeClosed())
+			Expect(inventory.Ready()).To(Succeed())
+		})
+
+		It("logs the unkeyable and unmatched-include reports only when they change", func() {
+			var logs bytes.Buffer
+			inventory.log = slog.New(slog.NewTextHandler(&logs, nil))
+			var err error
+			_, inventory.clusterFilter, err = Options{Cluster: SourceOptions{Enabled: true, Include: []string{"rootless", "missing"}}}.compile()
+			Expect(err).NotTo(HaveOccurred())
+			unkeyable := func() int { return strings.Count(logs.String(), "whose root has no version or kind") }
+			unmatched := func() int { return strings.Count(logs.String(), "include names match no Karta") }
+			rootless := unstructuredKarta(newRootlessKarta("rootless"))
+
+			Expect(store.Replace([]any{rootless}, "1")).To(Succeed())
+			for range 3 {
+				Expect(store.Update(rootless.DeepCopy())).To(Succeed())
+			}
+			Expect(unkeyable()).To(Equal(1))
+			Expect(unmatched()).To(Equal(1))
+
+			Expect(store.Update(unstructuredKarta(newKarta("rootless", jobGVK)))).To(Succeed())
+			Expect(store.Update(rootless)).To(Succeed())
+			missing := unstructuredKarta(newKarta("missing", jobGVK))
+			Expect(store.Add(missing)).To(Succeed())
+			Expect(store.Delete(missing)).To(Succeed())
+			Expect(unkeyable()).To(Equal(2))
+			Expect(unmatched()).To(Equal(2))
+		})
 
 		It("does not count a server without streaming lists as a failure, since LIST follows", func() {
 			// What an API server with the WatchList feature gate off answers.

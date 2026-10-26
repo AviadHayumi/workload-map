@@ -174,6 +174,28 @@ var _ = Describe("Karta definition inventory", func() {
 		})
 	})
 
+	It("is unavailable while the API server is down, and recovers once it is back", func() {
+		create(clusterKarta("cluster-job", jobGVK))
+		inv := start(clientFor(adminConfig), withCatalog)
+		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool { return o.Source == inventory.SourceCluster })
+		apiServer := testEnv.ControlPlane.GetAPIServer()
+
+		Expect(apiServer.Stop()).To(Succeed())
+		running := false
+		// Restarted before AfterEach, which needs the server, even when an assertion fails.
+		defer func() {
+			if !running {
+				Expect(apiServer.Start()).To(Succeed())
+			}
+		}()
+
+		Eventually(inv.Ready, 2*eventuallyTimeout, eventuallyInterval).Should(MatchError(inventory.ErrUnavailable))
+		Expect(apiServer.Start()).To(Succeed())
+		running = true
+		Eventually(inv.Ready, 2*eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		expectOrigin(inv, jobGVK, func(o inventory.Origin) bool { return o.Source == inventory.SourceCluster })
+	})
+
 	DescribeTable("classifies a LIST the server refuses, and never serves the catalog",
 		func(config func() *rest.Config, want error) {
 			inv := start(clientFor(config()), withCatalog)
