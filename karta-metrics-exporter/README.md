@@ -52,6 +52,9 @@ read-only access. Configure additional workload permissions with
 
 ## Verify
 
+See the [verification results](../docs/karta-metrics-exporter/verification.md)
+for component coverage, deployed tests and measured scale limits.
+
 Run commands from the repository root unless shown otherwise:
 
 ```sh
