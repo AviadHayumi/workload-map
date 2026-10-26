@@ -1,0 +1,24 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 1322522	       429.4 ns/op	     594 B/op	       5 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  993891	       641.2 ns/op	     963 B/op	       8 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery	1.919s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 1381354	       455.5 ns/op	     594 B/op	       5 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  858286	       639.5 ns/op	     963 B/op	       8 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery	1.950s
+goos: darwin
+goarch: arm64
+pkg: github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery
+cpu: Apple M4 Pro
+BenchmarkScaleOwnerWalk/intermediate=false-4         	 1259286	       440.4 ns/op	     594 B/op	       5 allocs/op
+BenchmarkScaleOwnerWalk/intermediate=true-4          	  997588	       582.6 ns/op	     963 B/op	       8 allocs/op
+PASS
+ok  	github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery	1.998s

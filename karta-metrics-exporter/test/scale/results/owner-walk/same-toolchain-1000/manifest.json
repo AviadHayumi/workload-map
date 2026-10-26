@@ -1,0 +1,90 @@
+{
+  "scope": "healthy acyclic warm owner walk; no API transport/evaluation/publication",
+  "roots": 1000,
+  "gomaxprocs": 4,
+  "benchtime": "500ms",
+  "count": 3,
+  "runs": [
+    {
+      "name": "current",
+      "commit": "c765ff1b4e61ed4243349c9ec06bd2bbf80477c0",
+      "dirty": false,
+      "go_version": "go version go1.27.3 darwin/arm64",
+      "go_mod_sha256": "53601a359343a7c884b0920f79950e538f17303b0806c55d36483bf82fec5ebf",
+      "template_sha256": "ac164b7bd8b4339132095646d240d959fb3746394fcb2c8dc19e6663b7abd37c",
+      "package_sha256": "8a49313da880330c95a5266ef61ad45c64e5ecfeeeaf3ecf5f299e661e75168c",
+      "overlay_sha256": "ac164b7bd8b4339132095646d240d959fb3746394fcb2c8dc19e6663b7abd37c",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./pkg/discovery",
+        "-run=^$",
+        "-bench=^BenchmarkScaleOwnerWalk$",
+        "-benchmem",
+        "-benchtime=500ms",
+        "-count=1"
+      ],
+      "repetition_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "baseline",
+      "commit": "01352db5c4be54b0b3eb6d53a0a04fb5faa34520",
+      "dirty": false,
+      "go_version": "go version go1.27.3 darwin/arm64",
+      "go_mod_sha256": "42f509a13f30a3d3393c62ef72b7a62d56bb7010398f87f1b9e95b7092a029bb",
+      "template_sha256": "7fe42ed0a63f9bf8721abdfc30ea6a95591de5a38efca6abbd07bad1dd71373a",
+      "package_sha256": "e0585f76144d34a1e8943cccfecccd09be57b197ceab5d40964bf41e57ae9aee",
+      "overlay_sha256": "7fe42ed0a63f9bf8721abdfc30ea6a95591de5a38efca6abbd07bad1dd71373a",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./pkg/discovery",
+        "-run=^$",
+        "-bench=^BenchmarkScaleOwnerWalk$",
+        "-benchmem",
+        "-benchtime=500ms",
+        "-count=1"
+      ],
+      "repetition_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "workload_discovery",
+      "commit": "1f56e5bf50a33c943ce5c7d45a19a7ff003c5bbf",
+      "dirty": false,
+      "go_version": "go version go1.27.3 darwin/arm64",
+      "go_mod_sha256": "9d1e5e64569f1313a76ffe0e7de728d78696dec1ca32c9d67133630c1cb7a24f",
+      "template_sha256": "7d392e871f1864dc5f0be8fde06cae7db43767a1cf4484c75a657fdd9df46390",
+      "package_sha256": "9d63f1759269c9b6ae7f5b2dcb606cb7cb8e44fe6d613b6f763777a66b3b34a3",
+      "overlay_sha256": "7d392e871f1864dc5f0be8fde06cae7db43767a1cf4484c75a657fdd9df46390",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "./internal/controller",
+        "-run=^$",
+        "-bench=^BenchmarkScaleOwnerWalk$",
+        "-benchmem",
+        "-benchtime=500ms",
+        "-count=1"
+      ],
+      "repetition_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "exit_code": 0
+    }
+  ]
+}

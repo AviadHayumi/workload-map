@@ -3,7 +3,46 @@
 
 # Warm owner-walk measurements
 
-## Final frozen-source comparison
+## Same-toolchain comparison
+
+The follow-up comparison explicitly set `GOTOOLCHAIN=go1.27.3` for the runner.
+All six manifest entries report `go version go1.27.3 darwin/arm64`. All 18 fresh
+Go test processes passed: three serial repetitions for each implementation at
+1,000 and 10,000 roots, with 500 ms per benchmark and GOMAXPROCS=4. Raw output
+and source/module/overlay hashes are in `same-toolchain-1000/` and
+`same-toolchain-10000/`. Earlier mixed-toolchain results remain unchanged below.
+
+The current checkout was clean at `c765ff1b4e61ed4243349c9ec06bd2bbf80477c0`.
+Its Discovery package and exporter module files were verified unchanged from
+production `f868589a`. The old PoC was clean at
+`01352db5c4be54b0b3eb6d53a0a04fb5faa34520`, and k8s-workload-discovery was clean
+at `1f56e5bf50a33c943ce5c7d45a19a7ff003c5bbf`. All four kind nodes were stopped.
+No other tests, builds or benchmarks ran concurrently on the same 48 GiB
+Apple M4 Pro host. Desktop background activity remained.
+
+Timing columns show median ns/op with the observed minimum-maximum across
+three repetitions. Allocation counts were stable in each set.
+
+| Roots | Implementation | Direct ns/op (range) | Intermediate ns/op (range) | Direct bytes / allocs | Intermediate bytes / allocs |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | current | 440.4 (429.4-455.5) | 639.5 (582.6-641.2) | 594 / 5 | 963 / 8 |
+| 1,000 | baseline | 635.8 (630.1-668.5) | 1104.0 (1015.0-1144.0) | 1168 / 6 | 2608 / 9 |
+| 1,000 | workload_discovery | 275.9 (259.9-280.5) | 457.5 (454.8-460.7) | 624 / 9 | 1040 / 14 |
+| 10,000 | current | 492.4 (459.6-501.0) | 697.1 (688.3-771.9) | 594 / 5 | 963 / 8 |
+| 10,000 | baseline | 680.2 (637.4-726.1) | 1139.0 (1105.0-1318.0) | 1168 / 6 | 2608 / 9 |
+| 10,000 | workload_discovery | 270.5 (263.4-285.8) | 541.9 (492.9-548.6) | 624 / 9 | 1040 / 14 |
+
+With the same compiler, the current walker is faster and allocates less than
+the old PoC in these samples. The comparison library remains faster than the
+current walker, with more allocations. Pinning the compiler removes that
+specific confound; source, dependencies, native cache representations and
+returned data structures still differ. This is healthy, acyclic, fully cached
+owner traversal, excluding API transport, missing-owner recovery, Karta
+expression evaluation, publication and metrics collection. It does not measure
+full-runtime capacity or establish statistical confidence from three samples.
+See the [comparison scope](../../ownership/README.md).
+
+## Earlier mixed-toolchain comparison
 
 Three fresh serial Go test processes per implementation and shape used
 500 ms per benchmark, GOMAXPROCS=4, and the same 48 GiB Apple M4 Pro host.
