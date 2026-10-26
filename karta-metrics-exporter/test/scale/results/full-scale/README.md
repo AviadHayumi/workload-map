@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8, guard 1800 s | 3 | 100k roots / 1 Pod | PASS: every applicable gate | 157.490 s | 7.573 GB | p99 upper bound 1.570 s |
 | f868589a, harness b234bfc8 | 3 | 100k roots / 1 Pod | FAIL: total wall cap during final deletion; churn gates pass | 159.976 s | 7.552 GB | p99 upper bound 1.531 s |
 | f868589a, harness 0ed1594b | 3 | 100k roots / 1 Pod | FAIL: emitter scheduling delay at 232 s churn | 178.716 s | 7.441 GB | Partial max 2.319 s; full p99 unverified |
 | f868589a | 2 | 100k roots / 1 Pod | FAIL: hot-root rotation scheduling | 155.748 s | 7.552 GB | Full window unverified |
@@ -15,6 +16,48 @@
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
 where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
 established. Earlier raw results and their interpretations remain below.
+
+## 100k roots / one Pod: full lifecycle pass with prospective guard
+
+The fresh run used the same runtime `f868589a334e917dee0cfb4e1d258e28bb94a19a`,
+harness code `b234bfc8f621f1da30250d368ddea7cc32a8a10a`, and immutable binary
+SHA-256 `ff1ac2def810610706ca4d4fcee7bfbc32ddd0900a58408aeedf022ec7d32b17`.
+The aggregate guard was prospectively declared as 1,800 seconds in `4a6b9a25`.
+Every stage, rate, API, worker, latency, RSS and heap limit stayed unchanged.
+The previous 1,200-second failure remains below; it is not reclassified.
+Raw report, log and host context use prefix
+`f868589a-b234bfc8-guard1800-100000-1`.
+
+This run passed all stages and every applicable measured gate. There were
+zero steady/quiet/churn validity gaps and no intermediate WATCH streams.
+All 30,000 updates were emitted and verified over the full five-minute window.
+Strict post-churn checks, Pod label update, injected WATCH EOF/410 recovery,
+update during LIST, combined changes, deletion, same-name recreation, final
+empty-state convergence and post-deletion heap recovery all passed.
+
+| Measurement | Result |
+| --- | ---: |
+| Cold convergence | 157.490 s |
+| Full lifecycle elapsed | 1,202.359 s |
+| Peak sampled RSS | 7,572,897,792 bytes |
+| Verified publication p99 / maximum | 1.570 / 2.698 s |
+| Maximum scheduler lateness | 29.45 ms |
+| Actual emission rate | 99.99985 events/s |
+| Queue drain | 19.932 s |
+| Post-GC sampling coverage | 209.930 s |
+| First / final sampled heap | 1,951,123,840 / 2,035,889,976 bytes |
+| Heap growth | +4.344% |
+| Maximum completed HTTP transfer / oracle | 20.507 / 9.993 s |
+| Final delete-all convergence | 23.439 s |
+| Post-delete heap | 291,233,544 bytes |
+
+This is one modeled-API scenario outcome, not statistical confidence or a
+production API capacity claim. The heap result is below the 5% gate with
+limited margin. API budget remained 20 QPS/burst 40, two workers, 500-item
+pages, 45-second refresh and 120-second maximum evidence age. Host context
+records all four kind nodes stopped, 48 GiB RAM, zero swap and 29 GiB free
+disk. No concurrent builds, tests, benchmarks or cluster operations ran.
+Desktop background activity was not removed.
 
 ## 100k roots / one Pod: fixture contention corrected, total wall cap reached
 

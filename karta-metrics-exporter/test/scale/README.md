@@ -9,11 +9,11 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 ## Current evidence
 
-- [Current 100k-root outcomes](results/full-scale/README.md): `535c5e93` passed
-  every protocol-2 zero-Pod gate. The latest protocol-3 one-Pod run on `f868589a`
-  with harness `b234bfc8` passed all churn gates but hit the total wall cap during
-  final deletion. Empty-state and post-deletion heap recovery remain unverified.
-  Full hierarchy acceptance is unproven; earlier failures remain preserved.
+- [Current 100k-root outcomes](results/full-scale/README.md): `f868589a` with
+  harness `b234bfc8` passed every protocol-3 one-Pod gate in a fresh full run
+  using the prospectively declared 1,800-second overall guard. `535c5e93`
+  passed protocol-2 zero-Pod gates. Earlier failures remain preserved;
+  final-source zero-Pod, dense and giant-root results are still pending.
 
 - [Fixture contention diagnostic](results/fixture-capacity/README.md): bounded
   before/after tests remove proven API-lock and WATCH-scan overhead. Both sustain
