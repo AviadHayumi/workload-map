@@ -41,7 +41,8 @@ func TestIntegration(t *testing.T) {
 var _ = BeforeSuite(func() {
 	testCtx, testCancel = context.WithCancel(context.Background())
 
-	testEnv = &envtest.Environment{CRDDirectoryPaths: crdPaths, ErrorIfCRDPathMissing: true}
+	// Never the kubeconfig's cluster: specs delete every Karta and the CRD.
+	testEnv = &envtest.Environment{CRDDirectoryPaths: crdPaths, ErrorIfCRDPathMissing: true, UseExistingCluster: new(bool)}
 	apiServer := testEnv.ControlPlane.GetAPIServer()
 	// Kubernetes 1.31 serves streaming lists only behind this alpha gate; client-go uses them by default.
 	apiServer.Configure().Append("feature-gates", "WatchList=true")
