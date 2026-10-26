@@ -237,6 +237,10 @@ defines row removal and snapshot visibility.
 | `resources` | CPU and memory requests/limits. |
 | `nodeSelector`, `tolerations`, `affinity` | Pod placement. |
 
+The chart defaults to a `1Gi` memory limit. For larger installations, set
+`resources` using measurements from your workload mix. The [scale profiles](../../karta-metrics-exporter/test/scale/runtime-scale.md)
+list their explicit memory and API budgets.
+
 The main Helm example includes `rbac.workloadRules`. These rules use API groups
 and plural resource names, as in Kubernetes RBAC. The chart supplies `get`, `list`
 and `watch`: read one owner, list existing objects and receive updates. RBAC rules apply across the API versions of each resource.
