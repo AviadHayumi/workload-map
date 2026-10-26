@@ -6,8 +6,10 @@
 ## Final frozen-source comparison
 
 Three fresh serial Go test processes per implementation and shape used
-500 ms per benchmark, GOMAXPROCS=4, Go 1.27.3, and the same 48 GiB Apple M4 Pro
-host. All four kind nodes were stopped. No other benchmark, test or build ran
+500 ms per benchmark, GOMAXPROCS=4, and the same 48 GiB Apple M4 Pro host.
+The manifests record Go 1.27.3 for the current exporter, Go 1.26.3 for the old
+PoC, and Go 1.27.2 for k8s-workload-discovery. These runs do not isolate code
+changes from toolchain differences. All four kind nodes were stopped. No other benchmark, test or build ran
 concurrently; desktop background work remained. Raw benchmem and manifests
 are in `final-1000/` and `final-10000/`.
 
