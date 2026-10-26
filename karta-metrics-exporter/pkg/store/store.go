@@ -13,9 +13,10 @@ import (
 // Writer owns synchronization. Each method is atomic and safe for concurrent use.
 type Writer interface {
 	Publish(*Publication)
-	Published(types.UID) *Publication
-	RemovePublication(types.UID)
-	SetPublicationFailure(key, reason string)
+	Published(workloadUID types.UID) *Publication
+	RemovePublication(workloadUID types.UID)
+	// SetPublicationFailure sets or clears a shared failure referenced by Evidence.Dependencies.
+	SetPublicationFailure(dependencyKey, reason string)
 	SetPublicationHealth([]HealthRecord)
 }
 

@@ -36,7 +36,7 @@ var _ = Describe("startup rejects invalid expressions", func() {
 	for _, tc := range []struct{ name, expression, limits, want string }{
 		{"syntax", `object[`, "", "compiling label expression"},
 		{"non string", `1 + 1`, "", "must produce a string"},
-		{"expression limit", `object.kind`, "labelLimits:\n  maxExpressionBytes: 4\n", "exceeds the maximum length"},
+		{"expression limit", `object.kind`, "genericLabelEvaluationLimits:\n  maxExpressionBytes: 4\n", "exceeds the maximum length"},
 	} {
 		It(tc.name, func(specCtx SpecContext) {
 			path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
@@ -44,14 +44,7 @@ var _ = Describe("startup rejects invalid expressions", func() {
 			Expect(os.WriteFile(path, []byte(contents), 0o600)).To(Succeed())
 			ctx, cancel := context.WithTimeout(specCtx, 5*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCommand$", "--", "--config", path)
-			for _, entry := range os.Environ() {
-				if !strings.HasPrefix(entry, "KARTA_EXPORTER_") && !strings.HasPrefix(entry, "KARTA_TEST_COMMAND_PROCESS=") {
-					cmd.Env = append(cmd.Env, entry)
-				}
-			}
-			cmd.Env = append(cmd.Env, "KARTA_TEST_COMMAND_PROCESS=1")
-			output, err := cmd.CombinedOutput()
+			output, err := runExporterCommand(ctx, "--config", path)
 			Expect(ctx.Err()).To(Succeed(), "command waited for a signal instead of rejecting configuration")
 			var exit *exec.ExitError
 			Expect(errors.As(err, &exit)).To(BeTrue())
@@ -60,3 +53,32 @@ var _ = Describe("startup rejects invalid expressions", func() {
 		})
 	}
 })
+
+var _ = Describe("command help", func() {
+	It("documents only the three public generic evaluation limits", func(specCtx SpecContext) {
+		ctx, cancel := context.WithTimeout(specCtx, 5*time.Second)
+		defer cancel()
+		output, err := runExporterCommand(ctx, "--help")
+		Expect(err).To(Succeed(), string(output))
+		for _, name := range []string{
+			"generic-label-eval-cost-limit", "generic-label-eval-max-expression-bytes", "generic-label-eval-max-result-bytes",
+			"KARTA_EXPORTER_GENERIC_LABEL_EVAL_COST_LIMIT", "KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_EXPRESSION_BYTES", "KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_RESULT_BYTES",
+		} {
+			Expect(string(output)).To(ContainSubstring(name))
+		}
+		for _, removed := range []string{"interrupt", "INTERRUPT", "-label-cost-limit", "-label-max-", "labelLimits", "-cel-", "_CEL_"} {
+			Expect(string(output)).NotTo(ContainSubstring(removed))
+		}
+	})
+})
+
+func runExporterCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, os.Args[0], append([]string{"-test.run=^TestCommand$", "--"}, args...)...)
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "KARTA_EXPORTER_") && !strings.HasPrefix(entry, "KARTA_TEST_COMMAND_PROCESS=") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	cmd.Env = append(cmd.Env, "KARTA_TEST_COMMAND_PROCESS=1")
+	return cmd.CombinedOutput()
+}

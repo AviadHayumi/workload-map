@@ -38,10 +38,10 @@ Omit the `exporter:` wrapper when running outside Helm, then pass the file:
 ```
 
 The label evaluator uses Common Expression Language (CEL) and is implemented.
-The command validates `labelRules` and `labelLimits` and compiles expressions at
-startup. Invalid rules or expressions stop startup with an error. The label
-configuration reference lists the supported flags, environment variables,
-defaults and precedence.
+The command validates `labelRules` and `genericLabelEvaluationLimits` and compiles
+expressions at startup. Invalid rules or expressions stop startup with an error.
+The label configuration reference lists the supported flags, environment
+variables, defaults and precedence.
 
 Build a container image with `make exporter-image IMAGE_TAG=dev`. The Helm chart
 keeps the exporter disabled by default. The

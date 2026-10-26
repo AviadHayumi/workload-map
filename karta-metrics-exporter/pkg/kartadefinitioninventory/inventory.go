@@ -11,8 +11,8 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
-// Interface looks up the selected Karta definition for a workload type.
-type Interface interface {
+// Reader looks up the selected Karta definition for a workload type.
+type Reader interface {
 	Lookup(schema.GroupVersionKind) (Selection, error)
 }
 

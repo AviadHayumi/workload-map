@@ -14,8 +14,8 @@ import (
 )
 
 type celEvaluator struct {
-	program       cel.Program
-	maxValueBytes int
+	program        cel.Program
+	maxResultBytes int
 }
 
 type compiler struct{}
@@ -27,16 +27,15 @@ const (
 	DefaultMaxExpressionBytes = 4096
 	// DefaultCostLimit bounds the CEL cost units spent on one evaluation.
 	DefaultCostLimit = 10000
-	// DefaultMaxValueBytes bounds the value a single evaluation may return.
-	DefaultMaxValueBytes = 1024
-	// DefaultInterruptCheckFrequency is how many comprehension iterations pass
-	// between context cancellation checks.
-	DefaultInterruptCheckFrequency = 100
+	// DefaultMaxResultBytes bounds the value a single evaluation may return.
+	DefaultMaxResultBytes = 1024
+	// Keep cancellation checks enabled without exposing an engine-specific setting.
+	interruptCheckFrequency = 100
 )
 
 var (
 	ErrMissingObject = errors.New("label input object is nil")
-	// ErrValueTooLong is returned when an expression result exceeds Config.Limits.MaxValueBytes.
+	// ErrValueTooLong is returned when an expression result exceeds Config.Limits.MaxResultBytes.
 	ErrValueTooLong = errors.New("label value exceeds the maximum length")
 	// ErrNotString is returned when an expression does not produce a string.
 	ErrNotString = errors.New("label expression must produce a string")
@@ -56,7 +55,7 @@ func NewCompiler() Compiler {
 // during evaluation. Invalid expressions and negative limits are rejected.
 func (compiler) Compile(cfg Config) (Evaluator, error) {
 	limits := cfg.Limits
-	if limits.MaxExpressionBytes < 0 || limits.MaxValueBytes < 0 {
+	if limits.MaxExpressionBytes < 0 || limits.MaxResultBytes < 0 {
 		return nil, ErrNegativeLimit
 	}
 	if limits.CostLimit == 0 {
@@ -65,12 +64,8 @@ func (compiler) Compile(cfg Config) (Evaluator, error) {
 	if limits.MaxExpressionBytes == 0 {
 		limits.MaxExpressionBytes = DefaultMaxExpressionBytes
 	}
-	if limits.MaxValueBytes == 0 {
-		limits.MaxValueBytes = DefaultMaxValueBytes
-	}
-	// cel-go disables cancellation checks during evaluation at zero.
-	if limits.InterruptCheckFrequency == 0 {
-		limits.InterruptCheckFrequency = DefaultInterruptCheckFrequency
+	if limits.MaxResultBytes == 0 {
+		limits.MaxResultBytes = DefaultMaxResultBytes
 	}
 
 	expression := cfg.Expression
@@ -96,12 +91,12 @@ func (compiler) Compile(cfg Config) (Evaluator, error) {
 
 	program, err := env.Program(ast,
 		cel.CostLimit(limits.CostLimit),
-		cel.InterruptCheckFrequency(limits.InterruptCheckFrequency),
+		cel.InterruptCheckFrequency(interruptCheckFrequency),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("building label program: %w", err)
 	}
-	return &celEvaluator{program: program, maxValueBytes: limits.MaxValueBytes}, nil
+	return &celEvaluator{program: program, maxResultBytes: limits.MaxResultBytes}, nil
 }
 
 func (disabledEvaluator) Evaluate(ctx context.Context, _ *unstructured.Unstructured) (string, error) {
@@ -126,7 +121,7 @@ func (e *celEvaluator) Evaluate(ctx context.Context, obj *unstructured.Unstructu
 	if !ok {
 		return "", ErrNotString
 	}
-	if len(value) > e.maxValueBytes {
+	if len(value) > e.maxResultBytes {
 		return "", ErrValueTooLong
 	}
 	return value, nil

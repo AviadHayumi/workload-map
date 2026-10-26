@@ -84,11 +84,11 @@ exporter:
   #   expression: |
   #     has(object.metadata.labels) && "example.com/team" in object.metadata.labels
   #       ? object.metadata.labels["example.com/team"] : ""
-  labelLimits: # Bounds for label expressions, evaluation and returned values.
+  # Bounds for label expressions, evaluation and returned values.
+  genericLabelEvaluationLimits:
     costLimit: 10000
     maxExpressionBytes: 4096
-    maxValueBytes: 1024
-    interruptCheckFrequency: 100
+    maxResultBytes: 1024
   metrics:
     workloadPhases: ["all"] # Emit every workload phase as a 0/1 series.
   # Let Prometheus Operator discover and scrape the exporter.
@@ -185,9 +185,9 @@ The command validates rule names, metric/source combinations and CEL at startup.
 The CEL evaluator is implemented. Resolver execution and exporting the resolved
 labels are not implemented yet.
 
-The chart renders `labelRules` and `labelLimits` into the mounted config file.
-Rules default to `[]`. Limits default to 10000 cost units, 4096 expression bytes,
-1024 value bytes and a cancellation check every 100 comprehension iterations.
+The chart renders `labelRules` and `genericLabelEvaluationLimits` into the mounted
+config file. Rules default to `[]`. Limits default to 10000 cost units, 4096
+expression bytes and 1024 result bytes. Zero limits use these defaults.
 
 See the [evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
 for a complete example, flags, environment variables and precedence.

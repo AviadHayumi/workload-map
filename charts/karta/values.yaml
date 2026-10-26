@@ -20,12 +20,11 @@ exporter:
   # Extra labels for Pod info and workload status. Expressions read object.
   # See karta-metrics-exporter/pkg/labelevaluator/README.md.
   labelRules: []
-  # Shared CEL bounds. Zero selects the default, except interruptCheckFrequency.
-  labelLimits:
+  # Shared generic label evaluation limits. Zero selects the default.
+  genericLabelEvaluationLimits:
     costLimit: 10000
     maxExpressionBytes: 4096
-    maxValueBytes: 1024
-    interruptCheckFrequency: 100
+    maxResultBytes: 1024
 
 # Overrides for resource names. Rarely needed.
 fullnameOverride: ""

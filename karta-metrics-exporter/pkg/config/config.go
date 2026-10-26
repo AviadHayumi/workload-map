@@ -41,24 +41,18 @@ type setting struct {
 }
 
 const (
-	flagConfig                  = "config"
-	flagCostLimit               = "label-cost-limit"
-	flagMaxExpressionBytes      = "label-max-expression-bytes"
-	flagMaxValueBytes           = "label-max-value-bytes"
-	flagInterruptCheckFrequency = "label-interrupt-check-frequency"
+	flagConfig             = "config"
+	flagCostLimit          = "generic-label-eval-cost-limit"
+	flagMaxExpressionBytes = "generic-label-eval-max-expression-bytes"
+	flagMaxResultBytes     = "generic-label-eval-max-result-bytes"
 )
-
-// errZeroInterruptCheckFrequency rejects a setting that would stop CEL from
-// checking for cancellation during evaluation.
-var errZeroInterruptCheckFrequency = errors.New("labelLimits.interruptCheckFrequency must be greater than 0")
 
 var errMultipleDocuments = errors.New("must contain a single YAML document")
 
-var defaultLabelLimits = labelevaluator.Limits{
-	CostLimit:               labelevaluator.DefaultCostLimit,
-	MaxExpressionBytes:      labelevaluator.DefaultMaxExpressionBytes,
-	MaxValueBytes:           labelevaluator.DefaultMaxValueBytes,
-	InterruptCheckFrequency: labelevaluator.DefaultInterruptCheckFrequency,
+var defaultLabelEvaluationLimits = labelevaluator.Limits{
+	CostLimit:          labelevaluator.DefaultCostLimit,
+	MaxExpressionBytes: labelevaluator.DefaultMaxExpressionBytes,
+	MaxResultBytes:     labelevaluator.DefaultMaxResultBytes,
 }
 
 var configSetting = setting{flag: flagConfig, env: "KARTA_EXPORTER_CONFIG", usage: "Path to the exporter YAML config file."}
@@ -66,9 +60,9 @@ var configSetting = setting{flag: flagConfig, env: "KARTA_EXPORTER_CONFIG", usag
 var labelSettings = []setting{
 	{
 		flag: flagCostLimit,
-		env:  "KARTA_EXPORTER_LABEL_COST_LIMIT",
-		usage: fmt.Sprintf("CEL cost units one label evaluation may spend (default %d). Overrides labelLimits.costLimit.",
-			defaultLabelLimits.CostLimit),
+		env:  "KARTA_EXPORTER_GENERIC_LABEL_EVAL_COST_LIMIT",
+		usage: fmt.Sprintf("Cost units one generic label evaluation may spend (default %d). Overrides genericLabelEvaluationLimits.costLimit.",
+			defaultLabelEvaluationLimits.CostLimit),
 		apply: func(limits *labelevaluator.Limits, v string) (err error) {
 			limits.CostLimit, err = strconv.ParseUint(v, 10, 64)
 			return err
@@ -76,32 +70,21 @@ var labelSettings = []setting{
 	},
 	{
 		flag: flagMaxExpressionBytes,
-		env:  "KARTA_EXPORTER_LABEL_MAX_EXPRESSION_BYTES",
-		usage: fmt.Sprintf("Maximum length of the label expression (default %d). Overrides labelLimits.maxExpressionBytes.",
-			defaultLabelLimits.MaxExpressionBytes),
+		env:  "KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_EXPRESSION_BYTES",
+		usage: fmt.Sprintf("Maximum length in bytes of a generic label expression (default %d). Overrides genericLabelEvaluationLimits.maxExpressionBytes.",
+			defaultLabelEvaluationLimits.MaxExpressionBytes),
 		apply: func(limits *labelevaluator.Limits, v string) (err error) {
 			limits.MaxExpressionBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
 	{
-		flag: flagMaxValueBytes,
-		env:  "KARTA_EXPORTER_LABEL_MAX_VALUE_BYTES",
-		usage: fmt.Sprintf("Maximum length of an extracted label value (default %d). Overrides labelLimits.maxValueBytes.",
-			defaultLabelLimits.MaxValueBytes),
+		flag: flagMaxResultBytes,
+		env:  "KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_RESULT_BYTES",
+		usage: fmt.Sprintf("Maximum length in bytes of a generic label evaluation result (default %d). Overrides genericLabelEvaluationLimits.maxResultBytes.",
+			defaultLabelEvaluationLimits.MaxResultBytes),
 		apply: func(limits *labelevaluator.Limits, v string) (err error) {
-			limits.MaxValueBytes, err = strconv.Atoi(v)
-			return err
-		},
-	},
-	{
-		flag: flagInterruptCheckFrequency,
-		env:  "KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY",
-		usage: fmt.Sprintf("Comprehension iterations between cancellation checks; must be greater than 0 (default %d). Overrides labelLimits.interruptCheckFrequency.",
-			defaultLabelLimits.InterruptCheckFrequency),
-		apply: func(limits *labelevaluator.Limits, v string) error {
-			n, err := strconv.ParseUint(v, 10, 0)
-			limits.InterruptCheckFrequency = uint(n)
+			limits.MaxResultBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
@@ -121,7 +104,7 @@ func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader 
 // and then the flags, so a flag wins. Explicit flags win even when empty. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	cfg := Config{Config: labelresolver.Config{Limits: defaultLabelLimits}}
+	cfg := Config{Config: labelresolver.Config{Limits: defaultLabelEvaluationLimits}}
 
 	if path, _ := l.value(configSetting); path != "" {
 		data, err := os.ReadFile(path)
@@ -158,10 +141,7 @@ func (l *Loader) Load() (Config, error) {
 		}
 	}
 
-	if cfg.Limits.InterruptCheckFrequency == 0 {
-		return Config{}, errZeroInterruptCheckFrequency
-	}
-	if cfg.Limits.MaxExpressionBytes < 0 || cfg.Limits.MaxValueBytes < 0 {
+	if cfg.Limits.MaxExpressionBytes < 0 || cfg.Limits.MaxResultBytes < 0 {
 		return Config{}, labelevaluator.ErrNegativeLimit
 	}
 	if err := labelresolver.ValidateConfig(cfg.Config); err != nil {

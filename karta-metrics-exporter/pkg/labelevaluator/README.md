@@ -3,9 +3,9 @@
 
 # Label evaluator
 
-The compiler turns one CEL expression into an `Evaluator`. Pass a full Pod or
-workload object to `Evaluate` and get a string back. It reads the supplied object
-without changing it or calling Kubernetes.
+The compiler turns one CEL expression into an `Evaluator`. `Evaluate` receives
+a full Pod or workload as `*unstructured.Unstructured` and returns a string.
+It reads the supplied object without changing it or calling Kubernetes.
 
 ```go
 compiler := labelevaluator.NewCompiler()
@@ -37,11 +37,10 @@ exporter:
       expression: |
         has(object.metadata.labels) && "example.com/team" in object.metadata.labels
           ? object.metadata.labels["example.com/team"] : ""
-  labelLimits:
+  genericLabelEvaluationLimits:
     costLimit: 10000
     maxExpressionBytes: 4096
-    maxValueBytes: 1024
-    interruptCheckFrequency: 100
+    maxResultBytes: 1024
 ```
 
 `labelRules` defaults to `[]`. Rules target Pod info or workload status. A Pod
@@ -58,12 +57,10 @@ without the `exporter:` wrapper and pass `--config path.yaml`.
 | Config key | Flag | Environment variable |
 | --- | --- | --- |
 | Config path | `--config` | `KARTA_EXPORTER_CONFIG` |
-| `labelLimits.costLimit` | `--label-cost-limit` | `KARTA_EXPORTER_LABEL_COST_LIMIT` |
-| `labelLimits.maxExpressionBytes` | `--label-max-expression-bytes` | `KARTA_EXPORTER_LABEL_MAX_EXPRESSION_BYTES` |
-| `labelLimits.maxValueBytes` | `--label-max-value-bytes` | `KARTA_EXPORTER_LABEL_MAX_VALUE_BYTES` |
-| `labelLimits.interruptCheckFrequency` | `--label-interrupt-check-frequency` | `KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY` |
+| `genericLabelEvaluationLimits.costLimit` | `--generic-label-eval-cost-limit` | `KARTA_EXPORTER_GENERIC_LABEL_EVAL_COST_LIMIT` |
+| `genericLabelEvaluationLimits.maxExpressionBytes` | `--generic-label-eval-max-expression-bytes` | `KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_EXPRESSION_BYTES` |
+| `genericLabelEvaluationLimits.maxResultBytes` | `--generic-label-eval-max-result-bytes` | `KARTA_EXPORTER_GENERIC_LABEL_EVAL_MAX_RESULT_BYTES` |
 
 Explicit flags override environment variables, then YAML, then defaults. An empty
 numeric override is an error. `--config=""` skips a path set through the environment.
-Zero limits use compiler defaults, except an explicit zero interrupt frequency
-in configuration is rejected. Negative limits are rejected. Rules stay in YAML.
+Zero limits use compiler defaults. Negative limits are rejected. Rules stay in YAML.

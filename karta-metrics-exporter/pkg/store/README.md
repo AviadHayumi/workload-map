@@ -32,7 +32,9 @@ replaces the complete health list.
 - `Publish` replaces a root's complete publication. Do not mutate it afterward.
 - `Published` returns the immutable publication, or nil.
 - `RemovePublication` removes the root and its Pod rows. An absent UID is safe.
-- `SetPublicationFailure` sets a shared failure. An empty reason clears it.
+- `SetPublicationFailure` sets a shared failure for a key in
+  `Evidence.Dependencies`. An empty reason clears it. The key identifies a shared
+  dependency, such as a resource watch, rather than a workload UID.
 - `SetPublicationHealth` replaces the resource health list.
 - `Capture` returns a view that later writes cannot change.
 

@@ -10,7 +10,7 @@ pkgname: "{{.SrcPackageName}}"
 packages:
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory:
     interfaces:
-      Interface:
+      Reader:
         config:
           structname: MockInventory
           filename: inventory_mock.go

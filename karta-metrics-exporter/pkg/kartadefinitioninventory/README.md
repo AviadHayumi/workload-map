@@ -3,7 +3,7 @@
 
 # Karta definition inventory
 
-This package defines the definition lookup contract. Implementation follows.
+`Reader` defines the definition lookup contract. Implementation follows.
 `Lookup` selects for the observed root's group and kind.
 The returned `GVK` identifies the selected definition's API representation.
 A nil `Definition` with no error means confirmed absence after sources initialize.

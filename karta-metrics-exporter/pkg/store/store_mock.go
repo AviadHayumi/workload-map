@@ -133,8 +133,8 @@ func (_c *MockStore_Publish_Call) RunAndReturn(run func(publication *Publication
 }
 
 // Published provides a mock function for the type MockStore
-func (_mock *MockStore) Published(uID types.UID) *Publication {
-	ret := _mock.Called(uID)
+func (_mock *MockStore) Published(workloadUID types.UID) *Publication {
+	ret := _mock.Called(workloadUID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Published")
@@ -142,7 +142,7 @@ func (_mock *MockStore) Published(uID types.UID) *Publication {
 
 	var r0 *Publication
 	if returnFunc, ok := ret.Get(0).(func(types.UID) *Publication); ok {
-		r0 = returnFunc(uID)
+		r0 = returnFunc(workloadUID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*Publication)
@@ -157,12 +157,12 @@ type MockStore_Published_Call struct {
 }
 
 // Published is a helper method to define mock.On call
-//   - uID types.UID
-func (_e *MockStore_Expecter) Published(uID any) *MockStore_Published_Call {
-	return &MockStore_Published_Call{Call: _e.mock.On("Published", uID)}
+//   - workloadUID types.UID
+func (_e *MockStore_Expecter) Published(workloadUID any) *MockStore_Published_Call {
+	return &MockStore_Published_Call{Call: _e.mock.On("Published", workloadUID)}
 }
 
-func (_c *MockStore_Published_Call) Run(run func(uID types.UID)) *MockStore_Published_Call {
+func (_c *MockStore_Published_Call) Run(run func(workloadUID types.UID)) *MockStore_Published_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 types.UID
 		if args[0] != nil {
@@ -180,14 +180,14 @@ func (_c *MockStore_Published_Call) Return(publication *Publication) *MockStore_
 	return _c
 }
 
-func (_c *MockStore_Published_Call) RunAndReturn(run func(uID types.UID) *Publication) *MockStore_Published_Call {
+func (_c *MockStore_Published_Call) RunAndReturn(run func(workloadUID types.UID) *Publication) *MockStore_Published_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // RemovePublication provides a mock function for the type MockStore
-func (_mock *MockStore) RemovePublication(uID types.UID) {
-	_mock.Called(uID)
+func (_mock *MockStore) RemovePublication(workloadUID types.UID) {
+	_mock.Called(workloadUID)
 	return
 }
 
@@ -197,12 +197,12 @@ type MockStore_RemovePublication_Call struct {
 }
 
 // RemovePublication is a helper method to define mock.On call
-//   - uID types.UID
-func (_e *MockStore_Expecter) RemovePublication(uID any) *MockStore_RemovePublication_Call {
-	return &MockStore_RemovePublication_Call{Call: _e.mock.On("RemovePublication", uID)}
+//   - workloadUID types.UID
+func (_e *MockStore_Expecter) RemovePublication(workloadUID any) *MockStore_RemovePublication_Call {
+	return &MockStore_RemovePublication_Call{Call: _e.mock.On("RemovePublication", workloadUID)}
 }
 
-func (_c *MockStore_RemovePublication_Call) Run(run func(uID types.UID)) *MockStore_RemovePublication_Call {
+func (_c *MockStore_RemovePublication_Call) Run(run func(workloadUID types.UID)) *MockStore_RemovePublication_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 types.UID
 		if args[0] != nil {
@@ -220,14 +220,14 @@ func (_c *MockStore_RemovePublication_Call) Return() *MockStore_RemovePublicatio
 	return _c
 }
 
-func (_c *MockStore_RemovePublication_Call) RunAndReturn(run func(uID types.UID)) *MockStore_RemovePublication_Call {
+func (_c *MockStore_RemovePublication_Call) RunAndReturn(run func(workloadUID types.UID)) *MockStore_RemovePublication_Call {
 	_c.Run(run)
 	return _c
 }
 
 // SetPublicationFailure provides a mock function for the type MockStore
-func (_mock *MockStore) SetPublicationFailure(key string, reason string) {
-	_mock.Called(key, reason)
+func (_mock *MockStore) SetPublicationFailure(dependencyKey string, reason string) {
+	_mock.Called(dependencyKey, reason)
 	return
 }
 
@@ -237,13 +237,13 @@ type MockStore_SetPublicationFailure_Call struct {
 }
 
 // SetPublicationFailure is a helper method to define mock.On call
-//   - key string
+//   - dependencyKey string
 //   - reason string
-func (_e *MockStore_Expecter) SetPublicationFailure(key any, reason any) *MockStore_SetPublicationFailure_Call {
-	return &MockStore_SetPublicationFailure_Call{Call: _e.mock.On("SetPublicationFailure", key, reason)}
+func (_e *MockStore_Expecter) SetPublicationFailure(dependencyKey any, reason any) *MockStore_SetPublicationFailure_Call {
+	return &MockStore_SetPublicationFailure_Call{Call: _e.mock.On("SetPublicationFailure", dependencyKey, reason)}
 }
 
-func (_c *MockStore_SetPublicationFailure_Call) Run(run func(key string, reason string)) *MockStore_SetPublicationFailure_Call {
+func (_c *MockStore_SetPublicationFailure_Call) Run(run func(dependencyKey string, reason string)) *MockStore_SetPublicationFailure_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -266,7 +266,7 @@ func (_c *MockStore_SetPublicationFailure_Call) Return() *MockStore_SetPublicati
 	return _c
 }
 
-func (_c *MockStore_SetPublicationFailure_Call) RunAndReturn(run func(key string, reason string)) *MockStore_SetPublicationFailure_Call {
+func (_c *MockStore_SetPublicationFailure_Call) RunAndReturn(run func(dependencyKey string, reason string)) *MockStore_SetPublicationFailure_Call {
 	_c.Run(run)
 	return _c
 }

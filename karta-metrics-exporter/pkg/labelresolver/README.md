@@ -8,7 +8,8 @@ ordered sources and expression. `Dependencies.Compiler` supplies the compiler.
 `Config.Limits` supplies its evaluation bounds. The resolver will compile rules
 at construction.
 
-`Resolve` receives metric names, a workload object and an optional Pod object.
+`Resolve` receives metric names, an unstructured workload and an optional
+`*corev1.Pod`. Workloads can have any kind; Pods use the known Kubernetes type.
 It returns one `ResolvedMetricLabels` per metric, with values and per-label errors.
 Empty or failed values try the next source. Errors remain visible even when a
 fallback succeeds. A top-level error reports cancellation or invalid input.
@@ -24,3 +25,6 @@ configuration.
 
 `ValidateConfig` checks the rules at startup. Helm and the command accept the
 configuration. Source selection, fallback and caching are not implemented yet.
+The resolver implementation will convert the typed Pod to an unstructured object
+for the evaluator. The evaluator will continue to expose the selected source as
+`object` in CEL expressions.

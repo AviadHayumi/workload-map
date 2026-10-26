@@ -6,6 +6,7 @@ package labelresolver
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
@@ -20,7 +21,7 @@ type Resolver interface {
 type Input struct {
 	Metrics  []string
 	Workload *unstructured.Unstructured
-	Pod      *unstructured.Unstructured
+	Pod      *corev1.Pod
 }
 
 // ResolvedMetricLabels holds values and evaluation errors keyed by label name.
@@ -32,7 +33,7 @@ type ResolvedMetricLabels struct {
 
 type Config struct {
 	Rules  []LabelRule           `json:"labelRules" yaml:"labelRules"`
-	Limits labelevaluator.Limits `json:"labelLimits" yaml:"labelLimits"`
+	Limits labelevaluator.Limits `json:"genericLabelEvaluationLimits" yaml:"genericLabelEvaluationLimits"`
 }
 
 type LabelRule struct {

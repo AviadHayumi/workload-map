@@ -90,7 +90,7 @@ var _ = Describe("compile failures", func() {
 		{"expression default bound", Config{Expression: `"` + strings.Repeat("a", DefaultMaxExpressionBytes) + `"`}, ErrExpressionTooLong},
 		{"configured expression bound", Config{Expression: `"hello"`, Limits: Limits{MaxExpressionBytes: 4}}, ErrExpressionTooLong},
 		{"negative expression bound", Config{Limits: Limits{MaxExpressionBytes: -1}}, ErrNegativeLimit},
-		{"negative value bound", Config{Limits: Limits{MaxValueBytes: -1}}, ErrNegativeLimit},
+		{"negative value bound", Config{Limits: Limits{MaxResultBytes: -1}}, ErrNegativeLimit},
 	} {
 		It(tc.name, func() {
 			evaluator, err := NewCompiler().Compile(tc.cfg)
@@ -109,13 +109,13 @@ var _ = Describe("value limits", func() {
 		size, limit int
 		failed      bool
 	}{
-		{"default", DefaultMaxValueBytes + 1, 0, true},
+		{"default", DefaultMaxResultBytes + 1, 0, true},
 		{"configured", 5, 4, true},
-		{"raised", DefaultMaxValueBytes + 1, 2 * DefaultMaxValueBytes, false},
+		{"raised", DefaultMaxResultBytes + 1, 2 * DefaultMaxResultBytes, false},
 		{"boundary", 4, 4, false},
 	} {
 		It(tc.name, func(specCtx SpecContext) {
-			evaluator, err := NewCompiler().Compile(Config{Expression: `object.value`, Limits: Limits{MaxValueBytes: tc.limit}})
+			evaluator, err := NewCompiler().Compile(Config{Expression: `object.value`, Limits: Limits{MaxResultBytes: tc.limit}})
 			Expect(err).To(Succeed())
 			obj := &unstructured.Unstructured{Object: map[string]any{"value": strings.Repeat("a", tc.size)}}
 			value, err := evaluator.Evaluate(specCtx, obj)
@@ -142,7 +142,7 @@ var _ = Describe("cost limits", func() {
 })
 
 var _ = Describe("cancellation", func() {
-	It("honors canceled contexts, deadlines and evaluation interruptions", func(specCtx SpecContext) {
+	It("honors canceled contexts and deadlines", func(specCtx SpecContext) {
 		for _, expression := range []string{"", `object.kind`} {
 			evaluator, err := NewCompiler().Compile(Config{Expression: expression})
 			Expect(err).To(Succeed())
@@ -155,18 +155,18 @@ var _ = Describe("cancellation", func() {
 			_, err = evaluator.Evaluate(ctx, labelObject())
 			Expect(err).To(MatchError(context.DeadlineExceeded))
 		}
-		for _, frequency := range []uint{0, 1, 1000} {
-			evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
-			Expect(err).To(Succeed())
-			ctx, cancel := context.WithCancel(specCtx)
-			defer cancel()
-			timer := time.AfterFunc(5*time.Millisecond, cancel)
-			defer timer.Stop()
-			start := time.Now()
-			_, err = evaluator.Evaluate(ctx, labelObject())
-			Expect(err).To(MatchError(context.Canceled))
-			Expect(time.Since(start)).To(BeNumerically("<", time.Second))
-		}
+	})
+	It("interrupts evaluation with the internal cancellation interval", func(specCtx SpecContext) {
+		evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64}})
+		Expect(err).To(Succeed())
+		ctx, cancel := context.WithCancel(specCtx)
+		defer cancel()
+		timer := time.AfterFunc(5*time.Millisecond, cancel)
+		defer timer.Stop()
+		start := time.Now()
+		_, err = evaluator.Evaluate(ctx, labelObject())
+		Expect(err).To(MatchError(context.Canceled))
+		Expect(time.Since(start)).To(BeNumerically("<", time.Second))
 	})
 })
 

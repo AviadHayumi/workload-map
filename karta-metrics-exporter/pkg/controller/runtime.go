@@ -20,7 +20,7 @@ type Runner interface {
 
 type Dependencies struct {
 	Discovery    discovery.Discoverer
-	Inventory    inventory.Interface
+	Inventory    inventory.Reader
 	Labels       labelresolver.Resolver
 	Publications store.Writer
 }

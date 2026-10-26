@@ -27,8 +27,7 @@ type Config struct {
 
 // Limits bounds one expression. Zero selects the compiler default.
 type Limits struct {
-	CostLimit               uint64 `yaml:"costLimit" json:"costLimit"`
-	MaxExpressionBytes      int    `yaml:"maxExpressionBytes" json:"maxExpressionBytes"`
-	MaxValueBytes           int    `yaml:"maxValueBytes" json:"maxValueBytes"`
-	InterruptCheckFrequency uint   `yaml:"interruptCheckFrequency" json:"interruptCheckFrequency"`
+	CostLimit          uint64 `yaml:"costLimit" json:"costLimit"`
+	MaxExpressionBytes int    `yaml:"maxExpressionBytes" json:"maxExpressionBytes"`
+	MaxResultBytes     int    `yaml:"maxResultBytes" json:"maxResultBytes"`
 }

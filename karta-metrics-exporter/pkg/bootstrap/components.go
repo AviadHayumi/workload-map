@@ -26,7 +26,7 @@ var ErrNotImplemented = errors.New("exporter component is not implemented")
 var (
 	_ labelevaluator.Compiler  = (*labelevaluator.MockLabelCompiler)(nil)
 	_ otel.Collector           = (*otel.MockCollector)(nil)
-	_ inventory.Interface      = (*inventory.MockInventory)(nil)
+	_ inventory.Reader         = (*inventory.MockInventory)(nil)
 	_ discovery.Discoverer     = (*discovery.MockDiscovery)(nil)
 	_ discovery.ObjectReader   = (*discovery.MockObjectReader)(nil)
 	_ labelevaluator.Evaluator = (*labelevaluator.MockLabelEvaluator)(nil)
@@ -51,7 +51,7 @@ func New(labelConfig labelresolver.Config) app.Components {
 	return app.Components{Runtime: runtime, Store: publications, Collector: newCollector()}
 }
 
-func newInventory(_ inventory.Config) inventory.Interface {
+func newInventory(_ inventory.Config) inventory.Reader {
 	m := &inventory.MockInventory{}
 	m.EXPECT().Lookup(mock.Anything).Return(inventory.Selection{}, ErrNotImplemented)
 	return m

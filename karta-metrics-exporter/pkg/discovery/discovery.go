@@ -62,7 +62,7 @@ type ObjectReader interface {
 
 type Dependencies struct {
 	Reader    ObjectReader
-	Inventory inventory.Interface
+	Inventory inventory.Reader
 }
 
 var (
