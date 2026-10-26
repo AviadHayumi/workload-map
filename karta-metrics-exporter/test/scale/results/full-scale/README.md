@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8, 0.05 updates/s | 3 | 1 root / 100k Pods | PASS: every applicable gate | 27.513 s | 2.996 GB | p99 upper bound 2.472 s |
 | f868589a, harness b234bfc8 | 3 | 100k roots / 0 Pods | FAIL: heap growth 5.651% exceeds 5% | 50.044 s | 6.291 GB | p99 upper bound 0.314 s |
 | f868589a, harness b234bfc8, tuned 100/200 | 3 | 100k roots / 10 Pods | FAIL: RSS cap before cold convergence | Incomplete | 17.254 GB | Not reached |
 | f868589a, harness b234bfc8, default 20/40 | 3 | 100k roots / 10 Pods | FAIL: Pod source unsynced at cold deadline | >300 s | 10.788 GB | Not reached |
@@ -17,8 +18,44 @@
 | 535c5e93 | 2 | 100k roots / 0 Pods | PASS: every applicable gate | 47.924 s | 6.302 GB | p99 upper bound 0.919 s |
 
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
-where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
-established. Earlier raw results and their interpretations remain below.
+where explicitly shown. No protocol-3 zero-Pod or dense pass is established. The giant-root pass uses
+its separately declared shape and rate. Earlier raw results and their interpretations remain below.
+
+## One root / 100k Pods: full giant-root pass
+
+Runtime `f868589a`, harness `b234bfc8` and the immutable binary were unchanged.
+The separately declared giant-root profile uses one Job with 100,000 Pods,
+0.05 root updates/s (one every 20 seconds), and 15 verified updates over a
+300-second window. It passed all stages and all ten measured gates with no
+continuity gaps or intermediate WATCH. Raw report, log and host context use
+prefix `f868589a-b234bfc8-giant-1-100000`.
+
+| Measurement | Result |
+| --- | ---: |
+| Cold convergence | 27.513 s |
+| Full lifecycle elapsed | 593.103 s |
+| Peak sampled RSS | 2,995,781,632 bytes |
+| Emitted / verified updates | 15 / 15 |
+| Verified publication p99 / maximum | 2.472 / 2.472 s |
+| Actual emission rate | 0.049999 events/s |
+| Maximum scheduler lateness | 8.80 ms |
+| Queue drain | 0.285 s |
+| Post-GC sampling coverage / growth | 210.133 s / -1.223% |
+| Maximum completed HTTP transfer / oracle | 1.382 / 1.374 s |
+| Final delete-all convergence | 6.771 s |
+| Post-delete heap | 62,752,200 bytes |
+
+Settings retained 20 QPS/burst 40, two workers, 45-second refresh, 120-second
+maximum age, GOMAXPROCS=4, 8 GiB RSS, 6 GiB GOMEMLIMIT, 180-second cold/stage
+bound, 25-second HTTP target, 60-second oracle deadline, 15-second publication
+limit, 30-second drain and the prospective 1,800-second aggregate guard.
+All four kind nodes were stopped and no other heavy work ran.
+
+This measures whole-root recomputation at the stated rate. It does not imply
+100 independently changing workloads/s or capacity for 100,000 dense roots.
+The empirical p99 from only 15 samples equals the maximum sample and does not
+establish a population tail-latency confidence interval. Dense and zero-Pod
+failures remain separate results below.
 
 ## 100k roots / zero Pods: current-source heap gate failure
 

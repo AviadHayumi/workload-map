@@ -12,8 +12,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
 - [Current 100k-root outcomes](results/full-scale/README.md): `f868589a` with
   harness `b234bfc8` passed every one-Pod gate. The current zero-Pod run passed
   correctness but failed heap growth (5.651% versus 5%). Default dense failed
-  cold convergence; separately tuned dense exceeded 16 GiB RSS. Giant-root is
-  pending. Earlier source/protocol outcomes and all failures remain preserved.
+  cold convergence; separately tuned dense exceeded 16 GiB RSS. The separately
+  declared giant-root profile passed at 0.05 updates/s. Earlier source/protocol
+  outcomes and all failures remain preserved.
 
 - [Fixture contention diagnostic](results/fixture-capacity/README.md): bounded
   before/after tests remove proven API-lock and WATCH-scan overhead. Both sustain
