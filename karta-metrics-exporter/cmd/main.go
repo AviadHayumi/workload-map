@@ -16,11 +16,11 @@ import (
 
 	"go.opentelemetry.io/otel/metric/noop"
 
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/app"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/config"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/scaffold"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 )
 

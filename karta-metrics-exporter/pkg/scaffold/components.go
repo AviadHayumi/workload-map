@@ -10,9 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold/mocks"
 	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
@@ -25,15 +24,15 @@ var ErrNotImplemented = errors.New("exporter component is not implemented")
 
 // Keep generated mocks checked against their contracts even before implementations exist.
 var (
-	_ labelevaluator.Compiler  = (*mocks.LabelCompiler)(nil)
-	_ collector.Registrar      = (*mocks.Registrar)(nil)
-	_ inventory.Interface      = (*mocks.Inventory)(nil)
-	_ discovery.Discoverer     = (*mocks.Discovery)(nil)
-	_ discovery.ObjectReader   = (*mocks.ObjectReader)(nil)
-	_ labelevaluator.Evaluator = (*mocks.LabelEvaluator)(nil)
-	_ labelresolver.Resolver   = (*mocks.LabelResolver)(nil)
-	_ store.Interface          = (*mocks.Store)(nil)
-	_ controller.Runner        = (*mocks.Runtime)(nil)
+	_ labelevaluator.Compiler  = (*labelevaluator.MockLabelCompiler)(nil)
+	_ collector.Registrar      = (*collector.MockRegistrar)(nil)
+	_ inventory.Interface      = (*inventory.MockInventory)(nil)
+	_ discovery.Discoverer     = (*discovery.MockDiscovery)(nil)
+	_ discovery.ObjectReader   = (*discovery.MockObjectReader)(nil)
+	_ labelevaluator.Evaluator = (*labelevaluator.MockLabelEvaluator)(nil)
+	_ labelresolver.Resolver   = (*labelresolver.MockLabelResolver)(nil)
+	_ store.Interface          = (*store.MockStore)(nil)
+	_ controller.Runner        = (*controller.MockRuntime)(nil)
 )
 
 // New is the temporary composition root. Replace the factories here as components land.
@@ -53,47 +52,47 @@ func New(labelConfig labelresolver.Config) app.Components {
 }
 
 func newInventory(_ inventory.Config) inventory.Interface {
-	m := &mocks.Inventory{}
+	m := &inventory.MockInventory{}
 	m.EXPECT().Lookup(mock.Anything).Return(inventory.Selection{}, ErrNotImplemented)
 	return m
 }
 
 func newObjectReader() discovery.ObjectReader {
-	m := &mocks.ObjectReader{}
+	m := &discovery.MockObjectReader{}
 	m.EXPECT().Cached(mock.Anything).Return(nil, false)
 	m.EXPECT().GetMetadata(mock.Anything, mock.Anything).Return(nil, ErrNotImplemented)
 	return m
 }
 
 func newDiscovery(_ discovery.Dependencies) discovery.Discoverer {
-	m := &mocks.Discovery{}
+	m := &discovery.MockDiscovery{}
 	m.EXPECT().Get(mock.Anything, mock.Anything).Return(discovery.Result{}, ErrNotImplemented)
 	return m
 }
 
 func newCompiler() labelevaluator.Compiler {
-	compiler := &mocks.LabelCompiler{}
-	m := &mocks.LabelEvaluator{}
+	compiler := &labelevaluator.MockLabelCompiler{}
+	m := &labelevaluator.MockLabelEvaluator{}
 	m.EXPECT().Evaluate(mock.Anything, mock.Anything).Return("", ErrNotImplemented)
 	compiler.EXPECT().Compile(mock.Anything).Return(m, nil)
 	return compiler
 }
 
 func newLabelResolver(_ labelresolver.Config, _ labelresolver.Dependencies) labelresolver.Resolver {
-	m := &mocks.LabelResolver{}
+	m := &labelresolver.MockLabelResolver{}
 	m.EXPECT().Resolve(mock.Anything, mock.Anything).Return(nil, ErrNotImplemented)
 	return m
 }
 
 func newStore(_ store.Options) store.Interface {
-	m := &mocks.Store{}
+	m := &store.MockStore{}
 	m.EXPECT().Capture().Return(store.CapturedView{})
 	// Writes are deliberately unconfigured: a real worker must use a real Store.
 	return m
 }
 
 func newRuntime(_ controller.Dependencies) controller.Runner {
-	m := &mocks.Runtime{}
+	m := &controller.MockRuntime{}
 	m.EXPECT().Run(mock.Anything).RunAndReturn(func(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
@@ -102,7 +101,7 @@ func newRuntime(_ controller.Dependencies) controller.Runner {
 }
 
 func newRegistrar() collector.Registrar {
-	m := &mocks.Registrar{}
+	m := &collector.MockRegistrar{}
 	m.EXPECT().Register(mock.Anything, mock.Anything).RunAndReturn(
 		func(meter metric.Meter, _ collector.Capturer) (metric.Registration, error) {
 			return meter.RegisterCallback(func(context.Context, metric.Observer) error { return nil })

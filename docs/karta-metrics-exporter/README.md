@@ -3,10 +3,15 @@
 
 # Karta metrics exporter queries
 
-These examples use the metric contract in the
+These examples use the proposed metric contract in the
 [Karta metrics exporter proposal](../../keps/0001-metrics-exporter/README.md).
 They show Pod attribution, workload age, component resource usage and low observed
 GPU activity. Low activity alone does not prove idleness.
+
+See the [exporter README](../../karta-metrics-exporter/README.md) for its purpose,
+build and run commands, and current implementation limits. The
+[configuration reference](configuration.md) covers deployment settings and links
+to the supported label configuration.
 
 ## Current observations and workload age
 

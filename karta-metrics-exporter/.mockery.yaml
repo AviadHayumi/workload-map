@@ -3,57 +3,58 @@
 
 template: testify
 template-data:
+  # Mockery v3.8.1 reads the required license header from a file.
   boilerplate-file: mockery-header.txt
-dir: internal/scaffold/mocks
-pkgname: mocks
+dir: "{{.InterfaceDir}}"
+pkgname: "{{.SrcPackageName}}"
 packages:
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory:
     interfaces:
       Interface:
         config:
-          structname: Inventory
+          structname: MockInventory
           filename: inventory_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery:
     interfaces:
       Discoverer:
         config:
-          structname: Discovery
+          structname: MockDiscovery
           filename: discovery_mock.go
       ObjectReader:
         config:
-          structname: ObjectReader
+          structname: MockObjectReader
           filename: object_reader_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator:
     interfaces:
       Compiler:
         config:
-          structname: LabelCompiler
+          structname: MockLabelCompiler
           filename: label_compiler_mock.go
       Evaluator:
         config:
-          structname: LabelEvaluator
+          structname: MockLabelEvaluator
           filename: label_evaluator_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver:
     interfaces:
       Resolver:
         config:
-          structname: LabelResolver
+          structname: MockLabelResolver
           filename: label_resolver_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store:
     interfaces:
       Interface:
         config:
-          structname: Store
+          structname: MockStore
           filename: store_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller:
     interfaces:
       Runner:
         config:
-          structname: Runtime
+          structname: MockRuntime
           filename: runtime_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel:
     interfaces:
       Registrar:
         config:
-          structname: Registrar
+          structname: MockRegistrar
           filename: registrar_mock.go

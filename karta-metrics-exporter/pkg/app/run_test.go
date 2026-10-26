@@ -13,9 +13,10 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/app"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/scaffold/mocks"
 	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/app"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
 type registration struct {
@@ -47,8 +48,8 @@ var _ = Describe("App lifecycle", func() {
 		{name: "missing registration", nilRegistration: true},
 	} {
 		It(tc.name, func(ctx SpecContext) {
-			publications := mocks.NewStore(GinkgoT())
-			runtime := mocks.NewRuntime(GinkgoT())
+			publications := store.NewMockStore(GinkgoT())
+			runtime := controller.NewMockRuntime(GinkgoT())
 
 			reg := &registration{err: tc.cleanupError}
 			registered := false
@@ -57,7 +58,7 @@ var _ = Describe("App lifecycle", func() {
 					Expect(registered).To(BeTrue())
 				}).Return(tc.runtimeError).Once()
 			}
-			registrar := mocks.NewRegistrar(GinkgoT())
+			registrar := collector.NewMockRegistrar(GinkgoT())
 			registrar.EXPECT().Register(mock.Anything, publications).RunAndReturn(
 				func(_ metric.Meter, source collector.Capturer) (metric.Registration, error) {
 					Expect(source).To(BeIdenticalTo(publications))
