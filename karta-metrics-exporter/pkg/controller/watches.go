@@ -133,7 +133,7 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 		namespace := root.Namespace
 		if r.config.NamespaceSelector == nil {
 			namespace = ""
-		} else if namespace != "" && !containsNamespace(namespaces, namespace) {
+		} else if namespace != "" && !slices.Contains(namespaces, namespace) {
 			r.mu.Lock()
 			r.removeRoot(root.UID)
 			r.mu.Unlock()
@@ -240,15 +240,6 @@ func (r *Runtime) retireWatchObjectsLocked(w *resourceWatch) {
 		r.deleteObjectLocked(ref)
 	}
 	r.deps.Publications.RetirePublicationFailure(w.failureKey)
-}
-
-func containsNamespace(values []string, value string) bool {
-	for _, candidate := range values {
-		if candidate == value {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, discover bool) (watchKey, error) {
