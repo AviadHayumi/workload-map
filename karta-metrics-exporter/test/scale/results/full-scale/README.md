@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8, default 20/40 | 3 | 100k roots / 10 Pods | FAIL: Pod source unsynced at cold deadline | >300 s | 10.788 GB | Not reached |
 | f868589a, harness b234bfc8, guard 1800 s | 3 | 100k roots / 1 Pod | PASS: every applicable gate | 157.490 s | 7.573 GB | p99 upper bound 1.570 s |
 | f868589a, harness b234bfc8 | 3 | 100k roots / 1 Pod | FAIL: total wall cap during final deletion; churn gates pass | 159.976 s | 7.552 GB | p99 upper bound 1.531 s |
 | f868589a, harness 0ed1594b | 3 | 100k roots / 1 Pod | FAIL: emitter scheduling delay at 232 s churn | 178.716 s | 7.441 GB | Partial max 2.319 s; full p99 unverified |
@@ -16,6 +17,48 @@
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
 where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
 established. Earlier raw results and their interpretations remain below.
+
+## 100k roots / ten Pods: default API budget cold failure
+
+The predeclared default dense profile used runtime `f868589a`, harness `b234bfc8`,
+and the same immutable binary as the one-Pod pass. API budget remained 20 QPS
+with burst 40 and two workers. Other settings were 500-item pages, 45-second
+refresh, 120-second maximum evidence age, GOMAXPROCS=4, 16 GiB RSS cap,
+12 GiB GOMEMLIMIT, 300-second stage bound, 120-second oracle deadline and the
+prospective 1,800-second aggregate guard. No heap profiling was enabled.
+Raw report, log and host context use prefix
+`f868589a-b234bfc8-default-100000-10`.
+
+Cold startup failed to converge within 300 seconds. Total elapsed was 300.489 s.
+All 100,000 workload creation rows and 900,000 phase rows were present, but
+all 1,000,000 Pod mappings were missing. The Pod resource health row reported
+`api_unavailable`. No Pod WATCH or intermediate-owner API request had begun.
+Peak sampled RSS was 10,787,831,808 bytes, below the 16 GiB bound.
+
+| API request/representation | Pages or calls | Objects returned |
+| --- | ---: | ---: |
+| Pods full LIST | 2,080 | 1,040,000 |
+| Pods metadata LIST | 2,146 | 1,073,000 |
+| Jobs full LIST | 200 | 100,000 |
+| Jobs metadata LIST | 1,600 | 800,000 |
+| Namespace metadata LIST | 8 | 8 |
+| All requests, including discovery/WATCH | 6,049 | - |
+
+Only Namespace and Job metadata collections completed. The final source queue
+had four pending entries and two active workers; the longest completed source
+operation was 120.001 seconds. Root and object queues were empty. These facts
+are consistent with source synchronization constrained by the shared API
+budget and whole-round deadline. They do not isolate all CPU/network costs.
+The predeclared steady-state floor is 2,401 pages per refresh round; the separate
+[tuned profile](../../runtime-scale.md#dense-default-and-tuned-api-profiles)
+changes only the API budget and cannot reclassify this failure.
+
+No steady scrape, churn, publication latency, heap-window or lifecycle gate was
+reached. The report's HTTP/oracle gate booleans are false because they require
+at least one complete scrape. They do not show a timing overrun: the final
+incomplete scrape used 11.256 s HTTP and 8.543 s oracle time. No tuned run is
+included in this result. All four kind nodes were stopped and no concurrent
+heavy work ran.
 
 ## 100k roots / one Pod: full lifecycle pass with prospective guard
 
