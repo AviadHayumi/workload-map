@@ -212,6 +212,25 @@ var _ = Describe("Inventory", func() {
 			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
 		})
 
+		It("serves the next oldest cluster Karta for a kind once the winner is deleted, not the catalog", func() {
+			resource := client.Resource(kartasGVR)
+			newer := newKarta("cluster-job-newer", jobGVK.GroupKind().WithVersion("v2"), fromCluster("uid-3", "1"), createdAt(epoch))
+			_, err := resource.Create(context.Background(), unstructuredKarta(newer), metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			start(inventory)
+			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+			Expect(lookupOrigin(inventory, jobGVK).Name).To(Equal("cluster-job"))
+
+			Expect(resource.Delete(context.Background(), "cluster-job", metav1.DeleteOptions{})).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				sel, err := inventory.Lookup(jobGVK)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(sel.Origin).To(Equal(Origin{Source: SourceCluster, Name: "cluster-job-newer", UID: "uid-3", ResourceVersion: "1"}))
+				g.Expect(sel.GVK.Version).To(Equal("v2"))
+			}, eventuallyTimeout, eventuallyInterval).Should(Succeed())
+		})
+
 		It("reports an invalid cluster winner without falling back", func() {
 			start(inventory)
 			Eventually(inventory.Ready, eventuallyTimeout, eventuallyInterval).Should(Succeed())
