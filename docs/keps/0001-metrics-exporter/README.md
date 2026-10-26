@@ -7,7 +7,7 @@
 - Authors: @AviadHayumi
 - Issue: https://github.com/dsx-ai-factory/workload-map/issues/343
 - Created: 2026-10-12
-- Last updated: 2026-10-19
+- Last updated: 2026-10-25
 
 ## Summary
 
@@ -32,10 +32,11 @@ Examples:
 - LWS: find a quiet worker group hidden by the workload average.
 - Workload state: see Running, Failed or Degraded workloads and their observed history.
 
-See [queries](../../docs/karta-metrics-exporter/README.md) for CPU, memory and GPU
-joins, and [configuration](../../docs/karta-metrics-exporter/configuration.md) for
+See [queries](../../karta-metrics-exporter/README.md) for CPU, memory and GPU
+joins, and [configuration](../../karta-metrics-exporter/configuration.md) for
 Helm, selection and metric delivery.
-[Implementation design](../../docs/design/metrics-exporter/README.md): TBD.
+See the [implementation design](../../design/metrics-exporter/README.md) for
+runtime ownership and verification.
 
 ## Metrics
 
@@ -67,10 +68,10 @@ karta_exporter_observation_valid{scope="resource_type",namespace="team-a",resour
 
 ### Labels
 
-| Metric | All exporter-defined labels |
+| Metric | Built-in labels |
 | --- | --- |
-| `karta_pod_workload_info` | `namespace`, `workload_name`, `workload_group`, `workload_version`, `workload_kind`, `workload_uid`, `owner_resolution`, `pod_name`, `pod_uid`, `component`, `component_instance`, `replica_group_id`, `observation_valid`, optional `submitted_by` |
-| `karta_workload_status` | `namespace`, `workload_name`, `workload_group`, `workload_version`, `workload_kind`, `workload_uid`, `phase`, `owner_resolution`, `karta`, `karta_source`, `observation_valid`, optional `submitted_by` |
+| `karta_pod_workload_info` | `namespace`, `workload_name`, `workload_group`, `workload_version`, `workload_kind`, `workload_uid`, `owner_resolution`, `pod_name`, `pod_uid`, `component`, `component_instance`, `replica_group_id`, `observation_valid` |
+| `karta_workload_status` | `namespace`, `workload_name`, `workload_group`, `workload_version`, `workload_kind`, `workload_uid`, `phase`, `owner_resolution`, `karta`, `karta_source`, `observation_valid` |
 | `karta_workload_created_timestamp_seconds` | `namespace`, `workload_name`, `workload_uid` |
 | `karta_exporter_observation_valid` | `scope`, `namespace`, `resource_group`, `resource_version`, `resource_kind`, `workload_name`, `workload_uid`, `reason` |
 
@@ -90,7 +91,6 @@ karta_exporter_observation_valid{scope="resource_type",namespace="team-a",resour
 | `phase` | Status | Evaluated workload phase; its series value is `1` when matched and `0` otherwise. | `Running` |
 | `owner_resolution` | Pod info, Status | `resolved` after verifying the chain; `ignored_owner` at an intentional boundary; `unknown` when owner resolution fails, including denied reads. Failure reasons are reported by Health. | `unknown` after a denied owner read. |
 | `observation_valid` | Pod info, Status | `"true"` while the verification required for this observation is valid; `"false"` for a retained cached observation after failure or expiry. | `true` |
-| `submitted_by` | Pod info, Status | Optional submitter identity; see [Who submitted the workload](#who-submitted-the-workload). | `alice` |
 | `karta` | Status | Name of the selected Karta definition. | `jobset-x-k8s-io-jobset-v1alpha2` |
 | `karta_source` | Status | Origin of that definition: `catalog` for a built-in definition or `cluster` for a Karta custom resource. | `catalog` |
 | `scope` | Health | `resource_type` reports collection health per namespace + GVK, including before object names are known; it does not certify each workload evaluation. `workload` reports failures affecting a known workload; no healthy workload row is emitted. | `workload` |
@@ -130,52 +130,15 @@ Examples of component attribution:
 | LWS, worker in group 0            | `worker`        | empty                  | `0`                |
 | LWS, worker in group 1            | `worker`        | empty                  | `1`                |
 
-## Who submitted the workload
+## Configured metric labels
 
-### Directly apply to Kubernetes
-
-Submitter capture is separate from the exporter and Karta operator. Helm installs
-`MutatingAdmissionPolicy` (MAP) and `ValidatingAdmissionPolicy` (VAP), with their
-bindings. Both policies run inside the Kubernetes API server.
-
-```yaml
-submitterAdmission:
-  enabled: true
-```
-
-When `kubectl apply` creates a workload within capture scope, MAP records the
-authenticated caller in `karta.run.ai/submitted-by`. VAP rejects a different
-identity supplied on CREATE. Captured identity must stay protected on UPDATE,
-even after capture scope narrows. The caller can be a service account.
-
-Kubernetes feature versions:
-
-| Policy | Alpha from | Beta from | Stable from |
-| --- | --- | --- | --- |
-| [MAP](https://github.com/kubernetes/enhancements/issues/3962) | 1.32 | 1.34 | 1.36 |
-| [VAP](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates-removed/) | 1.26 | 1.28 | 1.30 |
-
-### Extract with your own logic
-
-`submittedByExpression` runs inside the exporter on the root workload and its
-attributed Pods. It reads labels and annotations without changing the objects.
-
-```yaml
-exporter:
-  attribution:
-    submittedByExpression: |
-      ("karta.run.ai/submitted-by" in annotations &&
-       annotations["karta.run.ai/submitted-by"] != "")
-        ? annotations["karta.run.ai/submitted-by"]
-        : ("example.com/submitted-by" in labels
-            ? labels["example.com/submitted-by"]
-            : "")
-```
-
-Pod and workload metrics share `submitted_by` when evaluation succeeds and
-nonempty identities agree. Missing, conflicting or unverified identity leaves it
-empty; disabling attribution omits the label. CEL does not authenticate identity.
+`exporter.metricLabels` adds labels using CEL expressions over a resolved workload
+root or Pod. For example, a `team` label can read the root first and fall back to
+the Pod. Rules select metrics, source order and evaluation events without changing
+Kubernetes objects. See [metric label configuration](../../karta-metrics-exporter/configuration.md#metric-labels)
+for the input object, evaluation modes and cache lifetime.
 
 ## History
 
-- 2026-10-12 to 2026-10-19: Defined workload metrics, selection and submitter attribution; separated configuration and query examples into linked guides.
+- 2026-10-12 to 2026-10-19: Defined workload metrics and selection; separated configuration and query examples into linked guides.
+- 2026-10-25: Added generic metric labels and defined watches for Pods, selected workload kinds and discovered roots. Intermediate owners use metadata reads and periodic revalidation.

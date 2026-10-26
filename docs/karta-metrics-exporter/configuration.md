@@ -3,7 +3,7 @@
 
 # Karta metrics exporter configuration
 
-Proposed configuration for [KEP-0001](../../keps/0001-metrics-exporter/README.md).
+Proposed configuration for [KEP-0001](../keps/0001-metrics-exporter/README.md).
 The exporter runs separately from the Karta controller. Helm configures its
 definitions, observation scope and metric delivery.
 
@@ -56,7 +56,7 @@ exporter:
       - key: kubernetes.io/metadata.name
         operator: NotIn
         values: [kube-system, karta-system] # Skip these system namespaces.
-  # Match the workload root's metadata.labels; keep owner dependencies watched.
+  # Match the workload root's metadata.labels; retain owner reads for traversal.
   objectSelector: # Default null or {}: all resolved workload roots.
     matchExpressions:
       - key: example.com/purpose
@@ -104,8 +104,7 @@ Use [Kubernetes label selectors](https://kubernetes.io/docs/concepts/overview/wo
 to match each object's own labels. All conditions must match; `NotIn` also matches
 missing labels.
 
-Namespace selection limits watches. All Pods and required owners in those
-namespaces stay watched, including Jobs owned by a JobSet.
+Namespace selection limits watches and owner reads to the selected namespaces.
 
 `objectSelector` selects workload roots. `podSelector` selects Pod rows; both must
 match for a Pod row to appear. Workload status covers the full workload; joined
@@ -114,6 +113,22 @@ treating its children as new roots.
 
 Scope changes remove rows outside the selection. A failed refresh never expands
 the scope.
+
+### Watches and owner reads
+
+The runtime always watches Pods in selected namespaces. It starts watches for
+workload kinds selected by Karta definitions so workloads with no Pods are found.
+Resolving a Pod also starts a shared watch for its root resource and namespace
+when no watch already covers them. This applies even without a Karta definition.
+
+Intermediate owners use metadata GETs and a shared cache. Traversing
+Pod -> Job -> JobSet does not start a Job watch. Jobs can still be watched when
+selected by a Karta definition or discovered as roots elsewhere.
+
+Pod and root events trigger reconciliation. Periodic revalidation checks the
+intermediate owners and renews verification. An intermediate change can remain
+undetected until that check or another reconciliation. Failed checks or expired
+verification invalidate dependent observations; a scrape does not renew them.
 
 ### Workload API types
 
@@ -160,58 +175,71 @@ A Karta definition on an intermediate owner does not by itself stop the walk.
 An ignored owner can still be selected independently. `requiredKinds` checks
 remain active; failed checks invalidate dependent observations.
 
-## Submitter admission
+## Metric labels
 
-`submitterAdmission` captures direct Kubernetes callers. Exporter CEL extraction
-is configured separately, as shown in [Who submitted the workload](../../keps/0001-metrics-exporter/README.md#who-submitted-the-workload).
-
-Capture uses `MutatingAdmissionPolicy` and `ValidatingAdmissionPolicy` with their
-bindings. Both run in the API server without a Karta operator. MAP is
-[stable in Kubernetes 1.36+](https://kubernetes.io/docs/reference/access-authn-authz/mutating-admission-policy/);
-[1.34-1.35 requires beta feature/API enablement](https://v1-35.docs.kubernetes.io/docs/reference/access-authn-authz/mutating-admission-policy/).
-VAP is [stable since 1.30](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/).
-The chart rejects capture if required APIs are unavailable.
-
-This example captures Deployments and Jobs in opted-in namespaces:
+`metricLabels` adds labels to selected metrics with CEL expressions. This rule
+reads a team from the resolved workload root, then falls back to the attributed Pod:
 
 ```yaml
-submitterAdmission:
-  enabled: true
-  matchConstraints:
-    namespaceSelector:
-      matchLabels:
-        karta.run.ai/capture-submitter: "true"
-      matchExpressions:
-        - key: kubernetes.io/metadata.name
-          operator: NotIn
-          values: [kube-system, karta-system]
-    resourceRules:
-      - operations: ["CREATE"]
-        apiGroups: ["apps"]
-        apiVersions: ["v1"]
-        resources: ["deployments"]
-        scope: Namespaced
-      - operations: ["CREATE"]
-        apiGroups: ["batch"]
-        apiVersions: ["v1"]
-        resources: ["jobs"]
-        scope: Namespaced
-    excludeResourceRules: []
-  matchConditions: [] # Optional CEL conditions on the admission request.
+exporter:
+  metricLabels:
+    team:
+      metrics: [karta_pod_workload_info]
+      sources: [workload, pod]
+      expression: |
+        has(object.metadata.labels) && "example.com/team" in object.metadata.labels
+          ? object.metadata.labels["example.com/team"] : ""
+      evaluation:
+        events: [create, update]
+        mode: continuous
 ```
 
-Capture follows [native Kubernetes matching](https://github.com/kubernetes/kubernetes/blob/v1.36.0/staging/src/k8s.io/api/admissionregistration/v1/types.go#L554-L642).
-Rules select namespaced CREATE requests. Exclusions win and all conditions must
-pass. An empty namespace selector matches all namespaces. Direct Pod capture uses
-group `""`, version `v1`, resource `pods`. These settings do not filter exporter watches.
+`object` is the full source object, including `apiVersion`, `kind`, metadata,
+spec and status when present. For a Pod owned by JobSet `train`, the evaluator
+first receives that JobSet. Its relevant fields are:
 
-Mutation fills a missing `karta.run.ai/submitted-by` annotation. Within capture
-scope, CREATE validation rejects a supplied value that differs from the caller.
-Captured identity must stay protected from UPDATE overrides or removal, including
-after capture scope narrows. The exact UPDATE matching rules are TBD in the
-[implementation design](../design/metrics-exporter/README.md).
-Administrators control namespace labels and policy settings. Policies use
-`failurePolicy: Fail`; validation bindings use `validationActions: [Deny]`.
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: train
+  namespace: team-a
+  labels:
+    example.com/team: research
+```
+
+The expression returns `"research"`, adding `team="research"` to the Pod's
+`karta_pod_workload_info` row. Sources run in order until one returns a nonempty
+string. An empty result or evaluation error tries the next source. Errors are
+reported without dropping the base metric. If every source fails or is empty,
+the rule has no value.
+
+The evaluator compiles each expression once. Runtime manages source order,
+events and cached values. Initial discovery evaluates existing objects. Later
+evaluations follow `evaluation.events`. A root update can refresh labels on its
+Pods even if those Pods did not change. Collection reads saved labels without
+running CEL.
+
+| Mode | Behavior |
+| --- | --- |
+| `continuous` (default) | Replace the value on each configured event. Remove it if no source returns a value. |
+| `untilValue` | Retry until a nonempty value is found, then keep it. Requires update events. A Pod fallback stays fixed even if the root later gets a value. |
+
+Cache values per metric, subject UID and label name. Clear them on deletion,
+leaving scope, a changed workload association or changed configuration. Restart
+rebuilds the cache.
+
+A rule with a Pod source can target only `karta_pod_workload_info`. Workload-only
+rules can also target `karta_workload_status`. No arbitrary Pod supplies labels
+for a workload metric. Rules use the existing watch scope; full source objects
+are fetched when the watch cache contains only metadata.
+
+`metricLabels` defaults to `{}`. Events default to `[create, update]`. Invalid
+configuration fails startup. Statically known non-string expressions are rejected;
+dynamic results are checked during evaluation. Built-in labels and reserved Prometheus/OTel names
+cannot be replaced. Each expression is limited to 8 KiB, each evaluation to 10,000 CEL cost units,
+and each value to 512 bytes. Exceeding a limit is an error. Each new
+label value can create another time series.
 
 ## Metric delivery
 
@@ -226,7 +254,7 @@ from other exporters; the [query guide](README.md) shows how to join them.
 
 ### Prometheus
 
-![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../../keps/0001-metrics-exporter/metrics-architecture.png)
+![Karta provides workload identity; Prometheus joins it with resource measurements for dashboards and other consumers.](../keps/0001-metrics-exporter/metrics-architecture.png)
 
 `serviceMonitor.enabled: true` creates a ServiceMonitor. Its CRD must be installed
 and the Prometheus selector must match it. The Prometheus Operator turns it into
@@ -283,8 +311,11 @@ freshness.
 
 The main Helm example includes `rbac.workloadRules`. These rules use API groups
 and plural resource names, as in Kubernetes RBAC. The chart supplies `get`, `list`
-and `watch`: read one owner, list existing objects and receive updates. API versions
-are selected by `resourceRules`, not RBAC.
+and `watch` for every listed resource. These grants remain broader than runtime
+use: intermediate owners need metadata GETs for traversal, while selected
+workload kinds and discovered roots also use LIST/WATCH. See
+[watches and owner reads](#watches-and-owner-reads). API versions are selected by
+`resourceRules`, not RBAC.
 
 Include the root and every intermediate owner needed for attribution:
 
@@ -293,7 +324,7 @@ Include the root and every intermediate owner needed for attribution:
 | Deployment | `apps`: `deployments`, `replicasets` | Pods belong to ReplicaSets, which belong to the Deployment. |
 | JobSet | `jobset.x-k8s.io`: `jobsets`; `batch`: `jobs` | Jobs connect the Pods to the JobSet. |
 | LeaderWorkerSet | `leaderworkerset.x-k8s.io`: `leaderworkersets`; `apps`: `statefulsets` | StatefulSets connect the Pods to the LeaderWorkerSet. |
-| RayJob | `ray.io`: `rayjobs`, `rayclusters`; `batch`: `jobs` | Read the RayCluster and any submitter Job created by the RayJob. |
+| RayJob | `ray.io`: `rayjobs`, `rayclusters`; `batch`: `jobs` | Read the RayCluster and any launcher Job created by the RayJob. |
 
 The main example covers Deployments, StatefulSets, Jobs, CronJobs and JobSets.
 Keep permissions aligned with the selected definitions and API types, including

@@ -82,7 +82,7 @@ For more information about the DCO, please visit: https://developercertificate.o
 ### Design Proposals
 
 For changes that need design agreement before implementation, follow the
-[Karta Enhancement Proposal process](keps/README.md). It describes when to write
+[Karta Enhancement Proposal process](docs/keps/README.md). It describes when to write
 one and provides a template.
 
 ### Development Environment Setup

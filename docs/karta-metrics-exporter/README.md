@@ -4,7 +4,7 @@
 # Karta metrics exporter queries
 
 These examples use the metric contract in the
-[Karta metrics exporter proposal](../../keps/0001-metrics-exporter/README.md).
+[Karta metrics exporter proposal](../keps/0001-metrics-exporter/README.md).
 They show Pod attribution, workload age, component resource usage and low observed
 GPU activity. Low activity alone does not prove idleness.
 
@@ -95,7 +95,7 @@ below, including workload age. An OTel Collector can supply the same label.
 
 ## 1. Deduplicate Pod attribution
 
-Merge identical mappings and reject differences in identity, submitter or
+Merge identical mappings and reject differences in identity or
 observation validity. Check conflicts before filtering for valid mappings so that
 one valid replica cannot hide a failing replica.
 
@@ -108,23 +108,23 @@ groups:
         expr: |
           max by (namespace, pod_name, pod_uid, workload_name, workload_group, workload_version,
                   workload_kind, workload_uid, owner_resolution, component, component_instance,
-                  replica_group_id, observation_valid, submitted_by) (
+                  replica_group_id, observation_valid) (
             karta_pod_workload_info
           )
           and on (namespace, pod_name)
           (count by (namespace, pod_name) (
             group by (namespace, pod_name, pod_uid, workload_name, workload_group, workload_version,
                       workload_kind, workload_uid, owner_resolution, component, component_instance,
-                      replica_group_id, observation_valid, submitted_by) (
+                      replica_group_id, observation_valid) (
               karta_pod_workload_info
             )
           ) == 1)
 ```
 
-This rule preserves all attribution labels, including optional `submitted_by`.
-It rejects conflicting Pod UIDs for the same name while both are visible. An
-absent optional label works when submitter attribution is disabled. The following
-queries use this rule; its expression can also be inlined.
+This rule preserves the built-in attribution labels. If custom metric labels
+are enabled, include the ones needed by the query in its grouping and joins.
+The following examples use the built-in labels. The rule also rejects conflicting
+Pod UIDs for the same name while both are visible.
 
 ## 2. CPU and memory by component instance and group
 
@@ -134,7 +134,7 @@ Multiplying by an attribution value of `1` preserves the measurement.
 
 ```promql
 sum by (namespace, workload_group, workload_version, workload_kind, workload_name, workload_uid,
-        owner_resolution, component, component_instance, replica_group_id, submitted_by) (
+        owner_resolution, component, component_instance, replica_group_id) (
   label_replace(
     rate(container_cpu_usage_seconds_total{
       namespace!="", pod!="", container!="", container!="POD"
@@ -143,7 +143,7 @@ sum by (namespace, workload_group, workload_version, workload_kind, workload_nam
   )
   * on (namespace, pod_name)
     group_left (workload_group, workload_version, workload_kind, workload_name, workload_uid,
-                owner_resolution, component, component_instance, replica_group_id, submitted_by)
+                owner_resolution, component, component_instance, replica_group_id)
     karta:pod_attribution:unique{observation_valid="true",component!="<unknown>",component_instance!="<unknown>"}
 )
 ```
@@ -168,7 +168,7 @@ require it and exclude measurements without a UID.
 DCGM_FI_DEV_GPU_UTIL{namespace!="",pod_uid!=""}
 * on (namespace, pod_uid)
   group_left (workload_group, workload_version, workload_kind, workload_name, workload_uid,
-              owner_resolution, component, component_instance, replica_group_id, submitted_by)
+              owner_resolution, component, component_instance, replica_group_id)
   karta:pod_attribution:unique{observation_valid="true",component!="<unknown>",component_instance!="<unknown>"}
 ```
 
@@ -192,11 +192,11 @@ Filtering Pods also limits how much of the workload the query observes.
 ```promql
 (
   max by (namespace, workload_group, workload_version, workload_kind, workload_name, workload_uid,
-          owner_resolution, component, component_instance, replica_group_id, submitted_by) (
+          owner_resolution, component, component_instance, replica_group_id) (
     max_over_time(DCGM_FI_DEV_GPU_UTIL{namespace!="",pod_uid!=""}[5m])
     * on (namespace, pod_uid)
       group_left (workload_group, workload_version, workload_kind, workload_name, workload_uid,
-                  owner_resolution, component, component_instance, replica_group_id, submitted_by)
+                  owner_resolution, component, component_instance, replica_group_id)
       karta:pod_attribution:unique{observation_valid="true",component!="<unknown>",component_instance!="<unknown>"}
   ) < 5
 )
