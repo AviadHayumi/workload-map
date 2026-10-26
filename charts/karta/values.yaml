@@ -45,8 +45,7 @@ exporter:
     catalog:
       enabled: false
       include: []
-      # core-pod-v1 would make every bare Pod a workload of its own.
-      exclude: [core-pod-v1]
+      exclude: []
     # Karta objects in the cluster. A selected one replaces the built-in
     # definition for the same group and kind.
     cluster:

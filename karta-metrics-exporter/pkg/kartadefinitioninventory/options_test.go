@@ -72,11 +72,8 @@ var _ = Describe("Options", func() {
 			Options{Catalog: SourceOptions{Enabled: true, LabelSelector: &metav1.LabelSelector{}}}),
 	)
 
-	It("reads the cluster by default, leaves the catalog off, and keeps core-pod-v1 excluded", func() {
-		Expect(DefaultOptions()).To(Equal(Options{
-			Catalog: SourceOptions{Exclude: []string{"core-pod-v1"}},
-			Cluster: SourceOptions{Enabled: true},
-		}))
+	It("reads the cluster by default and leaves the catalog off", func() {
+		Expect(DefaultOptions()).To(Equal(Options{Cluster: SourceOptions{Enabled: true}}))
 	})
 
 	Context("compiled cluster selector", func() {

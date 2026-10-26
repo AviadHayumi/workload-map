@@ -33,12 +33,9 @@ type SourceOptions struct {
 	LabelSelector *metav1.LabelSelector
 }
 
-// DefaultOptions excludes core-pod-v1, which would make every bare Pod a workload.
+// DefaultOptions reads the cluster's Karta definitions and leaves the catalog off.
 func DefaultOptions() Options {
-	return Options{
-		Catalog: SourceOptions{Exclude: []string{"core-pod-v1"}},
-		Cluster: SourceOptions{Enabled: true},
-	}
+	return Options{Cluster: SourceOptions{Enabled: true}}
 }
 
 // compile checks catalog names even when the catalog is disabled.

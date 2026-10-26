@@ -251,19 +251,12 @@ var _ = Describe("Karta definition sources", func() {
 		Expect(cfg.KartaDefinitionSource.Options()).To(Equal(kartadefinitioninventory.DefaultOptions()))
 	})
 
-	It("keeps the default catalog exclude when the file only enables the catalog", func() {
+	It("selects every catalog definition when the file only enables the catalog", func() {
 		cfg, err := loadWithArgs("--config", writeConfig("kartaDefinitionSource:\n  catalog:\n    enabled: true\n"))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(cfg.KartaDefinitionSource.Catalog).To(Equal(DefinitionSourceConfig{Enabled: true, Exclude: []string{"core-pod-v1"}}))
+		Expect(cfg.KartaDefinitionSource.Catalog).To(Equal(DefinitionSourceConfig{Enabled: true}))
 		Expect(cfg.KartaDefinitionSource.Cluster.Enabled).To(BeTrue())
-	})
-
-	It("clears the default catalog exclude with an empty list", func() {
-		cfg, err := loadWithArgs("--config", writeConfig("kartaDefinitionSource:\n  catalog:\n    enabled: true\n    exclude: []\n"))
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(cfg.KartaDefinitionSource.Catalog.Exclude).To(BeEmpty())
 	})
 
 	It("reads the file as Helm renders it and converts the label selector", func() {
