@@ -18,7 +18,7 @@ import (
 // Components supplies the runtime, publication store and metric registration.
 type Components struct {
 	Runtime   controller.Runner
-	Store     store.Interface
+	Store     store.PublicationStore
 	Collector otel.Collector
 }
 

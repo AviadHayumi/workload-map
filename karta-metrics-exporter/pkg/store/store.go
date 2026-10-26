@@ -24,8 +24,8 @@ type Capturer interface {
 	Capture() CapturedView
 }
 
-// Interface combines publication updates with snapshot collection.
-type Interface interface {
+// PublicationStore combines publication updates with snapshot collection.
+type PublicationStore interface {
 	Writer
 	Capturer
 }

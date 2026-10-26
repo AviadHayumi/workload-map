@@ -7,7 +7,7 @@ Runtime publishes one immutable result per root UID. Collector calls `Capture`
 to read publications and resource health from one point in time.
 
 `Writer` exposes Runtime's operations. `Capturer` exposes only the read operation.
-`Interface` combines them for startup wiring.
+`PublicationStore` combines them for startup wiring.
 
 ## Synchronization
 

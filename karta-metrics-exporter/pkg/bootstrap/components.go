@@ -31,7 +31,7 @@ var (
 	_ discovery.ObjectReader   = (*discovery.MockObjectReader)(nil)
 	_ labelevaluator.Evaluator = (*labelevaluator.MockLabelEvaluator)(nil)
 	_ labelresolver.Resolver   = (*labelresolver.MockLabelResolver)(nil)
-	_ store.Interface          = (*store.MockStore)(nil)
+	_ store.PublicationStore   = (*store.MockStore)(nil)
 	_ controller.Runner        = (*controller.MockRuntime)(nil)
 )
 
@@ -84,7 +84,7 @@ func newLabelResolver(_ labelresolver.Config, _ labelresolver.Dependencies) labe
 	return m
 }
 
-func newStore(_ store.Options) store.Interface {
+func newStore(_ store.Options) store.PublicationStore {
 	m := &store.MockStore{}
 	m.EXPECT().Capture().Return(store.CapturedView{})
 	// Writes are deliberately unconfigured: a real worker must use a real Store.

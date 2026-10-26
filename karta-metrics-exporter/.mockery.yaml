@@ -42,7 +42,7 @@ packages:
           filename: label_resolver_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store:
     interfaces:
-      Interface:
+      PublicationStore:
         config:
           structname: MockStore
           filename: store_mock.go
