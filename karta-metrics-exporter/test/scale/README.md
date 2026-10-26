@@ -11,8 +11,9 @@ for commands, topology, diagnostic overhead and acceptance gates.
 
 - [Current 100k-root outcomes](results/full-scale/README.md): `535c5e93` passed
   every protocol-2 zero-Pod gate. The latest protocol-3 one-Pod run on `f868589a`
-  failed emitter scheduling after 232 seconds, with exporter queues near empty.
-  Full hierarchy acceptance is unproven; all earlier failures remain preserved.
+  with harness `b234bfc8` passed all churn gates but hit the total wall cap during
+  final deletion. Empty-state and post-deletion heap recovery remain unverified.
+  Full hierarchy acceptance is unproven; earlier failures remain preserved.
 
 - [Fixture contention diagnostic](results/fixture-capacity/README.md): bounded
   before/after tests remove proven API-lock and WATCH-scan overhead. Both sustain

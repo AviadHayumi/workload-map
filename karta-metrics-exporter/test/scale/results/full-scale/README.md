@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8 | 3 | 100k roots / 1 Pod | FAIL: total wall cap during final deletion; churn gates pass | 159.976 s | 7.552 GB | p99 upper bound 1.531 s |
 | f868589a, harness 0ed1594b | 3 | 100k roots / 1 Pod | FAIL: emitter scheduling delay at 232 s churn | 178.716 s | 7.441 GB | Partial max 2.319 s; full p99 unverified |
 | f868589a | 2 | 100k roots / 1 Pod | FAIL: hot-root rotation scheduling | 155.748 s | 7.552 GB | Full window unverified |
 | 535c5e93 | 2 | 100k roots / 0 Pods | PASS: every applicable gate | 47.924 s | 6.302 GB | p99 upper bound 0.919 s |
@@ -14,6 +15,65 @@
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
 where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
 established. Earlier raw results and their interpretations remain below.
+
+## 100k roots / one Pod: fixture contention corrected, total wall cap reached
+
+Runtime remains `f868589a334e917dee0cfb4e1d258e28bb94a19a` with immutable
+binary SHA-256 `ff1ac2def810610706ca4d4fcee7bfbc32ddd0900a58408aeedf022ec7d32b17`.
+Harness `b234bfc8f621f1da30250d368ddea7cc32a8a10a` removes the fixture
+lock and full-history WATCH scan contention described in the
+[bounded diagnostic](../fixture-capacity/README.md). All protocol-3 settings
+and acceptance gates are unchanged. The raw report, log, and host context use
+the prefix `f868589a-b234bfc8-100000-1`.
+
+The run is FAIL overall. The unchanged 1,200-second total wall cap killed the
+exporter during final deletion. Total measured elapsed time was 1,207.652 s.
+Final empty-state convergence and post-deletion heap recovery are unverified.
+No dense case followed. Earlier failed reports remain unchanged.
+
+All reported measured gates passed: HTTP transfers, oracle duration, exact
+30,000 emitted and verified events, full 300-second churn, scheduler lateness,
+verified publication p99, queue drain, heap sampling coverage, and heap growth.
+The report's measured-gates object omits post-deletion heap recovery because
+that stage was not reached. It must not be interpreted as overall acceptance.
+
+| Measurement | Result |
+| --- | ---: |
+| Cold convergence | 159.976 s |
+| Peak sampled RSS | 7,552,155,648 bytes |
+| Verified publication p99 / maximum | 1.531 / 3.243 s |
+| Maximum scheduler lateness | 34.69 ms |
+| Actual emission span / rate | 299.992 s / 99.9992 events/s |
+| Queue drain after emission/ACK completion | 18.847 s |
+| Post-GC sampling coverage | 222.268 s |
+| First / final sampled heap | 1,956,268,240 / 1,900,690,656 bytes |
+| Heap growth | -2.841% |
+| Maximum completed HTTP transfer / oracle | 22.165 / 9.983 s |
+
+All steady and quiet checks passed. All ten churn continuity checks and the
+strict post-churn check passed. Pod label update, injected EOF/410 recovery,
+update during a metadata LIST, combined status/Pod changes, 10% deletion, and
+same-name recreation converged within their individual stage bounds.
+
+The final sequence explains the incomplete lifecycle result:
+
+| Process time | Observation |
+| --- | --- |
+| 1,129.768 s | Deletion converged to exactly 90,000 workloads and Pods |
+| 1,183.899 s | Same-name recreation converged with current UIDs |
+| 1,184.546 s | First delete-all HTTP scrape began |
+| 1,200 s | Total wall-time cap reached |
+| 1,202.644 s | First delete-all scrape/oracle completed with deleted rows remaining |
+
+Only about 15.5 seconds remained when final deletion started. This proves an
+aggregate wall-budget failure; it does not establish that final deletion would
+miss its separate 180-second stage deadline. The limit was not extended or
+waived. No post-deletion memory claim is available from this run.
+
+The host context records all four kind nodes stopped, 48 GiB RAM, zero swap,
+and 30 GiB free disk. Desktop and Defender background activity remained.
+No other benchmark, build, test, or cluster operation ran concurrently.
+Read-only review and monitoring-test source edits did not change the binary.
 
 ## 100k roots with no Pods: churn failure
 
