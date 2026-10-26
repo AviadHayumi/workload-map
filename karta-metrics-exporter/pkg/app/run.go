@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
@@ -19,15 +19,15 @@ import (
 type Components struct {
 	Runtime   controller.Runner
 	Store     store.Interface
-	Registrar collector.Registrar
+	Collector otel.Collector
 }
 
 // Run registers collection before starting workers, then unregisters on shutdown.
 func Run(ctx context.Context, components Components, meter metric.Meter) (err error) {
-	if components.Runtime == nil || components.Store == nil || components.Registrar == nil || meter == nil {
+	if components.Runtime == nil || components.Store == nil || components.Collector == nil || meter == nil {
 		return errors.New("incomplete exporter components")
 	}
-	registration, err := components.Registrar.Register(meter, components.Store)
+	registration, err := components.Collector.Register(meter, components.Store)
 	if err != nil {
 		return fmt.Errorf("register collector: %w", err)
 	}

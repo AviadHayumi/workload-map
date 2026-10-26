@@ -50,7 +50,7 @@ value is found. The resolver will retain per-source evaluation errors, including
 when a fallback succeeds. Built-in labels cannot be replaced.
 
 The evaluator and startup rule validation work today. Resolver execution,
-Runtime evaluation and metric delivery remain scaffold work.
+Runtime evaluation and metric delivery are not implemented yet.
 
 Helm mounts these two sections as a config file. Outside Helm, use the same file
 without the `exporter:` wrapper and pass `--config path.yaml`.

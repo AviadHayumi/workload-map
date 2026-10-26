@@ -30,8 +30,7 @@ type Loader struct {
 // Config is the exporter configuration. It is read from the YAML file named by
 // --config. A flag, or its environment variable, overrides the file when set.
 type Config struct {
-	LabelRules  []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
-	LabelLimits labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
+	labelresolver.Config `yaml:",inline"`
 }
 
 // setting is one configuration value with its flag and environment variable.
@@ -122,7 +121,7 @@ func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader 
 // and then the flags, so a flag wins. Explicit flags win even when empty. Unknown keys
 // in the file are an error. Call it after fs is parsed.
 func (l *Loader) Load() (Config, error) {
-	cfg := Config{LabelLimits: defaultLabelLimits}
+	cfg := Config{Config: labelresolver.Config{Limits: defaultLabelLimits}}
 
 	if path, _ := l.value(configSetting); path != "" {
 		data, err := os.ReadFile(path)
@@ -153,19 +152,19 @@ func (l *Loader) Load() (Config, error) {
 
 	for _, s := range labelSettings {
 		if v, set := l.value(s); set {
-			if err := s.apply(&cfg.LabelLimits, v); err != nil {
+			if err := s.apply(&cfg.Limits, v); err != nil {
 				return Config{}, fmt.Errorf("--%s (%s): %w", s.flag, s.env, err)
 			}
 		}
 	}
 
-	if cfg.LabelLimits.InterruptCheckFrequency == 0 {
+	if cfg.Limits.InterruptCheckFrequency == 0 {
 		return Config{}, errZeroInterruptCheckFrequency
 	}
-	if cfg.LabelLimits.MaxExpressionBytes < 0 || cfg.LabelLimits.MaxValueBytes < 0 {
+	if cfg.Limits.MaxExpressionBytes < 0 || cfg.Limits.MaxValueBytes < 0 {
 		return Config{}, labelevaluator.ErrNegativeLimit
 	}
-	if err := labelresolver.ValidateConfig(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}); err != nil {
+	if err := labelresolver.ValidateConfig(cfg.Config); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil

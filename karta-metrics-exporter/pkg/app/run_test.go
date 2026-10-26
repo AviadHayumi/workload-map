@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 
-	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
@@ -58,9 +58,9 @@ var _ = Describe("App lifecycle", func() {
 					Expect(registered).To(BeTrue())
 				}).Return(tc.runtimeError).Once()
 			}
-			registrar := collector.NewMockRegistrar(GinkgoT())
-			registrar.EXPECT().Register(mock.Anything, publications).RunAndReturn(
-				func(_ metric.Meter, source collector.Capturer) (metric.Registration, error) {
+			collector := otel.NewMockCollector(GinkgoT())
+			collector.EXPECT().Register(mock.Anything, publications).RunAndReturn(
+				func(_ metric.Meter, source otel.Capturer) (metric.Registration, error) {
 					Expect(source).To(BeIdenticalTo(publications))
 					registered = true
 					if tc.registrationError != nil || tc.nilRegistration {
@@ -68,7 +68,7 @@ var _ = Describe("App lifecycle", func() {
 					}
 					return reg, nil
 				}).Once()
-			components := app.Components{Runtime: runtime, Store: publications, Registrar: registrar}
+			components := app.Components{Runtime: runtime, Store: publications, Collector: collector}
 
 			err := app.Run(ctx, components, noop.NewMeterProvider().Meter("test"))
 			switch {

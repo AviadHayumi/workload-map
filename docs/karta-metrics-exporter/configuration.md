@@ -84,7 +84,7 @@ exporter:
   #   expression: |
   #     has(object.metadata.labels) && "example.com/team" in object.metadata.labels
   #       ? object.metadata.labels["example.com/team"] : ""
-  labelLimits: # Bounds for each CEL evaluation.
+  labelLimits: # Bounds for label expressions, evaluation and returned values.
     costLimit: 10000
     maxExpressionBytes: 4096
     maxValueBytes: 1024
@@ -183,7 +183,7 @@ Kubernetes or mutate it. Guard optional fields with `has(...)`.
 
 The command validates rule names, metric/source combinations and CEL at startup.
 The CEL evaluator is implemented. Resolver execution and exporting the resolved
-labels are still scaffold work.
+labels are not implemented yet.
 
 The chart renders `labelRules` and `labelLimits` into the mounted config file.
 Rules default to `[]`. Limits default to 10000 cost units, 4096 expression bytes,

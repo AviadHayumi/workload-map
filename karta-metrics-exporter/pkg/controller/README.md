@@ -17,4 +17,4 @@ events. Store locks its own data internally. Deleting a root removes its publica
 instead of pretending the workload disappeared.
 
 This package has no queue, watch or reconcile implementation yet. The runnable
-scaffold supplies a mock `Runner` that waits for cancellation.
+bootstrap package supplies a mock `Runner` that waits for cancellation.

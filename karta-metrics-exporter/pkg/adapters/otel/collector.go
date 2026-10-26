@@ -14,9 +14,9 @@ type Capturer interface {
 	Capture() store.CapturedView
 }
 
-// Registrar registers a collection callback and returns its registration.
+// Collector registers a collection callback and returns its registration.
 // After the runtime stops, the caller must call Unregister on that registration
 // to remove the callback from the meter.
-type Registrar interface {
+type Collector interface {
 	Register(metric.Meter, Capturer) (metric.Registration, error)
 }

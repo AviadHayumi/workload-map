@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package scaffold
+package bootstrap
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.opentelemetry.io/otel/metric"
 
-	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/app"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
@@ -25,7 +25,7 @@ var ErrNotImplemented = errors.New("exporter component is not implemented")
 // Keep generated mocks checked against their contracts even before implementations exist.
 var (
 	_ labelevaluator.Compiler  = (*labelevaluator.MockLabelCompiler)(nil)
-	_ collector.Registrar      = (*collector.MockRegistrar)(nil)
+	_ otel.Collector           = (*otel.MockCollector)(nil)
 	_ inventory.Interface      = (*inventory.MockInventory)(nil)
 	_ discovery.Discoverer     = (*discovery.MockDiscovery)(nil)
 	_ discovery.ObjectReader   = (*discovery.MockObjectReader)(nil)
@@ -48,7 +48,7 @@ func New(labelConfig labelresolver.Config) app.Components {
 		Labels:       labels,
 		Publications: publications,
 	})
-	return app.Components{Runtime: runtime, Store: publications, Registrar: newRegistrar()}
+	return app.Components{Runtime: runtime, Store: publications, Collector: newCollector()}
 }
 
 func newInventory(_ inventory.Config) inventory.Interface {
@@ -100,10 +100,10 @@ func newRuntime(_ controller.Dependencies) controller.Runner {
 	return m
 }
 
-func newRegistrar() collector.Registrar {
-	m := &collector.MockRegistrar{}
+func newCollector() otel.Collector {
+	m := &otel.MockCollector{}
 	m.EXPECT().Register(mock.Anything, mock.Anything).RunAndReturn(
-		func(meter metric.Meter, _ collector.Capturer) (metric.Registration, error) {
+		func(meter metric.Meter, _ otel.Capturer) (metric.Registration, error) {
 			return meter.RegisterCallback(func(context.Context, metric.Observer) error { return nil })
 		})
 	return m

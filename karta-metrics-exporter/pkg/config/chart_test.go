@@ -58,10 +58,10 @@ var _ = Describe("chart label configuration", func() {
 			found = true
 			cfg, err := loadConfig(doc.Data["config.yaml"], nil)
 			Expect(err).To(Succeed())
-			Expect(cfg.LabelRules).To(Equal(rules))
-			Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
-			for _, rule := range cfg.LabelRules {
-				_, err = labelevaluator.NewCompiler().Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits})
+			Expect(cfg.Rules).To(Equal(rules))
+			Expect(cfg.Limits.MaxValueBytes).To(Equal(32))
+			for _, rule := range cfg.Rules {
+				_, err = labelevaluator.NewCompiler().Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.Limits})
 				Expect(err).To(Succeed())
 			}
 		}

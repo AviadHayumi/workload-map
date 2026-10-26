@@ -4,6 +4,7 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"io"
 	"os"
@@ -11,18 +12,36 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.yaml.in/yaml/v3"
 )
 
 var _ = Describe("config defaults and rules", func() {
+	It("preserves flat configuration keys when encoding embedded resolver settings", func() {
+		cfg, err := loadConfig("labelRules: []\nlabelLimits:\n  maxValueBytes: 32\n", nil)
+		Expect(err).To(Succeed())
+		for _, encode := range []func(any) ([]byte, error){json.Marshal, yaml.Marshal} {
+			data, err := encode(cfg)
+			Expect(err).To(Succeed())
+			var keys map[string]any
+			Expect(yaml.Unmarshal(data, &keys)).To(Succeed())
+			Expect(keys).To(HaveLen(2))
+			Expect(keys).To(HaveKey("labelRules"))
+			Expect(keys).To(HaveKey("labelLimits"))
+			var decoded Config
+			Expect(yaml.Unmarshal(data, &decoded)).To(Succeed())
+			Expect(decoded).To(Equal(cfg))
+		}
+	})
+
 	It("loads label rules while retaining unspecified defaults", func() {
 		cfg, err := loadConfig("", nil)
 		Expect(err).To(Succeed())
-		Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
-		Expect(cfg.LabelRules).To(BeEmpty())
+		Expect(cfg.Limits).To(Equal(defaultLabelLimits))
+		Expect(cfg.Rules).To(BeEmpty())
 		for _, contents := range []string{"\n", "labelRules: []\n---\n"} {
 			cfg, err = loadConfig(contents, nil)
 			Expect(err).To(Succeed())
-			Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
+			Expect(cfg.Limits).To(Equal(defaultLabelLimits))
 		}
 		cfg, err = loadConfig(`labelRules:
 - name: team
@@ -34,11 +53,11 @@ labelLimits:
   maxValueBytes: 32
 `, nil)
 		Expect(err).To(Succeed())
-		Expect(cfg.LabelRules).To(HaveLen(1))
-		Expect(cfg.LabelRules[0].Name).To(Equal("team"))
-		Expect(cfg.LabelRules[0].Expression).To(ContainSubstring("object.metadata.labels"))
-		Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
-		Expect(cfg.LabelLimits.CostLimit).To(Equal(defaultLabelLimits.CostLimit))
+		Expect(cfg.Rules).To(HaveLen(1))
+		Expect(cfg.Rules[0].Name).To(Equal("team"))
+		Expect(cfg.Rules[0].Expression).To(ContainSubstring("object.metadata.labels"))
+		Expect(cfg.Limits.MaxValueBytes).To(Equal(32))
+		Expect(cfg.Limits.CostLimit).To(Equal(defaultLabelLimits.CostLimit))
 	})
 })
 
@@ -57,7 +76,7 @@ var _ = Describe("config precedence", func() {
 		It(tc.name, func() {
 			cfg, err := loadConfig("labelLimits:\n  costLimit: 5\n", tc.env, tc.args...)
 			Expect(err).To(Succeed())
-			Expect(cfg.LabelLimits.CostLimit).To(Equal(tc.want))
+			Expect(cfg.Limits.CostLimit).To(Equal(tc.want))
 		})
 	}
 })
@@ -68,10 +87,10 @@ var _ = Describe("config path and empty override", func() {
 		Expect(os.WriteFile(path, []byte("labelLimits:\n  maxValueBytes: 32\n"), 0o600)).To(Succeed())
 		cfg, err := loadConfig("", map[string]string{"KARTA_EXPORTER_CONFIG": path})
 		Expect(err).To(Succeed())
-		Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
+		Expect(cfg.Limits.MaxValueBytes).To(Equal(32))
 		cfg, err = loadConfig("", map[string]string{"KARTA_EXPORTER_CONFIG": path}, "--config=")
 		Expect(err).To(Succeed())
-		Expect(cfg.LabelLimits).To(Equal(defaultLabelLimits))
+		Expect(cfg.Limits).To(Equal(defaultLabelLimits))
 		_, err = loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": "7"}, "--label-cost-limit=")
 		Expect(err).To(HaveOccurred())
 		_, err = loadConfig("", map[string]string{"KARTA_EXPORTER_LABEL_COST_LIMIT": ""})
