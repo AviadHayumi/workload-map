@@ -44,10 +44,10 @@ type Inventory struct {
 	log           *slog.Logger
 
 	current atomic.Pointer[published]
+	runOnce sync.Once
 
-	mu      sync.Mutex
-	started bool
-	store   cache.Store
+	mu    sync.Mutex
+	store cache.Store
 	// synced turns true at the first Replace, when a complete list is in the store.
 	synced   bool
 	failure  error
@@ -102,13 +102,13 @@ func New(client dynamic.Interface, options Options) (*Inventory, error) {
 // Run blocks until ctx ends. Afterwards cluster lookups fail; a catalog-only
 // inventory keeps serving.
 func (i *Inventory) Run(ctx context.Context) error {
-	i.mu.Lock()
-	if i.started {
-		i.mu.Unlock()
+	// The Once only claims the run, so a second call fails at once instead of
+	// waiting for the first Run to end.
+	first := false
+	i.runOnce.Do(func() { first = true })
+	if !first {
 		return errors.New("definition inventory already started")
 	}
-	i.started = true
-	i.mu.Unlock()
 	if !i.clusterFilter.enabled {
 		<-ctx.Done()
 		return nil

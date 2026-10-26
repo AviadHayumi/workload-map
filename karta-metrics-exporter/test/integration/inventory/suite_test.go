@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-// Package integration runs the exporter's components against a real apiserver
-// and etcd started by envtest, so it needs the envtest binaries
+// Package inventory runs the Karta definition inventory against a real
+// apiserver and etcd started by envtest, so it needs the envtest binaries
 // (KUBEBUILDER_ASSETS). Unit tests live next to the code and do not.
-package integration
+package inventory
 
 import (
 	"context"
@@ -28,14 +28,14 @@ var (
 	testEnv     *envtest.Environment
 	adminConfig *rest.Config
 	adminClient dynamic.Interface
-	crdPaths    = []string{filepath.Join("..", "..", "..", "charts", "karta", "crds")}
+	crdPaths    = []string{filepath.Join("..", "..", "..", "..", "charts", "karta", "crds")}
 	testCtx     context.Context
 	testCancel  context.CancelFunc
 )
 
-func TestIntegration(t *testing.T) {
+func TestInventory(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Karta Metrics Exporter Integration Suite")
+	RunSpecs(t, "Karta Definition Inventory Integration Suite")
 }
 
 var _ = BeforeSuite(func() {
