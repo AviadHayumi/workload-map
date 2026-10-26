@@ -13,8 +13,8 @@ For example, a Pod in JobSet `train` can belong to component `replicatedjob`,
 instance `worker` and group `0`. The [query guide](../docs/karta-metrics-exporter/README.md)
 shows how to group measurements by that identity.
 
-The command currently uses mock components and an OpenTelemetry no-op meter.
-It does not watch Kubernetes, open an HTTP endpoint or produce metrics yet.
+The command validates label configuration. Kubernetes watches and metric
+delivery are not implemented yet.
 
 ## Run
 
@@ -63,7 +63,6 @@ outputs and implementation status.
 | [store](pkg/store/) | Publications -> consistent captured view |
 | [adapters/otel](pkg/adapters/otel/) | Captured view -> OpenTelemetry observations |
 
-[pkg/scaffold/components.go](pkg/scaffold/components.go) wires the components.
 Generated Mockery mocks live beside the interfaces they implement.
 
 ```sh
