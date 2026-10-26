@@ -9,23 +9,16 @@
   "logical_cpus": 14,
   "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
   "disk": "Filesystem   1024-blocks      Used Available Capacity  iused     ifree %iused  Mounted on\n/dev/disk3s1   971350180 919031712  31203340    97% 12094322 312033400    4%   /System/Volumes/Data",
-  "background_cpu": [
-    "PID  %CPU COMM",
-    " 9270 146.9 /Users/ahayumi/workspace/greenlight/dist/greenlight",
-    "66545  35.9 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_unprivileged.app/Contents/MacOS/wdavdaemon_unprivileged",
-    "39185  34.3 /private/tmp/karta-scale-535c5e93-jq",
-    "  557  14.7 /Library/Application Support/Microsoft/DLP/com.microsoft.dlp.daemon.app/Contents/MacOS/dlpdaemon",
-    "  558   9.5 /Applications/Microsoft Defender.app/Contents/MacOS/tracer.app/Contents/MacOS/tracer",
-    "39884   8.7 /opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python",
-    "  548   8.5 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon",
-    "  406   7.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
-    "  561   6.2 /Library/SystemExtensions/CD537FB7-79DA-46D2-9462-0DEDE422BF8D/com.microsoft.wdav.epsext.systemextension/Contents/MacOS/epsext",
-    "  861   6.2 /Applications/Slack.app/Contents/Frameworks/Slack Helper (GPU).app/Contents/MacOS/Slack Helper (GPU)",
-    "  625   5.4 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_enterprise.app/Contents/MacOS/wdavdaemon_enterprise",
-    "39174   5.2 /opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python"
-  ],
   "host_note": "No concurrent benchmark/build/test planned; heap profiles disabled. Unrelated desktop/security/indexer processes remain active.",
   "scenario": "100k roots / 1 Pod",
   "checkout_revision": "3be7e424ce5de4234c0c4218495046481780a92c",
-  "checkout_note": "Parent committed design-only docs3be7e424 after binary capture. Exact runtime binary and scale harness remain535c5e93; HEAD-equality preflight failed on docs-only advance, inspected and recorded immediately after launch."
+  "checkout_note": "Parent committed design-only docs3be7e424 after binary capture. Exact runtime binary and scale harness remain535c5e93; HEAD-equality preflight failed on docs-only advance, inspected and recorded immediately after launch.",
+  "process_snapshot_summary": {
+    "scope": "selected high-CPU process rows",
+    "process_count": 12,
+    "sum_reported_cpu_percent": 288.5,
+    "max_reported_cpu_percent": 146.9,
+    "original_text_sha256": "c5270c91f54336daa9bcc976f176d9998434c8e34be1b35b2cd4887a152245f8",
+    "note": "Executable names, process IDs and local paths omitted from the portable record."
+  }
 }

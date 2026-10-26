@@ -9,20 +9,13 @@
   "logical_cpus": 14,
   "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
   "disk": "Filesystem   1024-blocks      Used Available Capacity  iused     ifree %iused  Mounted on\n/dev/disk3s1   971350180 918937844  31297208    97% 12034514 312972080    4%   /System/Volumes/Data",
-  "background_cpu": [
-    "PID  %CPU COMM",
-    " 9270 113.4 /Users/ahayumi/workspace/greenlight/dist/greenlight",
-    "22965  58.1 /System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
-    "66545  42.0 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_unprivileged.app/Contents/MacOS/wdavdaemon_unprivileged",
-    "69151  13.5 /opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python",
-    "  557  10.7 /Library/Application Support/Microsoft/DLP/com.microsoft.dlp.daemon.app/Contents/MacOS/dlpdaemon",
-    "22619  10.1 /Applications/Docker.app/Contents/MacOS/com.docker.backend",
-    "  406   7.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
-    "  548   7.2 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon",
-    "  861   6.8 /Applications/Slack.app/Contents/Frameworks/Slack Helper (GPU).app/Contents/MacOS/Slack Helper (GPU)",
-    "  558   6.8 /Applications/Microsoft Defender.app/Contents/MacOS/tracer.app/Contents/MacOS/tracer",
-    "  561   6.2 /Library/SystemExtensions/CD537FB7-79DA-46D2-9462-0DEDE422BF8D/com.microsoft.wdav.epsext.systemextension/Contents/MacOS/epsext",
-    "69150   4.1 /Applications/Docker.app/Contents/Resources/bin/docker"
-  ],
-  "host_note": "No concurrent benchmark/build/test planned. Profiles disabled. Unrelated desktop/security/indexer processes remain active."
+  "host_note": "No concurrent benchmark/build/test planned. Profiles disabled. Unrelated desktop/security/indexer processes remain active.",
+  "process_snapshot_summary": {
+    "scope": "selected high-CPU process rows",
+    "process_count": 12,
+    "sum_reported_cpu_percent": 286.7,
+    "max_reported_cpu_percent": 113.4,
+    "original_text_sha256": "c5e1ef24687936f6bc4cb3a736d1460af8085b077ca24fcb9293afa204e6461c",
+    "note": "Executable names, process IDs and local paths omitted from the portable record."
+  }
 }

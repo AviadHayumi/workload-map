@@ -9,20 +9,13 @@
   "logical_cpus": 14,
   "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
   "disk": "Filesystem   1024-blocks      Used Available Capacity  iused     ifree %iused  Mounted on\n/dev/disk3s1   971350180 909638036  40597016    96% 11357766 405970160    3%   /System/Volumes/Data",
-  "background_cpu": [
-    "PID  %CPU COMM",
-    " 9270 120.2 /Users/ahayumi/workspace/greenlight/dist/greenlight",
-    "  565  41.6 /System/Library/CoreServices/Software Update.app/Contents/Resources/softwareupdated",
-    "66545  34.7 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_unprivileged.app/Contents/MacOS/wdavdaemon_unprivileged",
-    "28415  31.8 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "29946  26.4 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "22619  23.0 /Applications/Docker.app/Contents/MacOS/com.docker.backend",
-    "28417  22.9 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "  625  17.3 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_enterprise.app/Contents/MacOS/wdavdaemon_enterprise",
-    "30155  17.0 /System/Library/CoreServices/ManagedClient.app/Contents/MacOS/ManagedClient",
-    "29947  16.3 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "  557  15.7 /Library/Application Support/Microsoft/DLP/com.microsoft.dlp.daemon.app/Contents/MacOS/dlpdaemon",
-    "28996  14.7 /usr/libexec/mdmclient"
-  ],
-  "host_note": "No concurrent benchmark/build/test planned. Desktop, Greenlight, security and Spotlight indexing processes remain active; unrelated processes were not stopped."
+  "host_note": "No concurrent benchmark/build/test planned. Desktop, Greenlight, security and Spotlight indexing processes remain active; unrelated processes were not stopped.",
+  "process_snapshot_summary": {
+    "scope": "selected high-CPU process rows",
+    "process_count": 12,
+    "sum_reported_cpu_percent": 381.6,
+    "max_reported_cpu_percent": 120.2,
+    "original_text_sha256": "26b69c2563ed5eb68126997f5f177f176191450fd107e738a6bb50654b734368",
+    "note": "Executable names, process IDs and local paths omitted from the portable record."
+  }
 }

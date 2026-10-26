@@ -9,20 +9,13 @@
   "logical_cpus": 14,
   "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
   "disk": "Filesystem   1024-blocks      Used Available Capacity  iused     ifree %iused  Mounted on\n/dev/disk3s1   971350180 914745416  35489636    97% 11948456 354896360    3%   /System/Volumes/Data",
-  "background_cpu": [
-    "PID  %CPU COMM",
-    "66545  36.6 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_unprivileged.app/Contents/MacOS/wdavdaemon_unprivileged",
-    " 9270  30.3 /Users/ahayumi/workspace/greenlight/dist/greenlight",
-    "78053  28.6 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "  361  26.5 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds",
-    "76252  25.0 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "77829  22.8 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "77669  22.6 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "76240  21.5 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "76583  20.2 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "77230  19.2 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "78065  17.0 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "77228  14.2 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared"
-  ],
-  "host_note": "Diagnostic only: optional sampled heap profiles; no concurrent runtimes/tests. Small pprof analysis authorized. Unrelated desktop/security/indexer processes remain active."
+  "host_note": "Diagnostic only: optional sampled heap profiles; no concurrent runtimes/tests. Small pprof analysis authorized. Unrelated desktop/security/indexer processes remain active.",
+  "process_snapshot_summary": {
+    "scope": "selected high-CPU process rows",
+    "process_count": 12,
+    "sum_reported_cpu_percent": 284.5,
+    "max_reported_cpu_percent": 36.6,
+    "original_text_sha256": "837458d52ecaa6e3449b34a8a018e757d0698381144573d71e2f6743ad6601e2",
+    "note": "Executable names, process IDs and local paths omitted from the portable record."
+  }
 }

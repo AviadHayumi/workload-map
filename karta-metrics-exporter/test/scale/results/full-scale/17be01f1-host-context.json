@@ -9,20 +9,13 @@
   "logical_cpus": 14,
   "swap": "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)",
   "disk": "Filesystem   1024-blocks      Used Available Capacity  iused     ifree %iused  Mounted on\n/dev/disk3s1   971350180 910076528  40158524    96% 11375092 401585240    3%   /System/Volumes/Data",
-  "background_cpu": [
-    "PID  %CPU COMM",
-    "  361  60.5 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds",
-    "94413  28.8 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "93984  25.2 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "94455  21.5 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "94453  20.9 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "94440  20.7 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "94121  20.7 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "66545  20.4 /Applications/Microsoft Defender.app/Contents/MacOS/wdavdaemon_unprivileged.app/Contents/MacOS/wdavdaemon_unprivileged",
-    "94451  19.7 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "94168  14.1 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared",
-    "  861   9.4 /Applications/Slack.app/Contents/Frameworks/Slack Helper (GPU).app/Contents/MacOS/Slack Helper (GPU)",
-    "  406   9.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
-  ],
-  "host_note": "No concurrent benchmark/build/test planned. Unrelated desktop/security/indexer background processes remain active."
+  "host_note": "No concurrent benchmark/build/test planned. Unrelated desktop/security/indexer background processes remain active.",
+  "process_snapshot_summary": {
+    "scope": "selected high-CPU process rows",
+    "process_count": 12,
+    "sum_reported_cpu_percent": 271.1,
+    "max_reported_cpu_percent": 60.5,
+    "original_text_sha256": "7f23a614e8f24c84ec2bcf3e87d96515e50e137944beb0fc1c1130113efaf59c",
+    "note": "Executable names, process IDs and local paths omitted from the portable record."
+  }
 }
