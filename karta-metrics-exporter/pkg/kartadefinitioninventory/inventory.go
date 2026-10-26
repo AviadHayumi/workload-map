@@ -60,6 +60,7 @@ type Inventory struct {
 	unmatchedIncludes []string
 }
 
+// published is what readers load: the latest snapshot, or why none can be served.
 type published struct {
 	resolved snapshot
 	err      error
@@ -248,18 +249,19 @@ func (i *Inventory) update(change func()) {
 		change()
 	}
 
+	var err error
 	switch {
 	case i.stopped:
-		i.current.Store(&published{err: fmt.Errorf("%w: %w", ErrUnavailable, errStopped)})
-		return
+		err = fmt.Errorf("%w: %w", ErrUnavailable, errStopped)
 	case i.failure != nil && (apierrors.IsForbidden(i.failure) || apierrors.IsUnauthorized(i.failure)):
-		i.current.Store(&published{err: fmt.Errorf("%w: %w", ErrPermissionDenied, i.failure)})
-		return
+		err = fmt.Errorf("%w: %w", ErrPermissionDenied, i.failure)
 	case i.failure != nil:
-		i.current.Store(&published{err: fmt.Errorf("%w: %w", ErrUnavailable, i.failure)})
-		return
+		err = fmt.Errorf("%w: %w", ErrUnavailable, i.failure)
 	case !i.synced:
-		i.current.Store(&published{err: ErrNotReady})
+		err = ErrNotReady
+	}
+	if err != nil {
+		i.current.Store(&published{err: err})
 		return
 	}
 
@@ -268,7 +270,7 @@ func (i *Inventory) update(change func()) {
 	for _, obj := range objects {
 		u := obj.(*unstructured.Unstructured)
 		var k v1alpha1.Karta
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &k); err != nil {
+		if err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &k); err != nil {
 			i.current.Store(&published{err: fmt.Errorf("%w: decode Karta %q: %w", ErrUnavailable, u.GetName(), err)})
 			return
 		}
