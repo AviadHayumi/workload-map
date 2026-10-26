@@ -47,7 +47,7 @@ exporter:
       include: []
       exclude: []
     # Karta objects in the cluster. A selected one replaces the built-in
-    # definition for the same group and kind.
+    # definition for the same group and kind. Grants read access to Kartas.
     cluster:
       enabled: true
       include: []
