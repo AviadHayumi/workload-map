@@ -7,6 +7,7 @@
 
 | Runtime source | Protocol | Shape | Verdict | Cold | Peak RSS | Verified latency |
 | --- | --- | --- | --- | --- | --- | --- |
+| f868589a, harness b234bfc8 | 3 | 100k roots / 0 Pods | FAIL: heap growth 5.651% exceeds 5% | 50.044 s | 6.291 GB | p99 upper bound 0.314 s |
 | f868589a, harness b234bfc8, tuned 100/200 | 3 | 100k roots / 10 Pods | FAIL: RSS cap before cold convergence | Incomplete | 17.254 GB | Not reached |
 | f868589a, harness b234bfc8, default 20/40 | 3 | 100k roots / 10 Pods | FAIL: Pod source unsynced at cold deadline | >300 s | 10.788 GB | Not reached |
 | f868589a, harness b234bfc8, guard 1800 s | 3 | 100k roots / 1 Pod | PASS: every applicable gate | 157.490 s | 7.573 GB | p99 upper bound 1.570 s |
@@ -18,6 +19,57 @@
 GB values above are decimal bytes / 1e9. Runtime and harness revisions differ
 where explicitly shown. No protocol-3 zero-Pod, dense or giant-root pass is
 established. Earlier raw results and their interpretations remain below.
+
+## 100k roots / zero Pods: current-source heap gate failure
+
+The current-source run used runtime `f868589a`, harness `b234bfc8`, the same
+immutable binary and the prospectively declared 1,800-second aggregate guard.
+The original zero-Pod settings remained: 20 QPS/burst 40, two workers, 500-item
+pages, 45-second refresh, 120-second maximum age, 8 GiB RSS, 6 GiB GOMEMLIMIT,
+180-second stage bound, five-second publication limit and 30-second drain.
+No profiling was enabled. Raw report, log and host context use prefix
+`f868589a-b234bfc8-current-100000-0`.
+
+Overall result is FAIL: post-GC heap grew 5.6509%, above the unchanged 5% gate,
+over a valid 215.472-second sampling window. All correctness stages completed
+with zero continuity gaps, and every other measured gate passed. The command
+exit code and `complete: true` report correctness; neither overrides the false
+`live_heap_growth` gate. The earlier protocol-2 zero-Pod pass on `535c5e93`
+remains separate historical evidence.
+
+| Measurement | Result |
+| --- | ---: |
+| Cold convergence | 50.044 s |
+| Full lifecycle elapsed | 764.451 s |
+| Peak sampled RSS | 6,290,702,336 bytes |
+| Emitted / verified updates | 30,000 / 30,000 |
+| Verified publication p99 / maximum | 0.314 / 0.499 s |
+| Maximum scheduler lateness | 19.16 ms |
+| Queue drain | 2.533 s |
+| Maximum completed HTTP transfer / oracle | 11.782 / 8.602 s |
+| Final delete-all convergence | 20.851 s |
+| Post-delete heap | 92,236,064 bytes |
+
+The raw post-GC samples fluctuate rather than increase monotonically:
+
+| Churn time | HeapAlloc bytes | GC count |
+| --- | ---: | ---: |
+| 90.375 s | 769,088,888 | 122 |
+| 120.212 s | 800,122,360 | 129 |
+| 160.375 s | 822,343,128 | 140 |
+| 184.537 s | 778,346,792 | 149 |
+| 210.371 s | 820,933,240 | 155 |
+| 240.200 s | 791,139,840 | 164 |
+| 270.170 s | 769,197,520 | 173 |
+| 305.847 s | 812,549,688 | 184 |
+
+These samples follow the existing protocol: one GC outside client metric HTTP
+collection, with background exporter work still active. No additional GC,
+quieting, threshold adjustment or favorable-window selection was applied.
+The fluctuation does not by itself identify retained-object or pool causes,
+and final deletion recovery does not waive the growth gate. No intermediate
+WATCH occurred. The host had all four kind nodes stopped and no concurrent
+heavy work. The giant-root run was held after this failure.
 
 ## 100k roots / ten Pods: tuned API profile RSS failure
 
