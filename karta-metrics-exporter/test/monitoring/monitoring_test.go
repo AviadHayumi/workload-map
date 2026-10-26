@@ -6,6 +6,7 @@
 package monitoring_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,10 +33,18 @@ func TestMonitoring(t *testing.T) {
 }
 
 func command(ctx context.Context, name string, input string, args ...string) (string, error) {
+	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.WaitDelay = time.Second
 	cmd.Stdin = strings.NewReader(input)
-	body, err := cmd.CombinedOutput()
+	cmd.Stderr = &stderr
+	body, err := cmd.Output()
+	if stderr.Len() > 0 {
+		fmt.Fprint(GinkgoWriter, stderr.String())
+	}
+	if err != nil {
+		return string(body) + stderr.String(), err
+	}
 	return string(body), err
 }
 func kube(ctx context.Context, input string, args ...string) (string, error) {
