@@ -43,9 +43,13 @@ func renewalClock(r *Runtime) *clocktesting.FakeClock {
 	r.config.Now = clock.Now
 	r.reader.options.Now = clock.Now
 	r.reader.watchNow = clock.Now
+	resetRenewalQueue(r, clock)
+	return clock
+}
+
+func resetRenewalQueue(r *Runtime, clock *clocktesting.FakeClock) {
 	r.rootQueue.ShutDown()
 	r.rootQueue = workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[queueKey](time.Millisecond, time.Second), workqueue.TypedRateLimitingQueueConfig[queueKey]{Clock: clock})
-	return clock
 }
 
 var _ = Describe("Source-owned renewal scheduling", func() {

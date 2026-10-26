@@ -124,9 +124,8 @@ var _ = Describe("Scoped metadata renewal", func() {
 		for _, root := range []*unstructured.Unstructured{a, b, idle} {
 			Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		}
-		clock.Step(30 * time.Millisecond)
-		Eventually(r.rootQueue.Len).Should(BeNumerically(">=", 2))
-		drainQueue(r.rootQueue)
+		// Setup reconciles directly, so its queued retries are no longer needed.
+		resetRenewalQueue(r, clock)
 		drainQueue(r.queue)
 	})
 
@@ -298,10 +297,13 @@ var _ = Describe("Scoped metadata renewal", func() {
 			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
-		clock.Step(30 * time.Millisecond)
-		Eventually(r.rootQueue.Len).Should(BeNumerically(">=", 1))
+		// Keep delayed retries in the future while checking immediate refresh work.
 		drainQueue(r.queue)
-		drainQueue(r.rootQueue)
+		Expect(r.rootQueue.Len()).To(Equal(1))
+		key, stopped := r.rootQueue.Get()
+		Expect(stopped).To(BeFalse())
+		Expect(key).To(Equal(queueKey{Operation: "root", UID: a.GetUID()}))
+		r.rootQueue.Done(key)
 		// The old metadata still exists. It must neither override the full RV2
 		// observation nor trigger another traversal of the now-current path.
 		Expect(r.refreshMetadata(ctx)).To(Succeed())

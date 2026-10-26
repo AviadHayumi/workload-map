@@ -29,6 +29,13 @@ race detector. Independent source comparison confirmed that the file moves
 preserved declarations. The two helper substitutions preserve owner validation
 and namespace membership behavior.
 
+The full repository check exposed a timing race in an existing metadata-refresh
+test. A delayed retry could enter its queue after the test had drained it.
+The fixture now discards setup retries and keeps fake time fixed during the
+immediate-work assertion. The failing version reproduced on the first focused
+run. All 20 fresh runs of the corrected test group passed, followed by the full
+controller race suite. Production code did not change for this fix.
+
 This was a targeted follow-up to the [26-case acceptance run](2026-10-26.md).
 The complete operator matrix, monitoring lifecycle and scale measurements were
 not repeated for this cleanup.
