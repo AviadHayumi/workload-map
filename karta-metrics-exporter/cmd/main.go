@@ -90,10 +90,11 @@ func run() error {
 		"catalogDefinitions", options.Catalog.Enabled, "clusterDefinitions", options.Cluster.Enabled)
 	select {
 	case <-ctx.Done():
+		stop() // A second signal now ends the process.
 		err = <-inventoryDone
 	case err = <-inventoryDone:
 		// Run returns only after ctx ends, so an early return is a failure.
-		if err == nil {
+		if err == nil && ctx.Err() == nil {
 			err = errors.New("stopped before shutdown")
 		}
 	}
