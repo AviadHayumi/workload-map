@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"slices"
 	"sync"
@@ -174,13 +175,24 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 					select {
 					case event, ok := <-w.ResultChan():
 						if !ok {
+							i.update(func() {
+								if !proxy.Stopping() && ctx.Err() == nil {
+									// A decoder failure can close a watch without an Error event.
+									// Keep an earlier cause, but invalidate any list already in flight.
+									cause := i.failure
+									if cause == nil {
+										cause = io.ErrUnexpectedEOF
+									}
+									i.fail(cause)
+								}
+							})
 							return
 						}
 						// Recorded before the reflector sees it. A stopped watch is abandoned.
 						if event.Type == watch.Error {
 							err := apierrors.FromObject(event.Object)
 							i.update(func() {
-								if !proxy.Stopping() {
+								if !proxy.Stopping() && ctx.Err() == nil {
 									i.fail(err)
 								}
 							})
@@ -189,8 +201,12 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 						case events <- event:
 						case <-proxy.StopChan():
 							return
+						case <-ctx.Done():
+							return
 						}
 					case <-proxy.StopChan():
+						return
+					case <-ctx.Done():
 						return
 					}
 				}
