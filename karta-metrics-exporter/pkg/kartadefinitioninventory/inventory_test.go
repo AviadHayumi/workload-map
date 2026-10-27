@@ -1354,6 +1354,21 @@ var _ = Describe("Inventory selection", func() {
 		Expect(lookupOrigin(inventory, jobGVK).Name).To(Equal("newer-valid"))
 	})
 
+	It("serves a valid winner until deletion elects its retained invalid runner-up", func() {
+		winner := newKarta("older-valid", jobGVK, createdAt(epoch))
+		inventory := loadedInventory(withCatalog, winner,
+			newKarta("newer-invalid", jobGVK, createdAt(epoch.Add(time.Hour)), invalid))
+
+		Expect(lookupOrigin(inventory, jobGVK).Name).To(Equal("older-valid"))
+		Expect((reflectorStore{inventory: inventory}).Delete(unstructuredKarta(winner))).To(Succeed())
+
+		sel, err := inventory.Lookup(jobGVK)
+		Expect(err).To(MatchError(ErrInvalidDefinition))
+		Expect(err.Error()).To(ContainSubstring("newer-invalid"))
+		Expect(sel).To(Equal(Selection{}))
+		Expect(inventoryHealth(inventory)()).To(Succeed())
+	})
+
 	It("accepts a core group and leaves an omitted status definition unchanged", func() {
 		inventory := loadedInventory(DefaultOptions(), newKarta("pod", podGVK))
 		sel, err := inventory.Lookup(podGVK)
