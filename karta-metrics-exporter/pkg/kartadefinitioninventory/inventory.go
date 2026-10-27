@@ -4,20 +4,24 @@
 package kartadefinitioninventory
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
@@ -26,28 +30,18 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
-var (
-	ErrNotReady          = errors.New("definition sources not ready")
-	ErrUnavailable       = errors.New("definition source unavailable")
-	ErrPermissionDenied  = errors.New("definition source permission denied")
-	ErrInvalidDefinition = errors.New("invalid Karta definition")
-
-	errStopped = errors.New("inventory stopped")
-	errRelist  = errors.New("watch not resumed after a failure; relisting to confirm fresh data")
-)
-
 // Inventory serves definitions from the catalog and the cluster. Reads never
 // call the API server.
 type Inventory struct {
 	client        dynamic.Interface
-	catalog       map[schema.GroupKind]candidate
+	catalog       map[schema.GroupKind]definitionEntry
 	clusterFilter sourceFilter
 	log           *slog.Logger
 	loaded        chan struct{}
 	done          chan struct{}
 
 	mu       sync.RWMutex
-	cluster  map[string]clusterEntry
+	cluster  map[string]definitionEntry
 	started  bool
 	synced   bool
 	stopped  bool
@@ -59,11 +53,18 @@ type Inventory struct {
 	unmatchedIncludes []string
 }
 
-// Entries own their definitions and are replaced whole, so readers can retain
-// a candidate after releasing the lock.
-type clusterEntry struct {
-	candidate candidate
-	err       error
+// Entries own their definitions and validation errors. A nil definition means
+// decoding failed. Updates replace whole entries, so readers can release mu.
+type definitionEntry struct {
+	definition *v1alpha1.Karta
+	err        error
+}
+
+type sourceFilter struct {
+	enabled  bool
+	include  sets.Set[string]
+	exclude  sets.Set[string]
+	selector labels.Selector
 }
 
 type reflectorStore struct {
@@ -71,28 +72,51 @@ type reflectorStore struct {
 }
 
 var (
+	errStopped = errors.New("inventory stopped")
+	errRelist  = errors.New("watch not resumed after a failure; relisting to confirm fresh data")
+
 	_ Interface            = (*Inventory)(nil)
 	_ cache.ReflectorStore = reflectorStore{}
 )
 
 // New needs a client only when the cluster source is enabled.
 func New(client dynamic.Interface, options Options) (*Inventory, error) {
-	catalogFilter, clusterFilter, err := options.compile()
-	if err != nil {
+	catalogDefinitions := catalog.List()
+	known := sets.New[string]()
+	for _, k := range catalogDefinitions {
+		known.Insert(k.Name)
+	}
+	catalogFilter, catalogErrs := compileSource(SourceCatalog, options.Catalog, known)
+	clusterFilter, clusterErrs := compileSource(SourceCluster, options.Cluster, nil)
+	if err := errors.Join(append(catalogErrs, clusterErrs...)...); err != nil {
 		return nil, err
 	}
 	if clusterFilter.enabled && client == nil {
 		return nil, errors.New("the cluster definition source requires a client")
 	}
-	fromCatalog, _ := selectDefinitions(catalog.List(), catalogFilter, SourceCatalog)
 	i := &Inventory{
 		client:        client,
-		catalog:       fromCatalog,
+		catalog:       make(map[schema.GroupKind]definitionEntry),
 		clusterFilter: clusterFilter,
 		log:           slog.Default(),
 		loaded:        make(chan struct{}),
 		done:          make(chan struct{}),
-		cluster:       make(map[string]clusterEntry),
+		cluster:       make(map[string]definitionEntry),
+	}
+	for _, k := range catalogDefinitions {
+		if !catalogFilter.matches(k) {
+			continue
+		}
+		key := catalog.RootKey(k)
+		other := i.catalog[key.GroupKind()].definition
+		if other == nil || cmp.Or(
+			version.CompareKubeAwareVersionStrings(catalog.RootKey(other).Version, key.Version),
+			strings.Compare(k.Name, other.Name)) < 0 {
+			i.catalog[key.GroupKind()] = definitionEntry{definition: k}
+		}
+	}
+	for gk, entry := range i.catalog {
+		i.catalog[gk] = validatedEntry(entry.definition)
 	}
 	if !catalogFilter.enabled && !clusterFilter.enabled {
 		i.log.Warn("both Karta definition sources are disabled; no workload has a definition")
@@ -135,7 +159,7 @@ func (i *Inventory) Run(ctx context.Context) error {
 }
 
 // WaitLoaded waits for the first complete cluster list to be applied. It does
-// not start Run or report later source failures; use Ready for current health.
+// not start Run or report later source failures; Lookup checks current health.
 func (i *Inventory) WaitLoaded(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -281,7 +305,7 @@ func (s reflectorStore) Delete(obj any) error {
 }
 
 func (s reflectorStore) Replace(list []any, _ string) error {
-	cluster := make(map[string]clusterEntry, len(list))
+	cluster := make(map[string]definitionEntry, len(list))
 	for _, obj := range list {
 		name, entry, err := decodeKarta(obj)
 		if err != nil {
@@ -308,26 +332,27 @@ func (s reflectorStore) Replace(list []any, _ string) error {
 
 func (s reflectorStore) Resync() error { return nil }
 
-func decodeKarta(obj any) (string, clusterEntry, error) {
+func decodeKarta(obj any) (string, definitionEntry, error) {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		return "", clusterEntry{}, fmt.Errorf("unexpected Karta object %T", obj)
+		return "", definitionEntry{}, fmt.Errorf("unexpected Karta object %T", obj)
 	}
 	var k v1alpha1.Karta
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.DeepCopy().Object, &k); err != nil {
-		return u.GetName(), clusterEntry{err: fmt.Errorf("%w: decode Karta %q: %w", ErrUnavailable, u.GetName(), err)}, nil
+		return u.GetName(), definitionEntry{err: fmt.Errorf("%w: decode Karta %q: %w", ErrUnavailable, u.GetName(), err)}, nil
 	}
-	return u.GetName(), clusterEntry{candidate: newCandidate(&k, SourceCluster, validateDefinition)}, nil
+	return u.GetName(), validatedEntry(&k), nil
 }
 
 // report logs diagnostics only when they change; callers hold i.mu.
 func (i *Inventory) report() {
 	var unkeyable, unmatched []string
 	for name, entry := range i.cluster {
-		c := entry.candidate
-		if entry.err == nil && i.clusterFilter.matches(c.selection.Definition) &&
-			(c.selection.GVK.Version == "" || c.selection.GVK.Kind == "") {
-			unkeyable = append(unkeyable, name)
+		if k := entry.definition; k != nil && i.clusterFilter.matches(k) {
+			gvk := catalog.RootKey(k)
+			if gvk.Version == "" || gvk.Kind == "" {
+				unkeyable = append(unkeyable, name)
+			}
 		}
 	}
 	for name := range i.clusterFilter.include {
@@ -351,13 +376,6 @@ func (i *Inventory) report() {
 	}
 }
 
-// Ready is nil once lookups can succeed.
-func (i *Inventory) Ready() error {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	return i.ready()
-}
-
 // ready checks source state; callers hold i.mu.
 func (i *Inventory) ready() error {
 	if !i.clusterFilter.enabled {
@@ -374,7 +392,7 @@ func (i *Inventory) ready() error {
 		return ErrNotReady
 	}
 	for _, entry := range i.cluster {
-		if entry.err != nil {
+		if entry.definition == nil {
 			return entry.err
 		}
 	}
@@ -382,41 +400,100 @@ func (i *Inventory) ready() error {
 }
 
 // Lookup ignores the requested version and never falls back while a source fails.
+// A nil Definition with no error means neither source has a matching definition.
 func (i *Inventory) Lookup(gvk schema.GroupVersionKind) (Selection, error) {
 	i.mu.RLock()
 	if err := i.ready(); err != nil {
 		i.mu.RUnlock()
 		return Selection{}, err
 	}
-	gk := gvk.GroupKind()
-	winner := i.catalog[gk]
+	var winner definitionEntry
 	for _, entry := range i.cluster {
-		c := entry.candidate
-		if c.selection.GVK.GroupKind() == gk && c.selection.GVK.Version != "" && c.selection.GVK.Kind != "" &&
-			i.clusterFilter.matches(c.selection.Definition) && c.preferredTo(winner) {
-			winner = c
+		k := entry.definition
+		key := catalog.RootKey(k)
+		if key.GroupKind() != gvk.GroupKind() || key.Version == "" || key.Kind == "" || !i.clusterFilter.matches(k) {
+			continue
+		}
+		if winner.definition == nil || cmp.Or(
+			k.CreationTimestamp.Compare(winner.definition.CreationTimestamp.Time),
+			strings.Compare(k.Name, winner.definition.Name)) < 0 {
+			winner = entry
 		}
 	}
+	source := SourceCluster
+	if winner.definition == nil {
+		winner, source = i.catalog[gvk.GroupKind()], SourceCatalog
+	}
 	i.mu.RUnlock()
-	return winner.lookup()
+	if winner.err != nil {
+		return Selection{}, winner.err
+	}
+	k := winner.definition
+	if k == nil {
+		return Selection{}, nil
+	}
+	origin := Origin{Source: source, Name: k.Name}
+	if source == SourceCluster {
+		origin.UID, origin.ResourceVersion = k.UID, k.ResourceVersion
+	}
+	return Selection{Definition: k.DeepCopy(), GVK: catalog.RootKey(k), Origin: origin}, nil
 }
 
-// Selections returns nothing while a source fails.
-func (i *Inventory) Selections() ([]Selection, error) {
-	i.mu.RLock()
-	if err := i.ready(); err != nil {
-		i.mu.RUnlock()
-		return nil, err
+func validatedEntry(k *v1alpha1.Karta) definitionEntry {
+	copy := k.DeepCopy()
+	// The SDK requires a root status definition; the exporter does not.
+	if copy.Spec.StructureDefinition.RootComponent.StatusDefinition == nil {
+		copy.Spec.StructureDefinition.RootComponent.StatusDefinition = &v1alpha1.StatusDefinition{}
 	}
-	selected := maps.Clone(i.catalog)
-	for _, entry := range i.cluster {
-		c := entry.candidate
-		gk := c.selection.GVK.GroupKind()
-		if c.selection.GVK.Version != "" && c.selection.GVK.Kind != "" &&
-			i.clusterFilter.matches(c.selection.Definition) && c.preferredTo(selected[gk]) {
-			selected[gk] = c
+	err := v1alpha1.NewKartaValidator(copy).Validate()
+	if err != nil {
+		err = fmt.Errorf("%w %q: %w", ErrInvalidDefinition, k.Name, err)
+	}
+	return definitionEntry{definition: k, err: err}
+}
+
+func (f sourceFilter) matches(k *v1alpha1.Karta) bool {
+	return f.enabled && (f.include.Len() == 0 || f.include.Has(k.Name)) &&
+		!f.exclude.Has(k.Name) && (f.selector == nil || f.selector.Matches(labels.Set(k.Labels)))
+}
+
+// compileSource skips the name check when known is nil.
+func compileSource(source Source, o SourceOptions, known sets.Set[string]) (sourceFilter, []error) {
+	var errs []error
+	compileNames := func(field string, names []string) sets.Set[string] {
+		set := sets.New[string]()
+		for _, name := range names {
+			var problem string
+			switch {
+			case name == "":
+				problem = "empty definition name"
+			case set.Has(name):
+				problem = fmt.Sprintf("duplicate definition name %q", name)
+			case known != nil && !known.Has(name):
+				problem = fmt.Sprintf("unknown definition %q; known: %s", name, strings.Join(sets.List(known), ", "))
+			}
+			if problem != "" {
+				errs = append(errs, fmt.Errorf("%w: %s.%s: %s", ErrInvalidOptions, source, field, problem))
+			}
+			set.Insert(name)
 		}
+		return set
 	}
-	i.mu.RUnlock()
-	return listCandidates(selected)
+
+	f := sourceFilter{enabled: o.Enabled, include: compileNames("include", o.Include), exclude: compileNames("exclude", o.Exclude)}
+
+	// LabelSelectorAsSelector(nil) matches nothing; here nil means no selector.
+	switch selector := o.LabelSelector; {
+	case selector == nil:
+	case source == SourceCatalog && len(selector.MatchLabels)+len(selector.MatchExpressions) > 0:
+		errs = append(errs, fmt.Errorf("%w: %s.labelSelector: catalog definitions carry no labels; select them by name", ErrInvalidOptions, source))
+	default:
+		compiled, err := metav1.LabelSelectorAsSelector(selector)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%w: %s.labelSelector: %w", ErrInvalidOptions, source, err))
+			break
+		}
+		f.selector = compiled
+	}
+	return f, errs
 }
