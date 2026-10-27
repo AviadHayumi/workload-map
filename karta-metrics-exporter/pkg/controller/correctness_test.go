@@ -26,6 +26,7 @@ import (
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
@@ -40,18 +41,20 @@ func (i *testInventory) Lookup(gvk schema.GroupVersionKind) (inventory.Selection
 	}
 	return i.selection, i.err
 }
-func (i *testInventory) Selections() ([]inventory.Selection, error) {
-	return []inventory.Selection{i.selection}, i.err
+func (i *testInventory) Selections() []inventory.Selection {
+	return []inventory.Selection{i.selection}
 }
-func (i *testInventory) ClusterOrigins() ([]inventory.Origin, error) { return nil, nil }
+func (i *testInventory) ReplaceCluster([]*v1alpha1.Karta) {}
 
 type failingPodLabel struct{}
 
-func (failingPodLabel) Resolve(_ context.Context, input labelresolver.Input) ([]labelresolver.ResolvedMetricLabels, error) {
-	if input.Pod != nil && input.Pod.GetLabels()["bad"] == "true" {
-		return []labelresolver.ResolvedMetricLabels{{Errors: map[string]error{"team": errors.New("bad label")}}}, nil
+func (failingPodLabel) ForWorkload(*unstructured.Unstructured) labelresolver.ResolveFunc {
+	return func(_ context.Context, _ string, pod *unstructured.Unstructured) (labelresolver.Result, error) {
+		if pod != nil && pod.GetLabels()["bad"] == "true" {
+			return labelresolver.Result{Errors: map[string]error{"team": errors.New("bad label")}}, nil
+		}
+		return labelresolver.Result{}, nil
 	}
-	return nil, nil
 }
 func ownedBy(object, owner *unstructured.Unstructured) {
 	object.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: owner.GetAPIVersion(), Kind: owner.GetKind(), Name: owner.GetName(), UID: owner.GetUID(), Controller: ptr.To(true)}})
@@ -157,7 +160,7 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 		updated := good.DeepCopy()
 		updated.SetResourceVersion("2")
 		r.acceptEvent(w, updated, false)
-		r.roots[root.GetUID()].paths[good.GetUID()] = []discovery.ObjectRef{refOf(updated), refOf(root)}
+		r.setPodPathLocked(r.roots[root.GetUID()], good.GetUID(), []discovery.ObjectRef{refOf(updated), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(publications.Published(root.GetUID()).FailureReasons).To(ContainElement(store.ReasonEvaluationFailed))
 		r.acceptEvent(w, bad, true)
@@ -184,7 +187,7 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 		changed := pod.DeepCopy()
 		changed.SetResourceVersion("2")
 		r.acceptEvent(pw, changed, false)
-		r.roots[root.GetUID()].paths[pod.GetUID()] = []discovery.ObjectRef{refOf(changed), refOf(root)}
+		r.setPodPathLocked(r.roots[root.GetUID()], pod.GetUID(), []discovery.ObjectRef{refOf(changed), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, metadataList(ownerMetadata("root", "1")), nil
@@ -253,7 +256,7 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 		close(resume)
 		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
 		Expect(r.reader.metadata).To(BeEmpty())
-		Expect(r.reader.observed).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		metadata.ClearActions()
 		Expect(r.reader.refreshMetadata(ctx)).To(Succeed())
 		Expect(metadata.Actions()).To(BeEmpty())

@@ -8,63 +8,74 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 )
 
-type resolver struct {
-	rules         map[string][]compiledRule
-	mu            sync.Mutex
-	workloadCache map[workloadKey]evaluation
-	order         []workloadKey
-	next          int
+// Resolver holds compiled label rules. ForWorkload may be called concurrently.
+type Resolver struct {
+	rules     map[string][]*compiledRule
+	ruleCount int
 }
 
-type workloadKey struct {
-	apiVersion string
-	kind       string
-	uid        types.UID
-	version    string
-	rule       int
+type compiledRule struct {
+	id       int
+	name     string
+	sources  []Source
+	evaluate func(context.Context, *unstructured.Unstructured) (string, error)
 }
+
+// ResolveFunc evaluates labels for one metric and an optional Pod. Calls to the
+// same function must be serialized. Each call returns independent result maps.
+type ResolveFunc func(context.Context, string, *unstructured.Unstructured) (Result, error)
+
+// Result holds values and evaluation errors keyed by label name.
+type Result struct {
+	Labels map[string]string
+	Errors map[string]error
+}
+
+type Config struct {
+	Rules  []LabelRule           `json:"labelRules" yaml:"labelRules"`
+	Limits labelevaluator.Limits `json:"labelLimits" yaml:"labelLimits"`
+}
+
+type LabelRule struct {
+	Name       string   `json:"name" yaml:"name"`
+	Metrics    []string `json:"metrics" yaml:"metrics"`
+	Sources    []Source `json:"sources" yaml:"sources"`
+	Expression string   `json:"expression" yaml:"expression"`
+}
+
+type Source string
 
 type evaluation struct {
 	value string
 	err   error
 }
 
-type compiledRule struct {
-	id        int
-	name      string
-	sources   []Source
-	evaluator labelevaluator.Evaluator
-}
+const (
+	SourceWorkload Source = "workload"
+	SourcePod      Source = "pod"
+)
 
-const workloadCacheSize = 1024
-
-// New validates and compiles rules once. The returned resolver supports concurrent
-// calls. Callers must not mutate source objects while Resolve is evaluating them.
-func New(cfg Config, deps Dependencies) (Resolver, error) {
+// New validates and compiles each rule once.
+func New(cfg Config) (*Resolver, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, err
 	}
 	if cfg.Limits.MaxExpressionBytes < 0 || cfg.Limits.MaxValueBytes < 0 {
 		return nil, labelevaluator.ErrNegativeLimit
 	}
-	if len(cfg.Rules) != 0 && deps.Compiler == nil {
-		return nil, errors.New("label compiler is required")
-	}
-	r := &resolver{rules: make(map[string][]compiledRule)}
+	r := &Resolver{rules: make(map[string][]*compiledRule), ruleCount: len(cfg.Rules)}
 	for i, rule := range cfg.Rules {
-		evaluator, err := deps.Compiler.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.Limits})
+		evaluator, err := labelevaluator.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.Limits})
 		if err != nil {
 			return nil, fmt.Errorf("labelRules[%d] %q: %w", i, rule.Name, err)
 		}
-		compiled := compiledRule{id: i, name: rule.Name, sources: slices.Clone(rule.Sources), evaluator: evaluator}
+		compiled := &compiledRule{id: i, name: rule.Name, sources: slices.Clone(rule.Sources), evaluate: evaluator.Evaluate}
 		for _, metric := range rule.Metrics {
 			r.rules[metric] = append(r.rules[metric], compiled)
 		}
@@ -72,40 +83,43 @@ func New(cfg Config, deps Dependencies) (Resolver, error) {
 	return r, nil
 }
 
-func (r *resolver) Resolve(ctx context.Context, input Input) ([]ResolvedMetricLabels, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool, len(input.Metrics))
-	for _, metric := range input.Metrics {
+// ForWorkload prepares resolution for an immutable full workload object. Keep the
+// returned function while that object remains current, including across Pod-only
+// updates. Create a new function when the workload changes. Workload results are
+// evaluated lazily and shared across metrics and Pods; cancellation is not cached.
+func (r *Resolver) ForWorkload(workload *unstructured.Unstructured) ResolveFunc {
+	cache := make([]*evaluation, r.ruleCount)
+	return func(ctx context.Context, metric string, pod *unstructured.Unstructured) (Result, error) {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		if metric != "karta_pod_workload_info" && metric != "karta_workload_status" {
-			return nil, fmt.Errorf("unsupported label metric %q", metric)
+			return Result{}, fmt.Errorf("unsupported label metric %q", metric)
 		}
-		if seen[metric] {
-			return nil, fmt.Errorf("duplicate label metric %q", metric)
-		}
-		seen[metric] = true
-	}
-	results := make([]ResolvedMetricLabels, 0, len(input.Metrics))
-	for _, metric := range input.Metrics {
-		result := ResolvedMetricLabels{Metric: metric, Labels: make(map[string]string), Errors: make(map[string]error)}
+		result := Result{Labels: make(map[string]string), Errors: make(map[string]error)}
 		for _, rule := range r.rules[metric] {
 			for _, source := range rule.sources {
 				if err := ctx.Err(); err != nil {
-					return nil, err
+					return Result{}, err
 				}
 				var value string
 				var err error
-				if source == SourcePod {
-					value, err = rule.evaluator.Evaluate(ctx, input.Pod)
-				} else {
-					value, err = r.evaluateWorkload(ctx, rule, input.Workload)
+				switch {
+				case source == SourcePod:
+					value, err = rule.evaluate(ctx, pod)
+				case cache[rule.id] != nil:
+					value, err = cache[rule.id].value, cache[rule.id].err
+				default:
+					value, err = rule.evaluate(ctx, workload)
 				}
 				if cause := ctx.Err(); cause != nil {
-					return nil, cause
+					return Result{}, cause
 				}
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return nil, err
+					return Result{}, err
+				}
+				if source == SourceWorkload && cache[rule.id] == nil {
+					cache[rule.id] = &evaluation{value: value, err: err}
 				}
 				if err != nil {
 					result.Errors[rule.name] = errors.Join(result.Errors[rule.name], fmt.Errorf("%s: %w", source, err))
@@ -117,44 +131,6 @@ func (r *resolver) Resolve(ctx context.Context, input Input) ([]ResolvedMetricLa
 				}
 			}
 		}
-		results = append(results, result)
+		return result, nil
 	}
-	return results, nil
-}
-
-// Kubernetes objects with the same GVK, UID and resourceVersion have identical
-// input data. Cache only workload results; each Pod still gets its own evaluation.
-func (r *resolver) evaluateWorkload(ctx context.Context, rule compiledRule, object *unstructured.Unstructured) (string, error) {
-	if object == nil || object.GetUID() == "" || object.GetResourceVersion() == "" {
-		return rule.evaluator.Evaluate(ctx, object)
-	}
-	key := workloadKey{apiVersion: object.GetAPIVersion(), kind: object.GetKind(), uid: object.GetUID(), version: object.GetResourceVersion(), rule: rule.id}
-	r.mu.Lock()
-	cached, ok := r.workloadCache[key]
-	r.mu.Unlock()
-	if ok {
-		return cached.value, cached.err
-	}
-	value, err := rule.evaluator.Evaluate(ctx, object)
-	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return value, err
-	}
-	// Evaluation is deterministic for this immutable object and compiled rule.
-	// Concurrent misses may evaluate independently; no CEL work holds the lock.
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.workloadCache[key]; !exists {
-		if r.workloadCache == nil {
-			r.workloadCache = make(map[workloadKey]evaluation)
-		}
-		if len(r.order) < workloadCacheSize {
-			r.order = append(r.order, key)
-		} else {
-			delete(r.workloadCache, r.order[r.next])
-			r.order[r.next] = key
-			r.next = (r.next + 1) % workloadCacheSize
-		}
-		r.workloadCache[key] = evaluation{value: value, err: err}
-	}
-	return value, err
 }

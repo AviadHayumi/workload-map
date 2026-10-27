@@ -5,7 +5,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -106,11 +105,11 @@ func (r *Runtime) primeMetadata(ctx context.Context) error {
 }
 
 func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand map[objectKey]types.UID, scopes map[schema.GroupVersionKind]*meta.RESTMapping, deadline time.Time) (int, error) {
-	markers := map[objectKey]uint64{}
+	markers := map[objectKey]metadataRead{}
 	byName := map[string]objectKey{}
 	r.reader.mu.Lock()
 	for key, uid := range demand {
-		if uid == "" || r.reader.priming[key] != 0 {
+		if uid == "" {
 			continue
 		}
 		if _, watched := r.reader.objects[key]; watched {
@@ -119,10 +118,12 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 		if entry, found := r.reader.metadata[key]; found && entry.object.GetUID() == uid && r.reader.options.Now().Before(entry.expires) {
 			continue
 		}
-		r.reader.sequence++
-		markers[key] = r.reader.sequence
-		r.reader.priming[key] = r.reader.sequence
-		trackVersion(&r.reader.versions, key.GVK, 1)
+		state := r.reader.metadataReadLocked(key)
+		if state.priming {
+			continue
+		}
+		state.priming = true
+		markers[key] = metadataRead{state: state, revision: state.revision}
 		byName[key.Name] = key
 	}
 	r.reader.mu.Unlock()
@@ -130,13 +131,8 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 		r.reader.mu.Lock()
 		defer r.reader.mu.Unlock()
 		for key, marker := range markers {
-			if r.reader.priming[key] == marker {
-				delete(r.reader.priming, key)
-				trackVersion(&r.reader.versions, key.GVK, -1)
-			}
-			if _, cached := r.reader.metadata[key]; !cached && r.reader.pending[key] == nil {
-				delete(r.reader.observed, key)
-			}
+			marker.state.priming = false
+			r.reader.releaseMetadataReadLocked(key, marker.state)
 		}
 	}()
 	if len(markers) == 0 {
@@ -171,28 +167,23 @@ func (r *Runtime) primeMetadataGroup(ctx context.Context, group watchKey, demand
 	added := 0
 	for key, marker := range markers {
 		object := found[key]
-		if object == nil || object.GetUID() != demand[key] || canonical[key] != demand[key] || r.reader.priming[key] != marker || r.reader.observed[key] > marker {
+		if object == nil || object.GetUID() != demand[key] || canonical[key] != demand[key] || r.reader.metadataReads[key] != marker.state || marker.state.revision != marker.revision {
 			continue
 		}
 		if _, watched := r.reader.objects[key]; watched {
 			continue
 		}
-		r.reader.retireMetadataLocked(r.reader.metadata[key], store.ReasonAPIUnavailable)
-		proof := fmt.Sprintf("metadata:%s:%d", key, marker)
-		r.reader.saveMetadataLocked(key, metadataEntry{object: object, sequence: marker, failureKey: proof, expires: started.Add(r.reader.options.TTL)})
-		r.reader.observed[key] = marker
-		r.reader.activeKeys[proof] = true
-		delete(r.reader.failures, key)
+		r.reader.acceptMetadataLocked(key, demand[key], object, started, nil)
 		added++
 	}
 	return added, nil
 }
 
-func (r *Reader) hasPrimeDemand(markers map[objectKey]uint64) bool {
+func (r *Reader) hasPrimeDemand(markers map[objectKey]metadataRead) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for key, marker := range markers {
-		if r.priming[key] != marker || r.observed[key] > marker {
+		if r.metadataReads[key] != marker.state || marker.state.revision != marker.revision {
 			continue
 		}
 		if _, watched := r.objects[key]; !watched {
@@ -207,27 +198,25 @@ func (r *Reader) hasPrimeDemand(markers map[objectKey]uint64) bool {
 func (r *Reader) invalidatePrimeOwnersLocked(object metav1.Object) {
 	seen := map[objectKey]bool{}
 	for object != nil {
-		owner := metav1.GetControllerOf(object)
-		if owner == nil {
+		owner, valid := controllerOwner(object)
+		if !valid || owner.UID == "" {
 			return
 		}
-		version, err := schema.ParseGroupVersion(owner.APIVersion)
-		if err != nil {
-			return
-		}
-		key := objectKey{GVK: version.WithKind(owner.Kind), Namespace: object.GetNamespace(), Name: owner.Name}
+		key := objectKey{GVK: owner.GVK, Namespace: object.GetNamespace(), Name: owner.Name}
 		cluster := key
 		cluster.Namespace = ""
-		if r.priming[key] == 0 && r.priming[cluster] != 0 {
-			key = cluster
+		state := r.metadataReads[key]
+		if state == nil || !state.priming {
+			if candidate := r.metadataReads[cluster]; candidate != nil && candidate.priming {
+				key, state = cluster, candidate
+			}
 		}
 		if seen[key] {
 			return
 		}
 		seen[key] = true
-		if r.priming[key] != 0 {
-			r.sequence++
-			r.observed[key] = r.sequence
+		if state != nil && state.priming {
+			r.invalidateMetadataReadLocked(key)
 		}
 		entry, found := r.metadata[key]
 		if !found {
@@ -253,7 +242,7 @@ func (r *Runtime) metadataDemandLocked() map[objectKey]types.UID {
 			cluster.Namespace = ""
 			_, cached := r.reader.metadata[cluster]
 			_, failed := r.reader.failures[cluster]
-			if cached || failed || r.reader.pending[cluster] != nil || r.reader.priming[cluster] != 0 {
+			if cached || failed || r.reader.metadataReads[cluster] != nil {
 				key = cluster
 			}
 		}
@@ -319,14 +308,9 @@ func (r *Runtime) pruneMetadataLocked() {
 			r.reader.removeMetadataLocked(key, store.ReasonUnresolvedOwner)
 		}
 	}
-	for key := range r.reader.pending {
+	for key := range r.reader.metadataReads {
 		if _, found := needed[key]; !found {
-			r.reader.removeMetadataLocked(key, store.ReasonUnresolvedOwner)
-		}
-	}
-	for key := range r.reader.priming {
-		if _, found := needed[key]; !found {
-			r.reader.removeMetadataLocked(key, store.ReasonUnresolvedOwner)
+			r.reader.invalidateMetadataReadLocked(key)
 		}
 	}
 	for key := range r.reader.failures {

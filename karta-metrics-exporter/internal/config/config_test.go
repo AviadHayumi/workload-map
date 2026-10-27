@@ -85,6 +85,8 @@ var _ = Describe("config rejects invalid input", func() {
 	It("rejects invalid files, flags and environment values", func() {
 		for _, contents := range []string{
 			"labelLimits:\n  costLimit: lots",
+			"workers: 2\nworkers: 3", "labelLimits:\n  costLimit: 2\n  costLimit: 3",
+			"namespaceSelector: {unknown: value}",
 			"labelLimits:\n  maxValueBytes: -1", "labelLimits:\n  maxExpressionBytes: -1",
 			"labelLimits:\n  interruptCheckFrequency: 0", "labelLimits:\n  interruptCheckFrequency: -1",
 			"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
@@ -139,6 +141,13 @@ var _ = Describe("runtime configuration", func() {
 		Expect(cfg.APIBurst).To(Equal(100))
 		Expect(cfg.Workers).To(Equal(3))
 		Expect(cfg.ResourceRules).To(HaveLen(1))
+	})
+	It("loads Kubernetes selectors through their JSON field names", func() {
+		cfg, err := loadConfig("namespaceSelector:\n  matchLabels: {team: blue}\npodSelector:\n  matchExpressions:\n  - key: app\n    operator: In\n    values: [worker]", nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg.NamespaceSelector.MatchLabels).To(HaveKeyWithValue("team", "blue"))
+		Expect(cfg.PodSelector.MatchExpressions).To(HaveLen(1))
+		Expect(cfg.PodSelector.MatchExpressions[0].Values).To(Equal([]string{"worker"}))
 	})
 	DescribeTable("rejects non-finite API rates before creating clients", func(value string) {
 		_, err := loadConfig("", nil, "--api-qps="+value)

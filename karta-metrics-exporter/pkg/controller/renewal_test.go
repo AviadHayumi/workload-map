@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clienttesting "k8s.io/client-go/testing"
@@ -22,11 +23,14 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
-type countedLabels struct{ calls int }
+type countedLabels struct{ calls, prepared int }
 
-func (c *countedLabels) Resolve(context.Context, labelresolver.Input) ([]labelresolver.ResolvedMetricLabels, error) {
-	c.calls++
-	return nil, nil
+func (c *countedLabels) ForWorkload(*unstructured.Unstructured) labelresolver.ResolveFunc {
+	c.prepared++
+	return func(context.Context, string, *unstructured.Unstructured) (labelresolver.Result, error) {
+		c.calls++
+		return labelresolver.Result{}, nil
+	}
 }
 func drainQueue(q workqueue.TypedRateLimitingInterface[queueKey]) {
 	for q.Len() > 0 {
@@ -60,13 +64,14 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		seedWatch(r, testRootGVK, "jobs", root)
 		state := seedRoot(r, root)
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		state.labelFailures = map[types.UID]bool{}
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
 			for range 10000 {
-				state.labelFailures["pod"] = true
-				delete(state.labelFailures, "pod")
+				r.mu.Lock()
+				state.labelFailures++
+				state.labelFailures--
+				r.mu.Unlock()
 			}
 		}()
 		for range 1000 {
@@ -77,6 +82,29 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 			r.mu.Unlock()
 		}
 		Eventually(done).Should(BeClosed())
+	})
+	It("reuses workload label preparation across Pod changes and replaces it after a root update", func(ctx SpecContext) {
+		labels := &countedLabels{}
+		r, _, _ := testRuntime(labels)
+		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
+		ownedBy(pod, root)
+		rootWatch := seedWatch(r, testRootGVK, "jobs", root)
+		podWatch := seedWatch(r, podGVK, "pods", pod)
+		seedRoot(r, root, pod)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(labels.prepared).To(Equal(1))
+		updatedPod := pod.DeepCopy()
+		updatedPod.SetResourceVersion("2")
+		r.acceptEvent(podWatch, updatedPod, false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(updatedPod)), UID: updatedPod.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(labels.prepared).To(Equal(1))
+		updatedRoot := root.DeepCopy()
+		updatedRoot.SetResourceVersion("2")
+		r.acceptEvent(rootWatch, updatedRoot, false)
+		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(updatedRoot)), UID: updatedRoot.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(labels.prepared).To(Equal(2))
 	})
 	It("advances a pending renewal when a new dependency expires earlier", func(ctx SpecContext) {
 		r, _, publications := testRuntime(nil)
@@ -351,7 +379,9 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		case "pending":
 			state.failResolution(testRootGVK, discovery.ErrPending)
 		case "failure":
-			state.podErrors["pod"] = errors.New("owner unavailable")
+			pod := state.pods["pod"]
+			pod.resolveError = errors.New("owner unavailable")
+			state.pods["pod"] = pod
 		case "invalid":
 			entry := r.reader.objects[keyOf(refOf(root))]
 			delete(r.reader.activeKeys, entry.proofKey)

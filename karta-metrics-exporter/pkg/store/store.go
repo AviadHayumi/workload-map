@@ -4,7 +4,6 @@
 package store
 
 import (
-	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -87,11 +86,10 @@ type PublishedPod struct {
 	Mapping Evidence
 }
 
+// PodPage is an immutable chunk constructed by BuildPodPages or WithPod.
 type PodPage struct {
-	Rows         []PublishedPod
-	prepared     sync.Once
+	rows         []PublishedPod
 	dependencies map[string]int
-	sorted       bool
 }
 
 type Evidence struct {

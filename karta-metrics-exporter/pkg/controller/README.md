@@ -4,6 +4,7 @@
 # Runtime
 
 `Runner.Run(ctx)` owns watches and workers. It returns after they stop.
+`Runner.Ready()` reports whether required sources have current evidence.
 `Dependencies` supplies Discovery, the definition inventory, label resolution
 and the Store writer. Collector receives only Store's read interface.
 
@@ -12,9 +13,15 @@ and namespace, including roots returned by Discovery without existing coverage.
 Intermediate owners use cached metadata reads and periodic refresh, without
 additional watches.
 
+Runtime is the only observer of cluster Kartas. It checks its accepted Karta
+snapshot before calling inventory `ReplaceCluster`. Inventory selects definitions;
+Runtime owns source readiness and failure handling.
+
 Object events queue ownership resolution. Resolved roots queue status, Pod
 mapping and label calculations. A separate source queue handles synchronization
-and verification. Each root has at most one publication worker at a time.
+and verification. Each root has at most one publication worker at a time. It retains a prepared
+label resolver for the exact immutable workload input. Pod-only updates reuse
+that scope; a changed workload representation or version replaces it.
 
 Before publishing, Runtime checks that its inputs still match accepted events.
 Store locks its own data. Deleting a root removes its publication. A failed read

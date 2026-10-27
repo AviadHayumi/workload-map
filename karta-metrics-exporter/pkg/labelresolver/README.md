@@ -3,40 +3,39 @@
 
 # Label resolver
 
-`Config.Rules` is the `labelRules` list. Each rule names a label, its metrics,
-ordered sources and expression. `Dependencies.Compiler` supplies the compiler.
-`Config.Limits` supplies its evaluation bounds. `New(Config, Dependencies)` validates and compiles each rule once
-at construction.
+`New(Config)` validates and compiles `labelRules` once. Each rule names a label,
+its metrics, ordered sources and expression. `Config.Limits` bounds evaluation.
 
-`Resolve` receives metric names, a workload object and an optional Pod object.
-It returns one `ResolvedMetricLabels` per metric, with values and per-label errors.
-Empty or failed values try the next source. Errors remain visible even when a
-fallback succeeds. A top-level error reports cancellation or invalid input.
-The resolver neither fetches objects nor owns a Kubernetes cache.
+`ForWorkload` receives an immutable full workload object and returns a function
+that resolves one metric and an optional full Pod object:
 
-For a Pod metric, sources may be `workload`, `pod`, or both in either order.
-A workload-only metric rejects a rule containing `pod`: there is no single
-Pod to choose for the workload. Empty and failed values never reuse old labels.
+```go
+resolve := resolver.ForWorkload(workload)
+result, err := resolve(ctx, "karta_pod_workload_info", pod)
+```
 
-Runtime calls the resolver for relevant changes and saves the results in Store.
-Collector reads those saved labels.
+`Result.Labels` contains values and `Result.Errors` contains per-label errors.
+Empty or failed values try the next source. Errors remain visible when a fallback
+succeeds. Missing source objects are per-label errors and permit fallback.
+Cancellation or an unknown metric returns a top-level error.
 
-`ValidateConfig` checks the rules at startup. Helm and the command accept the
-configuration. Resolve creates fresh result maps on every call. Missing source
-objects are per-label errors and permit fallback. Unknown or duplicate requested
-metrics are invalid input. A canceled context stops resolution immediately.
-The resolver supports concurrent calls with immutable input objects.
+For Pod metrics, sources may be `workload`, `pod`, or both in either order.
+Workload status rejects a rule containing `pod` because no single Pod represents
+the workload. Built-in metric labels and the OTel scope labels are reserved.
 
-Workload evaluation results use a 1024-entry FIFO cache keyed by workload API version,
-kind, UID, resourceVersion and compiled rule. The Kubernetes object contents must
-be unchanged for the same API representation, UID and resourceVersion. Missing
-identities or versions bypass the cache. Deterministic evaluation errors remain available for fallback;
-cancellation errors are never cached. Pod results are evaluated separately.
-Concurrent cache misses can evaluate independently, without holding the cache
-lock during CEL execution.
+The controller retains the prepared function with its cached workload object and
+replaces both when the workload changes. Each workload expression runs only when
+its source is reached. Its result is reused across metrics and Pods in that scope.
+Deterministic errors and empty values are reused; cancellation is never cached.
+Pod expressions run separately for each call. There is no global workload cache.
 
-The OTel scope label names `otel_scope_name`, `otel_scope_version` and
-`otel_scope_schema_url` are reserved along with the metric's built-in labels.
+Calls to a prepared function must be serialized. Separate workload scopes may run
+concurrently. Each call returns fresh result maps. The workload object must remain
+unchanged for the lifetime of its scope, and the Pod must remain unchanged during
+evaluation. The resolver does not fetch Kubernetes objects.
+
+The controller stores resolved labels with observations. The collector reads those
+saved labels without evaluating expressions.
 
 ## Verify
 
@@ -44,9 +43,10 @@ From the exporter module directory:
 
 ```sh
 go test -race ./pkg/labelresolver
+go test -run '^$' -bench BenchmarkWorkloadLabels -benchmem ./pkg/labelresolver
 ```
 
-Tests use the real CEL compiler for ordered fallback, retained errors, label
-replacement, cancellation and bounded cache behavior. API-version, kind and
-resource-version changes must invalidate workload cache entries. Resolver tests
-need no Kubernetes API server.
+Tests cover ordered fallback, retained errors, fresh result maps, cancellation,
+independent scopes and one workload evaluation shared across 1000 Pods. The
+benchmark exercises a workload expression over a list for unchanged workloads and
+new workload scopes. No Kubernetes API server is required.

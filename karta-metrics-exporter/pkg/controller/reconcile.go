@@ -20,7 +20,6 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/instructions"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
@@ -52,10 +51,8 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 	result, err := r.deps.Discovery.Get(ctx, ref)
 	if result.Workload != nil && result.Workload.Root.UID != "" {
 		root := result.Workload.Root
-		// A complete verified path remains usable when only definition lookup failed.
-		err = nil
 		gvk := root.GVK
-		if selection, lookupErr := r.deps.Inventory.Lookup(root.GVK); lookupErr == nil && selection.Definition != nil {
+		if selection, lookupErr := r.lookupDefinition(root.GVK); lookupErr == nil && selection.Definition != nil {
 			gvk = selection.GVK
 		} else {
 			selected, selectionErr := r.selectedResource(gvk)
@@ -107,8 +104,10 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		r.mu.Lock()
 		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
 			r.invalidatePodLocked(root, ref.UID, failureReason(err))
-			root.podErrors[ref.UID] = err
-			r.deps.Publications.SetPublicationFailure(root.podKeys[ref.UID], failureReason(err))
+			pod := root.pods[ref.UID]
+			pod.resolveError = err
+			root.pods[ref.UID] = pod
+			r.deps.Publications.SetPublicationFailure(pod.proofKey, failureReason(err))
 		}
 		r.failPublicationLocked(ref.UID, err)
 		r.publishHealthLocked()
@@ -120,7 +119,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 	}
 	workload := result.Workload
 	if workload.Root.GVK == podGVK {
-		if selection, err := r.deps.Inventory.Lookup(podGVK); err == nil && selection.Definition == nil {
+		if selection, err := r.lookupDefinition(podGVK); err == nil && selection.Definition == nil {
 			r.mu.Lock()
 			r.removeRoot(workload.Root.UID)
 			r.mu.Unlock()
@@ -144,8 +143,10 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 		return discovery.ErrStale
 	}
 	if old := r.roots[ref.UID]; old != nil && workload.Root.UID != ref.UID {
-		for uid, path := range old.paths {
-			r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: uid})
+		for uid, pod := range old.pods {
+			if len(pod.path) > 0 {
+				r.queue.Add(queueKey{Operation: "object", Object: keyOf(pod.path[0]), UID: uid})
+			}
 		}
 		r.removeRoot(ref.UID)
 	}
@@ -155,7 +156,7 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 	}
 	root := r.roots[workload.Root.UID]
 	if root == nil {
-		root = &rootState{ref: workload.Root, paths: map[types.UID][]discovery.ObjectRef{}, dirty: map[types.UID]bool{}, podKeys: map[types.UID]string{}, podErrors: map[types.UID]error{}, retired: map[string]bool{}, cached: map[types.UID]cachedPod{}, fullRefresh: true}
+		root = &rootState{ref: workload.Root, pods: map[types.UID]podState{}, dirty: map[types.UID]bool{}, fullRefresh: true}
 		r.roots[workload.Root.UID] = root
 	}
 	if failure, unresolved := root.resolutionErrors[workload.Root.GVK]; unresolved {
@@ -179,14 +180,16 @@ func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
 				r.removePodPathLocked(old, ref.UID)
 			}
 		}
-		if root.podErrors[ref.UID] != nil {
+		if root.pods[ref.UID].resolveError != nil {
 			r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
-			delete(root.podErrors, ref.UID)
 		}
-		if root.podKeys[ref.UID] == "" {
+		pod := root.pods[ref.UID]
+		pod.resolveError = nil
+		if pod.proofKey == "" {
 			r.sequence++
-			root.podKeys[ref.UID] = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
+			pod.proofKey = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
 		}
+		root.pods[ref.UID] = pod
 		r.setPodPathLocked(root, ref.UID, workload.Path)
 		r.dirtyPod(root, ref.UID)
 		r.podRoots[ref.UID] = workload.Root.UID
@@ -240,29 +243,25 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	dirty := state.dirty
 	state.dirty = map[types.UID]bool{}
 	state.fullRefresh = false
-	paths := map[types.UID][]discovery.ObjectRef{}
+	pods := map[types.UID]podState{}
 	if full {
-		paths = maps.Clone(state.paths)
+		pods = maps.Clone(state.pods)
 	} else {
-		for pod := range dirty {
-			paths[pod] = state.paths[pod]
+		for uid := range dirty {
+			pods[uid] = state.pods[uid]
 		}
 	}
-	podErrors := maps.Clone(state.podErrors)
-	keys := make(map[types.UID]string, len(paths))
-	for pod := range paths {
-		keys[pod] = state.podKeys[pod]
-	}
+	publishedOrigin, publishedGVK := state.publishedOrigin, state.publishedGVK
+	labelObject, resolveLabels := state.labelObject, state.resolveLabels
+	labelFailures := state.labelFailures
 	definitionKey, definitionError := r.definitionKey, r.definitionError
+	selection, selectionErr := r.lookupDefinitionLocked(ref.GVK)
 	kindDefinitionKey := r.definitionProofLocked(ref.GVK.GroupKind())
 	definitionEvidence := store.Evidence{}
 	for _, w := range r.watches {
 		if w.gvk == kartaGVK {
 			definitionEvidence = store.Evidence{ExpiresAt: w.verifiedAt.Add(r.config.MaxAge), Dependencies: []string{w.failureKey}}
 		}
-	}
-	if r.pendingDefinitions[ref.GVK.GroupKind()] {
-		definitionError = discovery.ErrPending
 	}
 	r.mu.Unlock()
 	committed := false
@@ -277,15 +276,17 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 		r.retireFailuresLocked(state)
 	}()
-	selection, selectionErr := r.deps.Inventory.Lookup(ref.GVK)
 	definitionError = errors.Join(definitionError, selectionErr)
 	interpretationOrigin, interpretationGVK := selection.Origin, selection.GVK
 	if definitionError != nil && interpretationOrigin == (inventory.Origin{}) {
-		interpretationOrigin, interpretationGVK = state.publishedOrigin, state.publishedGVK
+		interpretationOrigin, interpretationGVK = publishedOrigin, publishedGVK
 	}
-	compatible := previous != nil && interpretationOrigin == state.publishedOrigin && interpretationGVK == state.publishedGVK
+	compatible := previous != nil && interpretationOrigin == publishedOrigin && interpretationGVK == publishedGVK
 	if !compatible {
-		clear(state.cached)
+		for uid, pod := range pods {
+			pod.cached = nil
+			pods[uid] = pod
+		}
 	}
 	if ref.GVK == podGVK && selection.Definition == nil && definitionError == nil {
 		r.mu.Lock()
@@ -330,11 +331,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		rootEvidence.Reason = failureReason(rootFailure)
 	}
 	statusEvidence := rootEvidence
-	if selection.Definition != nil || definitionError != nil {
-		statusEvidence.Dependencies = append(slices.Clone(rootEvidence.Dependencies), definitionKey, kindDefinitionKey)
-		if r.config.Definitions.Cluster.Enabled {
-			statusEvidence = mergeEvidence(statusEvidence, definitionEvidence)
-		}
+	statusEvidence.Dependencies = append(slices.Clone(rootEvidence.Dependencies), definitionKey, kindDefinitionKey)
+	if r.config.Definitions.Cluster.Enabled {
+		statusEvidence = mergeEvidence(statusEvidence, definitionEvidence)
 	}
 	if definitionError != nil {
 		statusEvidence.Reason = failureReason(definitionError)
@@ -368,15 +367,17 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
 		}
 	}
-	statusLabels, labelErr := r.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{"karta_workload_status"}, Workload: object})
+	if resolveLabels == nil || labelObject != selectedRef {
+		resolveLabels = r.deps.Labels.ForWorkload(object)
+		labelObject = selectedRef
+	}
+	statusLabels, labelErr := resolveLabels(ctx, "karta_workload_status", nil)
 	if labelErr != nil {
 		return labelErr
 	}
-	if len(statusLabels) > 0 {
-		record.Workload.StatusLabels = statusLabels[0].Labels
-		if len(statusLabels[0].Errors) > 0 {
-			record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
-		}
+	record.Workload.StatusLabels = statusLabels.Labels
+	if len(statusLabels.Errors) > 0 {
+		record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
 	}
 	if record.Status.Reason != "" && compatible && previous.Workload.HasStatus {
 		record.Workload.HasStatus = true
@@ -385,8 +386,9 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		record.Workload.Karta = previous.Workload.Karta
 		record.Workload.KartaSource = previous.Workload.KartaSource
 	}
-	rows := make([]store.PublishedPod, 0, len(paths))
-	for podUID, path := range paths {
+	rows := make([]store.PublishedPod, 0, len(pods))
+	for podUID, pod := range pods {
+		path := pod.path
 		if len(path) == 0 {
 			continue
 		}
@@ -403,7 +405,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			continue
 		}
 		evidence := statusEvidence
-		evidence.Dependencies = append(slices.Clone(evidence.Dependencies), keys[podUID])
+		evidence.Dependencies = append(slices.Clone(evidence.Dependencies), pod.proofKey)
 		valid := true
 		var pathFailure error
 		for _, dependency := range path {
@@ -434,8 +436,11 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			}
 			evidence = mergeEvidence(evidence, proof)
 		}
-		cached, reuse := state.cached[podUID]
-		reuse = reuse && cached.resourceVersion == podObject.GetResourceVersion() && (cached.generation == generation || definitionError != nil)
+		var cached cachedPod
+		if pod.cached != nil {
+			cached = *pod.cached
+		}
+		reuse := pod.cached != nil && cached.resourceVersion == podObject.GetResourceVersion() && (cached.generation == generation || definitionError != nil)
 		if !reuse {
 			cached = cachedPod{resourceVersion: podObject.GetResourceVersion(), generation: generation, record: store.PodRecord{UID: podUID, Name: podObject.GetName(), Namespace: podObject.GetNamespace(), Instance: "<unknown>", Component: "<unknown>", OwnerResolution: store.OwnerResolution(resolution)}}
 			if factory != nil && summary != nil && valid {
@@ -448,58 +453,48 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 					cached.record.Group = group
 				}
 			}
-			resolved, labelErr := r.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{"karta_pod_workload_info"}, Workload: object, Pod: podObject})
+			resolved, labelErr := resolveLabels(ctx, "karta_pod_workload_info", podObject)
 			if labelErr != nil {
 				return labelErr
 			}
-			if len(resolved) > 0 {
-				cached.record.Labels = resolved[0].Labels
-				cached.labelFailure = len(resolved[0].Errors) > 0
-			}
+			cached.record.Labels = resolved.Labels
+			cached.labelFailure = len(resolved.Errors) > 0
 			if valid && definitionError == nil && rootFailure == nil {
-				state.cached[podUID] = cached
+				pod.cached = &cached
 			}
+
 		}
 		podRecord := cached.record
 		podRecord.WorkloadGVK = selectedRef.GVK
 		if interpretationOrigin == (inventory.Origin{}) && len(path) > 0 {
 			podRecord.WorkloadGVK = path[len(path)-1].GVK
 		}
-		if !valid || podErrors[podUID] != nil || rootFailure != nil {
+		if !valid || pod.resolveError != nil || rootFailure != nil {
 			podRecord.OwnerResolution = store.UnknownOwner
 		}
 		if !valid {
 			evidence.Reason = failureReason(pathFailure)
-			if cause := podErrors[podUID]; cause != nil {
+			if cause := pod.resolveError; cause != nil {
 				evidence.Reason = failureReason(cause)
 			}
 		} else if cached.reason != "" {
 			evidence.Reason = cached.reason
 		}
-		if state.labelFailures == nil {
-			state.labelFailures = map[types.UID]bool{}
+		if pod.labelFailure != cached.labelFailure {
+			if cached.labelFailure {
+				labelFailures++
+			} else {
+				labelFailures--
+			}
 		}
-		if cached.labelFailure {
-			state.labelFailures[podUID] = true
-		} else {
-			delete(state.labelFailures, podUID)
-		}
+		pod.labelFailure = cached.labelFailure
+		pods[podUID] = pod
 		rows = append(rows, store.PublishedPod{Record: podRecord, Mapping: evidence})
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if full {
-		for pod := range state.cached {
-			if _, ok := paths[pod]; !ok {
-				delete(state.cached, pod)
-			}
-		}
-		for pod := range state.labelFailures {
-			if _, ok := paths[pod]; !ok {
-				delete(state.labelFailures, pod)
-			}
-		}
 		record.PodPages = store.BuildPodPages(rows, previous)
 	} else {
 		record.PodPages = previous.PodPages
@@ -507,15 +502,21 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		for i := range rows {
 			replacements[rows[i].Record.UID] = &rows[i]
 		}
-		for pod := range paths {
-			record = record.WithPod(pod, replacements[pod])
-			if replacements[pod] == nil {
-				delete(state.cached, pod)
-				delete(state.labelFailures, pod)
-			}
+		for uid := range pods {
+			record = record.WithPod(uid, replacements[uid])
 		}
 	}
-	if len(state.labelFailures) > 0 {
+	for uid, pod := range pods {
+		if len(pod.path) == 0 {
+			if pod.labelFailure {
+				labelFailures--
+			}
+			pod.labelFailure = false
+			pod.cached = nil
+			pods[uid] = pod
+		}
+	}
+	if labelFailures > 0 {
 		record.FailureReasons = append(record.FailureReasons, store.ReasonEvaluationFailed)
 	}
 	proofKeys := map[string]bool{}
@@ -539,7 +540,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if current != state || current.generation != generation || definitionKey != r.definitionKey || kindDefinitionKey != r.definitionProofLocked(ref.GVK.GroupKind()) {
 		return discovery.ErrStale
 	}
-	latest, latestErr := r.deps.Inventory.Lookup(ref.GVK)
+	latest, latestErr := r.lookupDefinitionLocked(ref.GVK)
 	if (latestErr == nil) != (selectionErr == nil) {
 		return discovery.ErrStale
 	}
@@ -571,12 +572,26 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, current.renewalAt.Sub(now))
 	}
-	for pod := range dirty {
-		if _, ok := current.paths[pod]; !ok {
-			delete(current.podKeys, pod)
-			delete(current.podErrors, pod)
+	for uid, evaluated := range pods {
+		pod, exists := current.pods[uid]
+		if !exists || pod.proofKey != evaluated.proofKey {
+			continue
+		}
+		if pod.labelFailure != evaluated.labelFailure {
+			if evaluated.labelFailure {
+				current.labelFailures++
+			} else {
+				current.labelFailures--
+			}
+		}
+		pod.cached, pod.labelFailure = evaluated.cached, evaluated.labelFailure
+		if len(pod.path) == 0 {
+			delete(current.pods, uid)
+		} else {
+			current.pods[uid] = pod
 		}
 	}
+	current.labelObject, current.resolveLabels = labelObject, resolveLabels
 	current.publishedGeneration = generation
 	current.publishedOrigin, current.publishedGVK = interpretationOrigin, interpretationGVK
 	committed = true

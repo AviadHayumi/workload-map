@@ -154,7 +154,7 @@ func (d diagnostic) handler() http.Handler {
 		for _, uid := range uids {
 			requested[types.UID(uid)] = true
 		}
-		view := d.application.Components.Store.Capture()
+		view := d.application.Store.Capture()
 		result := map[string]any{}
 		for _, p := range view.Records {
 			if !requested[p.Workload.UID] {
@@ -168,7 +168,7 @@ func (d diagnostic) handler() http.Handler {
 			valid := creationValid && statusValid && len(p.FailureReasons) == 0
 			pods := map[string]any{}
 			for _, page := range p.PodPages {
-				for _, pod := range page.Rows {
+				for _, pod := range page.Rows() {
 					mappingValid, reason := view.Valid(pod.Mapping)
 					_, duplicate := pods[string(pod.Record.UID)]
 					valid = valid && mappingValid && !duplicate

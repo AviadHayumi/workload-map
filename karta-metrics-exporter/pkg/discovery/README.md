@@ -8,19 +8,16 @@ owned by a JobSet, it returns the JobSet reference and the path from Pod to root
 A missing Karta does not make the Job the root. Only an explicitly ignored owner
 allows traversal to stop early.
 
-`Dependencies` supplies the object reader and definition inventory. The reader
-checks Runtime's informer cache and performs metadata GETs. Discovery does not
-start watches. `MissingCoverage` requests a root watch only; intermediate owners
-are not included. Runtime handles the request and retries after synchronization.
+`New(reader, config)` takes an object reader and an explicit `IgnoredTopOwners`
+GVK list. The reader checks Runtime's informer cache and performs metadata GETs.
+Discovery does not select Karta definitions or start watches. Runtime selects the
+definition and ensures root coverage after receiving the resolved workload.
 
-Callers inspect errors with `errors.Is`. Missing coverage can accompany a Karta
-selection error once the root is known. An unresolved chain cannot request a
-root watch.
-
-`New(dependencies, config)` accepts an explicit `IgnoredTopOwners` GVK list.
 Traversal follows controller owner references. UID replacement, malformed or
 multiple controller references, cycles and missing owners fail resolution.
-Only a fully resolved root can produce missing coverage.
+A chain may contain at most 1024 objects. `ControllerOwner` shares reference
+validation with Runtime's root-boundary checks. Callers inspect errors with
+`errors.Is`.
 
 The reader owns metadata refresh and coalescing. Discovery retains no metadata
 between calls. Returned references include the observed resource versions so

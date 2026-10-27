@@ -3,11 +3,8 @@
 
 # OTel Collector
 
-`Registrar.Register` takes an OTel Meter and a Store `Capturer` and returns a
-`metric.Registration`. Collector publishes all supported workload phases.
-The Registrar interface lets application lifecycle tests replace collection.
-
-`New()` returns the Registrar. It registers one callback for the four KEP metric families.
+`Register` takes an OTel Meter and a Store `Capturer` and returns a
+`metric.Registration`. It registers one callback for the four KEP metric families.
 Each collection captures Store once, checks evidence validity and emits saved
 values. It does not read Kubernetes or run expressions.
 
@@ -29,8 +26,8 @@ series. Runtime integration tests can publish through `store.Writer` and scrape
 the same reader. Neither pure component starts a Kubernetes client or envtest
 server.
 
-Pod-info uses each Pod's namespace. Status, creation and workload health use the
-root namespace, which is empty for a cluster-scoped root. Removing a publication
+Pod-info uses each Pod's namespace and verified workload GVK. Status, creation
+and workload health use the root namespace, which is empty for a cluster-scoped root. Removing a publication
 or Pod row removes its series on the next collection.
 
 ## Verify

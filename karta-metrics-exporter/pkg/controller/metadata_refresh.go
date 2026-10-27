@@ -6,7 +6,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
 // refreshMetadata verifies only retained owners. Unrelated LIST items are discarded.
@@ -83,33 +81,17 @@ func (r *Reader) refreshMetadataGroup(ctx context.Context, group watchKey, entri
 		if !ok || current.failureKey != old.failureKey || current.sequence != old.sequence {
 			continue
 		}
-		object := found[key]
-		switch {
-		case listErr != nil:
-			r.recordMetadataFailureLocked(key, old.object.GetUID(), nil, listErr)
-			r.removeMetadataLocked(key, failureReason(listErr))
-		case object == nil:
-			r.recordMetadataFailureLocked(key, old.object.GetUID(), nil, discovery.ErrUnresolvedOwner)
-			r.removeMetadataLocked(key, store.ReasonUnresolvedOwner)
-		default:
-			r.recordMetadataFailureLocked(key, old.object.GetUID(), object, nil)
-			proofKey := current.failureKey
-			if current.object.GetUID() != object.GetUID() || current.object.GetResourceVersion() != object.GetResourceVersion() {
-				r.retireMetadataLocked(current, objectChangeReason(current.object, object))
-				r.sequence++
-				proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
-			}
-			r.activeKeys[proofKey] = true
-			r.sequence++
-			r.observed[key] = r.sequence
-			r.saveMetadataLocked(key, metadataEntry{sequence: r.sequence, object: object, expires: started.Add(r.options.TTL), failureKey: proofKey})
+		object, err := found[key], listErr
+		if err == nil && object == nil {
+			err = discovery.ErrUnresolvedOwner
 		}
+		r.acceptMetadataLocked(key, old.object.GetUID(), object, started, err)
 	}
 	return listErr
 }
 
 // Only requested names are retained from each page; unrelated objects are discarded.
-func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName map[string]objectKey, markers map[objectKey]uint64, deadline time.Time) (map[objectKey]*metav1.PartialObjectMetadata, time.Time, error) {
+func (r *Reader) readMetadataPages(ctx context.Context, group watchKey, byName map[string]objectKey, markers map[objectKey]metadataRead, deadline time.Time) (map[objectKey]*metav1.PartialObjectMetadata, time.Time, error) {
 	started := r.options.Now()
 	if deadline.IsZero() || started.Add(r.options.TTL).Before(deadline) {
 		deadline = started.Add(r.options.TTL)
@@ -187,21 +169,7 @@ func (r *Reader) refreshMetadataByGet(ctx context.Context, entries map[objectKey
 		r.mu.Lock()
 		current, ok := r.metadata[key]
 		if ok && current.failureKey == old.failureKey && current.sequence == old.sequence {
-			r.recordMetadataFailureLocked(key, old.object.GetUID(), object, err)
-			if err != nil {
-				r.removeMetadataLocked(key, failureReason(err))
-			} else {
-				proofKey := current.failureKey
-				if current.object.GetUID() != object.GetUID() || current.object.GetResourceVersion() != object.GetResourceVersion() {
-					r.retireMetadataLocked(current, objectChangeReason(current.object, object))
-					r.sequence++
-					proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
-				}
-				r.activeKeys[proofKey] = true
-				r.sequence++
-				r.observed[key] = r.sequence
-				r.saveMetadataLocked(key, metadataEntry{sequence: r.sequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey})
-			}
+			r.acceptMetadataLocked(key, old.object.GetUID(), object, started, err)
 		}
 		r.mu.Unlock()
 		if err != nil {

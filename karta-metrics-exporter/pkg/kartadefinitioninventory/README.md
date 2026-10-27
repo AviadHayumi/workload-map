@@ -3,39 +3,36 @@
 
 # Karta definition inventory
 
-This package selects definitions from cluster and bundled catalog snapshots.
-`Lookup` selects for the observed root's group and kind.
-The returned `GVK` identifies the selected definition's API representation.
-A nil `Definition` with no error means confirmed absence after sources initialize.
-An error prevents evaluation. An invalid selected definition remains in the
-result so callers can identify the affected resource type.
-Source failure must not appear as absence or trigger a fallback selection.
+The inventory selects one Karta per root group/kind from the bundled catalog and
+a cluster snapshot. For example, a selected cluster JobSet definition replaces
+the catalog JobSet definition. Its GVK tells Runtime which API representation
+to evaluate.
 
-`Definition` uses the existing SDK Karta API type.
-`Origin` records the catalog or cluster source and its identity.
-For cluster definitions, `UID` and `ResourceVersion` come from the Karta object.
-Catalog definitions use source and name; `UID` and `ResourceVersion` are empty.
-The catalog is bundled with the SDK. Updating it requires a new SDK version.
-Returned selections and definitions are caller-owned snapshots.
+`New(config)` loads the catalog. Runtime owns the cluster Karta watch and calls
+`ReplaceCluster(definitions)` with a complete accepted snapshot. The inventory
+applies source filters, elects definitions and validates the winners. It starts
+no watches and owns no source-health state.
 
-`Config` is constructor input. Catalog and cluster sources each have an enable
-flag and definition-name include/exclude lists. Cluster definitions also have a
-label selector. Empty includes mean all. Names and labels must both match;
-exclusions win. Selected cluster definitions take precedence over catalog ones.
+`Lookup(gvk)` returns the selection for that group/kind. A nil definition and no
+error mean absence from the supplied snapshots. Runtime must establish cluster
+source availability before using that absence. A pending, failed or expired
+source cannot trigger generic or catalog fallback. An invalid winner returns
+`ErrInvalidDefinition` together with its selection.
 
-`New(config, source)` loads the bundled catalog. `Run(ctx)` maintains the cluster
-snapshot using the injected `ClusterSource` LIST and WATCH operations. A broken
-stream makes lookup unavailable until a fresh LIST and WATCH succeeds.
-`Lookup` reads elected cluster and catalog maps by group and kind. Elections and
-SDK validation run when the source snapshot changes. An invalid winner returns
-`ErrInvalidDefinition`; it never enables fallback to another definition.
-Unknown catalog include or exclude names fail construction.
+`Selections()` returns the selected definitions for root-watch planning, including
+invalid winners. Each selection contains the SDK Karta definition, its GVK and an
+`Origin`. Cluster origins include the Karta UID and resourceVersion. Catalog
+origins contain the source and name. Public reads return independent copies.
 
-`Selections()` returns an atomic snapshot for root watch planning.
-`ClusterOrigins()` returns all filtered cluster identities, including unelected
-definitions, for equality comparison with an independent Karta watch. It does not
-notify consumers or start workload watches.
+Each source has an enable flag and definition-name include/exclude lists.
+Cluster definitions also have a label selector. Empty includes allow all names.
+Names and labels must both match; exclusions win. Unknown catalog include or
+exclude names fail construction.
 
-Cluster definitions match by group and kind. The oldest creation timestamp wins;
-ties use the definition name. Catalog matches use name order. All public reads
-return independent copies. Deletes only remove the matching UID.
+Cluster definitions take precedence over catalog entries. Within a source, the
+oldest creation timestamp wins; names break ties. Catalog timestamps are zero,
+so catalog matches use name order. Replacing the cluster snapshot also removes
+definitions absent from it. The catalog changes with the bundled SDK version.
+
+See the [definition update contract](../../../docs/design/metrics-exporter/consistency.md#definition-updates)
+for Runtime's source validation and publication checks.

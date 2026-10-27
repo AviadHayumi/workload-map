@@ -58,11 +58,9 @@ type Config struct {
 }
 
 // setting is one configuration value with its flag and environment variable.
-// apply parses the raw value into the label limits.
 type setting struct {
 	flag, env, usage string
-	apply            func(*labelevaluator.Limits, string) error
-	applyConfig      func(*Config, string) error
+	apply            func(*Config, string) error
 }
 
 const (
@@ -88,14 +86,14 @@ var defaultLabelLimits = labelevaluator.Limits{
 
 var configSetting = setting{flag: flagConfig, env: "KARTA_EXPORTER_CONFIG", usage: "Path to the exporter YAML config file."}
 
-var labelSettings = []setting{
+var settings = []setting{
 	{
 		flag: flagCostLimit,
 		env:  "KARTA_EXPORTER_LABEL_COST_LIMIT",
 		usage: fmt.Sprintf("CEL cost units one label evaluation may spend (default %d). Overrides labelLimits.costLimit.",
 			defaultLabelLimits.CostLimit),
-		apply: func(limits *labelevaluator.Limits, v string) (err error) {
-			limits.CostLimit, err = strconv.ParseUint(v, 10, 64)
+		apply: func(c *Config, v string) (err error) {
+			c.LabelLimits.CostLimit, err = strconv.ParseUint(v, 10, 64)
 			return err
 		},
 	},
@@ -104,8 +102,8 @@ var labelSettings = []setting{
 		env:  "KARTA_EXPORTER_LABEL_MAX_EXPRESSION_BYTES",
 		usage: fmt.Sprintf("Maximum length of the label expression (default %d). Overrides labelLimits.maxExpressionBytes.",
 			defaultLabelLimits.MaxExpressionBytes),
-		apply: func(limits *labelevaluator.Limits, v string) (err error) {
-			limits.MaxExpressionBytes, err = strconv.Atoi(v)
+		apply: func(c *Config, v string) (err error) {
+			c.LabelLimits.MaxExpressionBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
@@ -114,8 +112,8 @@ var labelSettings = []setting{
 		env:  "KARTA_EXPORTER_LABEL_MAX_VALUE_BYTES",
 		usage: fmt.Sprintf("Maximum length of an extracted label value (default %d). Overrides labelLimits.maxValueBytes.",
 			defaultLabelLimits.MaxValueBytes),
-		apply: func(limits *labelevaluator.Limits, v string) (err error) {
-			limits.MaxValueBytes, err = strconv.Atoi(v)
+		apply: func(c *Config, v string) (err error) {
+			c.LabelLimits.MaxValueBytes, err = strconv.Atoi(v)
 			return err
 		},
 	},
@@ -124,28 +122,74 @@ var labelSettings = []setting{
 		env:  "KARTA_EXPORTER_LABEL_INTERRUPT_CHECK_FREQUENCY",
 		usage: fmt.Sprintf("Comprehension iterations between cancellation checks; must be greater than 0 (default %d). Overrides labelLimits.interruptCheckFrequency.",
 			defaultLabelLimits.InterruptCheckFrequency),
-		apply: func(limits *labelevaluator.Limits, v string) error {
+		apply: func(c *Config, v string) error {
 			n, err := strconv.ParseUint(v, 10, 0)
-			limits.InterruptCheckFrequency = uint(n)
+			c.LabelLimits.InterruptCheckFrequency = uint(n)
 			return err
 		},
 	},
-}
-
-var runtimeSettings = []setting{
-	{flag: "api-qps", env: "KARTA_EXPORTER_API_QPS", usage: "Shared Kubernetes API request rate (default 20).", applyConfig: func(c *Config, v string) error { n, e := strconv.ParseFloat(v, 32); c.APIQPS = float32(n); return e }},
-	{flag: "api-burst", env: "KARTA_EXPORTER_API_BURST", usage: "Shared Kubernetes API request burst (default 40).", applyConfig: func(c *Config, v string) error { n, e := strconv.Atoi(v); c.APIBurst = n; return e }},
-	{flag: "workers", env: "KARTA_EXPORTER_WORKERS", usage: "Workers per object resolution and root publication queue (default 2).", applyConfig: func(c *Config, v string) error { n, e := strconv.Atoi(v); c.Workers = n; return e }},
-	{flag: "refresh-interval", env: "KARTA_EXPORTER_REFRESH_INTERVAL", usage: "Interval between source and ownership proof refreshes (default 45s).", applyConfig: func(c *Config, v string) error { c.RefreshInterval = v; return nil }},
-	{flag: "max-age", env: "KARTA_EXPORTER_MAX_AGE", usage: "Maximum source and ownership proof age (default 2m).", applyConfig: func(c *Config, v string) error { c.MaxAge = v; return nil }},
-	{flag: "request-timeout", env: "KARTA_EXPORTER_REQUEST_TIMEOUT", usage: "Timeout per metadata GET or LIST page (default 30s).", applyConfig: func(c *Config, v string) error { c.RequestTimeout = v; return nil }},
+	{
+		flag:  "api-qps",
+		env:   "KARTA_EXPORTER_API_QPS",
+		usage: "Shared Kubernetes API request rate (default 20).",
+		apply: func(c *Config, v string) error {
+			n, err := strconv.ParseFloat(v, 32)
+			c.APIQPS = float32(n)
+			return err
+		},
+	},
+	{
+		flag:  "api-burst",
+		env:   "KARTA_EXPORTER_API_BURST",
+		usage: "Shared Kubernetes API request burst (default 40).",
+		apply: func(c *Config, v string) (err error) {
+			c.APIBurst, err = strconv.Atoi(v)
+			return err
+		},
+	},
+	{
+		flag:  "workers",
+		env:   "KARTA_EXPORTER_WORKERS",
+		usage: "Workers per object resolution and root publication queue (default 2).",
+		apply: func(c *Config, v string) (err error) {
+			c.Workers, err = strconv.Atoi(v)
+			return err
+		},
+	},
+	{
+		flag:  "refresh-interval",
+		env:   "KARTA_EXPORTER_REFRESH_INTERVAL",
+		usage: "Interval between source and ownership proof refreshes (default 45s).",
+		apply: func(c *Config, v string) error {
+			c.RefreshInterval = v
+			return nil
+		},
+	},
+	{
+		flag:  "max-age",
+		env:   "KARTA_EXPORTER_MAX_AGE",
+		usage: "Maximum source and ownership proof age (default 2m).",
+		apply: func(c *Config, v string) error {
+			c.MaxAge = v
+			return nil
+		},
+	},
+	{
+		flag:  "request-timeout",
+		env:   "KARTA_EXPORTER_REQUEST_TIMEOUT",
+		usage: "Timeout per metadata GET or LIST page (default 30s).",
+		apply: func(c *Config, v string) error {
+			c.RequestTimeout = v
+			return nil
+		},
+	},
 }
 
 // NewLoader registers the configuration flags on fs. Each flag can also be set
 // from its KARTA_EXPORTER_* environment variable, read with lookupEnv.
 func NewLoader(fs *flag.FlagSet, lookupEnv func(string) (string, bool)) *Loader {
 	l := &Loader{flags: map[string]*string{}, lookupEnv: lookupEnv, flagSet: fs}
-	for _, s := range append(append([]setting{configSetting}, labelSettings...), runtimeSettings...) {
+	for _, s := range append([]setting{configSetting}, settings...) {
 		l.flags[s.flag] = fs.String(s.flag, "", fmt.Sprintf("%s Environment variable: %s.", s.usage, s.env))
 	}
 	return l
@@ -197,29 +241,12 @@ func (l *Loader) Load() (Config, error) {
 		}
 	}
 
-	for _, s := range labelSettings {
+	for _, s := range settings {
 		if v, set := l.value(s); set {
-			if err := s.apply(&cfg.LabelLimits, v); err != nil {
+			if err := s.apply(&cfg, v); err != nil {
 				return Config{}, fmt.Errorf("--%s (%s): %w", s.flag, s.env, err)
 			}
 		}
-	}
-
-	for _, s := range runtimeSettings {
-		if v, set := l.value(s); set {
-			if err := s.applyConfig(&cfg, v); err != nil {
-				return Config{}, fmt.Errorf("--%s (%s): %w", s.flag, s.env, err)
-			}
-		}
-	}
-	if cfg.LabelLimits.InterruptCheckFrequency == 0 {
-		return Config{}, errZeroInterruptCheckFrequency
-	}
-	if cfg.LabelLimits.MaxExpressionBytes < 0 || cfg.LabelLimits.MaxValueBytes < 0 {
-		return Config{}, labelevaluator.ErrNegativeLimit
-	}
-	if err := labelresolver.ValidateConfig(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}); err != nil {
-		return Config{}, err
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -248,6 +275,15 @@ func DefaultConfig() Config {
 
 // Validate rejects runtime settings before any clients start.
 func (cfg Config) Validate() error {
+	if cfg.LabelLimits.InterruptCheckFrequency == 0 {
+		return errZeroInterruptCheckFrequency
+	}
+	if cfg.LabelLimits.MaxExpressionBytes < 0 || cfg.LabelLimits.MaxValueBytes < 0 {
+		return labelevaluator.ErrNegativeLimit
+	}
+	if err := labelresolver.ValidateConfig(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}); err != nil {
+		return err
+	}
 	for _, selector := range []*metav1.LabelSelector{cfg.NamespaceSelector, cfg.ObjectSelector, cfg.PodSelector, cfg.KartaDefinitionSource.Cluster.LabelSelector} {
 		if selector != nil {
 			if _, err := metav1.LabelSelectorAsSelector(selector); err != nil {

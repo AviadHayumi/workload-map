@@ -34,7 +34,7 @@ var _ = Describe("evaluate object", func() {
 		{"whitespace", " \n", ""},
 	} {
 		It(tc.name, func(specCtx SpecContext) {
-			evaluator, err := NewCompiler().Compile(Config{Expression: tc.expression})
+			evaluator, err := Compile(Config{Expression: tc.expression})
 			Expect(err).To(Succeed())
 			obj := labelObject()
 			before := obj.DeepCopy()
@@ -58,7 +58,7 @@ var _ = Describe("Evaluation failures", func() {
 		{"missing key", `object.metadata.labels["absent"]`, labelObject(), nil},
 	} {
 		It(tc.name, func(specCtx SpecContext) {
-			evaluator, err := NewCompiler().Compile(Config{Expression: tc.expression})
+			evaluator, err := Compile(Config{Expression: tc.expression})
 			Expect(err).To(Succeed())
 			value, err := evaluator.Evaluate(specCtx, tc.obj)
 			Expect(value).To(BeEmpty())
@@ -69,7 +69,7 @@ var _ = Describe("Evaluation failures", func() {
 		})
 	}
 	It("allows guards for missing optional fields", func(specCtx SpecContext) {
-		evaluator, err := NewCompiler().Compile(Config{Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`})
+		evaluator, err := Compile(Config{Expression: `has(object.metadata.labels) && "team" in object.metadata.labels ? object.metadata.labels["team"] : ""`})
 		Expect(err).To(Succeed())
 		value, err := evaluator.Evaluate(specCtx, &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{}}})
 		Expect(err).To(Succeed())
@@ -93,7 +93,7 @@ var _ = Describe("compile failures", func() {
 		{"negative value bound", Config{Limits: Limits{MaxValueBytes: -1}}, ErrNegativeLimit},
 	} {
 		It(tc.name, func() {
-			evaluator, err := NewCompiler().Compile(tc.cfg)
+			evaluator, err := Compile(tc.cfg)
 			Expect(err).To(HaveOccurred())
 			Expect(evaluator).To(BeNil())
 			if tc.want != nil {
@@ -115,7 +115,7 @@ var _ = Describe("value limits", func() {
 		{"boundary", 4, 4, false},
 	} {
 		It(tc.name, func(specCtx SpecContext) {
-			evaluator, err := NewCompiler().Compile(Config{Expression: `object.value`, Limits: Limits{MaxValueBytes: tc.limit}})
+			evaluator, err := Compile(Config{Expression: `object.value`, Limits: Limits{MaxValueBytes: tc.limit}})
 			Expect(err).To(Succeed())
 			obj := &unstructured.Unstructured{Object: map[string]any{"value": strings.Repeat("a", tc.size)}}
 			value, err := evaluator.Evaluate(specCtx, obj)
@@ -133,7 +133,7 @@ var _ = Describe("value limits", func() {
 var _ = Describe("cost limits", func() {
 	It("stops evaluation at the configured cost limit", func(specCtx SpecContext) {
 		for _, limit := range []uint64{0, 1} {
-			evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: limit}})
+			evaluator, err := Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: limit}})
 			Expect(err).To(Succeed())
 			_, err = evaluator.Evaluate(specCtx, labelObject())
 			Expect(err).To(MatchError(ContainSubstring("cost limit")))
@@ -144,7 +144,7 @@ var _ = Describe("cost limits", func() {
 var _ = Describe("cancellation", func() {
 	It("honors canceled contexts, deadlines and evaluation interruptions", func(specCtx SpecContext) {
 		for _, expression := range []string{"", `object.kind`} {
-			evaluator, err := NewCompiler().Compile(Config{Expression: expression})
+			evaluator, err := Compile(Config{Expression: expression})
 			Expect(err).To(Succeed())
 			ctx, cancel := context.WithCancel(specCtx)
 			cancel()
@@ -156,7 +156,7 @@ var _ = Describe("cancellation", func() {
 			Expect(err).To(MatchError(context.DeadlineExceeded))
 		}
 		for _, frequency := range []uint{0, 1, 1000} {
-			evaluator, err := NewCompiler().Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
+			evaluator, err := Compile(Config{Expression: expensiveExpression, Limits: Limits{CostLimit: math.MaxUint64, InterruptCheckFrequency: frequency}})
 			Expect(err).To(Succeed())
 			ctx, cancel := context.WithCancel(specCtx)
 			defer cancel()
@@ -172,7 +172,7 @@ var _ = Describe("cancellation", func() {
 
 var _ = Describe("Concurrent evaluation", func() {
 	It("shares one compiled evaluator across callers", func(ctx SpecContext) {
-		evaluator, err := NewCompiler().Compile(Config{Expression: `object.metadata.name`})
+		evaluator, err := Compile(Config{Expression: `object.metadata.name`})
 		Expect(err).To(Succeed())
 		var workers sync.WaitGroup
 		for i := range 20 {

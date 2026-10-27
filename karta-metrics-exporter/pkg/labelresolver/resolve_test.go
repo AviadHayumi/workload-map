@@ -9,310 +9,333 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 )
 
-type countingCompiler struct {
-	labelevaluator.Compiler
-	calls       int
-	evaluations atomic.Int64
-}
-
-func (c *countingCompiler) Compile(cfg labelevaluator.Config) (labelevaluator.Evaluator, error) {
-	c.calls++
-	evaluator, err := c.Compiler.Compile(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return countedEvaluator{Evaluator: evaluator, calls: &c.evaluations}, nil
-}
-
-type countedEvaluator struct {
-	labelevaluator.Evaluator
-	calls *atomic.Int64
-}
-
-func (e countedEvaluator) Evaluate(ctx context.Context, object *unstructured.Unstructured) (string, error) {
-	e.calls.Add(1)
-	return e.Evaluator.Evaluate(ctx, object)
-}
+const (
+	podMetric    = "karta_pod_workload_info"
+	statusMetric = "karta_workload_status"
+)
 
 var _ = Describe("Resolver", func() {
 	var cfg Config
-	var input Input
-	var compiler *countingCompiler
+	var workload, pod *unstructured.Unstructured
 	BeforeEach(func() {
-		compiler = &countingCompiler{Compiler: labelevaluator.NewCompiler()}
-		cfg = Config{Rules: []LabelRule{{Name: "team", Metrics: []string{"karta_pod_workload_info"}, Sources: []Source{SourceWorkload, SourcePod}, Expression: `object.spec.team`}}}
-		input = Input{Metrics: []string{"karta_pod_workload_info"}, Workload: &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"team": "root-team"}}}, Pod: &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"team": "pod-team"}}}}
+		cfg = Config{Rules: []LabelRule{{Name: "team", Metrics: []string{podMetric}, Sources: []Source{SourceWorkload, SourcePod}, Expression: `object.spec.team`}}}
+		workload = &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"team": "root-team"}}}
+		pod = &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"team": "pod-team"}}}
 	})
-	It("compiles once, preserves source order and freezes configuration", func() {
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+	It("preserves source order and freezes configuration", func() {
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(compiler.calls).To(Equal(1))
 		cfg.Rules[0].Sources[0] = SourcePod
 		cfg.Rules[0].Metrics[0] = "mutated"
+		resolve := r.ForWorkload(workload)
 		for i := 0; i < 2; i++ {
-			result, err := r.Resolve(context.Background(), input)
+			result, err := resolve(context.Background(), podMetric, pod)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Labels).To(HaveKeyWithValue("team", "root-team"))
-			Expect(result[0].Errors).To(BeEmpty())
+			Expect(result.Labels).To(HaveKeyWithValue("team", "root-team"))
+			Expect(result.Errors).To(BeEmpty())
 		}
-		Expect(compiler.calls).To(Equal(1))
 	})
-	It("uses a full Pod object first when configured and a full workload object for status", func() {
+	It("uses full Pod and workload objects in the configured order", func() {
 		cfg.Rules[0].Sources = []Source{SourcePod, SourceWorkload}
 		cfg.Rules[0].Expression = `object.kind + "/" + object.spec.team`
-		cfg.Rules = append(cfg.Rules, LabelRule{Name: "team", Metrics: []string{"karta_workload_status"}, Sources: []Source{SourceWorkload}, Expression: `object.kind + "/" + object.spec.team`})
-		input.Workload.SetKind("Job")
-		input.Pod.SetKind("Pod")
-		input.Metrics = append(input.Metrics, "karta_workload_status")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+		cfg.Rules = append(cfg.Rules, LabelRule{Name: "team", Metrics: []string{statusMetric}, Sources: []Source{SourceWorkload}, Expression: `object.kind + "/" + object.spec.team`})
+		workload.SetKind("Job")
+		pod.SetKind("Pod")
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), input)
+		resolve := r.ForWorkload(workload)
+		result, err := resolve(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("Pod/pod-team"))
-		Expect(result[1].Labels["team"]).To(Equal("Job/root-team"))
+		Expect(result.Labels["team"]).To(Equal("Pod/pod-team"))
+		result, err = resolve(context.Background(), statusMetric, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Labels["team"]).To(Equal("Job/root-team"))
 	})
-	It("falls back after errors and retains them even when a later source succeeds", func() {
-		input.Workload.Object = map[string]any{"spec": map[string]any{"team": int64(3)}}
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+	It("retains workload errors while evaluating each Pod fallback", func() {
+		workload.Object["spec"] = map[string]any{"team": int64(2)}
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), input)
+		calls := countEvaluations(r)
+		resolve := r.ForWorkload(workload)
+		for _, team := range []string{"first", "second"} {
+			pod.Object["spec"] = map[string]any{"team": team}
+			result, err := resolve(context.Background(), podMetric, pod)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Labels["team"]).To(Equal(team))
+			Expect(result.Errors["team"]).To(MatchError(ContainSubstring("must produce a string")))
+		}
+		Expect(calls.Load()).To(Equal(int64(3)))
+		result, err := r.ForWorkload(nil)(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels).To(HaveKeyWithValue("team", "pod-team"))
-		Expect(result[0].Errors["team"]).To(MatchError(ContainSubstring("must produce a string")))
-		input.Workload = nil
-		result, err = r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("pod-team"))
-		Expect(result[0].Errors["team"]).To(MatchError(ContainSubstring("input object is nil")))
+		Expect(result.Labels["team"]).To(Equal("second"))
+		Expect(result.Errors["team"]).To(MatchError(ContainSubstring("input object is nil")))
 	})
-	It("falls back on empty values and never reuses previous labels", func() {
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+	It("falls back on empty values and returns independent result maps", func() {
+		workload.Object["spec"] = map[string]any{"team": ""}
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		first, err := r.Resolve(context.Background(), input)
+		resolve := r.ForWorkload(workload)
+		first, err := resolve(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		input.Workload.Object["spec"] = map[string]any{"team": ""}
-		result, err := r.Resolve(context.Background(), input)
+		pod.Object["spec"] = map[string]any{"team": ""}
+		result, err := resolve(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("pod-team"))
-		Expect(result[0].Errors).To(BeEmpty())
-		input.Pod.Object["spec"] = map[string]any{"team": ""}
-		result, err = r.Resolve(context.Background(), input)
+		Expect(result.Labels).To(BeEmpty())
+		Expect(result.Errors).To(BeEmpty())
+		Expect(first.Labels["team"]).To(Equal("pod-team"))
+		result.Labels["team"] = "changed"
+		Expect(first.Labels["team"]).To(Equal("pod-team"))
+		resolve = r.ForWorkload(nil)
+		first, err = resolve(context.Background(), podMetric, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels).To(BeEmpty())
-		Expect(result[0].Errors).To(BeEmpty())
-		Expect(first[0].Labels["team"]).To(Equal("root-team"))
-		input.Pod = nil
-		input.Workload = nil
-		result, err = r.Resolve(context.Background(), input)
+		result, err = resolve(context.Background(), podMetric, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels).To(BeEmpty())
-		Expect(result[0].Errors["team"]).To(MatchError(And(ContainSubstring("workload:"), ContainSubstring("pod:"))))
+		Expect(result.Labels).To(BeEmpty())
+		Expect(result.Errors["team"]).To(MatchError(And(ContainSubstring("workload:"), ContainSubstring("pod:"))))
+		delete(result.Errors, "team")
+		Expect(first.Errors).To(HaveKey("team"))
 	})
-	It("compiles a rule once for multiple metrics and accepts no rules", func() {
+	It("shares one compiled rule and one workload evaluation across metrics and 1000 Pods", func() {
 		cfg.Rules[0].Sources = []Source{SourceWorkload}
-		cfg.Rules[0].Metrics = append(cfg.Rules[0].Metrics, "karta_workload_status")
-		_, err := New(cfg, Dependencies{Compiler: compiler})
+		cfg.Rules[0].Metrics = []string{podMetric, statusMetric}
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(compiler.calls).To(Equal(1))
-		r, err := New(Config{}, Dependencies{})
+		Expect(r.rules[podMetric][0]).To(BeIdenticalTo(r.rules[statusMetric][0]))
+		calls := countEvaluations(r)
+		resolve := r.ForWorkload(workload)
+		for i := 0; i < 1000; i++ {
+			pod.SetName(fmt.Sprint(i))
+			result, err := resolve(context.Background(), podMetric, pod)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Labels["team"]).To(Equal("root-team"))
+		}
+		_, err = resolve(context.Background(), statusMetric, nil)
 		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), Input{Metrics: input.Metrics})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result).To(HaveLen(1))
-		Expect(result[0].Labels).To(BeEmpty())
-		Expect(result[0].Errors).To(BeEmpty())
+		Expect(calls.Load()).To(Equal(int64(1)))
 	})
-	It("rejects configuration before compiling and rejects invalid expressions and limits", func() {
-		bad := cfg
-		bad.Rules = []LabelRule{{Name: "namespace"}}
-		_, err := New(bad, Dependencies{Compiler: compiler})
-		Expect(err).To(HaveOccurred())
-		Expect(compiler.calls).To(BeZero())
-		_, err = New(cfg, Dependencies{})
+	It("evaluates workload fallback only when needed", func() {
+		cfg.Rules[0].Sources = []Source{SourcePod, SourceWorkload}
+		r, err := New(cfg)
+		Expect(err).NotTo(HaveOccurred())
+		calls := countEvaluations(r)
+		resolve := r.ForWorkload(workload)
+		_, err = resolve(context.Background(), podMetric, pod)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calls.Load()).To(Equal(int64(1)))
+		pod.Object["spec"] = map[string]any{"team": ""}
+		for i := 0; i < 2; i++ {
+			result, err := resolve(context.Background(), podMetric, pod)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Labels["team"]).To(Equal("root-team"))
+		}
+		Expect(calls.Load()).To(Equal(int64(4)))
+	})
+	It("prepares fresh results for changed workloads and API representations", func() {
+		cfg.Rules[0].Expression = `object.apiVersion + "/" + object.kind + "/" + object.spec.team`
+		workload.SetAPIVersion("example.com/v1")
+		workload.SetKind("Workload")
+		r, err := New(cfg)
+		Expect(err).NotTo(HaveOccurred())
+		first := r.ForWorkload(workload)
+		result, err := first(context.Background(), podMetric, pod)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Labels["team"]).To(Equal("example.com/v1/Workload/root-team"))
+		updated := workload.DeepCopy()
+		updated.SetAPIVersion("example.com/v2")
+		updated.SetKind("ConvertedWorkload")
+		updated.Object["spec"] = map[string]any{"team": "new"}
+		result, err = r.ForWorkload(updated)(context.Background(), podMetric, pod)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Labels["team"]).To(Equal("example.com/v2/ConvertedWorkload/new"))
+		result, err = first(context.Background(), podMetric, pod)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Labels["team"]).To(Equal("example.com/v1/Workload/root-team"))
+	})
+	It("accepts no rules and rejects invalid expressions and limits", func() {
+		r, err := New(Config{})
+		Expect(err).NotTo(HaveOccurred())
+		result, err := r.ForWorkload(nil)(context.Background(), podMetric, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Labels).To(BeEmpty())
+		Expect(result.Errors).To(BeEmpty())
+		_, err = New(Config{Rules: []LabelRule{{Name: "namespace"}}})
 		Expect(err).To(HaveOccurred())
 		cfg.Rules[0].Expression = "object["
-		_, err = New(cfg, Dependencies{Compiler: compiler})
+		_, err = New(cfg)
 		Expect(err).To(HaveOccurred())
-		_, err = New(Config{Limits: labelevaluator.Limits{MaxValueBytes: -1}}, Dependencies{})
+		_, err = New(Config{Limits: labelevaluator.Limits{MaxValueBytes: -1}})
 		Expect(err).To(MatchError(labelevaluator.ErrNegativeLimit))
 	})
-	It("propagates limits to each compiled expression", func() {
+	It("propagates limits to each expression", func() {
 		cfg.Limits.MaxValueBytes = 3
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), input)
+		result, err := r.ForWorkload(workload)(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels).To(BeEmpty())
-		Expect(result[0].Errors["team"]).To(MatchError(ContainSubstring("maximum length")))
+		Expect(result.Labels).To(BeEmpty())
+		Expect(result.Errors["team"]).To(MatchError(ContainSubstring("maximum length")))
 	})
-	It("returns cancellation and invalid input as top-level errors", func() {
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+	It("returns cancellation and invalid metrics as top-level errors, including after caching", func() {
+		r, err := New(cfg)
+		Expect(err).NotTo(HaveOccurred())
+		resolve := r.ForWorkload(workload)
+		_, err = resolve(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err = r.Resolve(ctx, input)
+		_, err = resolve(ctx, podMetric, pod)
 		Expect(err).To(MatchError(context.Canceled))
-		input.Metrics = []string{"unknown"}
-		_, err = r.Resolve(context.Background(), input)
+		_, err = resolve(context.Background(), "unknown", pod)
 		Expect(err).To(HaveOccurred())
-		input.Metrics = []string{"karta_workload_status", "karta_workload_status"}
-		_, err = r.Resolve(context.Background(), input)
-		Expect(err).To(HaveOccurred())
+	})
+	It("does not cache cancellation returned by an evaluator", func() {
+		for _, interruption := range []error{context.Canceled, context.DeadlineExceeded} {
+			r, err := New(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			rule := r.rules[podMetric][0]
+			evaluate := rule.evaluate
+			calls := 0
+			rule.evaluate = func(ctx context.Context, object *unstructured.Unstructured) (string, error) {
+				calls++
+				if calls == 1 {
+					return "", fmt.Errorf("interrupted: %w", interruption)
+				}
+				return evaluate(ctx, object)
+			}
+			resolve := r.ForWorkload(workload)
+			_, err = resolve(context.Background(), podMetric, pod)
+			Expect(err).To(MatchError(ContainSubstring(interruption.Error())))
+			result, err := resolve(context.Background(), podMetric, pod)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Labels["team"]).To(Equal("root-team"))
+			Expect(calls).To(Equal(2))
+		}
 	})
 	It("retains a workload cost-limit error when Pod fallback succeeds", func() {
 		expensive := fmt.Sprintf("string(size(%[1]s.map(a, %[1]s.map(b, %[1]s.map(c, a+b+c)))))", "[1,2,3,4,5,6,7,8,9,10]")
 		cfg.Rules[0].Expression = `object.kind == "Pod" ? "fallback" : ` + expensive
 		cfg.Limits.CostLimit = 30
-		input.Workload.SetKind("Job")
-		input.Pod.SetKind("Pod")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+		workload.SetKind("Job")
+		pod.SetKind("Pod")
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), input)
+		result, err := r.ForWorkload(workload)(context.Background(), podMetric, pod)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("fallback"))
-		Expect(result[0].Errors["team"]).To(MatchError(ContainSubstring("cost limit")))
+		Expect(result.Labels["team"]).To(Equal("fallback"))
+		Expect(result.Errors["team"]).To(MatchError(ContainSubstring("cost limit")))
 	})
 	It("stops during a long workload evaluation without evaluating fallback", func() {
-		input.Workload.SetUID("root")
-		input.Workload.SetResourceVersion("1")
 		cfg.Rules[0].Expression = fmt.Sprintf("string(size(%[1]s.map(a, %[1]s.map(b, %[1]s.map(c, %[1]s.map(d, %[1]s.map(e, %[1]s.map(f, a+b+c+d+e+f))))))))", "[1,2,3,4,5,6,7,8,9,10]")
 		cfg.Limits.CostLimit = math.MaxUint64
 		cfg.Limits.InterruptCheckFrequency = 1
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
+		calls := countEvaluations(r)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		timer := time.AfterFunc(5*time.Millisecond, cancel)
 		defer timer.Stop()
 		started := time.Now()
-		result, err := r.Resolve(ctx, input)
+		result, err := r.ForWorkload(workload)(ctx, podMetric, pod)
 		Expect(err).To(MatchError(context.Canceled))
-		Expect(result).To(BeNil())
-		Expect(r.(*resolver).workloadCache).To(BeEmpty())
+		Expect(result.Labels).To(BeNil())
+		Expect(calls.Load()).To(Equal(int64(1)))
 		Expect(time.Since(started)).To(BeNumerically("<", time.Second))
 	})
-
-	It("reuses workload evaluations until resourceVersion changes", func() {
-		input.Workload.SetUID("root")
-		input.Workload.SetResourceVersion("1")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
+	It("supports independent scopes concurrently without mutating workload objects", func() {
+		r, err := New(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		for i := 0; i < 10; i++ {
-			result, err := r.Resolve(context.Background(), input)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Labels["team"]).To(Equal("root-team"))
-		}
-		Expect(compiler.evaluations.Load()).To(Equal(int64(1)))
-		input.Workload = input.Workload.DeepCopy()
-		input.Workload.SetResourceVersion("2")
-		input.Workload.Object["spec"] = map[string]any{"team": "new"}
-		result, err := r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("new"))
-		Expect(compiler.evaluations.Load()).To(Equal(int64(2)))
-	})
-	It("keeps converted API representations separate for the same UID and resourceVersion", func() {
-		cfg.Rules[0].Expression = `object.apiVersion + "/" + object.kind`
-		input.Workload.SetUID("root")
-		input.Workload.SetResourceVersion("1")
-		input.Workload.SetAPIVersion("example.com/v1")
-		input.Workload.SetKind("Workload")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
-		Expect(err).NotTo(HaveOccurred())
-		result, err := r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("example.com/v1/Workload"))
-		input.Workload = input.Workload.DeepCopy()
-		input.Workload.SetAPIVersion("example.com/v2")
-		result, err = r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("example.com/v2/Workload"))
-		input.Workload = input.Workload.DeepCopy()
-		input.Workload.SetKind("ConvertedWorkload")
-		for i := 0; i < 2; i++ {
-			result, err = r.Resolve(context.Background(), input)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Labels["team"]).To(Equal("example.com/v2/ConvertedWorkload"))
-		}
-		Expect(compiler.evaluations.Load()).To(Equal(int64(3)))
-	})
-
-	It("does not cache objects without resource versions", func() {
-		input.Workload.SetUID("root")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
-		Expect(err).NotTo(HaveOccurred())
-		_, err = r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		input.Workload.Object["spec"] = map[string]any{"team": "new"}
-		result, err := r.Resolve(context.Background(), input)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result[0].Labels["team"]).To(Equal("new"))
-		Expect(compiler.evaluations.Load()).To(Equal(int64(2)))
-	})
-	It("retains cached workload errors while evaluating each Pod fallback", func() {
-		input.Workload.SetUID("root")
-		input.Workload.SetResourceVersion("1")
-		input.Workload.Object["spec"] = map[string]any{"team": int64(2)}
-		r, err := New(cfg, Dependencies{Compiler: compiler})
-		Expect(err).NotTo(HaveOccurred())
-		for _, team := range []string{"first", "second"} {
-			input.Pod.Object["spec"] = map[string]any{"team": team}
-			result, err := r.Resolve(context.Background(), input)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result[0].Labels["team"]).To(Equal(team))
-			Expect(result[0].Errors["team"]).To(MatchError(ContainSubstring("must produce a string")))
-		}
-		Expect(compiler.evaluations.Load()).To(Equal(int64(3)))
-	})
-	It("bounds the workload cache with FIFO eviction", func() {
-		r, err := New(cfg, Dependencies{Compiler: compiler})
-		Expect(err).NotTo(HaveOccurred())
-		for i := 0; i < workloadCacheSize+2; i++ {
-			object := input.Workload.DeepCopy()
-			object.SetUID(types.UID(fmt.Sprint(i)))
-			object.SetResourceVersion("1")
-			input.Workload = object
-			_, err := r.Resolve(context.Background(), input)
-			Expect(err).NotTo(HaveOccurred())
-		}
-		cache := r.(*resolver)
-		Expect(cache.workloadCache).To(HaveLen(workloadCacheSize))
-		Expect(cache.order).To(HaveLen(workloadCacheSize))
-		Expect(cache.workloadCache).NotTo(HaveKey(workloadKey{uid: "0", version: "1", rule: 0}))
-		Expect(cache.workloadCache).To(HaveKey(workloadKey{uid: "1025", version: "1", rule: 0}))
-	})
-
-	It("supports concurrent resolution without mutating objects", func() {
-		input.Workload.SetUID("root")
-		input.Workload.SetResourceVersion("1")
-		r, err := New(cfg, Dependencies{Compiler: compiler})
-		Expect(err).NotTo(HaveOccurred())
-		before := input.Workload.DeepCopy()
+		calls := countEvaluations(r)
+		before := workload.DeepCopy()
 		var wg sync.WaitGroup
 		for i := 0; i < 8; i++ {
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				defer GinkgoRecover()
-				defer wg.Done()
+				resolve := r.ForWorkload(workload)
 				for j := 0; j < 50; j++ {
-					result, err := r.Resolve(context.Background(), input)
+					result, err := resolve(context.Background(), podMetric, pod)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(result[0].Labels["team"]).To(Equal("root-team"))
+					Expect(result.Labels["team"]).To(Equal("root-team"))
 				}
-			}()
+			})
 		}
 		wg.Wait()
-		Expect(input.Workload).To(Equal(before))
-		Expect(compiler.calls).To(Equal(1))
+		Expect(workload).To(Equal(before))
+		Expect(calls.Load()).To(Equal(int64(8)))
 	})
 })
+
+func countEvaluations(r *Resolver) *atomic.Int64 {
+	calls := new(atomic.Int64)
+	seen := make(map[*compiledRule]bool)
+	for _, rules := range r.rules {
+		for _, rule := range rules {
+			if seen[rule] {
+				continue
+			}
+			seen[rule] = true
+			evaluate := rule.evaluate
+			rule.evaluate = func(ctx context.Context, object *unstructured.Unstructured) (string, error) {
+				calls.Add(1)
+				return evaluate(ctx, object)
+			}
+		}
+	}
+	return calls
+}
+
+func BenchmarkWorkloadLabels(b *testing.B) {
+	cfg := Config{Rules: []LabelRule{{
+		Name: "team", Metrics: []string{podMetric}, Sources: []Source{SourceWorkload},
+		Expression: `object.spec.teams.filter(t, t.active).map(t, t.name)[0]`,
+	}}}
+	teams := make([]any, 100)
+	for i := range teams {
+		teams[i] = map[string]any{"name": fmt.Sprint(i), "active": i%2 == 0}
+	}
+	workload := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"teams": teams}}}
+	workload.SetAPIVersion("batch/v1")
+	workload.SetKind("Job")
+	workload.SetUID("root")
+	workload.SetResourceVersion("1")
+	pods := make([]*unstructured.Unstructured, 1000)
+	for i := range pods {
+		pods[i] = &unstructured.Unstructured{Object: map[string]any{"metadata": map[string]any{"name": fmt.Sprint(i)}}}
+	}
+	r, err := New(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, workloadChanged := range []bool{false, true} {
+		b.Run(fmt.Sprintf("1000Pods/workloadChanged=%t", workloadChanged), func(b *testing.B) {
+			resolve := r.ForWorkload(workload)
+			version := 1
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				if workloadChanged {
+					version++
+					updated := workload.DeepCopy()
+					updated.SetResourceVersion(fmt.Sprint(version))
+					resolve = r.ForWorkload(updated)
+				}
+				for _, pod := range pods {
+					result, err := resolve(context.Background(), podMetric, pod)
+					if err != nil || len(result.Errors) != 0 || result.Labels["team"] == "" {
+						b.Fatalf("resolve: %v, labels: %+v", err, result)
+					}
+				}
+			}
+		})
+	}
+}

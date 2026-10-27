@@ -181,13 +181,13 @@ exporter:
 The last field controls cancellation checks during CEL comprehensions. The
 [evaluator configuration](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration)
 lists label flags and environment variables. The [resolver contract](../../karta-metrics-exporter/pkg/labelresolver/)
-describes error handling and bounded workload caching.
+describes error handling and reuse within an immutable workload scope.
 
 ## Runtime settings
 
 Outside Helm, pass `--config path.yaml`. The file contains exporter settings
-without the `exporter:` wrapper. Unknown keys and multiple YAML documents are
-rejected. For each setting, an explicit flag wins over its environment variable, which
+without the `exporter:` wrapper. Unknown or duplicate keys and multiple nonempty
+YAML documents are rejected. For each setting, an explicit flag wins over its environment variable, which
 wins over the file value, which wins over the default. Rules and selectors stay in YAML.
 
 These runtime settings are available in the standalone file and command. Helm

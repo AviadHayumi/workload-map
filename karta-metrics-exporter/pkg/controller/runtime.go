@@ -7,14 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -24,21 +25,29 @@ import (
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
-type Runner interface{ Run(context.Context) error }
+type Runner interface {
+	Run(context.Context) error
+	Ready() bool
+}
+
+type LabelResolver interface {
+	ForWorkload(*unstructured.Unstructured) labelresolver.ResolveFunc
+}
 type Dependencies struct {
 	Discovery    discovery.Discoverer
 	Inventory    Inventory
-	Labels       labelresolver.Resolver
+	Labels       LabelResolver
 	Publications store.Writer
 }
 
 // Inventory provides both lookup and authoritative snapshots for controller watches.
 type Inventory interface {
 	inventory.Interface
-	Selections() ([]inventory.Selection, error)
-	ClusterOrigins() ([]inventory.Origin, error)
+	Selections() []inventory.Selection
+	ReplaceCluster([]*v1alpha1.Karta)
 }
 
 type Config struct {
@@ -73,10 +82,10 @@ type Runtime struct {
 	roots                                          map[types.UID]*rootState
 	podRoots                                       map[types.UID]types.UID
 	definitionKeys                                 map[schema.GroupKind]string
-	pendingDefinitions                             map[schema.GroupKind]bool
 	selections                                     map[schema.GroupKind]inventory.Selection
 	definitionKey                                  string
 	definitionError                                error
+	definitionsDirty                               bool
 	sequence                                       uint64
 	generation                                     uint64
 	ctx                                            context.Context
@@ -114,22 +123,29 @@ type resourceWatch struct {
 type rootState struct {
 	renewalAt           time.Time
 	resolutionErrors    map[schema.GroupVersionKind]resolutionFailure
-	labelFailures       map[types.UID]bool
+	labelFailures       int
+	labelObject         discovery.ObjectRef
+	resolveLabels       labelresolver.ResolveFunc
 	publishedOrigin     inventory.Origin
 	publishedGVK        schema.GroupVersionKind
 	dirty               map[types.UID]bool
-	podErrors           map[types.UID]error
-	podKeys             map[types.UID]string
-	retired             map[string]bool
-	cached              map[types.UID]cachedPod
+	retired             []string
+	pods                map[types.UID]podState
 	fullRefresh         bool
 	publishedGeneration uint64
 	watch               watchKey
 	resolution          discovery.OwnerResolution
 	ref                 discovery.ObjectRef
-	paths               map[types.UID][]discovery.ObjectRef
 	generation          uint64
 }
+type podState struct {
+	path         []discovery.ObjectRef
+	proofKey     string
+	resolveError error
+	cached       *cachedPod
+	labelFailure bool
+}
+
 type resolutionFailure struct {
 	cause       error
 	verifyAfter uint64
@@ -172,7 +188,11 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := &Runtime{pathDependents: map[objectKey]map[types.UID]pathDependent{}, watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, pendingDefinitions: map[schema.GroupKind]bool{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
+	r := &Runtime{pathDependents: map[objectKey]map[types.UID]pathDependent{}, watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", definitionsDirty: true, queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
+	if config.Definitions.Cluster.Enabled {
+		r.definitionError = discovery.ErrPending
+		deps.Publications.SetPublicationFailure(r.definitionKey, store.ReasonAPIUnavailable)
+	}
 	reader.publications = deps.Publications
 	reader.watchNow, reader.watchMaxAge = config.Now, config.MaxAge
 	reader.ignoredOwners = append([]schema.GroupVersionKind(nil), config.IgnoredOwnerKinds...)
@@ -283,7 +303,7 @@ func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingI
 func (r *Runtime) Ready() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.started || r.definitionError != nil || len(r.watches) == 0 || len(r.pendingDefinitions) > 0 {
+	if !r.started || r.definitionError != nil || len(r.watches) == 0 {
 		return false
 	}
 	for request := range r.watchFailures {
@@ -307,61 +327,133 @@ func (r *Runtime) requiredWatch(gvk schema.GroupVersionKind) bool {
 }
 
 func (r *Runtime) refreshDefinitions() error {
-	selected, err := r.deps.Inventory.Selections()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.refreshDefinitionsLocked()
+}
+
+// Runtime holds the only cluster snapshot. Reader's lock is released before
+// replacing the inventory; the inventory never calls back into Runtime.
+func (r *Runtime) refreshDefinitionsLocked() error {
+	var definitions []*v1alpha1.Karta
+	var sourceErr error
+	if r.config.Definitions.Cluster.Enabled {
+		sourceErr = discovery.ErrPending
+		for _, w := range r.watches {
+			if w.gvk != kartaGVK {
+				continue
+			}
+			switch {
+			case w.err != nil:
+				sourceErr = w.err
+			case !w.ready:
+				sourceErr = discovery.ErrPending
+			case !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)):
+				sourceErr = discovery.ErrUnavailable
+			default:
+				sourceErr = nil
+				r.reader.mu.RLock()
+				for key := range w.objects {
+					entry := r.reader.objects[key]
+					if entry.object == nil || !r.config.Now().Before(entry.evidence.ExpiresAt) {
+						sourceErr = discovery.ErrPending
+						break
+					}
+					for _, proof := range entry.evidence.Dependencies {
+						if !r.reader.activeKeys[proof] {
+							sourceErr = discovery.ErrPending
+						}
+					}
+					if !r.definitionsDirty {
+						continue
+					}
+					definition := &v1alpha1.Karta{}
+					if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(entry.object.Object, definition); err != nil {
+						sourceErr = fmt.Errorf("decode Karta %s: %w", entry.object.GetName(), err)
+						break
+					}
+					definitions = append(definitions, definition)
+				}
+				r.reader.mu.RUnlock()
+			}
+			break
+		}
+	}
+	if sourceErr != nil {
+		if r.definitionError == nil {
+			r.deps.Publications.SetPublicationFailure(r.definitionKey, failureReason(sourceErr))
+			for uid := range r.roots {
+				r.touchRoot(uid)
+			}
+		}
+		r.definitionError = sourceErr
+		return sourceErr
+	}
+	if !r.definitionsDirty && r.definitionError == nil {
+		return nil
+	}
+	if r.definitionsDirty {
+		r.deps.Inventory.ReplaceCluster(definitions)
+		r.definitionsDirty = false
+	}
+	selected := r.deps.Inventory.Selections()
 	next := make(map[schema.GroupKind]inventory.Selection, len(selected))
 	for _, selection := range selected {
 		next[selection.GVK.GroupKind()] = selection
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err == nil {
-		if pending := r.definitionsConvergedLocked(); pending != nil {
-			return pending
-		}
-	}
-	if err != nil {
-		if r.definitionError == nil {
-			r.deps.Publications.SetPublicationFailure(r.definitionKey, failureReason(err))
-			r.definitionError = err
-			for uid, root := range r.roots {
-				root.generation++
-				r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, 20*time.Millisecond)
-			}
-		}
-		return err
-	}
 	recovered := r.definitionError != nil
 	if recovered {
+		r.deps.Publications.RetirePublicationFailure(r.definitionKey)
 		r.sequence++
 		r.definitionKey = fmt.Sprintf("definitions:%d", r.sequence)
 		r.definitionError = nil
 	}
-	changed := recovered || len(r.pendingDefinitions) > 0 || !sameSelections(r.selections, next)
-	if !changed {
-		return nil
-	}
-	previous := r.selections
-	r.selections = next
-	for uid, root := range r.roots {
-		gk := root.ref.GVK.GroupKind()
-		if recovered || r.pendingDefinitions[gk] || definitionChanged(previous[gk], next[gk]) {
-			root.generation++
-			r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, 20*time.Millisecond)
+	changedKinds := make(map[schema.GroupKind]bool)
+	for gk, previous := range r.selections {
+		if definitionChanged(previous, next[gk]) {
+			changedKinds[gk] = true
 		}
 	}
-	clear(r.pendingDefinitions)
+	for gk, selection := range next {
+		if definitionChanged(r.selections[gk], selection) {
+			changedKinds[gk] = true
+		}
+	}
+	for gk := range changedKinds {
+		r.invalidateDefinitionLocked(gk)
+	}
+	r.selections = next
 	usedKinds := map[schema.GroupKind]bool{}
-	for _, root := range r.roots {
-		usedKinds[root.ref.GVK.GroupKind()] = true
+	for uid, root := range r.roots {
+		gk := root.ref.GVK.GroupKind()
+		usedKinds[gk] = true
+		if recovered || changedKinds[gk] {
+			r.touchRoot(uid)
+		}
 	}
 	for gk, key := range r.definitionKeys {
-		if _, selected := r.selections[gk]; !selected && !usedKinds[gk] {
+		if _, selected := next[gk]; !selected && !usedKinds[gk] {
 			r.deps.Publications.RetirePublicationFailure(key)
 			delete(r.definitionKeys, gk)
 		}
 	}
-	r.controlQueue.Add(queueKey{Operation: "sync"})
+	if recovered || len(changedKinds) > 0 {
+		r.controlQueue.Add(queueKey{Operation: "sync"})
+	}
 	return nil
+}
+
+func (r *Runtime) lookupDefinition(gvk schema.GroupVersionKind) (inventory.Selection, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lookupDefinitionLocked(gvk)
+}
+
+func (r *Runtime) lookupDefinitionLocked(gvk schema.GroupVersionKind) (inventory.Selection, error) {
+	if r.definitionError != nil {
+		return r.selections[gvk.GroupKind()], r.definitionError
+	}
+	return r.deps.Inventory.Lookup(gvk)
 }
 
 func definitionChanged(a, b inventory.Selection) bool {
@@ -372,10 +464,6 @@ func definitionChanged(a, b inventory.Selection) bool {
 		return a.Definition != b.Definition
 	}
 	return !reflect.DeepEqual(a.Definition.Spec, b.Definition.Spec)
-}
-
-func sameSelections(a, b map[schema.GroupKind]inventory.Selection) bool {
-	return maps.EqualFunc(a, b, func(x, y inventory.Selection) bool { return x.GVK == y.GVK && x.Origin == y.Origin })
 }
 
 func (r *Runtime) definitionProofLocked(gk schema.GroupKind) string {
@@ -405,25 +493,27 @@ func (r *Runtime) dirtyPod(root *rootState, uid types.UID) {
 }
 
 func (r *Runtime) invalidatePodLocked(root *rootState, uid types.UID, reason string) {
-	if key := root.podKeys[uid]; key != "" {
+	pod := root.pods[uid]
+	if key := pod.proofKey; key != "" {
 		r.deps.Publications.SetPublicationFailure(key, reason)
-		root.retired[key] = true
+		root.retired = append(root.retired, key)
 	}
 	r.sequence++
-	root.podKeys[uid] = fmt.Sprintf("pod:%s:%d", uid, r.sequence)
+	pod.proofKey = fmt.Sprintf("pod:%s:%d", uid, r.sequence)
+	root.pods[uid] = pod
 	r.dirtyPod(root, uid)
 }
 
 func (r *Runtime) retireFailuresLocked(root *rootState) {
-	for key := range root.retired {
+	for _, key := range root.retired {
 		r.deps.Publications.RetirePublicationFailure(key)
-		delete(root.retired, key)
 	}
+	root.retired = nil
 }
 
 func (r *Runtime) removeRoot(uid types.UID) {
 	if root := r.roots[uid]; root != nil {
-		for pod := range root.paths {
+		for pod := range root.pods {
 			r.removePodPathLocked(root, pod)
 			delete(r.podRoots, pod)
 		}
@@ -432,8 +522,8 @@ func (r *Runtime) removeRoot(uid types.UID) {
 	delete(r.roots, uid)
 	r.deps.Publications.RemovePublication(uid)
 	if root != nil {
-		for _, key := range root.podKeys {
-			r.deps.Publications.RetirePublicationFailure(key)
+		for _, pod := range root.pods {
+			r.deps.Publications.RetirePublicationFailure(pod.proofKey)
 		}
 		r.retireFailuresLocked(root)
 	}
@@ -496,58 +586,6 @@ func mergeEvidence(values ...store.Evidence) store.Evidence {
 		}
 	}
 	return result
-}
-
-func (r *Runtime) definitionsConvergedLocked() error {
-	if !r.config.Definitions.Cluster.Enabled {
-		return nil
-	}
-	origins, err := r.deps.Inventory.ClusterOrigins()
-	if err != nil {
-		return err
-	}
-	expected := map[string]inventory.Origin{}
-	filter, err := selector(r.config.Definitions.Cluster.LabelSelector)
-	if err != nil {
-		return err
-	}
-	ready := false
-	var definitionObjects map[objectKey]struct{}
-	for _, w := range r.watches {
-		if w.gvk == kartaGVK {
-			ready = w.ready && w.err == nil
-			definitionObjects = w.objects
-		}
-	}
-	if !ready {
-		return discovery.ErrPending
-	}
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
-	cfg := r.config.Definitions.Cluster
-	for key := range definitionObjects {
-		entry := r.reader.objects[key]
-		object := entry.object
-		if object == nil {
-			continue
-		}
-		if slices.Contains(cfg.Exclude, object.GetName()) || (len(cfg.Include) > 0 && !slices.Contains(cfg.Include, object.GetName())) || !filter.Matches(labelsFor(object)) {
-			continue
-		}
-		if entry.evidence.ExpiresAt.IsZero() || !r.config.Now().Before(entry.evidence.ExpiresAt) {
-			return discovery.ErrPending
-		}
-		expected[object.GetName()] = inventory.Origin{Source: inventory.SourceCluster, Name: object.GetName(), UID: object.GetUID(), ResourceVersion: object.GetResourceVersion()}
-	}
-	if len(expected) != len(origins) {
-		return discovery.ErrPending
-	}
-	for _, origin := range origins {
-		if expected[origin.Name] != origin {
-			return discovery.ErrPending
-		}
-	}
-	return nil
 }
 
 func (r *rootState) failResolution(gvk schema.GroupVersionKind, cause error) {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -318,6 +317,9 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 		r.mu.Lock()
 		if r.watches[key] == w {
 			w.ready = true
+			if w.gvk == kartaGVK {
+				_ = r.refreshDefinitionsLocked()
+			}
 			r.publishHealthLocked()
 		}
 		r.mu.Unlock()
@@ -433,6 +435,9 @@ func (r *Runtime) monitorWatch(ctx context.Context, w *resourceWatch, source wat
 				if !ok {
 					if child.Err() == nil {
 						r.mu.Lock()
+						if w.gvk == kartaGVK {
+							r.failWatchLocked(w, errors.New("karta watch closed"))
+						}
 						r.controlQueue.Add(queueKey{Operation: "verify", Watch: w.key})
 						r.mu.Unlock()
 					}
@@ -470,10 +475,9 @@ func (r *Runtime) failWatchLocked(w *resourceWatch, err error) {
 	w.failureEpoch++
 	first := w.err == nil
 	r.reader.mu.Lock()
-	for key := range r.reader.priming {
-		if key.GVK == w.gvk && (w.key.Namespace == "" || key.Namespace == w.key.Namespace) {
-			r.reader.sequence++
-			r.reader.observed[key] = r.reader.sequence
+	for key, state := range r.reader.metadataReads {
+		if state.priming && key.GVK == w.gvk && (w.key.Namespace == "" || key.Namespace == w.key.Namespace) {
+			r.reader.invalidateMetadataReadLocked(key)
 		}
 	}
 	delete(r.reader.activeKeys, w.failureKey)
@@ -561,9 +565,8 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 		r.reader.mu.Unlock()
 		return
 	}
-	if r.reader.priming[key] != 0 {
-		r.reader.sequence++
-		r.reader.observed[key] = r.reader.sequence
+	if state := r.reader.metadataReads[key]; state != nil && state.priming {
+		r.reader.invalidateMetadataReadLocked(key)
 	}
 	retirementReason := store.ReasonAPIUnavailable
 	if old.object != nil {
@@ -632,28 +635,8 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	}
 	r.reader.mu.Unlock()
 	if w.gvk == kartaGVK {
-		oldSelected := r.acceptsDefinition(old.object)
-		newSelected := !deleted && r.acceptsDefinition(object)
-		if oldSelected != newSelected || (newSelected && (old.object == nil || !reflect.DeepEqual(old.object.Object["spec"], object.Object["spec"]))) {
-			for _, candidate := range []*unstructured.Unstructured{old.object, object} {
-				if candidate == nil {
-					continue
-				}
-				group, _, _ := unstructured.NestedString(candidate.Object, "spec", "structureDefinition", "rootComponent", "kind", "group")
-				kind, _, _ := unstructured.NestedString(candidate.Object, "spec", "structureDefinition", "rootComponent", "kind", "kind")
-				if kind == "" {
-					continue
-				}
-				gk := schema.GroupKind{Group: group, Kind: kind}
-				r.pendingDefinitions[gk] = true
-				r.invalidateDefinitionLocked(gk)
-				for uid, root := range r.roots {
-					if root.ref.GVK.GroupKind() == gk {
-						r.touchRoot(uid)
-					}
-				}
-			}
-		}
+		r.definitionsDirty = true
+		_ = r.refreshDefinitionsLocked()
 	}
 	if w.gvk == namespaceGVK && (deleted || !r.namespaceSelector.Matches(labelsFor(object))) {
 		r.reader.mu.Lock()
@@ -668,15 +651,6 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) {
 	if w.gvk == namespaceGVK || w.gvk == kartaGVK {
 		r.controlQueue.Add(queueKey{Operation: "sync"})
 	}
-}
-
-func (r *Runtime) acceptsDefinition(object *unstructured.Unstructured) bool {
-	if object == nil {
-		return false
-	}
-	cfg := r.config.Definitions.Cluster
-	filter, err := selector(cfg.LabelSelector)
-	return err == nil && !slices.Contains(cfg.Exclude, object.GetName()) && (len(cfg.Include) == 0 || slices.Contains(cfg.Include, object.GetName())) && filter.Matches(labelsFor(object))
 }
 
 func (r *Runtime) deleteObjectLocked(ref discovery.ObjectRef) {
@@ -785,6 +759,9 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			r.reader.retireObjectProofLocked(entry, store.ReasonUnresolvedOwner)
 			delete(r.reader.objects, objectKey)
 			delete(w.objects, objectKey)
+			if w.gvk == kartaGVK {
+				r.definitionsDirty = true
+			}
 			r.deleteObjectLocked(ref)
 			continue
 		}
@@ -798,11 +775,6 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			r.reader.retireObjectProofLocked(entry, store.ReasonAPIUnavailable)
 			entry.evidence = store.Evidence{}
 			r.failPublicationLocked(ref.UID, discovery.ErrStale)
-			if w.gvk == kartaGVK {
-				r.deps.Publications.SetPublicationFailure(r.definitionKey, store.ReasonAPIUnavailable)
-				r.definitionError = discovery.ErrPending
-				r.controlQueue.Add(queueKey{Operation: "sync"})
-			}
 			if root := r.roots[r.podRoots[ref.UID]]; root != nil {
 				r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
 			}
@@ -849,8 +821,8 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			if len(root.resolutionErrors) > 0 {
 				r.queue.Add(queueKey{Operation: "object", Object: keyOf(root.ref), UID: uid})
 			}
-			for pod := range root.podErrors {
-				if path := root.paths[pod]; len(path) > 0 {
+			for pod, state := range root.pods {
+				if path := state.path; state.resolveError != nil && len(path) > 0 {
 					r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: pod})
 				}
 			}
@@ -863,7 +835,22 @@ func (r *Runtime) verifyWatch(ctx context.Context, key watchKey) error {
 			delete(w.pendingRoots, uid)
 		}
 	}
+	var definitionsMissing bool
+	if w.gvk == kartaGVK {
+		for objectKey := range w.objects {
+			if entry := r.reader.objects[objectKey]; entry.object != nil {
+				delete(refs, entry.object.GetUID())
+			}
+		}
+		definitionsMissing = len(refs) > 0
+	}
 	r.reader.mu.Unlock()
+	if w.gvk == kartaGVK {
+		if definitionsMissing {
+			r.failWatchLocked(w, discovery.ErrPending)
+		}
+		_ = r.refreshDefinitionsLocked()
+	}
 	r.publishHealthLocked()
 	return nil
 }

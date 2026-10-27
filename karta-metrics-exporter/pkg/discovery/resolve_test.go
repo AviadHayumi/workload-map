@@ -15,8 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-
-	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 )
 
 type reader struct {
@@ -50,20 +48,10 @@ func (r *reader) GetMetadata(_ context.Context, ref ObjectRef) (*metav1.PartialO
 	return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "objects"}, ref.Name)
 }
 
-type definitions struct {
-	err   error
-	calls []schema.GroupVersionKind
-}
-
-func (i *definitions) Lookup(g schema.GroupVersionKind) (inventory.Selection, error) {
-	i.calls = append(i.calls, g)
-	return inventory.Selection{}, i.err
-}
 func TestDiscovery(t *testing.T) { RegisterFailHandler(Fail); RunSpecs(t, "Discovery") }
 
 var _ = Describe("root resolution", func() {
 	var r *reader
-	var defs *definitions
 	var d Discoverer
 	var ref ObjectRef
 	pod := schema.GroupVersionKind{Version: "v1", Kind: "Pod"}
@@ -77,9 +65,8 @@ var _ = Describe("root resolution", func() {
 		}
 		r.objects["pod"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "batch/v1", Kind: "Job", Name: "job", UID: "job", Controller: &yes}}
 		r.objects["job"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "JobSet", Name: "root", UID: "root", Controller: &yes}}
-		defs = &definitions{}
 		var err error
-		d, err = New(Dependencies{Reader: r, Inventory: defs}, Config{})
+		d, err = New(r, Config{})
 		Expect(err).NotTo(HaveOccurred())
 		ref = ObjectRef{GVK: pod, Namespace: "ns", Name: "pod", UID: "pod"}
 	})
@@ -88,12 +75,10 @@ var _ = Describe("root resolution", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Workload.Root.GVK).To(Equal(root))
 		Expect(result.Workload.Path).To(HaveLen(3))
-		Expect(result.MissingCoverage).To(Equal([]WatchRequest{{GVK: root, Namespace: "ns"}}))
-		Expect(defs.calls).To(Equal([]schema.GroupVersionKind{root}))
 		Expect(r.reads).To(Equal([]string{"job", "root"}))
 	})
 	It("stops only at an explicit ignored owner", func() {
-		d, _ = New(Dependencies{Reader: r, Inventory: defs}, Config{IgnoredTopOwners: []schema.GroupVersionKind{root}})
+		d, _ = New(r, Config{IgnoredTopOwners: []schema.GroupVersionKind{root}})
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Workload.Root.GVK).To(Equal(job))
@@ -103,7 +88,6 @@ var _ = Describe("root resolution", func() {
 		delete(r.objects, "root")
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).To(MatchError(ContainSubstring(ErrUnresolvedOwner.Error())))
-		Expect(result.MissingCoverage).To(BeEmpty())
 		Expect(result.Workload).To(BeNil())
 	})
 	It("rejects replacement UIDs", func() {
@@ -122,14 +106,13 @@ var _ = Describe("root resolution", func() {
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).To(MatchError(ContainSubstring("ownership cycle")))
 		Expect(result.Workload).To(BeNil())
-		Expect(result.MissingCoverage).To(BeEmpty())
 	})
-	It("resolves chains beyond the initial path capacity", func() {
+	DescribeTable("resolves chains within the depth bound", func(depth int) {
 		yes := true
-		for n := 0; n < 8; n++ {
+		for n := 0; n < depth; n++ {
 			name := fmt.Sprintf("owner-%d", n)
 			r.objects[name] = &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns", UID: types.UID(name), ResourceVersion: "1"}}
-			if n < 7 {
+			if n < depth-1 {
 				next := fmt.Sprintf("owner-%d", n+1)
 				r.objects[name].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: next, UID: types.UID(next), Controller: &yes}}
 			}
@@ -137,9 +120,9 @@ var _ = Describe("root resolution", func() {
 		r.objects["pod"].OwnerReferences = []metav1.OwnerReference{{APIVersion: "example.org/v1", Kind: "Owner", Name: "owner-0", UID: "owner-0", Controller: &yes}}
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result.Workload.Path).To(HaveLen(9))
-		Expect(result.Workload.Root.UID).To(Equal(types.UID("owner-7")))
-	})
+		Expect(result.Workload.Path).To(HaveLen(depth + 1))
+		Expect(result.Workload.Root.UID).To(Equal(types.UID(fmt.Sprintf("owner-%d", depth-1))))
+	}, Entry("beyond initial path capacity", 8), Entry("exactly 1024 objects", 1023))
 
 	It("rejects an overlong chain before reading beyond the bound", func() {
 		yes := true
@@ -152,16 +135,64 @@ var _ = Describe("root resolution", func() {
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).To(MatchError(ContainSubstring("owner chain exceeds limit")))
 		Expect(result.Workload).To(BeNil())
-		Expect(result.MissingCoverage).To(BeEmpty())
 		Expect(r.reads).NotTo(ContainElement("owner-1023"))
 	})
 
-	It("retains root coverage while inventory is pending", func() {
-		defs.err = inventory.ErrPending
-		result, err := d.Get(context.Background(), ref)
-		Expect(err).To(MatchError(ContainSubstring(ErrPending.Error())))
-		Expect(result.MissingCoverage).To(HaveLen(1))
+	It("requires an object reader", func() {
+		_, err := New(nil, Config{})
+		Expect(err).To(MatchError("reader required"))
 	})
+	It("honors cancellation before reading", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := d.Get(ctx, ref)
+		Expect(err).To(MatchError(context.Canceled))
+		Expect(r.reads).To(BeEmpty())
+	})
+	DescribeTable("rejects malformed controller references", func(field string) {
+		owner := &r.objects["pod"].OwnerReferences[0]
+		switch field {
+		case "apiVersion":
+			owner.APIVersion = ""
+		case "version":
+			owner.APIVersion = "batch/"
+		case "malformed":
+			owner.APIVersion = "batch/v1/extra"
+		case "kind":
+			owner.Kind = ""
+		case "name":
+			owner.Name = ""
+		case "uid":
+			owner.UID = ""
+		case "multiple":
+			r.objects["pod"].OwnerReferences = append(r.objects["pod"].OwnerReferences, *owner)
+		}
+		result, err := d.Get(context.Background(), ref)
+		Expect(err).To(MatchError(ContainSubstring(ErrUnresolvedOwner.Error())))
+		Expect(result.Workload).To(BeNil())
+		Expect(r.reads).To(BeEmpty())
+	}, Entry("empty apiVersion", "apiVersion"), Entry("empty version", "version"), Entry("malformed apiVersion", "malformed"), Entry("empty kind", "kind"), Entry("empty name", "name"), Entry("empty UID", "uid"), Entry("multiple controllers", "multiple"))
+	It("ignores non-controller references", func() {
+		no := false
+		r.objects["pod"].OwnerReferences = append(r.objects["pod"].OwnerReferences, metav1.OwnerReference{}, metav1.OwnerReference{Controller: &no})
+		result, err := d.Get(context.Background(), ref)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Workload.Root.GVK).To(Equal(root))
+	})
+	DescribeTable("rejects changed input identity", func(field string) {
+		switch field {
+		case "name":
+			r.objects["pod"].Name = "replacement"
+		case "namespace":
+			r.objects["pod"].Namespace = "other"
+		case "uid":
+			r.objects["pod"].UID = ""
+		case "version":
+			ref.ResourceVersion = "old"
+		}
+		_, err := d.Get(context.Background(), ref)
+		Expect(err).To(MatchError(ContainSubstring(ErrStale.Error())))
+	}, Entry("name", "name"), Entry("namespace", "namespace"), Entry("empty UID", "uid"), Entry("resource version", "version"))
 	It("classifies permission and transient errors", func() {
 		for _, test := range []struct {
 			err  error
@@ -177,12 +208,12 @@ var _ = Describe("root resolution", func() {
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Workload.Root.Namespace).To(BeEmpty())
-		Expect(result.MissingCoverage).To(Equal([]WatchRequest{{GVK: root}}))
 	})
-	It("requests no watch for an already cached root", func() {
+	It("uses a cached root without a metadata read", func() {
 		r.cached["root"] = true
 		result, err := d.Get(context.Background(), ref)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result.MissingCoverage).To(BeEmpty())
+		Expect(result.Workload.Root.GVK).To(Equal(root))
+		Expect(r.reads).To(Equal([]string{"job"}))
 	})
 })

@@ -75,7 +75,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		for _, action := range metadata.Actions() {
 			Expect(action.GetVerb()).To(Equal("list"))
 		}
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		Expect(r.watches).To(HaveLen(1), "priming never starts an intermediate watch")
 	})
 	It("retains only requested shared metadata while discarding unrelated collection members", func(ctx SpecContext) {
@@ -104,7 +104,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		Expect(r.primeMetadata(ctx)).To(Succeed())
 		Expect(pages).To(Equal(20))
 		Expect(r.reader.metadata).To(HaveLen(1))
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 	})
 	It("discovers deeper requested chains without retaining unrelated ancestors early", func(ctx SpecContext) {
 		r, metadata, _ := testRuntime(nil)
@@ -141,7 +141,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		})
 		Expect(r.primeMetadata(ctx)).To(Succeed())
 		Expect(r.reader.metadata).To(BeEmpty())
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		Expect(r.reader.failures).To(BeEmpty())
 	})
 	It("keeps GET-only permission working without retrying the denied collection per owner", func(ctx SpecContext) {
@@ -244,7 +244,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		}
 		close(resume)
 		Eventually(done).Should(Receive(Succeed()))
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		switch operation {
 		case "cancel-get":
 			Expect(r.reader.metadata).To(HaveLen(1))
@@ -376,7 +376,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		Expect(r.primeMetadata(ctx)).To(Succeed())
 		Expect(pages).To(Equal(1))
 		Expect(r.reader.metadata).To(BeEmpty())
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		Expect(r.reader.failures).To(BeEmpty())
 	})
 	It("uses one proof-lifetime budget across newly discovered chain layers", func(ctx SpecContext) {
@@ -403,7 +403,7 @@ var _ = Describe("Demand-aware cold owner priming", func() {
 		Expect(pages).To(Equal(2))
 		Expect(r.reader.metadata).To(HaveLen(1))
 		Expect(r.reader.metadata).To(HaveKey(keyOf(refOf(child))))
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		Expect(r.reader.failures).To(BeEmpty())
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) { return true, pm, nil })
 		_, err := r.reader.GetMetadata(ctx, refOf(parent))

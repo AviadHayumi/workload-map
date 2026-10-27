@@ -24,7 +24,7 @@ import (
 func collectProofMetrics(publications store.Capturer) func(context.Context) metricdata.ResourceMetrics {
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithCardinalityLimit(0))
-	registration, err := collector.New().Register(provider.Meter("proof-test"), publications)
+	registration, err := collector.Register(provider.Meter("proof-test"), publications)
 	Expect(err).NotTo(HaveOccurred())
 	DeferCleanup(func() {
 		Expect(registration.Unregister()).To(Succeed())

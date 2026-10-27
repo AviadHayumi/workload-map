@@ -82,7 +82,7 @@ var _ = Describe("Store", func() {
 	It("retires failure keys only after all publication and health references disappear", func() {
 		s.SetPublicationFailure("root", ReasonPermissionDenied)
 		one := &Publication{Workload: WorkloadRecord{UID: "one"}, Status: evidence}
-		two := &Publication{Workload: WorkloadRecord{UID: "two"}, PodPages: []*PodPage{{Rows: []PublishedPod{{Mapping: evidence}}}}}
+		two := &Publication{Workload: WorkloadRecord{UID: "two"}, PodPages: BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "pod"}, Mapping: evidence}}, nil)}
 		s.Publish(one)
 		s.Publish(two)
 		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
@@ -104,16 +104,20 @@ var _ = Describe("Store", func() {
 		Expect(reason).To(Equal(ReasonPermissionDenied))
 	})
 	It("retains references on shared Pod pages across single-Pod replacement", func() {
-		shared := &PodPage{Rows: []PublishedPod{{Record: PodRecord{UID: "shared"}, Mapping: evidence}}}
-		changed := &PodPage{Rows: []PublishedPod{{Record: PodRecord{UID: "changed"}, Mapping: evidence}}}
-		p := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: []*PodPage{shared, changed}}
+		rows := make([]PublishedPod, PodPageSize+1)
+		for i := range rows {
+			rows[i] = PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprintf("pod-%04d", i))}, Mapping: evidence}
+		}
+		p := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: BuildPodPages(rows, nil)}
 		s.Publish(p)
 		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		row := changed.Rows[0]
+		row := rows[0]
 		row.Record.Labels = map[string]string{"team": "new"}
-		s.Publish(p.WithPod("changed", &row))
+		next := p.WithPod(row.Record.UID, &row)
+		Expect(next.PodPages[1]).To(BeIdenticalTo(p.PodPages[1]))
+		s.Publish(next)
 		concrete := s.(*Store)
-		Expect(concrete.failureRefs["root"]).To(Equal(2))
+		Expect(concrete.failureRefs["root"]).To(Equal(len(rows)))
 		valid, _ := s.Capture().Valid(evidence)
 		Expect(valid).To(BeFalse())
 		s.RemovePublication("root")
@@ -168,6 +172,7 @@ var _ = Describe("Store", func() {
 	})
 
 	It("supports concurrent publication, capture, failure and health updates", func() {
+		pages := BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "pod"}, Mapping: evidence}}, nil)
 		var wg sync.WaitGroup
 		for i := 0; i < 8; i++ {
 			wg.Add(1)
@@ -175,13 +180,19 @@ var _ = Describe("Store", func() {
 				defer wg.Done()
 				uid := types.UID(fmt.Sprint(i))
 				for j := 0; j < 100; j++ {
-					s.Publish(&Publication{Workload: WorkloadRecord{UID: uid}, Status: evidence})
+					publication := &Publication{Workload: WorkloadRecord{UID: uid}, Status: evidence, PodPages: pages}
+					s.Publish(publication)
+					row, _ := publication.Pod("pod")
+					row.Record.Name = string(uid)
+					s.Publish(publication.WithPod("pod", &row))
 					s.SetPublicationFailure(string(uid), ReasonAPIUnavailable)
 					s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
 					s.Published(uid)
 					view := s.Capture()
 					for _, p := range view.Records {
 						view.Valid(p.Status)
+						row, _ := p.Pod("pod")
+						view.Valid(row.Mapping)
 					}
 					s.RemovePublication(uid)
 					s.SetPublicationFailure(string(uid), "")
@@ -190,6 +201,9 @@ var _ = Describe("Store", func() {
 		}
 		wg.Wait()
 		Expect(s.Capture().Records).To(BeEmpty())
+		Expect(pages[0].Rows()[0].Record.Name).To(BeEmpty())
+		s.SetPublicationHealth(nil)
+		Expect(s.(*Store).failureRefs).To(BeEmpty())
 	})
 })
 
@@ -215,8 +229,8 @@ var _ = Describe("Pod pages", func() {
 		previous := types.UID("")
 		count := 0
 		for _, page := range p.PodPages {
-			Expect(len(page.Rows)).To(BeNumerically("<=", PodPageSize))
-			for _, row := range page.Rows {
+			Expect(len(page.Rows())).To(BeNumerically("<=", PodPageSize))
+			for _, row := range page.Rows() {
 				Expect(row.Record.UID > previous).To(BeTrue())
 				previous = row.Record.UID
 				count++
@@ -227,8 +241,8 @@ var _ = Describe("Pod pages", func() {
 		_, ok := original.Pod("0001")
 		Expect(ok).To(BeFalse())
 	})
-	It("supports caller-provided unsorted pages", func() {
-		p := &Publication{PodPages: []*PodPage{{Rows: []PublishedPod{{Record: PodRecord{UID: "z"}}, {Record: PodRecord{UID: "a"}}}}}}
+	It("builds searchable immutable pages from unsorted rows", func() {
+		p := &Publication{PodPages: BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "z"}}, {Record: PodRecord{UID: "a"}}}, nil)}
 		row, ok := p.Pod("a")
 		Expect(ok).To(BeTrue())
 		row.Record.Name = "new"
@@ -253,8 +267,8 @@ var _ = Describe("Pod pages", func() {
 		rows[0].Record.Namespace = "team-b"
 		pages := BuildPodPages(rows, p)
 		Expect(pages[0]).NotTo(BeIdenticalTo(p.PodPages[0]))
-		Expect(pages[0].Rows[0].Record.Namespace).To(Equal("team-b"))
-		Expect(p.PodPages[0].Rows[0].Record.Namespace).To(Equal("team-a"))
+		Expect(pages[0].Rows()[0].Record.Namespace).To(Equal("team-b"))
+		Expect(p.PodPages[0].Rows()[0].Record.Namespace).To(Equal("team-a"))
 	})
 
 	It("copies only changed pages and never reorders the input", func() {
@@ -269,25 +283,25 @@ var _ = Describe("Pod pages", func() {
 		unchanged := BuildPodPages(rows, p)
 		Expect(unchanged[0]).To(BeIdenticalTo(p.PodPages[0]))
 		Expect(unchanged[1]).To(BeIdenticalTo(p.PodPages[1]))
-		pod := p.PodPages[0].Rows[0]
+		pod := p.PodPages[0].Rows()[0]
 		pod.Record.Labels = map[string]string{"team": "new"}
 		next := p.WithPod(pod.Record.UID, &pod)
 		Expect(next.PodPages[0]).NotTo(BeIdenticalTo(p.PodPages[0]))
 		Expect(next.PodPages[1]).To(BeIdenticalTo(p.PodPages[1]))
-		Expect(p.PodPages[0].Rows[0].Record.Labels).To(BeNil())
+		Expect(p.PodPages[0].Rows()[0].Record.Labels).To(BeNil())
 		found, ok := next.Pod(pod.Record.UID)
 		Expect(ok).To(BeTrue())
 		Expect(found.Record.Labels).To(HaveKeyWithValue("team", "new"))
 		removed := next.WithPod(pod.Record.UID, nil)
 		_, ok = removed.Pod(pod.Record.UID)
 		Expect(ok).To(BeFalse())
-		Expect(next.PodPages[0].Rows).To(HaveLen(PodPageSize))
-		last := p.PodPages[1].Rows[0]
+		Expect(next.PodPages[0].Rows()).To(HaveLen(PodPageSize))
+		last := p.PodPages[1].Rows()[0]
 		empty := p.WithPod(last.Record.UID, nil)
 		Expect(empty.PodPages).To(HaveLen(1))
 		added := p.WithPod("new", &PublishedPod{Record: PodRecord{UID: "new"}})
 		Expect(added.PodPages[0]).To(BeIdenticalTo(p.PodPages[0]))
-		Expect(added.PodPages[1].Rows).To(HaveLen(2))
+		Expect(added.PodPages[1].Rows()).To(HaveLen(2))
 		full := &Publication{PodPages: p.PodPages[:1]}
 		Expect(full.WithPod("new", &PublishedPod{Record: PodRecord{UID: "new"}}).PodPages).To(HaveLen(2))
 		Expect(p.WithPod("absent", nil).PodPages[0]).To(BeIdenticalTo(p.PodPages[0]))

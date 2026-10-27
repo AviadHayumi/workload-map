@@ -53,25 +53,7 @@ func terminalOwnerBoundary(object metav1.Object, ignored []schema.GroupVersionKi
 }
 
 func controllerOwner(object metav1.Object) (discovery.ObjectRef, bool) {
-	var controller *metav1.OwnerReference
-	for _, owner := range object.GetOwnerReferences() {
-		if owner.Controller == nil || !*owner.Controller {
-			continue
-		}
-		if controller != nil {
-			return discovery.ObjectRef{}, false
-		}
-		candidate := owner
-		controller = &candidate
-	}
-	if controller == nil {
-		return discovery.ObjectRef{}, true
-	}
-	gv, err := schema.ParseGroupVersion(controller.APIVersion)
-	if err != nil || gv.Version == "" || controller.Name == "" || controller.Kind == "" || controller.UID == "" {
-		return discovery.ObjectRef{}, false
-	}
-	return discovery.ObjectRef{GVK: gv.WithKind(controller.Kind), Name: controller.Name, UID: controller.UID}, true
+	return discovery.ControllerOwner(object)
 }
 
 // A newer object version supersedes verification, but does not by itself mean

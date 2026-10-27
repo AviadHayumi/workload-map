@@ -13,14 +13,25 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type celEvaluator struct {
+// Evaluator runs a compiled expression with the input exposed as CEL object.
+// Calls may run concurrently. Callers must not mutate the input during evaluation.
+type Evaluator struct {
 	program       cel.Program
 	maxValueBytes int
 }
 
-type compiler struct{}
+type Config struct {
+	Expression string
+	Limits     Limits
+}
 
-type disabledEvaluator struct{}
+// Limits bounds one expression. Zero selects the compiler default.
+type Limits struct {
+	CostLimit               uint64 `yaml:"costLimit" json:"costLimit"`
+	MaxExpressionBytes      int    `yaml:"maxExpressionBytes" json:"maxExpressionBytes"`
+	MaxValueBytes           int    `yaml:"maxValueBytes" json:"maxValueBytes"`
+	InterruptCheckFrequency uint   `yaml:"interruptCheckFrequency" json:"interruptCheckFrequency"`
+}
 
 const (
 	// DefaultMaxExpressionBytes bounds the configured expression before compilation.
@@ -46,15 +57,10 @@ var (
 	ErrNegativeLimit = errors.New("label limits must not be negative")
 )
 
-// NewCompiler returns a compiler with bounded CEL evaluation.
-func NewCompiler() Compiler {
-	return compiler{}
-}
-
 // Compile compiles the CEL expression once and returns an evaluator for it.
 // An empty expression returns an empty value. Dynamic result types are checked
 // during evaluation. Invalid expressions and negative limits are rejected.
-func (compiler) Compile(cfg Config) (Evaluator, error) {
+func Compile(cfg Config) (*Evaluator, error) {
 	limits := cfg.Limits
 	if limits.MaxExpressionBytes < 0 || limits.MaxValueBytes < 0 {
 		return nil, ErrNegativeLimit
@@ -75,7 +81,7 @@ func (compiler) Compile(cfg Config) (Evaluator, error) {
 
 	expression := cfg.Expression
 	if strings.TrimSpace(expression) == "" {
-		return disabledEvaluator{}, nil
+		return &Evaluator{}, nil
 	}
 	if len(expression) > limits.MaxExpressionBytes {
 		return nil, fmt.Errorf("%w (%d bytes)", ErrExpressionTooLong, limits.MaxExpressionBytes)
@@ -101,15 +107,11 @@ func (compiler) Compile(cfg Config) (Evaluator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building label program: %w", err)
 	}
-	return &celEvaluator{program: program, maxValueBytes: limits.MaxValueBytes}, nil
+	return &Evaluator{program: program, maxValueBytes: limits.MaxValueBytes}, nil
 }
 
-func (disabledEvaluator) Evaluate(ctx context.Context, _ *unstructured.Unstructured) (string, error) {
-	return "", ctx.Err()
-}
-
-func (e *celEvaluator) Evaluate(ctx context.Context, obj *unstructured.Unstructured) (string, error) {
-	if err := ctx.Err(); err != nil {
+func (e *Evaluator) Evaluate(ctx context.Context, obj *unstructured.Unstructured) (string, error) {
+	if err := ctx.Err(); err != nil || e.program == nil {
 		return "", err
 	}
 

@@ -96,9 +96,9 @@ var _ = Describe("test diagnostics", func() {
 		now := time.Now()
 		publications := &countingStore{Interface: store.New(store.Options{Now: func() time.Time { return now }})}
 		proof := store.Evidence{ExpiresAt: now.Add(time.Minute), Dependencies: []string{"proof"}}
-		publication := &store.Publication{Workload: store.WorkloadRecord{UID: "root", HasStatus: true, CreatedTimestamp: 1, Ref: store.ObjectRef{ResourceVersion: "opaque-version"}}, Creation: proof, Status: proof, PodPages: []*store.PodPage{{Rows: []store.PublishedPod{{Record: store.PodRecord{UID: "pod", Labels: map[string]string{"team": "team-v2"}}, Mapping: proof}}}}}
+		publication := &store.Publication{Workload: store.WorkloadRecord{UID: "root", HasStatus: true, CreatedTimestamp: 1, Ref: store.ObjectRef{ResourceVersion: "opaque-version"}}, Creation: proof, Status: proof, PodPages: store.BuildPodPages([]store.PublishedPod{{Record: store.PodRecord{UID: "pod", Labels: map[string]string{"team": "team-v2"}}, Mapping: proof}}, nil)}
 		publications.Publish(publication)
-		server := httptest.NewServer(diagnostic{application: &app.Application{Components: app.Components{Store: publications}}, queues: &queueProvider{metrics: map[string]*queueMetric{}}}.handler())
+		server := httptest.NewServer(diagnostic{application: &app.Application{Store: publications}, queues: &queueProvider{metrics: map[string]*queueMetric{}}}.handler())
 		defer server.Close()
 		tooMany, err := http.Get(server.URL + "/publications?" + strings.Repeat("uid=root&", 101))
 		Expect(err).NotTo(HaveOccurred())
@@ -123,7 +123,7 @@ var _ = Describe("test diagnostics", func() {
 		Expect(read()["valid"]).To(BeFalse())
 		now = now.Add(-2 * time.Minute)
 		copy := *publication
-		copy.PodPages = []*store.PodPage{{Rows: []store.PublishedPod{{Record: store.PodRecord{UID: "pod"}, Mapping: store.Evidence{Reason: store.ReasonUnresolvedOwner}}}}}
+		copy.PodPages = store.BuildPodPages([]store.PublishedPod{{Record: store.PodRecord{UID: "pod"}, Mapping: store.Evidence{Reason: store.ReasonUnresolvedOwner}}}, nil)
 		publications.Publish(&copy)
 		Expect(read()["valid"]).To(BeFalse())
 		copy = *publication

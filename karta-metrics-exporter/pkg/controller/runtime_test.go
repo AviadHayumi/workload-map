@@ -36,17 +36,19 @@ type pausedLabels struct {
 	resume  chan struct{}
 }
 
-func (p *pausedLabels) Resolve(ctx context.Context, input labelresolver.Input) ([]labelresolver.ResolvedMetricLabels, error) {
-	if input.Pod != nil {
-		p.once.Do(func() {
-			p.entered <- input.Pod.GetUID()
-			select {
-			case <-p.resume:
-			case <-ctx.Done():
-			}
-		})
+func (p *pausedLabels) ForWorkload(*unstructured.Unstructured) labelresolver.ResolveFunc {
+	return func(ctx context.Context, _ string, pod *unstructured.Unstructured) (labelresolver.Result, error) {
+		if pod != nil {
+			p.once.Do(func() {
+				p.entered <- pod.GetUID()
+				select {
+				case <-p.resume:
+				case <-ctx.Done():
+				}
+			})
+		}
+		return labelresolver.Result{}, nil
 	}
-	return nil, nil
 }
 
 func TestRuntime(t *testing.T) {
@@ -65,7 +67,7 @@ func testObject(gvk schema.GroupVersionKind, name string) *unstructured.Unstruct
 	o.SetResourceVersion("1")
 	return o
 }
-func testRuntime(resolver labelresolver.Resolver) (*Runtime, *metadatafake.FakeMetadataClient, store.Interface) {
+func testRuntime(resolver LabelResolver) (*Runtime, *metadatafake.FakeMetadataClient, store.Interface) {
 	scheme := kruntime.NewScheme()
 	metadata := metadatafake.NewSimpleMetadataClient(scheme)
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{testRootGVK.GroupVersion(), podGVK.GroupVersion()})
@@ -73,12 +75,12 @@ func testRuntime(resolver labelresolver.Resolver) (*Runtime, *metadatafake.FakeM
 	mapper.Add(podGVK, meta.RESTScopeNamespace)
 	reader, err := NewReader(Clients{Dynamic: dynamicfake.NewSimpleDynamicClient(scheme), Metadata: metadata, Mapper: mapper}, ReaderOptions{TTL: time.Minute})
 	Expect(err).NotTo(HaveOccurred())
-	definitions, err := inventory.New(inventory.Config{}, nil)
+	definitions, err := inventory.New(inventory.Config{})
 	Expect(err).NotTo(HaveOccurred())
-	ownership, err := discovery.New(discovery.Dependencies{Reader: reader, Inventory: definitions}, discovery.Config{})
+	ownership, err := discovery.New(reader, discovery.Config{})
 	Expect(err).NotTo(HaveOccurred())
 	if resolver == nil {
-		resolver, err = labelresolver.New(labelresolver.Config{}, labelresolver.Dependencies{})
+		resolver, err = labelresolver.New(labelresolver.Config{})
 		Expect(err).NotTo(HaveOccurred())
 	}
 	publications := store.New(store.Options{})
@@ -102,11 +104,10 @@ func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects
 	return w
 }
 func seedRoot(r *Runtime, root *unstructured.Unstructured, pods ...*unstructured.Unstructured) *rootState {
-	state := &rootState{ref: refOf(root), resolution: discovery.OwnerResolution("resolved"), paths: map[types.UID][]discovery.ObjectRef{}, dirty: map[types.UID]bool{}, podKeys: map[types.UID]string{}, podErrors: map[types.UID]error{}, retired: map[string]bool{}, cached: map[types.UID]cachedPod{}, fullRefresh: true}
+	state := &rootState{ref: refOf(root), resolution: discovery.OwnerResolution("resolved"), pods: map[types.UID]podState{}, dirty: map[types.UID]bool{}, fullRefresh: true}
 	for _, pod := range pods {
 		uid := pod.GetUID()
-		state.paths[uid] = []discovery.ObjectRef{refOf(pod), refOf(root)}
-		state.podKeys[uid] = "pod:" + string(uid) + ":initial"
+		state.pods[uid] = podState{path: []discovery.ObjectRef{refOf(pod), refOf(root)}, proofKey: "pod:" + string(uid) + ":initial"}
 		r.podRoots[uid] = root.GetUID()
 	}
 	for key, w := range r.watches {
@@ -194,20 +195,20 @@ var _ = Describe("Publication concurrency", func() {
 		valid, _ := snapshot.Valid(record.Creation)
 		Expect(valid).To(BeTrue())
 		for _, page := range record.PodPages {
-			for _, row := range page.Rows {
+			for _, row := range page.Rows() {
 				valid, _ := snapshot.Valid(row.Mapping)
 				Expect(valid).To(Equal(row.Record.UID != changed))
 			}
 		}
 		runtime.mu.Lock()
-		state.paths[changed] = []discovery.ObjectRef{refOf(updated), refOf(root)}
+		runtime.setPodPathLocked(state, changed, []discovery.ObjectRef{refOf(updated), refOf(root)})
 		runtime.dirtyPod(state, changed)
 		runtime.mu.Unlock()
 		Expect(runtime.reconcile(ctx, root.GetUID())).To(Succeed())
 		record = publications.Published(root.GetUID())
 		snapshot = publications.Capture()
 		for _, page := range record.PodPages {
-			for _, row := range page.Rows {
+			for _, row := range page.Rows() {
 				valid, _ := snapshot.Valid(row.Mapping)
 				Expect(valid).To(BeTrue())
 			}
@@ -279,7 +280,7 @@ var _ = Describe("Publication concurrency", func() {
 		Expect(record.PodPages).To(HaveLen(4))
 		total := 0
 		for _, page := range record.PodPages {
-			total += len(page.Rows)
+			total += len(page.Rows())
 		}
 		Expect(total).To(Equal(1000))
 	})

@@ -11,18 +11,13 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
-type Capturer interface {
-	Capture() store.CapturedView
-}
-
-// Collector formats one immutable publication view per collection.
-type Collector struct {
-	store            Capturer
+// collector formats one immutable publication view per collection.
+type collector struct {
+	store            store.Capturer
 	podInfo          gauge
 	workloadStatus   gauge
 	workloadCreated  gauge
@@ -36,16 +31,9 @@ type gauge struct {
 	instrument  metric.Float64ObservableGauge
 }
 
-// Registrar registers a callback. The caller must unregister it.
-type Registrar interface {
-	Register(metric.Meter, Capturer) (metric.Registration, error)
-}
-
-func New() Registrar { return &Collector{} }
-
 // Register registers the KEP gauges. Unregister before shutting down the provider.
-func (*Collector) Register(meter metric.Meter, s Capturer) (metric.Registration, error) {
-	c := &Collector{
+func Register(meter metric.Meter, s store.Capturer) (metric.Registration, error) {
+	c := &collector{
 		store: s,
 		podInfo: gauge{
 			name:        MetricPodWorkloadInfo,
@@ -78,12 +66,10 @@ func (*Collector) Register(meter metric.Meter, s Capturer) (metric.Registration,
 		g.instrument = instrument
 		instruments = append(instruments, instrument)
 	}
-	return meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		return c.collect(ctx, observer)
-	}, instruments...)
+	return meter.RegisterCallback(c.collect, instruments...)
 }
 
-func (c *Collector) collect(ctx context.Context, observer metric.Observer) error {
+func (c *collector) collect(ctx context.Context, observer metric.Observer) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -128,7 +114,7 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 			}
 		}
 		for _, page := range publication.PodPages {
-			for _, row := range page.Rows {
+			for _, row := range page.Rows() {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
@@ -137,11 +123,7 @@ func (c *Collector) collect(ctx context.Context, observer metric.Observer) error
 				if !valid {
 					reason = failureReason(reason, failure)
 				}
-				podRoot := ref
-				if pod.WorkloadGVK != (schema.GroupVersionKind{}) {
-					podRoot.GVK = pod.WorkloadGVK
-				}
-				values := []string{pod.Namespace, podRoot.Name, podRoot.GVK.Group, podRoot.GVK.Version, podRoot.GVK.Kind, string(workload.UID), string(pod.OwnerResolution), pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Group, strconv.FormatBool(valid)}
+				values := []string{pod.Namespace, ref.Name, pod.WorkloadGVK.Group, pod.WorkloadGVK.Version, pod.WorkloadGVK.Kind, string(workload.UID), string(pod.OwnerResolution), pod.Name, string(pod.UID), pod.Component, pod.Instance, pod.Group, strconv.FormatBool(valid)}
 				c.podInfo.observe(observer, 1, pod.Labels, values...)
 			}
 		}

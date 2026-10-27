@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/internal/config"
+	collector "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
@@ -56,10 +57,10 @@ var _ = Describe("Production HTTP scrape concurrency", func() {
 				expected[podUID] = string(uid)
 				rows[i] = store.PublishedPod{Record: store.PodRecord{UID: types.UID(podUID), Name: fmt.Sprintf("worker-%d", i), Namespace: "ns", OwnerResolution: store.Resolved}, Mapping: evidence}
 			}
-			application.Components.Store.Publish(&store.Publication{Workload: store.WorkloadRecord{UID: uid, Ref: store.ObjectRef{Namespace: "ns", Name: "same-name", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running"}, CreatedTimestamp: now.Unix()}, Status: evidence, Creation: evidence, PodPages: store.BuildPodPages(rows, nil)})
+			application.Store.Publish(&store.Publication{Workload: store.WorkloadRecord{UID: uid, Ref: store.ObjectRef{Namespace: "ns", Name: "same-name", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running"}, CreatedTimestamp: now.Unix()}, Status: evidence, Creation: evidence, PodPages: store.BuildPodPages(rows, nil)})
 		}
-		source := &blockedCapturer{Capturer: application.Components.Store, entered: make(chan struct{}), release: make(chan struct{})}
-		registration, err := application.Components.Registrar.Register(application.provider.Meter("scrape-test"), source)
+		source := &blockedCapturer{Capturer: application.Store, entered: make(chan struct{}), release: make(chan struct{})}
+		registration, err := collector.Register(application.provider.Meter("scrape-test"), source)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { Expect(registration.Unregister()).To(Succeed()) })
 		server := httptest.NewServer(application.Handler)

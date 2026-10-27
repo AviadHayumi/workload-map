@@ -35,7 +35,6 @@ type Reader struct {
 	mapperMu        sync.Mutex
 	lastMapperReset time.Time
 	failures        map[objectKey]metadataFailure
-	observed        map[objectKey]uint64
 	activeKeys      map[string]bool
 	sequence        uint64
 	publications    store.Writer
@@ -44,8 +43,7 @@ type Reader struct {
 	options         ReaderOptions
 	objects         map[objectKey]observation
 	metadata        map[objectKey]metadataEntry
-	pending         map[objectKey]chan struct{}
-	priming         map[objectKey]uint64
+	metadataReads   map[objectKey]*metadataReadState
 }
 
 type watchReadScope struct {
@@ -64,6 +62,19 @@ type watchReadState struct {
 type ownershipInvalidation struct {
 	expiresAt time.Time
 	sequence  uint64
+}
+
+// Metadata read state exists only while a GET or priming LIST is active.
+// Accepted observations and invalidations advance its revision.
+type metadataReadState struct {
+	revision uint64
+	pending  chan struct{}
+	priming  bool
+}
+
+type metadataRead struct {
+	state    *metadataReadState
+	revision uint64
 }
 
 type metadataFailure struct {
@@ -118,7 +129,7 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.TTL < 0 || options.RequestTimeout < 0 {
 		return nil, errors.New("reader durations must be positive")
 	}
-	return &Reader{watchNow: options.Now, watchMaxAge: options.TTL, clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, pending: map[objectKey]chan struct{}{}, priming: map[objectKey]uint64{}, failures: map[objectKey]metadataFailure{}, observed: map[objectKey]uint64{}, activeKeys: map[string]bool{}}, nil
+	return &Reader{watchNow: options.Now, watchMaxAge: options.TTL, clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, metadataReads: map[objectKey]*metadataReadState{}, failures: map[objectKey]metadataFailure{}, activeKeys: map[string]bool{}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
@@ -146,7 +157,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 		key := keyOf(ref)
 		cluster := key
 		cluster.Namespace = ""
-		if _, found := r.metadata[cluster]; found || r.priming[cluster] != 0 || r.pending[cluster] != nil {
+		if _, found := r.metadata[cluster]; found || r.metadataReads[cluster] != nil {
 			key = cluster
 		}
 		r.recordMetadataFailureLocked(key, ref.UID, nil, err)
@@ -159,9 +170,9 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 	}
 	key := keyOf(ref)
 	r.mu.RLock()
-	entry, found := r.metadata[key]
+	entry := r.metadata[key]
 	_, failed := r.failures[key]
-	if found && !failed && r.options.Now().Before(entry.expires) && (ref.UID == "" || entry.object.GetUID() == ref.UID) && (ref.ResourceVersion == "" || entry.object.GetResourceVersion() == ref.ResourceVersion) {
+	if !failed && entry.matches(ref, r.options.Now()) {
 		r.mu.RUnlock()
 		return entry.object.DeepCopy(), nil
 	}
@@ -171,12 +182,13 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			return nil, err
 		}
 		r.mu.Lock()
-		if entry, ok := r.metadata[key]; ok && r.options.Now().Before(entry.expires) && (ref.UID == "" || entry.object.GetUID() == ref.UID) && (ref.ResourceVersion == "" || entry.object.GetResourceVersion() == ref.ResourceVersion) {
+		if entry := r.metadata[key]; entry.matches(ref, r.options.Now()) {
 			delete(r.failures, key)
 			r.mu.Unlock()
 			return entry.object.DeepCopy(), nil
 		}
-		if pending := r.pending[key]; pending != nil {
+		read := r.metadataReadLocked(key)
+		if pending := read.pending; pending != nil {
 			r.mu.Unlock()
 			select {
 			case <-ctx.Done():
@@ -186,10 +198,8 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			}
 		}
 		pending := make(chan struct{})
-		r.pending[key] = pending
-		trackVersion(&r.versions, key.GVK, 1)
-		r.sequence++
-		requestSequence := r.sequence
+		read.pending = pending
+		revision := read.revision
 		r.mu.Unlock()
 		started := r.options.Now()
 		object, err := r.fetchMetadata(ctx, ref)
@@ -197,62 +207,33 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 			err = discovery.ErrStale
 		}
 		r.mu.Lock()
-		if r.observed[key] > requestSequence {
-			if current, ok := r.metadata[key]; ok {
-				object = current.object.DeepCopy()
-				err = nil
-			} else {
-				object = nil
-				err = discovery.ErrStale
-			}
-			delete(r.pending, key)
-			trackVersion(&r.versions, key.GVK, -1)
+		defer r.mu.Unlock()
+		defer func() {
+			read.pending = nil
 			close(pending)
-			if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
-				delete(r.observed, key)
+			r.releaseMetadataReadLocked(key, read)
+		}()
+		if r.metadataReads[key] != read || read.revision != revision {
+			if current, ok := r.metadata[key]; ok && r.options.Now().Before(current.expires) && (ref.UID == "" || current.object.GetUID() == ref.UID) {
+				return current.object.DeepCopy(), nil
 			}
-			r.mu.Unlock()
-			return object, err
+			return nil, discovery.ErrStale
 		}
-		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
-			delete(r.pending, key)
-			trackVersion(&r.versions, key.GVK, -1)
-			close(pending)
-			r.mu.Unlock()
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if errors.Is(err, context.Canceled) {
 			return nil, err
 		}
-		previous := r.metadata[key]
-		r.recordMetadataFailureLocked(key, ref.UID, object, err)
-		r.sequence++
-		acceptedSequence := r.sequence
-		r.observed[key] = acceptedSequence
-		if err == nil {
-			proofKey := previous.failureKey
-			if previous.object == nil || previous.object.GetUID() != object.GetUID() || previous.object.GetResourceVersion() != object.GetResourceVersion() {
-				if previous.object != nil {
-					r.retireMetadataLocked(previous, objectChangeReason(previous.object, object))
-				}
-				r.sequence++
-				proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
-			}
-			r.activeKeys[proofKey] = true
-			r.saveMetadataLocked(key, metadataEntry{sequence: acceptedSequence, object: object.DeepCopy(), expires: started.Add(r.options.TTL), failureKey: proofKey})
-		} else {
-			r.retireMetadataLocked(previous, failureReason(err))
-			r.deleteMetadataLocked(key)
-		}
-		delete(r.pending, key)
-		trackVersion(&r.versions, key.GVK, -1)
-		if _, ok := r.metadata[key]; !ok && r.priming[key] == 0 {
-			delete(r.observed, key)
-		}
-		close(pending)
-		r.mu.Unlock()
+		r.acceptMetadataLocked(key, ref.UID, object.DeepCopy(), started, err)
 		return object, err
 	}
+}
+
+func (entry metadataEntry) matches(ref discovery.ObjectRef, now time.Time) bool {
+	return entry.object != nil && now.Before(entry.expires) &&
+		(ref.UID == "" || entry.object.GetUID() == ref.UID) &&
+		(ref.ResourceVersion == "" || entry.object.GetResourceVersion() == ref.ResourceVersion)
 }
 
 func (r *Reader) fetchMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
@@ -385,15 +366,54 @@ func (r *Reader) failureHealth() map[discovery.WatchRequest]error {
 	return result
 }
 
+func (r *Reader) metadataReadLocked(key objectKey) *metadataReadState {
+	state := r.metadataReads[key]
+	if state == nil {
+		state = &metadataReadState{}
+		r.metadataReads[key] = state
+		trackVersion(&r.versions, key.GVK, 1)
+	}
+	return state
+}
+
+func (r *Reader) releaseMetadataReadLocked(key objectKey, state *metadataReadState) {
+	if state.pending == nil && !state.priming && r.metadataReads[key] == state {
+		delete(r.metadataReads, key)
+		trackVersion(&r.versions, key.GVK, -1)
+	}
+}
+
+func (r *Reader) invalidateMetadataReadLocked(key objectKey) {
+	if state := r.metadataReads[key]; state != nil {
+		state.revision++
+	}
+}
+
+// All successful metadata reads reuse unchanged proof; changed or failed reads
+// retire the previous proof before replacing the accepted observation.
+func (r *Reader) acceptMetadataLocked(key objectKey, expected types.UID, object *metav1.PartialObjectMetadata, started time.Time, err error) {
+	r.recordMetadataFailureLocked(key, expected, object, err)
+	if err != nil {
+		r.removeMetadataLocked(key, failureReason(err))
+		return
+	}
+	previous := r.metadata[key]
+	proofKey := previous.failureKey
+	if previous.object == nil || previous.object.GetUID() != object.GetUID() || previous.object.GetResourceVersion() != object.GetResourceVersion() {
+		if previous.object != nil {
+			r.retireMetadataLocked(previous, objectChangeReason(previous.object, object))
+		}
+		r.sequence++
+		proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
+	}
+	r.activeKeys[proofKey] = true
+	r.saveMetadataLocked(key, metadataEntry{object: object, expires: started.Add(r.options.TTL), failureKey: proofKey})
+}
+
 func (r *Reader) removeMetadataLocked(key objectKey, reason string) {
 	r.retireMetadataLocked(r.metadata[key], reason)
 	r.deleteMetadataLocked(key)
-	if r.pending[key] != nil || r.priming[key] != 0 {
-		r.sequence++
-		r.observed[key] = r.sequence
-	} else {
-		delete(r.observed, key)
-	}
+	r.invalidateMetadataReadLocked(key)
 }
 
 func (r *Reader) retireMetadataLocked(entry metadataEntry, reason string) {
@@ -451,7 +471,10 @@ func (r *Reader) saveMetadataLocked(key objectKey, entry metadataEntry) {
 	if _, found := r.metadata[key]; !found {
 		trackVersion(&r.versions, key.GVK, 1)
 	}
+	r.sequence++
+	entry.sequence = r.sequence
 	r.metadata[key] = entry
+	r.invalidateMetadataReadLocked(key)
 }
 
 func (r *Reader) deleteMetadataLocked(key objectKey) {
@@ -481,10 +504,7 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, expiresAt: r.watchNow().Add(r.watchMaxAge)}
 			}
 		}
-		if r.pending[aliasKey] != nil || r.priming[aliasKey] != 0 {
-			r.sequence++
-			r.observed[aliasKey] = r.sequence
-		}
+		r.invalidateMetadataReadLocked(aliasKey)
 		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
 			r.sequence++
 			alias.invalidated = r.sequence
@@ -496,9 +516,6 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 			r.retireMetadataLocked(alias, store.ReasonUnresolvedOwner)
 			delete(r.metadata, aliasKey)
 			trackVersion(&r.versions, gvk, -1)
-			if r.pending[aliasKey] == nil && r.priming[aliasKey] == 0 {
-				delete(r.observed, aliasKey)
-			}
 		}
 	}
 }

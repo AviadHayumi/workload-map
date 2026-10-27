@@ -211,7 +211,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		listFailure, getFailure = errors.New("unavailable"), errors.New("unavailable")
 		Expect(r.refreshMetadata(ctx)).NotTo(Succeed())
 		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(first)), UID: first.GetUID()})).NotTo(Succeed())
-		Expect(r.roots[a.GetUID()].podErrors).To(HaveKey(first.GetUID()))
+		Expect(r.roots[a.GetUID()].pods[first.GetUID()].resolveError).To(HaveOccurred())
 		listFailure, getFailure = nil, nil
 		_, err := r.reader.GetMetadata(ctx, discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "middle-a", UID: "middle-a"})
 		Expect(err).NotTo(HaveOccurred())
@@ -223,7 +223,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
-		Expect(r.roots[a.GetUID()].podErrors).To(BeEmpty())
+		Expect(r.roots[a.GetUID()].pods[first.GetUID()].resolveError).NotTo(HaveOccurred())
 		row, _ := publications.Published(a.GetUID()).Pod(first.GetUID())
 		valid, _ := publications.Capture().Valid(row.Mapping)
 		Expect(valid).To(BeTrue())

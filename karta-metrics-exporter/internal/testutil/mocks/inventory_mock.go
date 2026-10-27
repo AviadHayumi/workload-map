@@ -9,6 +9,7 @@ package mocks
 
 import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 	mock "github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -47,61 +48,6 @@ type Inventory_Expecter struct {
 
 func (_m *Inventory) EXPECT() *Inventory_Expecter {
 	return &Inventory_Expecter{mock: &_m.Mock}
-}
-
-// ClusterOrigins provides a mock function for the type Inventory
-func (_mock *Inventory) ClusterOrigins() ([]kartadefinitioninventory.Origin, error) {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClusterOrigins")
-	}
-
-	var r0 []kartadefinitioninventory.Origin
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() ([]kartadefinitioninventory.Origin, error)); ok {
-		return returnFunc()
-	}
-	if returnFunc, ok := ret.Get(0).(func() []kartadefinitioninventory.Origin); ok {
-		r0 = returnFunc()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]kartadefinitioninventory.Origin)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func() error); ok {
-		r1 = returnFunc()
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Inventory_ClusterOrigins_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClusterOrigins'
-type Inventory_ClusterOrigins_Call struct {
-	*mock.Call
-}
-
-// ClusterOrigins is a helper method to define mock.On call
-func (_e *Inventory_Expecter) ClusterOrigins() *Inventory_ClusterOrigins_Call {
-	return &Inventory_ClusterOrigins_Call{Call: _e.mock.On("ClusterOrigins")}
-}
-
-func (_c *Inventory_ClusterOrigins_Call) Run(run func()) *Inventory_ClusterOrigins_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *Inventory_ClusterOrigins_Call) Return(origins []kartadefinitioninventory.Origin, err error) *Inventory_ClusterOrigins_Call {
-	_c.Call.Return(origins, err)
-	return _c
-}
-
-func (_c *Inventory_ClusterOrigins_Call) RunAndReturn(run func() ([]kartadefinitioninventory.Origin, error)) *Inventory_ClusterOrigins_Call {
-	_c.Call.Return(run)
-	return _c
 }
 
 // Lookup provides a mock function for the type Inventory
@@ -164,8 +110,48 @@ func (_c *Inventory_Lookup_Call) RunAndReturn(run func(groupVersionKind schema.G
 	return _c
 }
 
+// ReplaceCluster provides a mock function for the type Inventory
+func (_mock *Inventory) ReplaceCluster(kartas []*v1alpha1.Karta) {
+	_mock.Called(kartas)
+	return
+}
+
+// Inventory_ReplaceCluster_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceCluster'
+type Inventory_ReplaceCluster_Call struct {
+	*mock.Call
+}
+
+// ReplaceCluster is a helper method to define mock.On call
+//   - kartas []*v1alpha1.Karta
+func (_e *Inventory_Expecter) ReplaceCluster(kartas any) *Inventory_ReplaceCluster_Call {
+	return &Inventory_ReplaceCluster_Call{Call: _e.mock.On("ReplaceCluster", kartas)}
+}
+
+func (_c *Inventory_ReplaceCluster_Call) Run(run func(kartas []*v1alpha1.Karta)) *Inventory_ReplaceCluster_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []*v1alpha1.Karta
+		if args[0] != nil {
+			arg0 = args[0].([]*v1alpha1.Karta)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Inventory_ReplaceCluster_Call) Return() *Inventory_ReplaceCluster_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Inventory_ReplaceCluster_Call) RunAndReturn(run func(kartas []*v1alpha1.Karta)) *Inventory_ReplaceCluster_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Selections provides a mock function for the type Inventory
-func (_mock *Inventory) Selections() ([]kartadefinitioninventory.Selection, error) {
+func (_mock *Inventory) Selections() []kartadefinitioninventory.Selection {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
@@ -173,10 +159,6 @@ func (_mock *Inventory) Selections() ([]kartadefinitioninventory.Selection, erro
 	}
 
 	var r0 []kartadefinitioninventory.Selection
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() ([]kartadefinitioninventory.Selection, error)); ok {
-		return returnFunc()
-	}
 	if returnFunc, ok := ret.Get(0).(func() []kartadefinitioninventory.Selection); ok {
 		r0 = returnFunc()
 	} else {
@@ -184,12 +166,7 @@ func (_mock *Inventory) Selections() ([]kartadefinitioninventory.Selection, erro
 			r0 = ret.Get(0).([]kartadefinitioninventory.Selection)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func() error); ok {
-		r1 = returnFunc()
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
+	return r0
 }
 
 // Inventory_Selections_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Selections'
@@ -209,12 +186,12 @@ func (_c *Inventory_Selections_Call) Run(run func()) *Inventory_Selections_Call 
 	return _c
 }
 
-func (_c *Inventory_Selections_Call) Return(selections []kartadefinitioninventory.Selection, err error) *Inventory_Selections_Call {
-	_c.Call.Return(selections, err)
+func (_c *Inventory_Selections_Call) Return(selections []kartadefinitioninventory.Selection) *Inventory_Selections_Call {
+	_c.Call.Return(selections)
 	return _c
 }
 
-func (_c *Inventory_Selections_Call) RunAndReturn(run func() ([]kartadefinitioninventory.Selection, error)) *Inventory_Selections_Call {
+func (_c *Inventory_Selections_Call) RunAndReturn(run func() []kartadefinitioninventory.Selection) *Inventory_Selections_Call {
 	_c.Call.Return(run)
 	return _c
 }

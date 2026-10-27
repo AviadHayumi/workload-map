@@ -4,6 +4,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -17,6 +18,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
+	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
 func ownerMetadata(name, version string) *metav1.PartialObjectMetadata {
@@ -27,7 +29,6 @@ func rememberOwner(r *Reader, name, version string) objectKey {
 	r.sequence++
 	proof := fmt.Sprintf("metadata:%s:%d", name, r.sequence)
 	r.saveMetadataLocked(key, metadataEntry{object: ownerMetadata(name, version), expires: time.Now().Add(time.Minute), failureKey: proof, sequence: r.sequence})
-	r.observed[key] = r.sequence
 	r.activeKeys[proof] = true
 	return key
 }
@@ -149,5 +150,100 @@ var _ = Describe("Batched owner verification", func() {
 		close(paused.resume)
 		Eventually(completed).Should(Receive(MatchError(discovery.ErrStale)))
 		Expect(publications.Published(root.GetUID())).To(BeNil())
+	})
+})
+
+var _ = Describe("Metadata read lifecycle", func() {
+	It("releases coalesced waiters after cancellation without leaking read state", func(ctx SpecContext) {
+		r, metadata, _ := testRuntime(nil)
+		ref := discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "owner", UID: "owner"}
+		entered, resume := make(chan struct{}), make(chan struct{})
+		gets := 0
+		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			gets++
+			if gets == 1 {
+				close(entered)
+				<-resume
+			}
+			return true, ownerMetadata("owner", "2"), nil
+		})
+		first, cancelFirst := context.WithCancel(ctx)
+		defer cancelFirst()
+		firstDone := make(chan error, 1)
+		go func() { _, err := r.reader.GetMetadata(first, ref); firstDone <- err }()
+		Eventually(entered).Should(BeClosed())
+		waiter, cancelWaiter := context.WithCancel(ctx)
+		waiterDone := make(chan error, 1)
+		go func() { _, err := r.reader.GetMetadata(waiter, ref); waiterDone <- err }()
+		cancelWaiter()
+		Eventually(waiterDone).Should(Receive(MatchError(context.Canceled)))
+		completed := make(chan error, 8)
+		for range 8 {
+			go func() {
+				object, err := r.reader.GetMetadata(ctx, ref)
+				if err == nil && (object == nil || object.ResourceVersion != "2") {
+					err = fmt.Errorf("unexpected metadata: %v", object)
+				}
+				completed <- err
+			}()
+		}
+		cancelFirst()
+		close(resume)
+		Eventually(firstDone).Should(Receive(MatchError(context.Canceled)))
+		for range 8 {
+			Eventually(completed).Should(Receive(Succeed()))
+		}
+		Expect(gets).To(Equal(2))
+		Expect(r.reader.metadataReads).To(BeEmpty())
+		Expect(r.reader.failures).To(BeEmpty())
+		r.reader.removeMetadataLocked(keyOf(ref), store.ReasonUnresolvedOwner)
+		Expect(r.reader.versions).To(BeEmpty())
+	})
+
+	DescribeTable("rejects an old GET after deletion", func(ctx SpecContext, recreated bool) {
+		r, metadata, _ := testRuntime(nil)
+		ref := discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "owner", UID: "owner"}
+		entered, resume := make(chan struct{}), make(chan struct{})
+		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			close(entered)
+			<-resume
+			return true, ownerMetadata("owner", "1"), nil
+		})
+		done := make(chan error, 1)
+		go func() { _, err := r.reader.GetMetadata(ctx, ref); done <- err }()
+		Eventually(entered).Should(BeClosed())
+		r.reader.mu.Lock()
+		r.reader.removeMetadataLocked(keyOf(ref), store.ReasonUnresolvedOwner)
+		if recreated {
+			replacement := ownerMetadata("owner", "2")
+			replacement.UID = "replacement"
+			r.reader.acceptMetadataLocked(keyOf(ref), replacement.UID, replacement, r.reader.options.Now(), nil)
+		}
+		r.reader.mu.Unlock()
+		close(resume)
+		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
+		Expect(r.reader.metadataReads).To(BeEmpty())
+		if recreated {
+			Expect(r.reader.metadata[keyOf(ref)].object.UID).To(Equal(types.UID("replacement")))
+		} else {
+			Expect(r.reader.metadata).To(BeEmpty())
+			Expect(r.reader.versions).To(BeEmpty())
+		}
+	}, Entry("without replacement", false), Entry("with a new UID at the same name", true))
+
+	It("rejects a GET that completes exactly at its read-start expiry", func(ctx SpecContext) {
+		r, metadata, _ := testRuntime(nil)
+		clock := renewalClock(r)
+		ref := discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "owner", UID: "owner"}
+		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
+			clock.Step(r.reader.options.TTL)
+			return true, ownerMetadata("owner", "1"), nil
+		})
+		_, err := r.reader.GetMetadata(ctx, ref)
+		Expect(err).To(MatchError(discovery.ErrStale))
+		Expect(r.reader.metadata).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
+		Expect(r.reader.versions).To(BeEmpty())
+		Expect(r.reader.failureHealth()).NotTo(BeEmpty())
 	})
 })

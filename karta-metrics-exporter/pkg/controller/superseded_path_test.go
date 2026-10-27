@@ -91,12 +91,13 @@ var _ = Describe("Superseded dependency paths", func() {
 		r.failWatchLocked(w, errors.New("outage"))
 		r.mu.Unlock()
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		Expect(state.cached).To(BeEmpty())
-		Expect(state.labelFailures).To(HaveKey(pod.GetUID()))
+		Expect(state.pods[pod.GetUID()].cached).To(BeNil())
+		Expect(state.labelFailures).To(Equal(1))
+		Expect(state.pods[pod.GetUID()].labelFailure).To(BeTrue())
 		r.acceptEvent(pw, pod, true)
 		state.fullRefresh = true
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		Expect(state.labelFailures).To(BeEmpty())
+		Expect(state.labelFailures).To(BeZero())
 		Expect(publications.Published(root.GetUID()).FailureReasons).NotTo(ContainElement(store.ReasonEvaluationFailed))
 		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, metadataList(ownerMetadata("root", "1")), nil

@@ -61,7 +61,7 @@ var _ = Describe("chart label configuration", func() {
 			Expect(cfg.LabelRules).To(Equal(rules))
 			Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
 			for _, rule := range cfg.LabelRules {
-				_, err = labelevaluator.NewCompiler().Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits})
+				_, err = labelevaluator.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits})
 				Expect(err).To(Succeed())
 			}
 		}

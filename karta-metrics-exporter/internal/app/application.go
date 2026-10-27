@@ -17,10 +17,6 @@ import (
 	"github.com/prometheus/otlptranslator"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	kubediscovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -34,22 +30,17 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
-	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
 // Application owns Kubernetes workers and the HTTP/OTel lifecycle.
 type Application struct {
-	Components Components
-	Runtime    *controller.Runtime
-	Inventory  *inventory.Inventory
-	Handler    http.Handler
-	provider   *sdkmetric.MeterProvider
+	Runtime  controller.Runner
+	Store    store.Interface
+	Handler  http.Handler
+	provider *sdkmetric.MeterProvider
 }
-
-type kartaSource struct{ client dynamic.ResourceInterface }
 
 func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 	if err := cfg.Validate(); err != nil {
@@ -91,15 +82,15 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	definitions, err := inventory.New(cfg.KartaDefinitionSource, kartaSource{dynamicClient.Resource(v1alpha1.GroupVersion.WithResource("kartas"))})
+	definitions, err := inventory.New(cfg.KartaDefinitionSource)
 	if err != nil {
 		return nil, err
 	}
-	ownership, err := discovery.New(discovery.Dependencies{Reader: reader, Inventory: definitions}, discovery.Config{IgnoredTopOwners: cfg.IgnoredOwnerKinds})
+	ownership, err := discovery.New(reader, discovery.Config{IgnoredTopOwners: cfg.IgnoredOwnerKinds})
 	if err != nil {
 		return nil, err
 	}
-	labels, err := labelresolver.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits}, labelresolver.Dependencies{Compiler: labelevaluator.NewCompiler()})
+	labels, err := labelresolver.New(labelresolver.Config{Rules: cfg.LabelRules, Limits: cfg.LabelLimits})
 	if err != nil {
 		return nil, err
 	}
@@ -114,17 +105,19 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 		return nil, err
 	}
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter), sdkmetric.WithCardinalityLimit(0))
+	application := &Application{Runtime: runtime, Store: publications, provider: provider}
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
-		if !runtime.Ready() {
+		if !application.Runtime.Ready() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	return &Application{Components: Components{Runtime: runtime, Store: publications, Registrar: collector.New()}, Runtime: runtime, Inventory: definitions, Handler: mux, provider: provider}, nil
+	application.Handler = mux
+	return application, nil
 }
 
 // Serve stops workers before unregistering collection and shutting down OTel.
@@ -138,30 +131,28 @@ func (a *Application) Serve(ctx context.Context, address string) (err error) {
 
 // ServeListener serves an already bound listener and owns its shutdown.
 func (a *Application) ServeListener(ctx context.Context, listener net.Listener) (err error) {
+	defer func() {
+		shutdownCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+		defer stop()
+		err = errors.Join(err, a.provider.Shutdown(shutdownCtx))
+	}()
+	registration, err := collector.Register(a.provider.Meter("karta-metrics-exporter"), a.Store)
+	if err != nil {
+		return errors.Join(fmt.Errorf("register collector: %w", err), listener.Close())
+	}
+	defer func() { err = errors.Join(err, registration.Unregister()) }()
+
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
 	server := &http.Server{Handler: a.Handler, ReadHeaderTimeout: 10 * time.Second}
-	failures := make(chan error, 3)
+	failures := make(chan error, 2)
 	var workers sync.WaitGroup
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
-		if err := a.Inventory.Run(child); err != nil && child.Err() == nil {
-			failures <- err
-		}
-	}()
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
-		failures <- Run(child, a.Components, a.provider.Meter("karta-metrics-exporter"))
-	}()
-	served := make(chan struct{})
-	go func() {
-		defer close(served)
+	workers.Go(func() { failures <- a.Runtime.Run(child) })
+	workers.Go(func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			failures <- err
 		}
-	}()
+	})
 	select {
 	case <-ctx.Done():
 	case err = <-failures:
@@ -171,39 +162,9 @@ func (a *Application) ServeListener(ctx context.Context, listener net.Listener) 
 	defer stop()
 	err = errors.Join(err, server.Shutdown(shutdownCtx))
 	workers.Wait()
-	<-served
-	return errors.Join(err, a.provider.Shutdown(shutdownCtx))
-}
-
-func (s kartaSource) List(ctx context.Context, options metav1.ListOptions) (*v1alpha1.KartaList, error) {
-	list, err := s.client.List(ctx, options)
-	if err != nil {
-		return nil, err
+	close(failures)
+	for failure := range failures {
+		err = errors.Join(err, failure)
 	}
-	result := &v1alpha1.KartaList{}
-	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(list.UnstructuredContent(), result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-func (s kartaSource) Watch(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-	stream, err := s.client.Watch(ctx, options)
-	if err != nil {
-		return nil, err
-	}
-	return watch.Filter(stream, func(event watch.Event) (watch.Event, bool) {
-		if event.Type == watch.Error || event.Type == watch.Bookmark {
-			return event, true
-		}
-		body, ok := event.Object.(*unstructured.Unstructured)
-		if !ok {
-			return watch.Event{Type: watch.Error, Object: &metav1.Status{Status: metav1.StatusFailure, Message: fmt.Sprintf("unexpected Karta object %T", event.Object), Code: 500}}, true
-		}
-		result := &v1alpha1.Karta{}
-		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(body.Object, result); err != nil {
-			return watch.Event{Type: watch.Error, Object: &metav1.Status{Status: metav1.StatusFailure, Message: err.Error(), Code: 500}}, true
-		}
-		event.Object = result
-		return event, true
-	}), nil
+	return err
 }

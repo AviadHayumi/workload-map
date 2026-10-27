@@ -46,7 +46,10 @@ prove Kubernetes has no newer change.
 ## Reads and refresh
 
 A cold intermediate-owner lookup performs a metadata GET. Concurrent callers
-share the request. The reader resolves API scope, so a cluster-scoped owner uses
+share the request. One per-object read state tracks the active GET, optional
+priming LIST and accepted revision. It disappears after both requests finish.
+Accepted metadata and failure health remain separate because their lifetimes
+extend beyond a request. The reader resolves API scope, so a cluster-scoped owner uses
 an empty namespace. It accepts the response only if its recorded local state is
 still current. If the API rejects metadata representation with HTTP 406 or 415,
 the reader retries the GET or LIST page as a full-object request and extracts its
@@ -103,17 +106,23 @@ The command defaults to a 45-second refresh interval, two-minute maximum age and
 30-second request timeout. The object and root worker counts and shared API rate
 limit bound concurrent work; see [runtime settings](../../karta-metrics-exporter/configuration.md#runtime-settings).
 
-## Definition agreement
+## Definition updates
 
-The inventory and Runtime observe cluster Kartas independently. Inventory owns
-selection. Runtime uses its Karta watch to invalidate affected results and check
-that both observations agree. Their UIDs and resourceVersions are compared for
-equality, never sorted.
+Runtime owns the cluster Karta watch. It passes a complete accepted snapshot to
+inventory, which applies filters and elects one definition per group/kind.
+A pending, failed or expired source blocks new evaluation and invalidates
+dependent observations. It cannot be mistaken for an empty cluster snapshot.
 
-An accepted Karta change invalidates the affected group/kind interpretation and
-queues its roots. A worker obtains an inventory selection outside the Runtime
-guard. Before publication it checks the selected origin, GVK and relevant local
-generation again. Selection and absence use the [inventory contract](README.md#select-the-definition).
+A change to the selected definition's source, name, UID, GVK or spec invalidates
+the affected group/kind and queues its roots. A metadata or status update that
+keeps these values advances the selected resourceVersion without rebuilding Pod
+mappings.
+
+A worker obtains the inventory selection under the Runtime guard, then evaluates
+outside it. Before publication it checks the complete origin, including
+resourceVersion, GVK and relevant local generation again. A version update still
+rejects an in-flight result. UIDs and resourceVersions are compared for equality,
+never sorted. Selection and absence use the [inventory contract](README.md#select-the-definition).
 
 A changed target group/kind affects both the old and new selections. A changed
 API version needs coverage for that representation. Known generic roots retain

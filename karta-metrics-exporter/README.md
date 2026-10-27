@@ -14,7 +14,7 @@ even when it has no Pods.
 | Package | Responsibility |
 | --- | --- |
 | [kartadefinitioninventory](pkg/kartadefinitioninventory/) | Select a catalog or cluster Karta for each root GVK |
-| [discovery](pkg/discovery/) | Resolve ownership and report missing root coverage |
+| [discovery](pkg/discovery/) | Resolve the controller-owner path and workload root |
 | [labelevaluator](pkg/labelevaluator/) | Compile and evaluate one CEL expression against a full object |
 | [labelresolver](pkg/labelresolver/) | Resolve configured labels with ordered source fallback |
 | [controller](pkg/controller/) | Watch inputs, reconcile roots and publish verified results |

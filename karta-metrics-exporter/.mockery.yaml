@@ -17,22 +17,6 @@ packages:
         config:
           structname: ObjectReader
           filename: object_reader_mock.go
-  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator:
-    interfaces:
-      Compiler:
-        config:
-          structname: LabelCompiler
-          filename: label_compiler_mock.go
-      Evaluator:
-        config:
-          structname: LabelEvaluator
-          filename: label_evaluator_mock.go
-  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver:
-    interfaces:
-      Resolver:
-        config:
-          structname: LabelResolver
-          filename: label_resolver_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store:
     interfaces:
       Interface:
@@ -41,6 +25,10 @@ packages:
           filename: store_mock.go
   github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller:
     interfaces:
+      LabelResolver:
+        config:
+          structname: LabelResolver
+          filename: label_resolver_mock.go
       Inventory:
         config:
           structname: Inventory
@@ -49,9 +37,3 @@ packages:
         config:
           structname: Runtime
           filename: runtime_mock.go
-  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel:
-    interfaces:
-      Registrar:
-        config:
-          structname: Registrar
-          filename: registrar_mock.go

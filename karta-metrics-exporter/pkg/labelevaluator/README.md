@@ -3,13 +3,12 @@
 
 # Label evaluator
 
-The compiler turns one CEL expression into an `Evaluator`. Pass a full Pod or
+`Compile` turns one CEL expression into an `Evaluator`. Pass a full Pod or
 workload object to `Evaluate` and get a string back. It reads the supplied object
 without changing it or calling Kubernetes.
 
 ```go
-compiler := labelevaluator.NewCompiler()
-evaluator, err := compiler.Compile(labelevaluator.Config{
+evaluator, err := labelevaluator.Compile(labelevaluator.Config{
     Expression: `object.spec.schedulerName`,
 })
 // Handle err before calling Evaluate.

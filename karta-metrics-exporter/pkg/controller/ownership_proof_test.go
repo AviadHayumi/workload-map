@@ -262,7 +262,7 @@ var _ = Describe("Ownership proof retirement", func() {
 		close(resume)
 		Eventually(done).Should(Receive(Succeed()))
 		Expect(r.reader.metadata).To(BeEmpty())
-		Expect(r.reader.priming).To(BeEmpty())
+		Expect(r.reader.metadataReads).To(BeEmpty())
 		Expect(r.reader.versions).NotTo(HaveKey(testRootGVK.GroupKind()))
 	})
 	DescribeTable("rejects informer LIST results predating alias retirement", func(ctx SpecContext, cached bool) {

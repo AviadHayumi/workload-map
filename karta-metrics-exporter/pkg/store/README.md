@@ -60,15 +60,14 @@ change. Health inputs are copied, including dependency slices.
 list. Sorted pages stay ordered, split at capacity and merge after deletion when
 they fit. A nil replacement removes the Pod. A replacement must have the requested UID and its
 nested data follows the same immutable ownership contract. `BuildPodPages` sorts
-a copy of the input rows and reuses unchanged pages. `Publication.Pod` returns an
-immutable row. Page-bound validation takes time proportional to the number of
-pages. Lookup then searches sorted rows. Arbitrary caller-provided unsorted pages
-use a linear fallback. Runtime builds initial and refreshed populations with
-`BuildPodPages`, rather than repeatedly inserting every Pod with `WithPod`.
+a copy of the input rows and reuses unchanged pages. Input rows must have unique
+UIDs. Pages come only from these helpers and keep their returned order.
+`Publication.Pod` searches page bounds and rows with binary search.
+`PodPage.Rows()` returns immutable rows for collection. Runtime builds initial
+and refreshed populations with `BuildPodPages`.
 
-Each immutable page caches its dependency counts before Store takes its write
-lock. Shared pages reuse these counts. A full expiry refresh still creates new
-rows, but shared stream dependencies are counted once per page under the lock.
+Each page records its dependency counts when constructed. Shared pages reuse
+these counts. A full expiry refresh still creates new rows, but shared stream dependencies are counted once per page under the lock.
 Helpers share nested label maps and evidence dependency slices;
 callers must replace these rather than mutate them.
 

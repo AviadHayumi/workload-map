@@ -41,14 +41,15 @@ var _ = Describe("Prometheus pull collection", func() {
 		now = time.Unix(100, 0)
 		s = store.New(store.Options{Now: func() time.Time { return now }})
 		evidence := store.Evidence{ExpiresAt: now.Add(time.Minute), Dependencies: []string{"root"}}
-		p = &store.Publication{Workload: store.WorkloadRecord{UID: "root", Ref: store.ObjectRef{Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running", "Degraded"}, CreatedTimestamp: 50}, Status: evidence, Creation: evidence, PodPages: []*store.PodPage{{Rows: []store.PublishedPod{{Record: store.PodRecord{UID: "pod", Namespace: "ns", Name: "worker", OwnerResolution: store.Resolved}, Mapping: evidence}}}}}
+		p = &store.Publication{Workload: store.WorkloadRecord{UID: "root", Ref: store.ObjectRef{Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running", "Degraded"}, CreatedTimestamp: 50}, Status: evidence, Creation: evidence}
+		p.PodPages = store.BuildPodPages([]store.PublishedPod{{Record: store.PodRecord{UID: "pod", Namespace: "ns", Name: "worker", WorkloadGVK: p.Workload.Ref.GVK, OwnerResolution: store.Resolved}, Mapping: evidence}}, nil)
 		registry := prom.NewRegistry()
 		reader, err := exporter.New(exporter.WithRegisterer(registry), exporter.WithoutTargetInfo(), exporter.WithoutScopeInfo())
 		Expect(err).NotTo(HaveOccurred())
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithCardinalityLimit(0))
 		DeferCleanup(func() { Expect(provider.Shutdown(context.Background())).To(Succeed()) })
 		source = &countingCapturer{Capturer: s}
-		registration, err := New().Register(provider.Meter("test"), source)
+		registration, err := Register(provider.Meter("test"), source)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { Expect(registration.Unregister()).To(Succeed()) })
 		handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
@@ -67,7 +68,9 @@ var _ = Describe("Prometheus pull collection", func() {
 			labels[fmt.Sprintf("custom_%02d", i)] = "saved"
 		}
 		p.Workload.StatusLabels = labels
-		p.PodPages[0].Rows[0].Record.Labels = labels
+		pod := p.PodPages[0].Rows()[0]
+		pod.Record.Labels = labels
+		p = p.WithPod(pod.Record.UID, &pod)
 		s.Publish(p)
 		s.SetPublicationHealth([]store.HealthRecord{{GVK: p.Workload.Ref.GVK, Namespace: "ns", Evidence: p.Status}})
 		output := scrape()
@@ -89,8 +92,8 @@ var _ = Describe("Prometheus pull collection", func() {
 			}
 		}
 	})
-	It("emits each Pod's verified workload version and falls back for older zero-value records", func() {
-		first := p.PodPages[0].Rows[0]
+	It("emits each Pod's verified workload version", func() {
+		first := p.PodPages[0].Rows()[0]
 		second := first
 		second.Record.UID = "other"
 		second.Record.Name = "other"
@@ -116,8 +119,9 @@ var _ = Describe("Prometheus pull collection", func() {
 	It("keeps Pod namespaces distinct beneath a cluster-scoped root", func() {
 		p.Workload.Ref.Namespace = ""
 		p.Workload.Ref.GVK = schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "ClusterWorkload"}
-		a := p.PodPages[0].Rows[0]
+		a := p.PodPages[0].Rows()[0]
 		a.Record.Namespace = "team-a"
+		a.Record.WorkloadGVK = p.Workload.Ref.GVK
 		b := a
 		b.Record.UID = "pod-b"
 		b.Record.Namespace = "team-b"
@@ -144,7 +148,9 @@ var _ = Describe("Prometheus pull collection", func() {
 	})
 	It("preserves built-in identity and keeps custom labels off creation and health", func() {
 		p.Workload.StatusLabels = map[string]string{"namespace": "wrong", "team": "status"}
-		p.PodPages[0].Rows[0].Record.Labels = map[string]string{"namespace": "wrong", "team": "pod"}
+		pod := p.PodPages[0].Rows()[0]
+		pod.Record.Labels = map[string]string{"namespace": "wrong", "team": "pod"}
+		p = p.WithPod(pod.Record.UID, &pod)
 		s.Publish(p)
 		s.SetPublicationHealth([]store.HealthRecord{{Namespace: "ns", Evidence: p.Status}})
 		output := scrape()
@@ -178,7 +184,7 @@ var _ = Describe("Prometheus pull collection", func() {
 		Expect(err).NotTo(HaveOccurred())
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithCardinalityLimit(0))
 		DeferCleanup(func() { Expect(provider.Shutdown(context.Background())).To(Succeed()) })
-		registration, err := New().Register(provider.Meter("scope-test"), s)
+		registration, err := Register(provider.Meter("scope-test"), s)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { Expect(registration.Unregister()).To(Succeed()) })
 		p.Workload.StatusLabels = map[string]string{"team": "research"}
@@ -195,7 +201,7 @@ var _ = Describe("Prometheus pull collection", func() {
 	It("exports more than 5000 distinct Pod identities without overflow", func() {
 		rows := make([]store.PublishedPod, 5001)
 		for i := range rows {
-			rows[i] = store.PublishedPod{Record: store.PodRecord{UID: types.UID(fmt.Sprintf("pod-%d", i)), Name: fmt.Sprintf("pod-%d", i)}, Mapping: p.Status}
+			rows[i] = store.PublishedPod{Record: store.PodRecord{UID: types.UID(fmt.Sprintf("pod-%d", i)), Name: fmt.Sprintf("pod-%d", i), WorkloadGVK: p.Workload.Ref.GVK}, Mapping: p.Status}
 		}
 		p.PodPages = store.BuildPodPages(rows, nil)
 		s.Publish(p)

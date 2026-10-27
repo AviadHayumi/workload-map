@@ -38,10 +38,10 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 	}
 	record := r.deps.Publications.Published(uid)
 	healthy := record != nil && record.Workload.OwnerResolution != store.UnknownOwner &&
-		len(record.FailureReasons) == 0 && len(state.dirty) == 0 && len(state.podErrors) == 0 &&
+		len(record.FailureReasons) == 0 && len(state.dirty) == 0 &&
 		len(state.resolutionErrors) == 0 &&
 		state.publishedGeneration == state.generation && !state.fullRefresh &&
-		r.definitionError == nil && !r.pendingDefinitions[state.ref.GVK.GroupKind()]
+		r.definitionError == nil
 	now := r.config.Now()
 	earliest := time.Time{}
 	check := func(proof store.Evidence) {
@@ -59,12 +59,17 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 		}
 	}
 	if healthy {
+		for _, pod := range state.pods {
+			if pod.resolveError != nil {
+				healthy = false
+			}
+		}
 		check(record.Creation)
 		if record.Workload.HasStatus {
 			check(record.Status)
 		}
 		for _, page := range record.PodPages {
-			for _, row := range page.Rows {
+			for _, row := range page.Rows() {
 				check(row.Mapping)
 			}
 		}
@@ -92,7 +97,7 @@ func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
 // metadata entry. Roots without intermediate inputs have no work in this lane.
 func (r *Runtime) refreshMetadata(ctx context.Context) error {
 	r.reader.mu.RLock()
-	hadInputs := len(r.reader.metadata) > 0 || len(r.reader.failures) > 0 || len(r.reader.pending) > 0 || len(r.reader.priming) > 0
+	hadInputs := len(r.reader.metadata) > 0 || len(r.reader.failures) > 0 || len(r.reader.metadataReads) > 0
 	r.reader.mu.RUnlock()
 	if hadInputs {
 		r.pruneMetadata()
@@ -134,14 +139,14 @@ func (r *Runtime) scheduleMetadataPathsLocked() {
 			if root == nil {
 				continue
 			}
-			path := root.paths[pod]
+			path := root.pods[pod].path
 			position := dependency.position
 			if position <= 0 || position+1 >= len(path) {
 				continue
 			}
 			reason := r.metadataPathReasonLocked(key, path[position], path[position+1], failedSources)
-			if reason == "" && root.podErrors[pod] != nil {
-				reason = failureReason(root.podErrors[pod])
+			if reason == "" && root.pods[pod].resolveError != nil {
+				reason = failureReason(root.pods[pod].resolveError)
 			}
 			if reason == "" && len(root.resolutionErrors) > 0 {
 				reason = store.ReasonAPIUnavailable
@@ -210,7 +215,9 @@ func (r *Runtime) metadataPathReasonLocked(key objectKey, expected, parent disco
 // guards; only intermediate inputs need reverse lookup to reach affected Pods.
 func (r *Runtime) setPodPathLocked(root *rootState, pod types.UID, path []discovery.ObjectRef) {
 	r.removePodPathLocked(root, pod)
-	root.paths[pod] = slices.Clone(path)
+	entry := root.pods[pod]
+	entry.path = slices.Clone(path)
+	root.pods[pod] = entry
 	for i := 1; i+1 < len(path); i++ {
 		key := keyOf(path[i])
 		if r.pathDependents[key] == nil {
@@ -221,7 +228,7 @@ func (r *Runtime) setPodPathLocked(root *rootState, pod types.UID, path []discov
 }
 
 func (r *Runtime) removePodPathLocked(root *rootState, pod types.UID) {
-	path := root.paths[pod]
+	path := root.pods[pod].path
 	for i := 1; i+1 < len(path); i++ {
 		key := keyOf(path[i])
 		delete(r.pathDependents[key], pod)
@@ -229,7 +236,10 @@ func (r *Runtime) removePodPathLocked(root *rootState, pod types.UID) {
 			delete(r.pathDependents, key)
 		}
 	}
-	delete(root.paths, pod)
+	entry := root.pods[pod]
+	entry.path = nil
+	entry.resolveError = nil
+	root.pods[pod] = entry
 }
 
 func (r *Runtime) invalidatePathDependentsLocked(ref discovery.ObjectRef, reason string) {

@@ -10,24 +10,77 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-
-	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 )
+
+type discovery struct {
+	reader  ObjectReader
+	ignored map[schema.GroupVersionKind]bool
+}
+
+// Discoverer resolves an object to its top owner without starting watches.
+type Discoverer interface {
+	Get(context.Context, ObjectRef) (Result, error)
+}
+
+// Result contains the resolved workload.
+type Result struct {
+	Workload *GenericWorkload
+}
+
+// GenericWorkload describes ownership independently of a Karta definition.
+type GenericWorkload struct {
+	Root       ObjectRef
+	Path       []ObjectRef // Input object first, root last.
+	Resolution OwnerResolution
+}
+
+type ObjectRef struct {
+	GVK             schema.GroupVersionKind
+	Namespace       string
+	Name            string
+	UID             types.UID
+	ResourceVersion string
+}
+
+type WatchRequest struct {
+	GVK       schema.GroupVersionKind
+	Namespace string
+}
+
+type OwnerResolution string
+
+// ObjectReader reads cached objects and fetches metadata on a cache miss.
+type ObjectReader interface {
+	Cached(ObjectRef) (*unstructured.Unstructured, bool)
+	GetMetadata(context.Context, ObjectRef) (*metav1.PartialObjectMetadata, error)
+}
 
 type Config struct{ IgnoredTopOwners []schema.GroupVersionKind }
 
-type discovery struct {
-	dependencies Dependencies
-	ignored      map[schema.GroupVersionKind]bool
-}
+const (
+	Resolved     OwnerResolution = "resolved"
+	IgnoredOwner OwnerResolution = "ignored_owner"
+	UnknownOwner OwnerResolution = "unknown"
+)
 
-func New(dependencies Dependencies, config Config) (Discoverer, error) {
-	if dependencies.Reader == nil || dependencies.Inventory == nil {
-		return nil, errors.New("reader and inventory required")
+var (
+	ErrPending           = errors.New("discovery inputs not synchronized")
+	ErrPermissionDenied  = errors.New("discovery read denied")
+	ErrUnavailable       = errors.New("discovery source unavailable")
+	ErrUnresolvedOwner   = errors.New("owner chain unresolved")
+	ErrInvalidDefinition = errors.New("invalid Karta definition")
+	ErrEvaluation        = errors.New("karta evaluation failed")
+	ErrStale             = errors.New("discovery inputs changed")
+)
+
+func New(reader ObjectReader, config Config) (Discoverer, error) {
+	if reader == nil {
+		return nil, errors.New("reader required")
 	}
-	d := &discovery{dependencies: dependencies, ignored: make(map[schema.GroupVersionKind]bool)}
+	d := &discovery{reader: reader, ignored: make(map[schema.GroupVersionKind]bool)}
 	for _, gvk := range config.IgnoredTopOwners {
 		d.ignored[gvk] = true
 	}
@@ -37,7 +90,6 @@ func New(dependencies Dependencies, config Config) (Discoverer, error) {
 func (d *discovery) Get(ctx context.Context, ref ObjectRef) (Result, error) {
 	workload := &GenericWorkload{Resolution: Resolved, Path: make([]ObjectRef, 0, 3)}
 	seen := make(map[types.UID]struct{})
-	var rootCached bool
 	for {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
@@ -49,12 +101,10 @@ func (d *discovery) Get(ctx context.Context, ref ObjectRef) (Result, error) {
 			return Result{}, fmt.Errorf("%w: owner chain exceeds limit", ErrUnresolvedOwner)
 		}
 		var object metav1.Object
-		cached, ok := d.dependencies.Reader.Cached(ref)
-		ok = ok && cached != nil
-		if ok {
+		if cached, ok := d.reader.Cached(ref); ok && cached != nil {
 			object = cached
 		} else {
-			metadata, err := d.dependencies.Reader.GetMetadata(ctx, ref)
+			metadata, err := d.reader.GetMetadata(ctx, ref)
 			if err != nil {
 				return Result{}, readError(err)
 			}
@@ -78,51 +128,45 @@ func (d *discovery) Get(ctx context.Context, ref ObjectRef) (Result, error) {
 		ref.ResourceVersion = version
 		seen[uid] = struct{}{}
 		workload.Path = append(workload.Path, ref)
-		var owner metav1.OwnerReference
-		hasOwner := false
-		for _, candidate := range object.GetOwnerReferences() {
-			if candidate.Controller != nil && *candidate.Controller {
-				if hasOwner {
-					return Result{}, fmt.Errorf("%w: multiple controller owners", ErrUnresolvedOwner)
-				}
-				owner = candidate
-				hasOwner = true
-			}
-		}
-		if !hasOwner {
-			rootCached = ok
-			break
-		}
-		gv, err := schema.ParseGroupVersion(owner.APIVersion)
-		if err != nil || owner.Kind == "" || owner.Name == "" || owner.UID == "" {
+		owner, valid := ControllerOwner(object)
+		if !valid {
 			return Result{}, fmt.Errorf("%w: invalid controller reference", ErrUnresolvedOwner)
 		}
-		gvk := gv.WithKind(owner.Kind)
-		if d.ignored[gvk] {
-			workload.Resolution = IgnoredOwner
-			rootCached = ok
+		if owner.UID == "" {
 			break
 		}
-		ref = ObjectRef{GVK: gvk, Namespace: ref.Namespace, Name: owner.Name, UID: owner.UID}
+		if d.ignored[owner.GVK] {
+			workload.Resolution = IgnoredOwner
+			break
+		}
+		owner.Namespace = ref.Namespace
+		ref = owner
 	}
 	workload.Root = ref
-	result := Result{Workload: workload}
-	if !rootCached {
-		result.MissingCoverage = []WatchRequest{{GVK: ref.GVK, Namespace: ref.Namespace}}
+	return Result{Workload: workload}, nil
+}
+
+// ControllerOwner returns the controller reference, or an empty reference if
+// there is none. Malformed or multiple controller references return false.
+func ControllerOwner(object metav1.Object) (ObjectRef, bool) {
+	var ref ObjectRef
+	for _, owner := range object.GetOwnerReferences() {
+		if owner.Controller == nil || !*owner.Controller {
+			continue
+		}
+		gv, err := schema.ParseGroupVersion(owner.APIVersion)
+		if ref.UID != "" || err != nil || gv.Version == "" || owner.Name == "" || owner.Kind == "" || owner.UID == "" {
+			return ObjectRef{}, false
+		}
+		ref = ObjectRef{GVK: gv.WithKind(owner.Kind), Name: owner.Name, UID: owner.UID}
 	}
-	_, err := d.dependencies.Inventory.Lookup(ref.GVK)
-	if err != nil {
-		return result, readError(err)
-	}
-	return result, nil
+	return ref, true
 }
 
 func readError(err error) error {
 	switch {
-	case errors.Is(err, ErrPending), errors.Is(err, inventory.ErrPending):
+	case errors.Is(err, ErrPending):
 		return fmt.Errorf("%w: %w", ErrPending, err)
-	case errors.Is(err, inventory.ErrInvalidDefinition):
-		return fmt.Errorf("%w: %w", ErrInvalidDefinition, err)
 	case errors.Is(err, ErrStale):
 		return err
 	case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err), errors.Is(err, ErrPermissionDenied):
