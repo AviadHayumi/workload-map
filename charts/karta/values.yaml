@@ -27,6 +27,11 @@ exporter:
   excludeResourceRules: []
   ignoredOwnerKinds: []
   requiredKinds: []
+  # Default concurrency for each leaf and root queue.
+  workers: 2
+  # Zero inherits workers. Positive values configure each queue independently.
+  leafWorkers: 0
+  rootWorkers: 0
   kartaDefinitionSource:
     catalog:
       enabled: false

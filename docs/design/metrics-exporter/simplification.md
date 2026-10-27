@@ -14,6 +14,10 @@ The same ownership rule applies to definitions and collection. Runtime owns
 cluster observations. Inventory selects definitions from its supplied snapshot.
 Store holds immutable results. Collection reads those results.
 
+This report preserves the earlier comparison from `31be33e7`. The subsequent
+[controller audit](controller-audit.md) records direct Reflector acceptance and
+typed leaf/root queues from `cdcc8779`. Its measurements are separate.
+
 ## Ownership changes
 
 | Area | Before | Current owner and operation |

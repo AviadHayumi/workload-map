@@ -132,7 +132,7 @@ var _ = Describe("Watch recovery scheduling", func() {
 			seedRoot(r, root)
 			Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		}
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		drainQueue(r.controlQueue)
 		r.mu.Lock()
@@ -147,7 +147,7 @@ var _ = Describe("Watch recovery scheduling", func() {
 		Expect(r.watches[key].failureKey).To(Equal(proof))
 		r.mu.Unlock()
 		Expect(r.rootQueue.Len()).To(BeZero())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		view := publications.Capture()
 		for _, record := range view.Records {
 			valid, _ := view.Valid(record.Creation)

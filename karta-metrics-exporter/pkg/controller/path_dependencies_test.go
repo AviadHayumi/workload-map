@@ -26,7 +26,7 @@ var _ = Describe("Watched intermediate dependencies", func() {
 		ownedBy(pod, middle)
 		w := seedWatch(r, testRootGVK, "jobs", a, b, middle)
 		seedWatch(r, podGVK, "pods", pod)
-		Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		done := make(chan error, 1)
 		go func() { done <- r.reconcile(ctx, a.GetUID()) }()
 		Eventually(labels.entered).Should(Receive(Equal(pod.GetUID())))
@@ -48,12 +48,12 @@ var _ = Describe("Watched intermediate dependencies", func() {
 		w := seedWatch(r, testRootGVK, "jobs", a, b, middle)
 		seedWatch(r, podGVK, "pods", pod, sibling)
 		for _, ref := range []discovery.ObjectRef{refOf(pod), refOf(sibling)} {
-			Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(ref), UID: ref.UID})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(ref), UID: ref.UID})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
 		Expect(r.reader.metadata).To(BeEmpty())
 		Expect(r.pathDependents).To(HaveLen(1))
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		before := publications.Published(a.GetUID())
 		row, _ := before.Pod(pod.GetUID())
 		valid, _ := publications.Capture().Valid(row.Mapping)
@@ -86,15 +86,15 @@ var _ = Describe("Watched intermediate dependencies", func() {
 			Expect(valid).To(BeTrue())
 		}
 		queued := map[string]bool{}
-		for r.queue.Len() > 0 {
-			key, _ := r.queue.Get()
+		for r.inputQueue.Len() > 0 {
+			key, _ := r.inputQueue.Get()
 			queued[string(key.UID)] = true
-			r.queue.Done(key)
+			r.inputQueue.Done(key)
 		}
 		Expect(queued).To(HaveKey("pod"))
 		Expect(queued).NotTo(HaveKey("sibling"))
 		if change == "event" {
-			Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 			Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
 			Expect(r.reconcile(ctx, b.GetUID())).To(Succeed())
 			_, found := publications.Published(a.GetUID()).Pod(pod.GetUID())

@@ -86,7 +86,7 @@ func testRuntime(resolver LabelResolver) (*Runtime, *metadatafake.FakeMetadataCl
 	publications := store.New(store.Options{})
 	runtime, err := New(Config{}, Dependencies{Discovery: ownership, Inventory: definitions, Labels: resolver, Publications: publications}, reader)
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() { runtime.queue.ShutDown(); runtime.rootQueue.ShutDown(); runtime.controlQueue.ShutDown() })
+	DeferCleanup(func() { runtime.inputQueue.ShutDown(); runtime.rootQueue.ShutDown(); runtime.controlQueue.ShutDown() })
 	return runtime, metadata, publications
 }
 func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects ...*unstructured.Unstructured) *resourceWatch {
@@ -94,7 +94,7 @@ func seedWatch(r *Runtime, gvk schema.GroupVersionKind, resource string, objects
 	w := &resourceWatch{key: key, gvk: gvk, objects: map[objectKey]struct{}{}, ready: true, discover: true, failureKey: "watch:" + key.Resource.String() + "/" + key.Namespace, verifiedAt: time.Now()}
 	r.watches[key] = w
 	r.reader.mu.Lock()
-	r.trackWatchVersion(gvk, 1)
+	trackVersion(&r.reader.versions, gvk, 1)
 	r.reader.watchStateLocked(watchReadScope{gvk: gvk, namespace: key.Namespace})
 	r.reader.activeKeys[w.failureKey] = true
 	r.reader.mu.Unlock()
@@ -389,5 +389,17 @@ func (r *Runtime) acceptEvent(w *resourceWatch, value any, deleted bool) {
 	r.reader.mu.RLock()
 	sequence := r.reader.sequence
 	r.reader.mu.RUnlock()
-	r.accept(w, &sourceObject{Unstructured: object, sequence: sequence, expiresAt: r.config.Now().Add(r.config.MaxAge)}, deleted)
+	r.accept(w, &sourceObject{Unstructured: object, sequence: sequence, failureEpoch: w.failureEpoch, expiresAt: r.config.Now().Add(r.config.MaxAge)}, deleted)
+}
+
+func (r *Runtime) replaceWatch(ctx context.Context, w *resourceWatch) error {
+	list, err := r.listWatch(ctx, w, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	values := make([]any, 0)
+	for _, item := range list.(*metav1.List).Items {
+		values = append(values, item.Object)
+	}
+	return (&reflectorStore{runtime: r, source: w}).Replace(values, "")
 }

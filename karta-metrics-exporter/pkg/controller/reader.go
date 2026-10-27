@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -45,6 +46,8 @@ type Reader struct {
 	metadata        map[objectKey]metadataEntry
 	metadataReads   map[objectKey]*metadataReadState
 }
+
+type versionCounts map[schema.GroupKind]map[schema.GroupVersionKind]int
 
 type watchReadScope struct {
 	gvk       schema.GroupVersionKind
@@ -401,7 +404,7 @@ func (r *Reader) acceptMetadataLocked(key objectKey, expected types.UID, object 
 	proofKey := previous.failureKey
 	if previous.object == nil || previous.object.GetUID() != object.GetUID() || previous.object.GetResourceVersion() != object.GetResourceVersion() {
 		if previous.object != nil {
-			r.retireMetadataLocked(previous, objectChangeReason(previous.object, object))
+			r.retireProofLocked(previous.failureKey, objectChangeReason(previous.object, object))
 		}
 		r.sequence++
 		proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
@@ -411,19 +414,19 @@ func (r *Reader) acceptMetadataLocked(key objectKey, expected types.UID, object 
 }
 
 func (r *Reader) removeMetadataLocked(key objectKey, reason string) {
-	r.retireMetadataLocked(r.metadata[key], reason)
+	r.retireProofLocked(r.metadata[key].failureKey, reason)
 	r.deleteMetadataLocked(key)
 	r.invalidateMetadataReadLocked(key)
 }
 
-func (r *Reader) retireMetadataLocked(entry metadataEntry, reason string) {
-	if entry.failureKey == "" {
+func (r *Reader) retireProofLocked(key, reason string) {
+	if key == "" {
 		return
 	}
-	delete(r.activeKeys, entry.failureKey)
+	delete(r.activeKeys, key)
 	if r.publications != nil {
-		r.publications.SetPublicationFailure(entry.failureKey, reason)
-		r.publications.RetirePublicationFailure(entry.failureKey)
+		r.publications.SetPublicationFailure(key, reason)
+		r.publications.RetirePublicationFailure(key)
 	}
 }
 
@@ -508,12 +511,12 @@ func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
 		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
 			r.sequence++
 			alias.invalidated = r.sequence
-			r.retireObjectProofLocked(alias, store.ReasonUnresolvedOwner)
+			r.retireProofLocked(alias.proofKey, store.ReasonUnresolvedOwner)
 			alias.evidence = store.Evidence{}
 			r.objects[aliasKey] = alias
 		}
 		if alias, exists := r.metadata[aliasKey]; exists && alias.object.GetUID() == uid {
-			r.retireMetadataLocked(alias, store.ReasonUnresolvedOwner)
+			r.retireProofLocked(alias.failureKey, store.ReasonUnresolvedOwner)
 			delete(r.metadata, aliasKey)
 			trackVersion(&r.versions, gvk, -1)
 		}
@@ -538,17 +541,6 @@ func (r *Reader) objectEvidence(ref discovery.ObjectRef) (store.Evidence, error)
 	return r.evidence(ref)
 }
 
-func (r *Reader) retireObjectProofLocked(entry observation, reason string) {
-	if entry.proofKey == "" {
-		return
-	}
-	delete(r.activeKeys, entry.proofKey)
-	if r.publications != nil {
-		r.publications.SetPublicationFailure(entry.proofKey, reason)
-		r.publications.RetirePublicationFailure(entry.proofKey)
-	}
-}
-
 func (r *Reader) watchStateLocked(scope watchReadScope) *watchReadState {
 	if r.watchReads == nil {
 		r.watchReads = map[watchReadScope]*watchReadState{}
@@ -559,4 +551,66 @@ func (r *Reader) watchStateLocked(scope watchReadScope) *watchReadState {
 		r.watchReads[scope] = read
 	}
 	return read
+}
+
+// Counts cover watch scopes and metadata entries, not a second object cache.
+func trackVersion(index *versionCounts, gvk schema.GroupVersionKind, delta int) {
+	if *index == nil {
+		*index = versionCounts{}
+	}
+	versions := (*index)[gvk.GroupKind()]
+	if versions == nil {
+		versions = map[schema.GroupVersionKind]int{}
+		(*index)[gvk.GroupKind()] = versions
+	}
+	versions[gvk] += delta
+	if versions[gvk] <= 0 {
+		delete(versions, gvk)
+	}
+	if len(versions) == 0 {
+		delete(*index, gvk.GroupKind())
+	}
+}
+
+func (r *Runtime) terminalOwnerBoundary(object metav1.Object) bool {
+	return terminalOwnerBoundary(object, r.config.IgnoredOwnerKinds)
+}
+
+func (r *Reader) terminalOwnerBoundary(object metav1.Object) bool {
+	return terminalOwnerBoundary(object, r.ignoredOwners)
+}
+
+func terminalOwnerBoundary(object metav1.Object, ignored []schema.GroupVersionKind) bool {
+	owner, valid := discovery.ControllerOwner(object)
+	return valid && (owner.UID == "" || slices.Contains(ignored, owner.GVK))
+}
+
+// A newer object version supersedes verification, but does not by itself mean
+// its controller owner disappeared. Non-controller references are not traversed.
+func objectChangeReason(previous, current metav1.Object) string {
+	before, beforeValid := discovery.ControllerOwner(previous)
+	after, afterValid := discovery.ControllerOwner(current)
+	if previous.GetUID() != current.GetUID() || !beforeValid || !afterValid || before != after {
+		return store.ReasonUnresolvedOwner
+	}
+	return store.ReasonAPIUnavailable
+}
+
+// Runtime and Reader are locked by the caller. A publication's removal must not
+// erase accepted evidence that its former root still has a controller owner.
+func (r *Runtime) rootBoundaryLocked(ref discovery.ObjectRef) bool {
+	for gvk := range r.reader.versions[ref.GVK.GroupKind()] {
+		key := objectKey{GVK: gvk, Namespace: ref.Namespace, Name: ref.Name}
+		if entry, found := r.reader.objects[key]; found {
+			if entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
+				return false
+			}
+			continue
+		}
+		// Expired contradictions remain barriers until retirement also withdraws alias proof.
+		if entry, found := r.reader.metadata[key]; found && entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
+			return false
+		}
+	}
+	return true
 }

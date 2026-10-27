@@ -34,10 +34,10 @@ func (c *countedPublicationReads) Published(uid types.UID) *store.Publication {
 
 func queuedObjects(r *Runtime) []types.UID {
 	var result []types.UID
-	for r.queue.Len() > 0 {
-		key, _ := r.queue.Get()
+	for r.inputQueue.Len() > 0 {
+		key, _ := r.inputQueue.Get()
 		result = append(result, key.UID)
-		r.queue.Done(key)
+		r.inputQueue.Done(key)
 	}
 	return result
 }
@@ -118,7 +118,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 			return true, nil, apierrors.NewNotFound(testRootGVK.GroupVersion().WithResource("jobs").GroupResource(), name)
 		})
 		for _, pod := range []*unstructured.Unstructured{first, second, third} {
-			Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		seedRoot(r, idle)
 		for _, root := range []*unstructured.Unstructured{a, b, idle} {
@@ -126,7 +126,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		}
 		// Setup reconciles directly, so its queued retries are no longer needed.
 		resetRenewalQueue(r, clock)
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 	})
 
 	It("stagger-renews unchanged roots once without re-resolving shared paths", func(ctx SpecContext) {
@@ -136,7 +136,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		row, _ := before.Pod(first.GetUID())
 		clock.Step(10 * time.Second)
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 		Expect(reads.reads).To(Equal(map[types.UID]int{"a": 1, "b": 1}))
 		Expect(r.roots[idle.GetUID()].renewalAt.IsZero()).To(BeTrue())
@@ -150,7 +150,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		Expect(updated.Mapping.ExpiresAt.After(row.Mapping.ExpiresAt)).To(BeTrue())
 		valid, _ := publications.Capture().Valid(updated.Mapping)
 		Expect(valid).To(BeTrue())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 	})
 
 	DescribeTable("immediately invalidates only paths with changed or unavailable inputs", func(ctx SpecContext, change, reason string) {
@@ -210,17 +210,17 @@ var _ = Describe("Scoped metadata renewal", func() {
 	It("recovers a failed path even when fresh metadata has the old UID and RV", func(ctx SpecContext) {
 		listFailure, getFailure = errors.New("unavailable"), errors.New("unavailable")
 		Expect(r.refreshMetadata(ctx)).NotTo(Succeed())
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(first)), UID: first.GetUID()})).NotTo(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(first)), UID: first.GetUID()})).NotTo(Succeed())
 		Expect(r.roots[a.GetUID()].pods[first.GetUID()].resolveError).To(HaveOccurred())
 		listFailure, getFailure = nil, nil
 		_, err := r.reader.GetMetadata(ctx, discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "middle-a", UID: "middle-a"})
 		Expect(err).NotTo(HaveOccurred())
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
 		Expect(queuedObjects(r)).To(ContainElement(first.GetUID()))
 		for _, pod := range []*unstructured.Unstructured{first, second} {
-			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
 		Expect(r.roots[a.GetUID()].pods[first.GetUID()].resolveError).NotTo(HaveOccurred())
@@ -232,7 +232,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 	It("keeps GET-only collection permissions usable without a discovery wave", func(ctx SpecContext) {
 		listFailure = apierrors.NewForbidden(testRootGVK.GroupVersion().WithResource("jobs").GroupResource(), "", errors.New("GET only"))
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 	})
 
@@ -241,7 +241,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		previous := r.reader.metadata[key]
 		owners["middle-a"].ResourceVersion = "2"
 		r.reader.mu.Lock()
-		r.reader.retireMetadataLocked(previous, store.ReasonAPIUnavailable)
+		r.reader.retireProofLocked(previous.failureKey, store.ReasonAPIUnavailable)
 		previous.object = owners["middle-a"].DeepCopy()
 		previous.failureKey = "metadata:new-get"
 		r.reader.activeKeys[previous.failureKey] = true
@@ -256,14 +256,20 @@ var _ = Describe("Scoped metadata renewal", func() {
 			w := r.watches[watchKey{Resource: podGVK.GroupVersion().WithResource("pods")}]
 			r.acceptEvent(w, pod, true)
 		}
-		clock.Step(30 * time.Millisecond)
-		Eventually(r.rootQueue.Len).Should(Equal(2))
-		drainQueue(r.queue)
+		deadline := clock.Now().Add(time.Second)
+		Eventually(func() int {
+			// Allow delayed queue timers to register between clock steps.
+			if clock.Now().Before(deadline) {
+				clock.Step(10 * time.Millisecond)
+			}
+			return r.rootQueue.Len()
+		}).Should(Equal(2))
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
 		Expect(r.reader.metadata).To(BeEmpty())
 		Expect(r.pathDependents).To(BeEmpty())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 	})
 	It("keeps a newer watched representation authoritative over a blocked metadata LIST", func(ctx SpecContext) {
@@ -294,20 +300,18 @@ var _ = Describe("Scoped metadata renewal", func() {
 		Eventually(done).Should(Receive(Succeed()))
 		Expect(queuedObjects(r)).To(ContainElements(first.GetUID(), second.GetUID()))
 		for _, pod := range []*unstructured.Unstructured{first, second} {
-			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
-		// Keep delayed retries in the future while checking immediate refresh work.
-		drainQueue(r.queue)
-		Expect(r.rootQueue.Len()).To(Equal(1))
-		key, stopped := r.rootQueue.Get()
-		Expect(stopped).To(BeFalse())
-		Expect(key).To(Equal(queueKey{Operation: "root", UID: a.GetUID()}))
-		r.rootQueue.Done(key)
+		// The watched intermediate is admitted on the input lane, independently of Pods.
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(middle)), UID: middle.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
+		drainQueue(r.inputQueue)
+		drainQueue(r.rootQueue)
 		// The old metadata still exists. It must neither override the full RV2
 		// observation nor trigger another traversal of the now-current path.
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 		row, _ := publications.Published(a.GetUID()).Pod(first.GetUID())
 		valid, _ := publications.Capture().Valid(row.Mapping)
@@ -316,7 +320,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 		r.reader.removeMetadataLocked(keyOf(refOf(middle)), store.ReasonAPIUnavailable)
 		r.reader.mu.Unlock()
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 	})
 
@@ -345,13 +349,13 @@ var _ = Describe("Scoped metadata renewal", func() {
 		_, err := r.reader.GetMetadata(ctx, discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "middle-a", UID: "middle-a", ResourceVersion: "2"})
 		Expect(err).NotTo(HaveOccurred())
 		for _, pod := range []*unstructured.Unstructured{first, second} {
-			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
-		Expect(r.pathDependents[key][first.GetUID()].position).To(Equal(2))
+		Expect(r.pathDependents[key][pathConsumer{UID: first.GetUID(), GVK: podGVK}].position).To(Equal(2))
 		Expect(r.reconcile(ctx, a.GetUID())).To(Succeed())
 		clock.Step(30 * time.Millisecond)
 		Eventually(r.rootQueue.Len).Should(BeNumerically(">=", 1))
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		if reroot {
 			ownedBy(middle, idle)
@@ -360,7 +364,7 @@ var _ = Describe("Scoped metadata renewal", func() {
 			_, err := r.reader.GetMetadata(ctx, discovery.ObjectRef{GVK: testRootGVK, Namespace: "ns", Name: "middle-a", UID: "middle-a", ResourceVersion: "3"})
 			Expect(err).NotTo(HaveOccurred())
 			for _, pod := range []*unstructured.Unstructured{first, second} {
-				Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+				Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 			}
 			Expect(r.pathDependents).NotTo(HaveKey(key))
 			Expect(r.podRoots[first.GetUID()]).To(Equal(idle.GetUID()))
@@ -368,11 +372,11 @@ var _ = Describe("Scoped metadata renewal", func() {
 			Expect(r.reconcile(ctx, idle.GetUID())).To(Succeed())
 			clock.Step(30 * time.Millisecond)
 			Eventually(r.rootQueue.Len).Should(BeNumerically(">=", 2))
-			drainQueue(r.queue)
+			drainQueue(r.inputQueue)
 			drainQueue(r.rootQueue)
 			Expect(r.refreshMetadata(ctx)).To(Succeed())
 			Expect(r.reader.metadata).NotTo(HaveKey(key))
-			Expect(r.queue.Len()).To(BeZero())
+			Expect(r.inputQueue.Len()).To(BeZero())
 			row, found := publications.Published(idle.GetUID()).Pod(first.GetUID())
 			Expect(found).To(BeTrue())
 			valid, _ := publications.Capture().Valid(row.Mapping)

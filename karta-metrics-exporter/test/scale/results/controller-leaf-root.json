@@ -1,0 +1,2967 @@
+{
+  "_copyright": "Copyright (c) 2026 NVIDIA Corporation",
+  "_license": "SPDX-License-Identifier: Apache-2.0",
+  "baseline_revision": "cdcc8779dacf688463915500031690d09fef8910",
+  "binary_sha256": {
+    "controller-simple-after": "d696a407849cb218454a36c9f9c4465538334426038f836e3e3d397cbd8e4cb4",
+    "controller-simple-before": "e25ced8bce3e29f94f7c2b17f77f830c7ca8a2c4460158730caeed9d5a7a402d",
+    "controller-simple-normal-after": "b43751b0f5f2edcb7ad9832bd2cedc9105f4869cee5316a296c1aefe7d4768af"
+  },
+  "candidate_base_revision": "cdcc8779dacf688463915500031690d09fef8910",
+  "candidate_working_tree_modified": true,
+  "diagnostics": [
+    {
+      "extra_heap_bytes": 13216184,
+      "extra_request_count": 4,
+      "extra_snapshot_available": true,
+      "extra_snapshot_idle": true,
+      "name": "zero-pod-10000-baseline",
+      "pair": "zero-pod-10000",
+      "profile_sha256": "59112dd4310e84c6204f68cae31973a2a9c0c7866df0f7b0afb0e0d72dde1c3a",
+      "queues_idle_before_and_after": true,
+      "returncode": 0,
+      "summary": {
+        "api_requests": {
+          "all_requests": 80,
+          "jobs.list.full": 20,
+          "jobs.list.metadata": 41,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 20000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 10102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 3,
+          "pods.objects.full": 0,
+          "pods.objects.metadata": 0,
+          "pods.watch": 1,
+          "response_bytes": 15699876
+        },
+        "cold_start_seconds": 6.6208,
+        "complete": true,
+        "cpu_seconds": 13.99,
+        "elapsed_seconds": 64.0338,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.8412,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 728514560,
+        "post_delete_heap_bytes": 13226064,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 6134587064
+      },
+      "variant": "baseline"
+    },
+    {
+      "extra_heap_bytes": 15546264,
+      "extra_request_count": 4,
+      "extra_snapshot_available": true,
+      "extra_snapshot_idle": true,
+      "name": "zero-pod-10000-candidate",
+      "pair": "zero-pod-10000",
+      "profile_sha256": "360f167fb1dc29f11927d2dd5c9c20600cc88351e761df246c9d08f9678327dd",
+      "queues_idle_before_and_after": true,
+      "returncode": 0,
+      "summary": {
+        "api_requests": {
+          "all_requests": 80,
+          "jobs.list.full": 20,
+          "jobs.list.metadata": 41,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 20000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 10102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 3,
+          "pods.objects.full": 0,
+          "pods.objects.metadata": 0,
+          "pods.watch": 1,
+          "response_bytes": 15699876
+        },
+        "cold_start_seconds": 6.6622,
+        "complete": true,
+        "cpu_seconds": 14.63,
+        "elapsed_seconds": 64.1021,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.8551,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 745324544,
+        "post_delete_heap_bytes": 15555656,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 6709198776
+      },
+      "variant": "candidate"
+    },
+    {
+      "extra_heap_bytes": 63177696,
+      "extra_request_count": 4,
+      "extra_snapshot_available": true,
+      "extra_snapshot_idle": true,
+      "name": "giant-root-baseline",
+      "pair": "giant-root",
+      "profile_sha256": "1ba0b53466fb4c83c70ce3ab34180c7b172bd4ceb4d30f3baad36d6635ff1d81",
+      "queues_idle_before_and_after": true,
+      "returncode": 0,
+      "summary": {
+        "api_requests": {
+          "all_requests": 1466,
+          "jobs.list.full": 4,
+          "jobs.list.metadata": 10,
+          "jobs.objects.full": 2,
+          "jobs.objects.metadata": 5,
+          "jobs.watch": 4,
+          "jobs.watch_events": 1,
+          "namespaces.list.full": 4,
+          "namespaces.list.metadata": 10,
+          "namespaces.objects.full": 4,
+          "namespaces.objects.metadata": 10,
+          "namespaces.watch": 4,
+          "pods.list.full": 402,
+          "pods.list.metadata": 1004,
+          "pods.objects.full": 200000,
+          "pods.objects.metadata": 500000,
+          "pods.watch": 4,
+          "pods.watch_events": 2,
+          "replicasets.get.metadata": 2,
+          "replicasets.list.metadata": 1,
+          "replicasets.objects.metadata": 1,
+          "response_bytes": 403963984,
+          "watch_expirations": 9
+        },
+        "cold_start_seconds": 27.2759,
+        "complete": true,
+        "cpu_seconds": 43.68,
+        "elapsed_seconds": 120.8169,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 1.0719,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 2575630336,
+        "post_delete_heap_bytes": 63210512,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 17726569896
+      },
+      "variant": "baseline"
+    },
+    {
+      "extra_heap_bytes": 85513624,
+      "extra_request_count": 4,
+      "extra_snapshot_available": true,
+      "extra_snapshot_idle": true,
+      "name": "giant-root-candidate",
+      "pair": "giant-root",
+      "profile_sha256": "c6234cc3695a2950e632fd091f44cc037c8863cf17bcb91ac208429390974705",
+      "queues_idle_before_and_after": true,
+      "returncode": 0,
+      "summary": {
+        "api_requests": {
+          "all_requests": 1473,
+          "jobs.list.full": 4,
+          "jobs.list.metadata": 13,
+          "jobs.objects.full": 2,
+          "jobs.objects.metadata": 6,
+          "jobs.watch": 4,
+          "jobs.watch_events": 1,
+          "namespaces.list.full": 4,
+          "namespaces.list.metadata": 13,
+          "namespaces.objects.full": 4,
+          "namespaces.objects.metadata": 13,
+          "namespaces.watch": 4,
+          "pods.list.full": 402,
+          "pods.list.metadata": 1005,
+          "pods.objects.full": 200000,
+          "pods.objects.metadata": 500000,
+          "pods.watch": 4,
+          "pods.watch_events": 2,
+          "replicasets.get.metadata": 2,
+          "replicasets.list.metadata": 1,
+          "replicasets.objects.metadata": 1,
+          "response_bytes": 403965828,
+          "watch_expirations": 9
+        },
+        "cold_start_seconds": 27.5932,
+        "complete": true,
+        "cpu_seconds": 42.51,
+        "elapsed_seconds": 120.8132,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 1.0934,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 2826207232,
+        "post_delete_heap_bytes": 85542248,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 17844642056
+      },
+      "variant": "candidate"
+    }
+  ],
+  "harness_sha256": "e68b29b52cf634ddde27d51f1568338f781a476e641152c682b201fc595edd35",
+  "historical_failures": {
+    "baseline_post_delete_heap_bytes": 649147912,
+    "candidate_post_delete_heap_bytes": 655640192,
+    "disposition": "Both historical deletion heap gates failed. Not reproduced by either variant in this matched run; not evidence that the refactor fixed those failures."
+  },
+  "manifest_hash_method": "SHA256 of sorted-key compact JSON file-to-SHA256 mapping; repository build inputs, module locks, harness and protocol document. External dependencies are pinned by module locks.",
+  "recorded_date": "2026-10-27",
+  "runs": [
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-normal-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "10",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "180",
+        "--stage-seconds",
+        "60",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "0.2",
+        "--settle-seconds",
+        "0",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--output",
+        "/tmp/controller-leaf-root/00-normal-command-smoke"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "00-normal-command-smoke",
+      "pair": "normal-command-smoke",
+      "result_sha256": "534a8a7a7bdd860432a2b0765f58436f7c3e79b1ec7ef390d095b9eaaa8459a3",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 1.0642
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.005
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.0051
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 0.2207
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 0.2267
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 0.0078
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 0.228
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 0.0036
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 26,
+          "jobs.list.full": 1,
+          "jobs.list.metadata": 2,
+          "jobs.objects.full": 10,
+          "jobs.objects.metadata": 20,
+          "jobs.watch": 1,
+          "jobs.watch_events": 22,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 2,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 2,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 2,
+          "pods.objects.full": 10,
+          "pods.objects.metadata": 20,
+          "pods.watch": 1,
+          "pods.watch_events": 23,
+          "replicasets.get.metadata": 5,
+          "replicasets.list.metadata": 1,
+          "replicasets.objects.metadata": 10,
+          "response_bytes": 68252
+        },
+        "cold_start_seconds": 1.0642,
+        "complete": true,
+        "cpu_seconds": 0.04,
+        "elapsed_seconds": 1.8338,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.0055,
+        "measured_gates": {
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 27672576,
+        "post_delete_heap_bytes": null,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": null
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/01-cold-1000-distinct-baseline"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "01-cold-1000-distinct-baseline",
+      "pair": "cold-1000-distinct",
+      "result_sha256": "6810388acd398ae4270a99082ae41d1365622c5c67cfdab8820f0f61601025e6",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.1902
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1727
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1679
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3566
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.361
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.328
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3208
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1592
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0058
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 69,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 5,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 2000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 1102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 2,
+          "pods.list.metadata": 5,
+          "pods.objects.full": 1000,
+          "pods.objects.metadata": 2000,
+          "pods.watch": 1,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 38,
+          "replicasets.list.metadata": 2,
+          "replicasets.objects.metadata": 1000,
+          "response_bytes": 4709490
+        },
+        "cold_start_seconds": 5.1902,
+        "complete": true,
+        "cpu_seconds": 2.3,
+        "elapsed_seconds": 62.1583,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.0997,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 140967936,
+        "post_delete_heap_bytes": 6641600,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 977213832
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/01-cold-1000-distinct-candidate"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "01-cold-1000-distinct-candidate",
+      "pair": "cold-1000-distinct",
+      "result_sha256": "697f150a3844afbc9043d8fac25f26023070ca69da4b1576e00f4c6c7894fec0",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.2078
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.155
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1603
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3504
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.3614
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.3223
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3227
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1623
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0047
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 43,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 5,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 2000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 1102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 2,
+          "pods.list.metadata": 5,
+          "pods.objects.full": 1000,
+          "pods.objects.metadata": 2000,
+          "pods.watch": 1,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 12,
+          "replicasets.list.metadata": 2,
+          "replicasets.objects.metadata": 1000,
+          "response_bytes": 4702000
+        },
+        "cold_start_seconds": 5.2078,
+        "complete": true,
+        "cpu_seconds": 2.15,
+        "elapsed_seconds": 62.1456,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.1032,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 138559488,
+        "post_delete_heap_bytes": 6692840,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 1016123688
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "10000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/02-cold-10000-distinct-baseline"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "02-cold-10000-distinct-baseline",
+      "pair": "cold-10000-distinct",
+      "result_sha256": "e2d426aa9b2be3f92ae2c392cce4c7e512dec66a430fbbf4aa3e459feda2b918",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 13.1633
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.779
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.7811
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 8.592
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.6533
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 8.4119
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 8.2967
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 6.5419
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0063
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 308,
+          "jobs.list.full": 21,
+          "jobs.list.metadata": 61,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 29001,
+          "jobs.watch": 2,
+          "jobs.watch_events": 3310,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 21,
+          "pods.list.metadata": 61,
+          "pods.objects.full": 10000,
+          "pods.objects.metadata": 29001,
+          "pods.watch": 2,
+          "pods.watch_events": 3311,
+          "replicasets.get.metadata": 86,
+          "replicasets.list.metadata": 39,
+          "replicasets.objects.metadata": 19001,
+          "response_bytes": 45064545,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 13.1633,
+        "complete": true,
+        "cpu_seconds": 24.64,
+        "elapsed_seconds": 87.4471,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.9962,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 1041072128,
+        "post_delete_heap_bytes": 32914736,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 9999707976
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "10000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/02-cold-10000-distinct-candidate"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "02-cold-10000-distinct-candidate",
+      "pair": "cold-10000-distinct",
+      "result_sha256": "5302a563c723f22381c9376601a49f7fcf295a39c989ccaaf97b9f6b99aa82bd",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 13.478
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.7479
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.7485
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 8.63
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.6046
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 8.3962
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 8.2142
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 6.5243
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.005
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 300,
+          "jobs.list.full": 21,
+          "jobs.list.metadata": 62,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 29001,
+          "jobs.watch": 2,
+          "jobs.watch_events": 3312,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 21,
+          "pods.list.metadata": 62,
+          "pods.objects.full": 10000,
+          "pods.objects.metadata": 29001,
+          "pods.watch": 2,
+          "pods.watch_events": 3313,
+          "replicasets.get.metadata": 76,
+          "replicasets.list.metadata": 39,
+          "replicasets.objects.metadata": 19001,
+          "response_bytes": 45065439,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 13.478,
+        "complete": true,
+        "cpu_seconds": 25.08,
+        "elapsed_seconds": 87.5629,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.9874,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 1080180736,
+        "post_delete_heap_bytes": 35186888,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 10358936968
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "10000",
+        "--pods",
+        "0",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/03-zero-pod-10000-baseline"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "03-zero-pod-10000-baseline",
+      "pair": "zero-pod-10000",
+      "result_sha256": "e0bf3738d593f383816767285539dd43fd652770a9ea85c43355a511d7867d6c",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 6.6674
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.5376
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.5462
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.1878
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 8.11
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 1.4364
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 6.4339
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0067
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 80,
+          "jobs.list.full": 20,
+          "jobs.list.metadata": 41,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 20000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 10102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 3,
+          "pods.objects.full": 0,
+          "pods.objects.metadata": 0,
+          "pods.watch": 1,
+          "response_bytes": 15699876
+        },
+        "cold_start_seconds": 6.6674,
+        "complete": true,
+        "cpu_seconds": 14.01,
+        "elapsed_seconds": 64.0764,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.8514,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 628015104,
+        "post_delete_heap_bytes": 12989736,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 6112902984
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "10000",
+        "--pods",
+        "0",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--output",
+        "/tmp/controller-leaf-root/03-zero-pod-10000-candidate"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "03-zero-pod-10000-candidate",
+      "pair": "zero-pod-10000",
+      "result_sha256": "d248a00138c9e88295872b2827c03924d9da5830fc6351c4b04583fa5f4e14d7",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 6.7583
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.6173
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.5755
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.1929
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 8.0978
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 1.4243
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 6.4702
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0074
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 80,
+          "jobs.list.full": 20,
+          "jobs.list.metadata": 41,
+          "jobs.objects.full": 10000,
+          "jobs.objects.metadata": 20000,
+          "jobs.watch": 1,
+          "jobs.watch_events": 10102,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 3,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 3,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 3,
+          "pods.objects.full": 0,
+          "pods.objects.metadata": 0,
+          "pods.watch": 1,
+          "response_bytes": 15699876
+        },
+        "cold_start_seconds": 6.7583,
+        "complete": true,
+        "cpu_seconds": 14.75,
+        "elapsed_seconds": 64.2961,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.8833,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 666370048,
+        "post_delete_heap_bytes": 15462328,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 6694341056
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair1-baseline"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair1-baseline",
+      "pair": "small-root-churn-pair1",
+      "result_sha256": "bb44eda710231692a8a001408de70f3d94297c3a44d0892d5aae5c3d74689fd7",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.213
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1625
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1645
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3678
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.1772
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3649
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.3486
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.3429
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3028
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1586
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0067
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 139,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 13,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 13,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 25,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 12000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 38,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32134302,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.213,
+        "complete": true,
+        "cpu_seconds": 58.25,
+        "elapsed_seconds": 367.7829,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": -0.0019700968073862457,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.112,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 147177472,
+        "post_delete_heap_bytes": 6714776,
+        "publication_max_seconds": 0.08584366699506063,
+        "publication_p99_seconds": 0.030910832996596582,
+        "queue_drain_seconds": 0.034166165998612996,
+        "total_allocated_bytes": 9139649568
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair1-candidate"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair1-candidate",
+      "pair": "small-root-churn-pair1",
+      "result_sha256": "a4c562aff9216715d7bebeadb1a7ded4d320ebdcafbd491d68ab303b74f25cd6",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.2146
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1672
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.168
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3588
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.1802
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3686
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.3573
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.327
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3298
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1639
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0064
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 111,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 14,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 14,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 27,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 13000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 7,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32580329,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.2146,
+        "complete": true,
+        "cpu_seconds": 58.73,
+        "elapsed_seconds": 367.8057,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": 0.005758303425904332,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.113,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 148570112,
+        "post_delete_heap_bytes": 6845024,
+        "publication_max_seconds": 0.07246145800309023,
+        "publication_p99_seconds": 0.029418834004900418,
+        "queue_drain_seconds": 0.017848250005044974,
+        "total_allocated_bytes": 8596303808
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair2-candidate"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair2-candidate",
+      "pair": "small-root-churn-pair2",
+      "result_sha256": "94af9c13879c511d915204ef1cd3a9fffdd5bead6741eeffca70b34dab2b7ab7",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.2254
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1699
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1759
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3525
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.179
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3723
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.386
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.3337
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3405
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1657
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0063
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 107,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 14,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 14,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 27,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 13000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 3,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32579149,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.2254,
+        "complete": true,
+        "cpu_seconds": 56.69,
+        "elapsed_seconds": 367.8773,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": 0.001716089110053165,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.1157,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 153665536,
+        "post_delete_heap_bytes": 6868008,
+        "publication_max_seconds": 0.07406500000070082,
+        "publication_p99_seconds": 0.030622165999375284,
+        "queue_drain_seconds": 0.01470770799642196,
+        "total_allocated_bytes": 8426743248
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair2-baseline"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair2-baseline",
+      "pair": "small-root-churn-pair2",
+      "result_sha256": "49c2f5e9eec3ca6742c9b052d4b9848530c75994acc74534016fc49d690606f3",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.1982
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1576
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1573
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3703
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.1814
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3592
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.363
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.3352
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3177
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1634
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0081
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 139,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 13,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 13,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 25,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 12000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 38,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32134302,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.1982,
+        "complete": true,
+        "cpu_seconds": 59.83,
+        "elapsed_seconds": 367.7723,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": -0.009915969304489791,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.1113,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 144146432,
+        "post_delete_heap_bytes": 6729808,
+        "publication_max_seconds": 0.07392754199827323,
+        "publication_p99_seconds": 0.029585584001324605,
+        "queue_drain_seconds": 0.01781874999869615,
+        "total_allocated_bytes": 9135367944
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair3-baseline"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair3-baseline",
+      "pair": "small-root-churn-pair3",
+      "result_sha256": "8c715b5501f6c36a5e52a78f565c1c97927cc10aa3e8ee0371a43a7180dae607",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.2099
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1585
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1593
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3478
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.1678
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3563
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.3867
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.359
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3238
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1616
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0051
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 139,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 13,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 13,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 25,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 12000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 38,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32134302,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.2099,
+        "complete": true,
+        "cpu_seconds": 57.33,
+        "elapsed_seconds": 367.7872,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": -0.0019082546714963566,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.1152,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 152616960,
+        "post_delete_heap_bytes": 6723008,
+        "publication_max_seconds": 0.08178866600064794,
+        "publication_p99_seconds": 0.031671832999563776,
+        "queue_drain_seconds": 0.012673708995862398,
+        "total_allocated_bytes": 9134292296
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "1000",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "100",
+        "--output",
+        "/tmp/controller-leaf-root/04-small-root-churn-pair3-candidate"
+      ],
+      "churn_continuity_checks": 57,
+      "name": "04-small-root-churn-pair3-candidate",
+      "pair": "small-root-churn-pair3",
+      "result_sha256": "653561ad6b108299d9088345632bd629db9a6fff8df56bcfdecd43ea51a25426",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.1998
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1595
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.1593
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 5.3635
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 0.1897
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.3531
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.3644
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 5.3317
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.3242
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.1748
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0074
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 118,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 21,
+          "jobs.objects.full": 1000,
+          "jobs.objects.metadata": 10000,
+          "jobs.watch": 2,
+          "jobs.watch_events": 31804,
+          "namespaces.list.full": 2,
+          "namespaces.list.metadata": 14,
+          "namespaces.objects.full": 2,
+          "namespaces.objects.metadata": 14,
+          "namespaces.watch": 3,
+          "pods.list.full": 4,
+          "pods.list.metadata": 27,
+          "pods.objects.full": 2000,
+          "pods.objects.metadata": 13000,
+          "pods.watch": 3,
+          "pods.watch_events": 1103,
+          "replicasets.get.metadata": 14,
+          "replicasets.list.metadata": 16,
+          "replicasets.objects.metadata": 8000,
+          "response_bytes": 32582394,
+          "watch_expirations": 2
+        },
+        "cold_start_seconds": 5.1998,
+        "complete": true,
+        "cpu_seconds": 58.41,
+        "elapsed_seconds": 367.8053,
+        "events_emitted": 30000,
+        "events_observed": 30000,
+        "failure": null,
+        "heap_growth_fraction": 0.0011760491753116664,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 0.1148,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 152879104,
+        "post_delete_heap_bytes": 6775832,
+        "publication_max_seconds": 0.07047504199726973,
+        "publication_p99_seconds": 0.031111874995986,
+        "queue_drain_seconds": 0.0173538750022999,
+        "total_allocated_bytes": 8461917224
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "1",
+        "--pods",
+        "100000",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "15",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "0.05",
+        "--output",
+        "/tmp/controller-leaf-root/05-giant-root-baseline"
+      ],
+      "churn_continuity_checks": 43,
+      "name": "05-giant-root-baseline",
+      "pair": "giant-root",
+      "result_sha256": "d670de89e7bf73af80867a4fcd73799203f8beb6f88e638bcad4ce7a5edda7e9",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 27.3414
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.9781
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.9135
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 8.9165
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 1.9097
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 8.8673
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.9675
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 6.7431
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 44.0659
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 6.6805
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0077
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 3495,
+          "jobs.get.metadata": 204,
+          "jobs.list.full": 4,
+          "jobs.list.metadata": 19,
+          "jobs.objects.full": 2,
+          "jobs.objects.metadata": 15,
+          "jobs.watch": 5,
+          "jobs.watch_events": 17,
+          "namespaces.list.full": 4,
+          "namespaces.list.metadata": 18,
+          "namespaces.objects.full": 4,
+          "namespaces.objects.metadata": 18,
+          "namespaces.watch": 5,
+          "pods.list.full": 402,
+          "pods.list.metadata": 2801,
+          "pods.objects.full": 200000,
+          "pods.objects.metadata": 1400000,
+          "pods.watch": 5,
+          "pods.watch_events": 2,
+          "replicasets.get.metadata": 2,
+          "replicasets.list.metadata": 9,
+          "replicasets.objects.metadata": 9,
+          "response_bytes": 811408382,
+          "watch_expirations": 9
+        },
+        "cold_start_seconds": 27.3414,
+        "complete": true,
+        "cpu_seconds": 183.56,
+        "elapsed_seconds": 448.8655,
+        "events_emitted": 15,
+        "events_observed": 15,
+        "failure": null,
+        "heap_growth_fraction": 2.7270205761986688e-05,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 1.1179,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 3084894208,
+        "post_delete_heap_bytes": 71604632,
+        "publication_max_seconds": 2.503948916004447,
+        "publication_p99_seconds": 2.503948916004447,
+        "queue_drain_seconds": 0.2780790840042755,
+        "total_allocated_bytes": 81107563984
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "1",
+        "--pods",
+        "100000",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "15",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.25",
+        "--diagnostics",
+        "--churn-seconds",
+        "300",
+        "--churn-rate",
+        "0.05",
+        "--output",
+        "/tmp/controller-leaf-root/05-giant-root-candidate"
+      ],
+      "churn_continuity_checks": 43,
+      "name": "05-giant-root-candidate",
+      "pair": "giant-root",
+      "result_sha256": "6fd0b2c7e74139d86a60680ea748defd489965bf30d28413d1acdb713d85b469",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 27.6765
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 1.9558
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 2.0065
+        },
+        {
+          "name": "churn_baseline",
+          "seconds": 8.9231
+        },
+        {
+          "name": "after_sustained_churn",
+          "seconds": 1.9137
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 8.8438
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 8.9657
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 6.6652
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 33.1299
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 51.8762
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.012
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 3299,
+          "jobs.list.full": 4,
+          "jobs.list.metadata": 22,
+          "jobs.objects.full": 2,
+          "jobs.objects.metadata": 14,
+          "jobs.watch": 5,
+          "jobs.watch_events": 17,
+          "namespaces.list.full": 4,
+          "namespaces.list.metadata": 22,
+          "namespaces.objects.full": 4,
+          "namespaces.objects.metadata": 22,
+          "namespaces.watch": 5,
+          "pods.list.full": 402,
+          "pods.list.metadata": 2802,
+          "pods.objects.full": 200000,
+          "pods.objects.metadata": 1400000,
+          "pods.watch": 5,
+          "pods.watch_events": 2,
+          "replicasets.get.metadata": 2,
+          "replicasets.list.metadata": 9,
+          "replicasets.objects.metadata": 8,
+          "response_bytes": 811359311,
+          "watch_expirations": 9
+        },
+        "cold_start_seconds": 27.6765,
+        "complete": true,
+        "cpu_seconds": 182.79,
+        "elapsed_seconds": 484.2909,
+        "events_emitted": 15,
+        "events_observed": 15,
+        "failure": null,
+        "heap_growth_fraction": -0.036614897537949775,
+        "heap_sampling_full_window": true,
+        "limit_triggered": [],
+        "max_http_seconds": 1.2808,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "heap_sampling_full_window": true,
+          "http_scrapes_under_25s": true,
+          "live_heap_growth": true,
+          "oracle_under_deadline": true,
+          "publication_p99_upper_bound": true,
+          "queue_drain": true,
+          "scheduler_lateness": true,
+          "sustained_churn_event_count": true,
+          "sustained_churn_full_duration": true
+        },
+        "peak_rss_bytes": 3233906688,
+        "post_delete_heap_bytes": 86041024,
+        "publication_max_seconds": 2.503120959001535,
+        "publication_p99_seconds": 2.503120959001535,
+        "queue_drain_seconds": 0.2813285000011092,
+        "total_allocated_bytes": 79754510384
+      },
+      "variant": "candidate"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-before",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910",
+        "--roots",
+        "100",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--watch-faults",
+        "--refresh-seconds",
+        "5",
+        "--output",
+        "/tmp/controller-leaf-root/06-source-faults-baseline"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "06-source-faults-baseline",
+      "pair": "source-faults",
+      "result_sha256": "26eecbaadaf396bda1caaa75b81775d7ed1de9c864f7bf61194066c6361f7e21",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.0589
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.0234
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.0221
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.0526
+        },
+        {
+          "name": "watch_eof_and_410_recovery",
+          "seconds": 5.0652
+        },
+        {
+          "name": "watch_update_during_metadata_list",
+          "seconds": 0.0364
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.0616
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 0.0213
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.0649
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.0301
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.0042
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 111,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 17,
+          "jobs.objects.full": 200,
+          "jobs.objects.metadata": 991,
+          "jobs.watch": 2,
+          "jobs.watch_events": 202,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 15,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 15,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 16,
+          "pods.objects.full": 100,
+          "pods.objects.metadata": 891,
+          "pods.watch": 2,
+          "pods.watch_events": 205,
+          "replicasets.get.metadata": 38,
+          "replicasets.list.metadata": 7,
+          "replicasets.objects.metadata": 691,
+          "response_bytes": 1357568,
+          "watch_expirations": 1
+        },
+        "cold_start_seconds": 5.0589,
+        "complete": true,
+        "cpu_seconds": 0.97,
+        "elapsed_seconds": 65.4079,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.02,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 51085312,
+        "post_delete_heap_bytes": 3310040,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 165026600
+      },
+      "variant": "baseline"
+    },
+    {
+      "argv": [
+        "python3",
+        "karta-metrics-exporter/test/scale/runtime_scale.py",
+        "--binary",
+        "/tmp/controller-simple-after",
+        "--source-revision",
+        "cdcc8779dacf688463915500031690d09fef8910+working-tree",
+        "--roots",
+        "100",
+        "--pods",
+        "1",
+        "--gomaxprocs",
+        "4",
+        "--api-qps",
+        "20",
+        "--api-burst",
+        "40",
+        "--workers",
+        "2",
+        "--max-rss-mib",
+        "8192",
+        "--max-seconds",
+        "1800",
+        "--stage-seconds",
+        "180",
+        "--oracle-seconds",
+        "60",
+        "--scrape-seconds",
+        "60",
+        "--poll-seconds",
+        "5",
+        "--settle-seconds",
+        "30",
+        "--max-scheduling-lateness-seconds",
+        "1",
+        "--gc-sample-seconds",
+        "30",
+        "--publication-latency-seconds",
+        "5",
+        "--queue-drain-seconds",
+        "30",
+        "--diagnostic-poll-seconds",
+        "0.01",
+        "--diagnostics",
+        "--watch-faults",
+        "--refresh-seconds",
+        "5",
+        "--output",
+        "/tmp/controller-leaf-root/06-source-faults-candidate"
+      ],
+      "churn_continuity_checks": 0,
+      "name": "06-source-faults-candidate",
+      "pair": "source-faults",
+      "result_sha256": "20a617c606a4adfbc02a1595601072192860894429dc1f7ef50f5a5688bcc24d",
+      "stages": [
+        {
+          "name": "cold_start",
+          "seconds": 5.0637
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.0232
+        },
+        {
+          "name": "steady_scrape",
+          "seconds": 0.0211
+        },
+        {
+          "name": "single_pod_label_update",
+          "seconds": 5.0703
+        },
+        {
+          "name": "watch_eof_and_410_recovery",
+          "seconds": 5.0711
+        },
+        {
+          "name": "watch_update_during_metadata_list",
+          "seconds": 0.0199
+        },
+        {
+          "name": "status_and_pod_churn",
+          "seconds": 5.0568
+        },
+        {
+          "name": "deletion_cleanup",
+          "seconds": 0.0188
+        },
+        {
+          "name": "same_name_recreation",
+          "seconds": 5.0634
+        },
+        {
+          "name": "delete_all_cleanup",
+          "seconds": 5.0327
+        },
+        {
+          "name": "settled_after_cleanup",
+          "seconds": 0.006
+        }
+      ],
+      "summary": {
+        "api_requests": {
+          "all_requests": 77,
+          "jobs.list.full": 2,
+          "jobs.list.metadata": 18,
+          "jobs.objects.full": 200,
+          "jobs.objects.metadata": 1091,
+          "jobs.watch": 2,
+          "jobs.watch_events": 202,
+          "namespaces.list.full": 1,
+          "namespaces.list.metadata": 15,
+          "namespaces.objects.full": 1,
+          "namespaces.objects.metadata": 15,
+          "namespaces.watch": 1,
+          "pods.list.full": 1,
+          "pods.list.metadata": 16,
+          "pods.objects.full": 100,
+          "pods.objects.metadata": 891,
+          "pods.watch": 2,
+          "pods.watch_events": 205,
+          "replicasets.get.metadata": 3,
+          "replicasets.list.metadata": 7,
+          "replicasets.objects.metadata": 691,
+          "response_bytes": 1371628,
+          "watch_expirations": 1
+        },
+        "cold_start_seconds": 5.0637,
+        "complete": true,
+        "cpu_seconds": 0.79,
+        "elapsed_seconds": 65.3233,
+        "events_emitted": null,
+        "events_observed": null,
+        "failure": null,
+        "heap_growth_fraction": null,
+        "heap_sampling_full_window": null,
+        "limit_triggered": [],
+        "max_http_seconds": 0.023,
+        "measured_gates": {
+          "delete_all_heap": true,
+          "http_scrapes_under_25s": true,
+          "oracle_under_deadline": true
+        },
+        "peak_rss_bytes": 51560448,
+        "post_delete_heap_bytes": 3255584,
+        "publication_max_seconds": null,
+        "publication_p99_seconds": null,
+        "queue_drain_seconds": null,
+        "total_allocated_bytes": 156915240
+      },
+      "variant": "candidate"
+    }
+  ],
+  "source_manifests": {
+    "baseline": {
+      "files": {
+        "karta-metrics-exporter/cmd/main.go": "81fa33922b3a231e24858f1557f6c05414adc201453fffaaced03c7a7aa42ea6",
+        "karta-metrics-exporter/go.mod": "53601a359343a7c884b0920f79950e538f17303b0806c55d36483bf82fec5ebf",
+        "karta-metrics-exporter/go.sum": "0db2be76e4c3b9cc68aea3034db19a1f6fce45445b2785e29ebd94841a8d0756",
+        "karta-metrics-exporter/internal/app/application.go": "02aec32cfdfd792b4ce138fa799f047fb3b3540f598067af45bb5688f432cd7a",
+        "karta-metrics-exporter/internal/config/config.go": "7f0124aa48df139b05be50a1af591aeef8bf3e42e3162c84bf3e83d79d633f89",
+        "karta-metrics-exporter/internal/config/kinds.go": "7f99b6ee7b5422f4b7ede8ceaa2ebb037896ddda517b0a6b4336cb9c45041356",
+        "karta-metrics-exporter/pkg/adapters/otel/collector.go": "76c4e2775fa4aba4375782863da315c1f8817de2eab12ab851cd7102cd9f5113",
+        "karta-metrics-exporter/pkg/adapters/otel/names.go": "c30aa766fe9d5d160124fa558001a10666d65c092d3451de4740838b3e84f475",
+        "karta-metrics-exporter/pkg/controller/metadata_owners.go": "6961f8f23dc7bbe6f07e9bfea1b9a7253a293e93fd8cc3611e8cd64f614730a1",
+        "karta-metrics-exporter/pkg/controller/metadata_refresh.go": "749fb7b753b383a6c1aad62a11614d10437a0495c0da1dc355154f3faf5117b5",
+        "karta-metrics-exporter/pkg/controller/reader.go": "fd1125576fac70a82d24eecd3767300338f43c5154627833107cc2bdef5de12a",
+        "karta-metrics-exporter/pkg/controller/reconcile.go": "84205b082f6b6111ac828dbccfa013c24ab23f6f6257c131a4eb4ed18b9dbb23",
+        "karta-metrics-exporter/pkg/controller/renewal.go": "b16ffa92a3512e5ca96f42037303d0c2c9211d603a62665ff1e90c086da6ddbe",
+        "karta-metrics-exporter/pkg/controller/root_boundary.go": "9efe9d775ffe9a8ca61ab717bd62edee05092d90b46dc8c8df4a51601decd4a2",
+        "karta-metrics-exporter/pkg/controller/runtime.go": "330df4229fc57fd90da88b8f2758ef565cd815aca2921d78c88e6c9c746e4a6e",
+        "karta-metrics-exporter/pkg/controller/selection.go": "8b864bab9d6ffae0480cc20e1d8877462c7d1e8750a2b1f27c4c36a320c10507",
+        "karta-metrics-exporter/pkg/controller/watches.go": "b56ad4dda503cdefcf6e765cf75d833121b7f2796ccf19dc37b9ba4fc44a0bdd",
+        "karta-metrics-exporter/pkg/discovery/resolve.go": "e8b416f4d4edcfe966dc8a837917f8d231f9d016d79ea2bf7efa499f32daae1f",
+        "karta-metrics-exporter/pkg/kartadefinitioninventory/inventory.go": "73343d9ee3998b52661ffe56fdc005726a5fcc2f1609add0043a5405b6f980fc",
+        "karta-metrics-exporter/pkg/labelevaluator/cel.go": "905943d0d7ca4a5d23348c0b63aab3309b57553b3c6319d90e1085fc279429ea",
+        "karta-metrics-exporter/pkg/labelresolver/resolve.go": "1d9cb0f598582bebe67c7453d691a22474d62e13f11cb97d350e2683cea11023",
+        "karta-metrics-exporter/pkg/labelresolver/validate.go": "163f09bb72eea48a6607fbf1f848130f98637472b566e049cd29c0d36bb39832",
+        "karta-metrics-exporter/pkg/store/publication.go": "398b459a15c972b16a483949566f4ad9fdca9337b70ab42fba3bc50bee01e617",
+        "karta-metrics-exporter/pkg/store/store.go": "42a5586340abe2c2cc5a284336da0a3d144e53d16fc08f8145f9e6e054fe9183",
+        "karta-metrics-exporter/test/scale/cmd/main.go": "a92fd025ec991b095850a3aaedecf6b2b964c045cdf418f40dfece3d53f6d83c",
+        "karta-metrics-exporter/test/scale/runtime-scale.md": "6a69d06125212dcbe823a1598dbbe2cda1d1da9017dc5695dca22020833ef67d",
+        "karta-metrics-exporter/test/scale/runtime_scale.py": "e68b29b52cf634ddde27d51f1568338f781a476e641152c682b201fc595edd35",
+        "karta/sdk/go.mod": "91ab332161f0ae3b3756a7a2e90ca67966430d7a69eab80eeb09340e54f5c722",
+        "karta/sdk/go.sum": "74a8b57c280bab2ead6eee0ecd0f3b1e47507ee5d3aac28dba73e247473e6764",
+        "karta/sdk/pkg/api/runai/v1alpha1/conditions.go": "b40914a60d378a0b57c10e5690926d462026c260d989cd6fcd25665257232322",
+        "karta/sdk/pkg/api/runai/v1alpha1/doc.go": "7f681c7d54a24297022715074888fe4e675bac34053d7e0fb3bba94bc1d09367",
+        "karta/sdk/pkg/api/runai/v1alpha1/groupversion_info.go": "0e83a6f78a0e4abe2f3aa46094a4c59967e665f55363a573981a7a6f2f897a82",
+        "karta/sdk/pkg/api/runai/v1alpha1/instructions.go": "c485bef0526ce77c34e41d0210c63f307bd9ddbc5238e806caf8c805b48fd49d",
+        "karta/sdk/pkg/api/runai/v1alpha1/labels.go": "7f8f40c7044c1bbbc0de221bd5ff5d99ecd19690b866e618455e5bd7a4973f9b",
+        "karta/sdk/pkg/api/runai/v1alpha1/structure.go": "85db7b3ec2d942214e3f057002108f80155eda3e03f7bfb32db174b469e7ffc8",
+        "karta/sdk/pkg/api/runai/v1alpha1/types.go": "de0ff58089e6b9b7361d8f9766c03420a0e471d8dabea47b48f5631431ae9864",
+        "karta/sdk/pkg/api/runai/v1alpha1/validation.go": "e559840dc3e7a91cf90c1899084629b42ad10246137b93088187684c2077740e",
+        "karta/sdk/pkg/api/runai/v1alpha1/zz_generated.deepcopy.go": "8245aade046eafcdd994269d6465b9cac6082831a0a511d903d7400df0d3b8d6",
+        "karta/sdk/pkg/catalog/catalog.go": "564983b8beb53f8f0b65968a4aa056200b38f43aaca86809dbe7473b70e8551f",
+        "karta/sdk/pkg/catalog/kartas/batch_job.go": "512620063cf54fa977a5c5bb3eecf6776dc786b34870cc13cc5420f5cc06b024",
+        "karta/sdk/pkg/catalog/kartas/cronjob.go": "d8767de4915e8758fcd2313af80f9cc224220b0668608d376b783da9e670fde4",
+        "karta/sdk/pkg/catalog/kartas/deployment.go": "104e4302111d84df79655dbd46753f43265f0a672d8c2f46b54bc51b3e71a059",
+        "karta/sdk/pkg/catalog/kartas/dynamo.go": "ed826f64589d00681439ae82b3a49208a8f23f110a0bd45c8fe37c4860b2b7a1",
+        "karta/sdk/pkg/catalog/kartas/dynamo_v1beta1.go": "4e1f4eb45b80309f39639146831b096b6818358de2e4d8fb0943daf8936e82f7",
+        "karta/sdk/pkg/catalog/kartas/grove_podcliqueset.go": "f2c4aad323246d8629f73921830fa46d42bc83332b139f0392f9aec040f6b017",
+        "karta/sdk/pkg/catalog/kartas/jobset.go": "b7ef2dc2c8c3a12e90d07c38b7da7ebccdbf741e3d500c88fa453f8eab663e93",
+        "karta/sdk/pkg/catalog/kartas/knative_serving.go": "17c5c8be6efa9d9b3708f70bc23c66c074048ee5372c0fb5f5499e15b3419719",
+        "karta/sdk/pkg/catalog/kartas/kserve.go": "a40733b09de56cfab6bdd852500be03e7462c53c1c3c0371008561cbbd877c5e",
+        "karta/sdk/pkg/catalog/kartas/llminferenceservice.go": "43cdd61b590e8a369d698ea75a17959edd094ad62c480902ac839f335adfdb75",
+        "karta/sdk/pkg/catalog/kartas/lws.go": "6023b9f26f5a160fa414bdb11effab8c57d76e6364a03e35be9c7e59fb9bf877",
+        "karta/sdk/pkg/catalog/kartas/milvus.go": "ffc8db4c30a0c38bf03537fdba4405566df90b343fa808d370f33c73b8ac37e3",
+        "karta/sdk/pkg/catalog/kartas/mpijob.go": "b993d979ed1b0536a8b204b6855deaa34166745f945eefc0ea81de223f7a1134",
+        "karta/sdk/pkg/catalog/kartas/nimcache.go": "6ec627395f46a400d8df3b03d046cb37cb604c6a091cb65dce0de5b66d509895",
+        "karta/sdk/pkg/catalog/kartas/nimservice.go": "615378971b253ff6a0bd7ad18dfd78b2fe8e1bcebac522d0e44d56b7008c72e5",
+        "karta/sdk/pkg/catalog/kartas/pod.go": "349f320d071c699f0ed27eb86fba7774aac8df02aa61bb8c9f4fc039d8eac0af",
+        "karta/sdk/pkg/catalog/kartas/pytorch.go": "7c7ff9e307a40e017e678d9e1747195d556b8eeecbfa644b73c06bd1f2cc2a8f",
+        "karta/sdk/pkg/catalog/kartas/raycluster.go": "5612534fa8f5cc7d091242e120c8de09b5cf3daf624b59fe9fbf8de4d9a03a21",
+        "karta/sdk/pkg/catalog/kartas/rayjob.go": "4106fe8b19896c97e7347831b8e0ca4ab43103a0ebcf5d3b94d206a7e99cda40",
+        "karta/sdk/pkg/catalog/kartas/rayservice.go": "8d1a44725e650ac10fde714d8d90a688c6b532e77e2c8ac8f02c70411669444d",
+        "karta/sdk/pkg/catalog/kartas/sandbox.go": "44afdc88790d34cfe607ddc1f78e65eebb19ea6ce8def7ea434927520082188a",
+        "karta/sdk/pkg/catalog/kartas/statefulset.go": "12324b34e6a105abb3716f8553e9826b9beb0fee3fbba13531a966c0fdb34e72",
+        "karta/sdk/pkg/instructions/gang_scheduling.go": "c4a14c5de1cd4c9dc88cb3c4ab98dd3b14d5efc3528ef68a8e54f6e068a9fbfd",
+        "karta/sdk/pkg/instructions/pod.go": "c62d572d68b0d2fca24dd699c1a11d706888e511b73aa4bf2c217986ebaf3d3c",
+        "karta/sdk/pkg/instructions/summary.go": "27c73f981bfd3162287a3eb3e6c272cff0d0ed7fee36eb0caa92f42c7f95ec25",
+        "karta/sdk/pkg/jq/execution/errors.go": "498c5fcbcc46584388e826bf00ef5bd8c6bbb54271ef41f073e56e80d7cf762a",
+        "karta/sdk/pkg/jq/execution/interface.go": "e043952784525b19b038f053168c8a2883294d0ab3f052134e0949c7efe62dc5",
+        "karta/sdk/pkg/jq/execution/program_cache.go": "4ff736953b333f82f96cce751573dea519bbef8ebc4a3bfe32deec50531b2cc3",
+        "karta/sdk/pkg/jq/execution/runner.go": "8c793b4bdc732e4071757395265ce2e13ea6792066c1a06abda369c7ab146b32",
+        "karta/sdk/pkg/jq/execution/runner_mock.go": "190da741851542dd9ad4c6e700019903b16e9dd81b48774e3b66a3aa0c246cce",
+        "karta/sdk/pkg/jq/validation.go": "3d5ea54c43859b6aaee82a52902e8df5cb611d86ea9144f168245096a307b6d8",
+        "karta/sdk/pkg/resource/accessor.go": "95c78de880c74cba2eb3be4ce49e0092f8daab1f717e823033db466c08bfd6e5",
+        "karta/sdk/pkg/resource/accessor_mock.go": "d060694741e754c9712c9bba73791959ae65236a5fb182b5f6ced62b1a078de1",
+        "karta/sdk/pkg/resource/component.go": "45c4ed90fd686bd24f1cd79110842340da0c33b37e09d6551af95f282361d39f",
+        "karta/sdk/pkg/resource/component_factory.go": "d3042e7f278ce5c6af5f75eb641305b20e817116b58a2ed98f1976c91b251bcb",
+        "karta/sdk/pkg/resource/object.go": "0b69ea60144fc3ed6498b18fd7838348a08a5d9a77f9d6bf16f9554907f51831",
+        "karta/sdk/pkg/resource/pod_querier.go": "5d21df7bd8456525703cf7ecfa18024411bf4251d996757538305dd1060fcc5a",
+        "karta/sdk/pkg/version/version.go": "8564fdb1073f43b11cf5c70e4ad35d35c92d50f58bdff4acacf7ba5bbadc6bef"
+      },
+      "sha256": "24197886f52089b4da440459c932f881dd623573fb6bc7f44772aaa4c4fd34af"
+    },
+    "candidate": {
+      "files": {
+        "karta-metrics-exporter/cmd/main.go": "81fa33922b3a231e24858f1557f6c05414adc201453fffaaced03c7a7aa42ea6",
+        "karta-metrics-exporter/go.mod": "53601a359343a7c884b0920f79950e538f17303b0806c55d36483bf82fec5ebf",
+        "karta-metrics-exporter/go.sum": "0db2be76e4c3b9cc68aea3034db19a1f6fce45445b2785e29ebd94841a8d0756",
+        "karta-metrics-exporter/internal/app/application.go": "d3423298165f0141bd027d13a8f6ed1d7abedec9d4b6fbdb771d4a2980e71330",
+        "karta-metrics-exporter/internal/config/config.go": "907c61a9f2e302a3920313439592f8fb11316a8fb154d0c6e135005232f4ce7e",
+        "karta-metrics-exporter/internal/config/kinds.go": "7f99b6ee7b5422f4b7ede8ceaa2ebb037896ddda517b0a6b4336cb9c45041356",
+        "karta-metrics-exporter/pkg/adapters/otel/collector.go": "76c4e2775fa4aba4375782863da315c1f8817de2eab12ab851cd7102cd9f5113",
+        "karta-metrics-exporter/pkg/adapters/otel/names.go": "c30aa766fe9d5d160124fa558001a10666d65c092d3451de4740838b3e84f475",
+        "karta-metrics-exporter/pkg/controller/leaf.go": "8698eecfda9c12c1b25ceb69d6c6b6a5e41d64f0f57a6b2a89bf17cf04e47910",
+        "karta-metrics-exporter/pkg/controller/owners.go": "97d2c4df8a9087e7bd03baea9bea508caaba80ea58aee02675a0e9255061a250",
+        "karta-metrics-exporter/pkg/controller/reader.go": "b79c8cdb18fd948e769ee06d3cce7f07b2999f8d995bda1653e7bd2322d62430",
+        "karta-metrics-exporter/pkg/controller/root.go": "6081436083a2fae4cbae51df24ed4176e3b74b0fa27072a0f1b6d3aefbcaed4c",
+        "karta-metrics-exporter/pkg/controller/runtime.go": "055b31e3c9ebe2c3e6afc14efd78226b4b493c58cff9a55de6d368455712c489",
+        "karta-metrics-exporter/pkg/controller/sources.go": "2f3ebfcf5161e5486cbd34ba5f46b4d2ebd82884572e0590cd880f67cbab0aed",
+        "karta-metrics-exporter/pkg/discovery/resolve.go": "e8b416f4d4edcfe966dc8a837917f8d231f9d016d79ea2bf7efa499f32daae1f",
+        "karta-metrics-exporter/pkg/kartadefinitioninventory/inventory.go": "73343d9ee3998b52661ffe56fdc005726a5fcc2f1609add0043a5405b6f980fc",
+        "karta-metrics-exporter/pkg/labelevaluator/cel.go": "905943d0d7ca4a5d23348c0b63aab3309b57553b3c6319d90e1085fc279429ea",
+        "karta-metrics-exporter/pkg/labelresolver/resolve.go": "1d9cb0f598582bebe67c7453d691a22474d62e13f11cb97d350e2683cea11023",
+        "karta-metrics-exporter/pkg/labelresolver/validate.go": "163f09bb72eea48a6607fbf1f848130f98637472b566e049cd29c0d36bb39832",
+        "karta-metrics-exporter/pkg/store/publication.go": "398b459a15c972b16a483949566f4ad9fdca9337b70ab42fba3bc50bee01e617",
+        "karta-metrics-exporter/pkg/store/store.go": "42a5586340abe2c2cc5a284336da0a3d144e53d16fc08f8145f9e6e054fe9183",
+        "karta-metrics-exporter/test/scale/cmd/main.go": "a92fd025ec991b095850a3aaedecf6b2b964c045cdf418f40dfece3d53f6d83c",
+        "karta-metrics-exporter/test/scale/runtime-scale.md": "6a69d06125212dcbe823a1598dbbe2cda1d1da9017dc5695dca22020833ef67d",
+        "karta-metrics-exporter/test/scale/runtime_scale.py": "e68b29b52cf634ddde27d51f1568338f781a476e641152c682b201fc595edd35",
+        "karta/sdk/go.mod": "91ab332161f0ae3b3756a7a2e90ca67966430d7a69eab80eeb09340e54f5c722",
+        "karta/sdk/go.sum": "74a8b57c280bab2ead6eee0ecd0f3b1e47507ee5d3aac28dba73e247473e6764",
+        "karta/sdk/pkg/api/runai/v1alpha1/conditions.go": "b40914a60d378a0b57c10e5690926d462026c260d989cd6fcd25665257232322",
+        "karta/sdk/pkg/api/runai/v1alpha1/doc.go": "7f681c7d54a24297022715074888fe4e675bac34053d7e0fb3bba94bc1d09367",
+        "karta/sdk/pkg/api/runai/v1alpha1/groupversion_info.go": "0e83a6f78a0e4abe2f3aa46094a4c59967e665f55363a573981a7a6f2f897a82",
+        "karta/sdk/pkg/api/runai/v1alpha1/instructions.go": "c485bef0526ce77c34e41d0210c63f307bd9ddbc5238e806caf8c805b48fd49d",
+        "karta/sdk/pkg/api/runai/v1alpha1/labels.go": "7f8f40c7044c1bbbc0de221bd5ff5d99ecd19690b866e618455e5bd7a4973f9b",
+        "karta/sdk/pkg/api/runai/v1alpha1/structure.go": "85db7b3ec2d942214e3f057002108f80155eda3e03f7bfb32db174b469e7ffc8",
+        "karta/sdk/pkg/api/runai/v1alpha1/types.go": "de0ff58089e6b9b7361d8f9766c03420a0e471d8dabea47b48f5631431ae9864",
+        "karta/sdk/pkg/api/runai/v1alpha1/validation.go": "e559840dc3e7a91cf90c1899084629b42ad10246137b93088187684c2077740e",
+        "karta/sdk/pkg/api/runai/v1alpha1/zz_generated.deepcopy.go": "8245aade046eafcdd994269d6465b9cac6082831a0a511d903d7400df0d3b8d6",
+        "karta/sdk/pkg/catalog/catalog.go": "564983b8beb53f8f0b65968a4aa056200b38f43aaca86809dbe7473b70e8551f",
+        "karta/sdk/pkg/catalog/kartas/batch_job.go": "512620063cf54fa977a5c5bb3eecf6776dc786b34870cc13cc5420f5cc06b024",
+        "karta/sdk/pkg/catalog/kartas/cronjob.go": "d8767de4915e8758fcd2313af80f9cc224220b0668608d376b783da9e670fde4",
+        "karta/sdk/pkg/catalog/kartas/deployment.go": "104e4302111d84df79655dbd46753f43265f0a672d8c2f46b54bc51b3e71a059",
+        "karta/sdk/pkg/catalog/kartas/dynamo.go": "ed826f64589d00681439ae82b3a49208a8f23f110a0bd45c8fe37c4860b2b7a1",
+        "karta/sdk/pkg/catalog/kartas/dynamo_v1beta1.go": "4e1f4eb45b80309f39639146831b096b6818358de2e4d8fb0943daf8936e82f7",
+        "karta/sdk/pkg/catalog/kartas/grove_podcliqueset.go": "f2c4aad323246d8629f73921830fa46d42bc83332b139f0392f9aec040f6b017",
+        "karta/sdk/pkg/catalog/kartas/jobset.go": "b7ef2dc2c8c3a12e90d07c38b7da7ebccdbf741e3d500c88fa453f8eab663e93",
+        "karta/sdk/pkg/catalog/kartas/knative_serving.go": "17c5c8be6efa9d9b3708f70bc23c66c074048ee5372c0fb5f5499e15b3419719",
+        "karta/sdk/pkg/catalog/kartas/kserve.go": "a40733b09de56cfab6bdd852500be03e7462c53c1c3c0371008561cbbd877c5e",
+        "karta/sdk/pkg/catalog/kartas/llminferenceservice.go": "43cdd61b590e8a369d698ea75a17959edd094ad62c480902ac839f335adfdb75",
+        "karta/sdk/pkg/catalog/kartas/lws.go": "6023b9f26f5a160fa414bdb11effab8c57d76e6364a03e35be9c7e59fb9bf877",
+        "karta/sdk/pkg/catalog/kartas/milvus.go": "ffc8db4c30a0c38bf03537fdba4405566df90b343fa808d370f33c73b8ac37e3",
+        "karta/sdk/pkg/catalog/kartas/mpijob.go": "b993d979ed1b0536a8b204b6855deaa34166745f945eefc0ea81de223f7a1134",
+        "karta/sdk/pkg/catalog/kartas/nimcache.go": "6ec627395f46a400d8df3b03d046cb37cb604c6a091cb65dce0de5b66d509895",
+        "karta/sdk/pkg/catalog/kartas/nimservice.go": "615378971b253ff6a0bd7ad18dfd78b2fe8e1bcebac522d0e44d56b7008c72e5",
+        "karta/sdk/pkg/catalog/kartas/pod.go": "349f320d071c699f0ed27eb86fba7774aac8df02aa61bb8c9f4fc039d8eac0af",
+        "karta/sdk/pkg/catalog/kartas/pytorch.go": "7c7ff9e307a40e017e678d9e1747195d556b8eeecbfa644b73c06bd1f2cc2a8f",
+        "karta/sdk/pkg/catalog/kartas/raycluster.go": "5612534fa8f5cc7d091242e120c8de09b5cf3daf624b59fe9fbf8de4d9a03a21",
+        "karta/sdk/pkg/catalog/kartas/rayjob.go": "4106fe8b19896c97e7347831b8e0ca4ab43103a0ebcf5d3b94d206a7e99cda40",
+        "karta/sdk/pkg/catalog/kartas/rayservice.go": "8d1a44725e650ac10fde714d8d90a688c6b532e77e2c8ac8f02c70411669444d",
+        "karta/sdk/pkg/catalog/kartas/sandbox.go": "44afdc88790d34cfe607ddc1f78e65eebb19ea6ce8def7ea434927520082188a",
+        "karta/sdk/pkg/catalog/kartas/statefulset.go": "12324b34e6a105abb3716f8553e9826b9beb0fee3fbba13531a966c0fdb34e72",
+        "karta/sdk/pkg/instructions/gang_scheduling.go": "c4a14c5de1cd4c9dc88cb3c4ab98dd3b14d5efc3528ef68a8e54f6e068a9fbfd",
+        "karta/sdk/pkg/instructions/pod.go": "c62d572d68b0d2fca24dd699c1a11d706888e511b73aa4bf2c217986ebaf3d3c",
+        "karta/sdk/pkg/instructions/summary.go": "27c73f981bfd3162287a3eb3e6c272cff0d0ed7fee36eb0caa92f42c7f95ec25",
+        "karta/sdk/pkg/jq/execution/errors.go": "498c5fcbcc46584388e826bf00ef5bd8c6bbb54271ef41f073e56e80d7cf762a",
+        "karta/sdk/pkg/jq/execution/interface.go": "e043952784525b19b038f053168c8a2883294d0ab3f052134e0949c7efe62dc5",
+        "karta/sdk/pkg/jq/execution/program_cache.go": "4ff736953b333f82f96cce751573dea519bbef8ebc4a3bfe32deec50531b2cc3",
+        "karta/sdk/pkg/jq/execution/runner.go": "8c793b4bdc732e4071757395265ce2e13ea6792066c1a06abda369c7ab146b32",
+        "karta/sdk/pkg/jq/execution/runner_mock.go": "190da741851542dd9ad4c6e700019903b16e9dd81b48774e3b66a3aa0c246cce",
+        "karta/sdk/pkg/jq/validation.go": "3d5ea54c43859b6aaee82a52902e8df5cb611d86ea9144f168245096a307b6d8",
+        "karta/sdk/pkg/resource/accessor.go": "95c78de880c74cba2eb3be4ce49e0092f8daab1f717e823033db466c08bfd6e5",
+        "karta/sdk/pkg/resource/accessor_mock.go": "d060694741e754c9712c9bba73791959ae65236a5fb182b5f6ced62b1a078de1",
+        "karta/sdk/pkg/resource/component.go": "45c4ed90fd686bd24f1cd79110842340da0c33b37e09d6551af95f282361d39f",
+        "karta/sdk/pkg/resource/component_factory.go": "d3042e7f278ce5c6af5f75eb641305b20e817116b58a2ed98f1976c91b251bcb",
+        "karta/sdk/pkg/resource/object.go": "0b69ea60144fc3ed6498b18fd7838348a08a5d9a77f9d6bf16f9554907f51831",
+        "karta/sdk/pkg/resource/pod_querier.go": "5d21df7bd8456525703cf7ecfa18024411bf4251d996757538305dd1060fcc5a",
+        "karta/sdk/pkg/version/version.go": "8564fdb1073f43b11cf5c70e4ad35d35c92d50f58bdff4acacf7ba5bbadc6bef"
+      },
+      "sha256": "7d4d1373b25b1d9d3328769294f10d29007c013369dd3aa34db58062336ebe0e"
+    }
+  },
+  "toolchain": "go version go1.27.3 darwin/arm64"
+}

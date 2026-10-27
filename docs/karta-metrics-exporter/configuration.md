@@ -191,8 +191,8 @@ YAML documents are rejected. For each setting, an explicit flag wins over its en
 wins over the file value, which wins over the default. Rules and selectors stay in YAML.
 
 These runtime settings are available in the standalone file and command. Helm
-uses their defaults. The chart renders label rules and limits, definition sources,
-selectors, resource rules, ignored owners and required kinds into the config file:
+also accepts `exporter.workers`, `exporter.leafWorkers` and `exporter.rootWorkers`.
+The chart uses the defaults for the other runtime settings:
 
 | YAML key | Flag | Environment variable | Default |
 | --- | --- | --- | --- |
@@ -201,13 +201,22 @@ selectors, resource rules, ignored owners and required kinds into the config fil
 | `maxAge` | `--max-age` | `KARTA_EXPORTER_MAX_AGE` | `2m` |
 | `requestTimeout` | `--request-timeout` | `KARTA_EXPORTER_REQUEST_TIMEOUT` | `30s` |
 | `workers` | `--workers` | `KARTA_EXPORTER_WORKERS` | `2` |
+| `leafWorkers` | `--leaf-workers` | `KARTA_EXPORTER_LEAF_WORKERS` | `0` |
+| `rootWorkers` | `--root-workers` | `KARTA_EXPORTER_ROOT_WORKERS` | `0` |
 | `apiQPS` | `--api-qps` | `KARTA_EXPORTER_API_QPS` | `20` |
 | `apiBurst` | `--api-burst` | `KARTA_EXPORTER_API_BURST` | `40` |
 
-The worker count applies separately to object resolution and root publication.
+`leafWorkers` controls ownership discovery for Pods and selected non-Pod
+candidates. `rootWorkers` controls root evaluation and publication. Slow candidate
+owner reads use discovery workers, leaving publication workers available for
+already admitted roots. Each value inherits `workers` when zero or unset.
+For example, `workers: 2`, `leafWorkers: 4` and `rootWorkers: 1` starts four
+ownership-discovery workers and one publication worker. Existing configurations using only `workers` keep
+that count for both queues. Queue overrides must not be negative.
+
 Source verification uses two workers. Kubernetes clients share the API rate
-limit. Durations and worker/rate limits must be positive, and maximum age must
-exceed the refresh interval. A delayed refresh does not extend expired evidence.
+limit. Durations, `workers` and API rate limits must be positive, and maximum age
+must exceed the refresh interval. A delayed refresh does not extend expired evidence.
 
 `--kubeconfig` selects local credentials. In-cluster startup uses the mounted
 ServiceAccount. `--metrics-bind-address` defaults to `:8080`; a local run can use

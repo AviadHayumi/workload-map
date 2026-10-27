@@ -17,9 +17,18 @@ Runtime is the only observer of cluster Kartas. It checks its accepted Karta
 snapshot before calling inventory `ReplaceCluster`. Inventory selects definitions;
 Runtime owns source readiness and failure handling.
 
-Object events queue ownership resolution. Resolved roots queue status, Pod
-mapping and label calculations. A separate source queue handles synchronization
-and verification. Each root has at most one publication worker at a time. It retains a prepared
+Direct Reflectors synchronously accept source observations into Reader and queue
+work. Callbacks perform no API reads or expression evaluation. A typed input
+queue handles ownership discovery for Pods and selected non-Pod candidates,
+including children whose ancestors have no Pods. Input keys identify the object
+address, API representation and UID. Discovery workers commit attribution or
+candidate admission and queue the root UID. They do not publish rows.
+
+The root queue owns status, Pod mapping, labels and complete publication. Slow
+candidate owner reads cannot occupy its workers. All API representations of one
+UID share its queue key. A separate
+maintenance queue handles source synchronization, verification and owner refresh.
+Each root has at most one publication worker at a time. It retains a prepared
 label resolver for the exact immutable workload input. Pod-only updates reuse
 that scope; a changed workload representation or version replaces it.
 
@@ -35,12 +44,9 @@ covers caching, concurrent updates and failures.
 
 | File | Responsibility |
 | --- | --- |
-| [runtime.go](runtime.go) | Startup, queues, definition changes and shutdown |
-| [watches.go](watches.go) | Watch selection, object events and watch recovery |
-| [reader.go](reader.go) | Cached objects, metadata requests and freshness checks |
-| [metadata_owners.go](metadata_owners.go) | Find needed owners, preload their metadata and remove unused entries |
-| [metadata_refresh.go](metadata_refresh.go) | Refresh retained owners through LIST or GET |
-| [reconcile.go](reconcile.go) | Resolve ownership, evaluate Karta and labels, then publish |
-| [renewal.go](renewal.go) | Track affected Pods and schedule publication renewal |
-| [root_boundary.go](root_boundary.go) | Validate controller owners and root identity across API versions |
-| [selection.go](selection.go) | Apply workload output filters |
+| [runtime.go](runtime.go) | Startup, typed input/root/maintenance queues, definition changes and shutdown |
+| [sources.go](sources.go) | Direct Reflector acceptance, atomic replacement, watch planning, verification and recovery |
+| [reader.go](reader.go) | Accepted objects, metadata reads, freshness and cross-version root boundaries |
+| [owners.go](owners.go) | Batched owner acquisition, metadata refresh, demand pruning and path dependencies |
+| [leaf.go](leaf.go) | Dispatch ownership inputs; resolve Pod attribution and enqueue root publication |
+| [root.go](root.go) | Non-Pod admission, output selection, evaluation, publication and renewal |

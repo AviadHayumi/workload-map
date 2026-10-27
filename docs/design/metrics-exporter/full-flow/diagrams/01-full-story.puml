@@ -72,6 +72,7 @@ App -[#1565C0]> App : [call] validate selectors, duration bounds,\nresource rule
 note right of App
 Defaults: refresh 45s; maxAge 2m;
 request timeout 30s; workers 2;
+leafWorkers/rootWorkers 0 inherit workers;
 shared API QPS 20 / burst 40.
 maxAge must exceed refreshInterval.
 end note
@@ -103,7 +104,7 @@ end note
 == C. Start workers, source synchronization and HTTP together ==
 par Runtime goroutine
   App -[#1565C0]> Runtime : [call] Run(childContext)
-  Runtime -[#7B1FA2]> Runtime : [decision] start 2 object workers + 2 root workers\nplus 2 control workers at default configuration
+  Runtime -[#7B1FA2]> Runtime : [decision] start 2 ownership-discovery + 2 publication workers\nplus 2 maintenance workers at default configuration
   Runtime -[#1565C0]> Runtime : [call] enqueue control sync; start refresh ticker
 else HTTP server goroutine
   App -[#7B1FA2]> App : [decision] serve /metrics, /healthz and /readyz
@@ -124,11 +125,14 @@ opt cluster definitions enabled
   Reader -[#1565C0]> API : [call] API discovery when mapper needs it
   API --[#388E3C]> Reader : [result] GVR and namespaced / cluster scope
   Reader --[#388E3C]> Runtime : [result] REST mapping
-  Runtime -[#1565C0]> Runtime : [call] ensureWatch(Karta, discover=true)\ncreate SharedIndexInformer and callbacks
+  Runtime -[#1565C0]> Runtime : [call] ensureWatch(Karta, discover=true)\ncreate direct Reflector and acceptance adapter
   Runtime -[#1565C0]> API : [call] full-object LIST; then WATCH\nclient-go may negotiate initial watch events
   API --[#388E3C]> Runtime : [event] Karta full objects / add / update / delete
   Runtime -[#7B1FA2]> Runtime : [decision] retain read sequence and failure epoch\nLIST proof expires at read-start + maxAge
   Runtime -[#1565C0]> Reader : [call] accept full objects with source proof\nstrip managedFields; preserve UID / RV / owner refs
+  note over Runtime,Reader
+  Reject canceled or retired LISTs before recording their replacement stamp.
+  end note
 end
 note over API,Reader
 LIST/WATCH callbacks belong to Runtime. sourceObject keeps provenance outside Kubernetes fields.
@@ -154,7 +158,7 @@ Runtime -[#1565C0]> Runtime : [call] ensure Pod, selected-definition and Require
 Runtime -[#1565C0]> API : [call] full Pod and JobSet LIST/WATCH\nexample includes only the JobSet catalog definition
 API --[#388E3C]> Runtime : [event] initial objects and later changes
 Runtime -[#1565C0]> Reader : [call] store accepted full Pod / JobSet observations
-Runtime -[#7B1FA2]> Runtime : [decision] cache-sync marks watch ready\nenqueue verify; Pod sync also enqueues metadata prime
+Runtime -[#7B1FA2]> Runtime : [decision] complete Replace validates read/source/alias revisions\naccept objects + UID-safe absence; mark source ready\nqueue verification and owner priming
 note over Runtime,Inventory
 With no namespaceSelector, a namespaced resource uses an all-namespace watch.
 Cluster-scoped resources normalize to empty namespace and reuse one watch key.
@@ -166,7 +170,7 @@ API --[#388E3C]> Runtime : [event] Pod train-worker-0-a\nUID pod-1; RV p10; cont
 Runtime -[#7B1FA2]> Runtime : [decision] reject retired stream / obsolete deletion\nfence stale provenance and same-name UID replacement
 Runtime -[#1565C0]> Store : [call] invalidate proofs affected by a changed object\nbefore a replacement publication is ready
 Runtime -[#1565C0]> Reader : [call] replace accepted Pod observation\nsource evidence + object identity
-Runtime -[#1565C0]> Runtime : [call] enqueue object{GVK, namespace, name, UID}
+Runtime -[#1565C0]> Runtime : [call] enqueue input{Pod address, GVK, UID}\ndiscovery worker commits attribution; no Publish call
 Runtime -[#1565C0]> Reader : [call] Cached(Pod ref)
 Reader --[#388E3C]> Runtime : [result] immutable full Pod p10
 alt Pod does not match podSelector
@@ -220,8 +224,8 @@ end
 Runtime -[#1565C0]> Reader : [call] verify complete path evidence and input Pod RV
 Reader --[#388E3C]> Runtime : [result] matching identities and available path evidence\ninput Pod RV unchanged
 Runtime -[#7B1FA2]> Runtime : [decision] confirm root remains terminal across known versions\nreject conflicting owner-bearing alias
-Runtime -[#7B1FA2]> Runtime : [decision] attach pod-1 to root js-1; replace old attachment if moved\nindex every path object -> dependent Pod / root
-Runtime -[#1565C0]> Runtime : [call] mark pod-1 dirty; queue root js-1 after 20ms
+Runtime -[#7B1FA2]> Runtime : [decision] attach pod-1 to root js-1; replace old attachment if moved\nindex every path object -> dependent leaf
+Runtime -[#1565C0]> Runtime : [call] mark pod-1 dirty; queue root{UID: js-1} after 20ms
 note over Runtime,Inventory
 A definition chooses interpretation after ownership determines the root.
 It does not stop traversal merely because an intermediate Job has a Karta.
@@ -230,7 +234,14 @@ A standalone Pod without a Karta is excluded by this implementation.
 end note
 
 == I. A root with zero Pods uses the same root calculation ==
-API --[#388E3C]> Runtime : [event] JobSet root from selected-definition watch\npossibly before any Pod exists
+API --[#388E3C]> Runtime : [event] selected non-Pod object, possibly before Pods exist
+Runtime -[#1565C0]> Runtime : [call] retain candidate by UID / representation; queue discovery input
+note over Runtime,Discovery
+A terminal JobSet is the simple case below.
+A selected child also walks upward to an unselected generic ancestor.
+Candidate paths share targeted dependency invalidation; failed discovery retains retries.
+Candidate owner GETs use discovery workers, leaving root workers available for publication.
+end note
 Runtime -[#1565C0]> Discovery : [call] Get(JobSet ref)
 Discovery -[#1565C0]> Reader : [call] Cached(JobSet ref); inspect controller owner
 Reader --[#388E3C]> Discovery : [result] terminal JobSet
@@ -331,7 +342,7 @@ else all commit guards pass
   Runtime -[#1565C0]> Store : [call] Publish(Publication for js-1)
   Store -[#7B1FA2]> Store : [decision] swap root record and dependency references under Store lock
   Store --[#388E3C]> Runtime : [result] publication visible atomically
-  Runtime -[#7B1FA2]> Runtime : [decision] save compatible caches; schedule renewal before proof expiry
+  Runtime -[#7B1FA2]> Runtime : [decision] save caches and conservative earliest evidence deadline\nschedule renewal without scanning published Pod rows
 end
 note over Runtime,Store
 Publishing transfers ownership of nested maps and slices. They remain immutable.
@@ -424,9 +435,9 @@ Reader -[#1565C0]> API : [call] paged metadata LIST; individual GET fallback whe
 API --[#388E3C]> Reader : [result] owner UID / RV / controller references or explicit failure
 Reader -[#7B1FA2]> Reader : [decision] accept only unchanged in-flight revisions\nrenew metadata or invalidate missing / changed paths
 Reader --[#388E3C]> Runtime : [result] refresh outcome
-Runtime -[#7B1FA2]> Runtime : [decision] reverse path index finds affected Pods\nrequeue discovery for changed ownership; renew unaffected proof
+Runtime -[#7B1FA2]> Runtime : [decision] reverse path index finds affected leaves and candidates\nrequeue discovery for changed ownership; renew unaffected proof
 note over Runtime,Reader
-Initial Pod sync also primes metadata for referenced owner groups, then traverses upward.
+Initial source sync also primes metadata for referenced owner groups, then traverses upward.
 That optimization can avoid one API GET per Pod. It does not replace UID/path validation.
 An unchanging watch stream alone does not grant permanent freshness.
 end note
@@ -438,7 +449,17 @@ opt proof deadline reached before successful refresh
 end
 
 == S. Recover sources without reviving old evidence ==
-alt normal watch cursor expiration / unsupported initial events
+alt current-source callback rejected; no equivalent accepted full state
+  Runtime -[#1565C0]> Store : [call] invalidate affected source evidence immediately
+  Runtime -[#1565C0]> Runtime : [call] coalesce authoritative restart in maintenance lane
+  Runtime -[#1565C0]> API : [call] new Reflector obtains complete full snapshot\nfirst recovery LIST uses empty resourceVersion (current state)
+  API --[#388E3C]> Runtime : [result] validate and accept full replacement, even if empty
+  note over Runtime,Reader #FCE4EC
+  client-go can advance the cursor after Add/Update/Delete errors.
+  Returning an error alone does not replay a missed object.
+  Metadata verification cannot reconstruct its full spec/status.
+  end note
+else normal watch cursor expiration / unsupported initial events
   API --[#388E3C]> Runtime : [event/result] expired resourceVersion / negotiation rejected
   Runtime -[#1565C0]> Runtime : [call] request verification; reflector re-LIST / re-WATCH
 else permission / API failure, or Karta stream closes

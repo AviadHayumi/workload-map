@@ -53,6 +53,8 @@ type Config struct {
 	APIQPS                float32                   `json:"apiQPS"`
 	APIBurst              int                       `json:"apiBurst"`
 	Workers               int                       `json:"workers"`
+	LeafWorkers           int                       `json:"leafWorkers"`
+	RootWorkers           int                       `json:"rootWorkers"`
 	LabelRules            []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
 	LabelLimits           labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
 }
@@ -150,9 +152,27 @@ var settings = []setting{
 	{
 		flag:  "workers",
 		env:   "KARTA_EXPORTER_WORKERS",
-		usage: "Workers per object resolution and root publication queue (default 2).",
+		usage: "Default workers per ownership and publication queue (default 2).",
 		apply: func(c *Config, v string) (err error) {
 			c.Workers, err = strconv.Atoi(v)
+			return err
+		},
+	},
+	{
+		flag:  "leaf-workers",
+		env:   "KARTA_EXPORTER_LEAF_WORKERS",
+		usage: "Ownership discovery workers for Pods and selected objects; zero inherits workers (default 0).",
+		apply: func(c *Config, v string) (err error) {
+			c.LeafWorkers, err = strconv.Atoi(v)
+			return err
+		},
+	},
+	{
+		flag:  "root-workers",
+		env:   "KARTA_EXPORTER_ROOT_WORKERS",
+		usage: "Root publication workers; zero inherits workers (default 0).",
+		apply: func(c *Config, v string) (err error) {
+			c.RootWorkers, err = strconv.Atoi(v)
 			return err
 		},
 	},
@@ -323,6 +343,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.Workers <= 0 {
 		return errors.New("workers must be positive")
+	}
+	if cfg.LeafWorkers < 0 || cfg.RootWorkers < 0 {
+		return errors.New("leafWorkers and rootWorkers must not be negative")
 	}
 	return nil
 }

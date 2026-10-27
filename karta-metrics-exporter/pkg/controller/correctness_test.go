@@ -94,8 +94,7 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 		}
 		run := func() error {
 			if informer {
-				_, err := r.listWatch(ctx, w, metav1.ListOptions{})
-				return err
+				return r.replaceWatch(ctx, w)
 			}
 			return r.verifyWatch(ctx, w.key)
 		}
@@ -134,16 +133,16 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, nil, apierrors.NewForbidden(w.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: root.GetUID()})).To(HaveOccurred())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(changed)), UID: root.GetUID()})).To(HaveOccurred())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		prior := publications.Published(root.GetUID())
 		valid, _ = publications.Capture().Valid(prior.Creation)
 		Expect(valid).To(BeFalse())
 		Expect(prior.Workload.OwnerResolution).To(Equal(store.UnknownOwner))
 		r.acceptEvent(w, parent, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: root.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(changed)), UID: root.GetUID()})).To(Succeed())
 		Expect(publications.Published(root.GetUID())).To(BeNil())
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, parent.GetUID())).To(Succeed())
 		valid, _ = publications.Capture().Valid(publications.Published(parent.GetUID()).Creation)
 		Expect(valid).To(BeTrue())
@@ -305,7 +304,7 @@ var _ = Describe("Accepted failures and compatible retained evidence", func() {
 			r.config.ResourceRules = []ResourceRule{{APIGroups: []string{"batch"}, APIVersions: []string{"v2"}, Resources: []string{"jobs"}}}
 		}
 		for _, pod := range []*unstructured.Unstructured{one, two, one, two} {
-			Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+			Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		}
 		Expect(r.reconcile(ctx, first.GetUID())).To(Succeed())
 		record := publications.Published(first.GetUID())

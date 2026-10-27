@@ -134,6 +134,59 @@ func loadConfig(content string, env map[string]string, args ...string) (Config, 
 }
 
 var _ = Describe("runtime configuration", func() {
+	It("keeps the shared worker default when queue overrides are unset or zero", func() {
+		cfg, err := loadConfig("", nil)
+		Expect(err).To(Succeed())
+		Expect(cfg.Workers).To(Equal(2))
+		Expect(cfg.LeafWorkers).To(BeZero())
+		Expect(cfg.RootWorkers).To(BeZero())
+
+		cfg, err = loadConfig("workers: 4\nleafWorkers: 7\nrootWorkers: 8", map[string]string{
+			"KARTA_EXPORTER_LEAF_WORKERS": "0",
+		}, "--root-workers=0")
+		Expect(err).To(Succeed())
+		Expect(cfg.Workers).To(Equal(4))
+		Expect(cfg.LeafWorkers).To(BeZero())
+		Expect(cfg.RootWorkers).To(BeZero())
+	})
+	It("loads queue worker overrides with flag, environment and file precedence", func() {
+		cfg, err := loadConfig("workers: 3\nleafWorkers: 4\nrootWorkers: 5", nil)
+		Expect(err).To(Succeed())
+		Expect(cfg.Workers).To(Equal(3))
+		Expect(cfg.LeafWorkers).To(Equal(4))
+		Expect(cfg.RootWorkers).To(Equal(5))
+
+		cfg, err = loadConfig("workers: 3\nleafWorkers: 4\nrootWorkers: 5", map[string]string{
+			"KARTA_EXPORTER_LEAF_WORKERS": "6",
+			"KARTA_EXPORTER_ROOT_WORKERS": "7",
+		})
+		Expect(err).To(Succeed())
+		Expect(cfg.Workers).To(Equal(3))
+		Expect(cfg.LeafWorkers).To(Equal(6))
+		Expect(cfg.RootWorkers).To(Equal(7))
+
+		cfg, err = loadConfig("workers: 3\nleafWorkers: 4\nrootWorkers: 5", map[string]string{
+			"KARTA_EXPORTER_LEAF_WORKERS": "6",
+			"KARTA_EXPORTER_ROOT_WORKERS": "7",
+		}, "--leaf-workers=8", "--root-workers=9")
+		Expect(err).To(Succeed())
+		Expect(cfg.Workers).To(Equal(3))
+		Expect(cfg.LeafWorkers).To(Equal(8))
+		Expect(cfg.RootWorkers).To(Equal(9))
+	})
+	DescribeTable("rejects invalid queue worker overrides", func(key, flagName, envName string) {
+		_, err := loadConfig(key+": -1", nil)
+		Expect(err).To(MatchError("leafWorkers and rootWorkers must not be negative"))
+		for _, value := range []string{"-1", "many", ""} {
+			_, err = loadConfig("", nil, "--"+flagName+"="+value)
+			Expect(err).To(HaveOccurred())
+			_, err = loadConfig("", map[string]string{envName: value})
+			Expect(err).To(HaveOccurred())
+		}
+	},
+		Entry("leaf", "leafWorkers", "leaf-workers", "KARTA_EXPORTER_LEAF_WORKERS"),
+		Entry("root", "rootWorkers", "root-workers", "KARTA_EXPORTER_ROOT_WORKERS"),
+	)
 	It("loads resource filters and bounded worker/API settings with flag precedence", func() {
 		cfg, err := loadConfig("resourceRules:\n- apiGroups: [batch]\n  apiVersions: [v1]\n  resources: [jobs]\napiQPS: 30\nworkers: 3\n", map[string]string{"KARTA_EXPORTER_API_QPS": "40"}, "--api-qps=50", "--api-burst=100")
 		Expect(err).NotTo(HaveOccurred())

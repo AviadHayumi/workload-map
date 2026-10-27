@@ -33,14 +33,14 @@ var _ = Describe("Accepted root boundaries", func() {
 		ownedBy(parent, parent)
 		entry.object.SetOwnerReferences(parent.GetOwnerReferences())
 		r.reader.saveMetadataLocked(key, entry)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
 		Expect(r.roots).To(BeEmpty())
 		Expect(publications.Capture().Records).To(BeEmpty())
 		entry.object = entry.object.DeepCopy()
 		entry.object.SetOwnerReferences(nil)
 		entry.object.SetResourceVersion("3")
 		r.reader.saveMetadataLocked(key, entry)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(publications.Capture().Records).To(HaveLen(1))
 	})
@@ -140,7 +140,7 @@ var _ = Describe("Accepted root boundaries", func() {
 		second.key.Namespace = "ns"
 		second.objects = map[objectKey]struct{}{}
 		r.watches[second.key] = &second
-		r.trackWatchVersion(testRootGVK, 1)
+		trackVersion(&r.reader.versions, testRootGVK, 1)
 		r.acceptEvent(&second, root, false)
 		r.mu.Lock()
 		delete(r.watches, first.key)

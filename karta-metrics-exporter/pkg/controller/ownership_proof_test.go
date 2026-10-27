@@ -64,7 +64,7 @@ var _ = Describe("Ownership proof retirement", func() {
 		root := testObject(v2, "root")
 		w := seedWatch(r, v2, "jobs", root)
 		source := watch.NewRaceFreeFake()
-		stream := r.monitorWatch(ctx, w, source)
+		stream := r.monitorSource(ctx, w, source, nil)
 		DeferCleanup(stream.Stop)
 		switch operation {
 		case "add":
@@ -135,7 +135,7 @@ var _ = Describe("Ownership proof retirement", func() {
 		root := testObject(testRootGVK, "root")
 		old := seedWatch(r, testRootGVK, "jobs", root)
 		source := watch.NewRaceFreeFake()
-		stream := r.monitorWatch(ctx, old, source)
+		stream := r.monitorSource(ctx, old, source, nil)
 		DeferCleanup(stream.Stop)
 		source.Add(root.DeepCopy())
 		var event watch.Event
@@ -188,13 +188,13 @@ var _ = Describe("Ownership proof retirement", func() {
 		}
 		list := result.(*metav1.List)
 		r.acceptEvent(w, list.Items[0].Object, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
 		Expect(publications.Capture().Records).To(BeEmpty())
 		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, metadataList(ownerMetadata("root", "1")), nil
 		})
 		Expect(r.verifyWatch(ctx, w.key)).To(Succeed())
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		valid, _ := publications.Capture().Valid(publications.Published(root.GetUID()).Creation)
 		Expect(valid).To(BeTrue())
@@ -285,7 +285,7 @@ var _ = Describe("Ownership proof retirement", func() {
 			return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*root}}, nil
 		})
 		done := make(chan error, 1)
-		go func() { _, err := r.listWatch(ctx, w, metav1.ListOptions{}); done <- err }()
+		go func() { done <- r.replaceWatch(ctx, w) }()
 		Eventually(entered).Should(BeClosed())
 		key := objectKey{GVK: testRootGVK, Namespace: "ns", Name: "root"}
 		r.reader.mu.Lock()

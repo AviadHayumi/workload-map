@@ -3,23 +3,27 @@
 
 # Open exporter issues and proposed fixes
 
-Deleting a workload with 100,000 Pods removes its exported metrics, but the
-process still has about 656 MB of live heap after forced garbage collection.
-The original build retains about 649 MB in the same test. Output cleanup and
-memory cleanup are separate acceptance checks.
+In the preceding comparison, deleting a workload with 100,000 Pods removed its
+exported metrics, but left about 656 MB of live heap after forced garbage
+collection. The original build retained about 649 MB in the same test. Output
+cleanup and memory cleanup are separate acceptance checks.
 
 This document records the remaining findings from the simplification comparison
 on 2026-10-27. The measured source fingerprint and completed checks are in
 [verification](verification.md). The
-[measurement report](simplification.md#modeled-api-runtime) holds the full
-before/after results. The investigations and fixes below are proposed work.
-None of these open items is claimed fixed.
+[earlier measurement report](simplification.md#modeled-api-runtime) preserves
+the failed runs. The [final controller comparison](../../../karta-metrics-exporter/test/scale/results/controller-leaf-root.md)
+completed all 17 acceptance runs and four supplemental heap diagnostics. Every
+applicable absolute gate passed. The [final-image kind results](controller-audit.md#final-image-kind-acceptance)
+close the operator-matrix and source-recovery portion of deployed acceptance.
+The remaining limits and the disposition of historical findings follow.
 
 | Priority | Finding | Status |
 | --- | --- | --- |
-| First | Giant-workload memory after deletion exceeds the limit | Confirmed failed gate in both builds; cause unknown |
-| Second | The sustained small-workload run uses 10.4% more CPU | Observed in one matched pair; repeatability and cause unknown |
-| Before release | Deployed acceptance for the simplified image is missing | Validation gap; earlier-image results do not cover this build |
+| First | Historical giant-workload heap failure and current retained-memory cost | Historical failures not reproduced by either fresh variant; cause unproven. Current candidate retains more heap after queue-idle GC. |
+| Historical finding | One sustained small-workload pair used 10.4% more CPU | Not repeated in three alternating current pairs; +0.3% between per-variant CPU medians. |
+| Operational limit | Obsolete resource-type health can outlive workload deletion | Inherited periodic pruning; no workload-publication invariant violation identified. |
+| Before release | Remaining final-image validation | Operator matrix and recovery passed for the exact r1 image. Dedicated monitoring lifecycle remains outside that result. Actual-branch post-commit presubmit is required before publication. |
 
 ## Memory after deleting a giant workload
 
@@ -47,54 +51,73 @@ the correctness, publication-latency, queue-drain and sustained heap-growth gate
 Empty metrics and empty work queues do not prove that every object owner has
 released its references.
 
-### Candidate causes to investigate
+### Current comparison and remaining scope
 
-The strongest source-grounded hypothesis is a difference between informer-cache
-cleanup and accepted-observation cleanup. `ensureWatch` creates a
-`SharedIndexInformer` with its own object store. `verifyWatch` can remove a missing
-object from Reader and Runtime bookkeeping after a metadata LIST. That path does
-not directly remove the object from the informer's separate store. Metrics may
-therefore disappear before the informer receives deletion or relist results.
-See [watch ownership and verification](../../../karta-metrics-exporter/pkg/controller/watches.go).
-This is a hypothesis, not a heap-profile diagnosis.
+The fresh baseline and candidate passed their giant post-delete heap gates.
+Neither reproduced the earlier failure. Different source/binary versions and
+convergence polls (250 ms earlier, 5 seconds now) prevent attributing that change
+to the refactor. Final settle also changed from zero to 30 seconds, but the
+initial deletion GC precedes settle. Settle alone cannot explain that sample.
+
+The candidate still has a retained-memory cost. Four supplemental diagnostics
+checked idle queues twice, 250 ms apart, then forced GC and checked idle queues
+again. Candidate live heap was higher in both fixtures: +2.22 MiB (+17.6%) for
+10,000 zero-Pod roots and +21.30 MiB (+35.4%) for the giant lifecycle without
+sustained churn. These diagnostics supplement the full-duration acceptance
+runs. They do not replace them.
+
+Sampled profiles point mainly to retained map and queue backing capacity.
+Object entries and queue items are removed. Instrumented client-go queue-metric
+maps also contribute; the default no-op metrics provider does not allocate
+those maps. The normal-command smoke did not measure retained heap, so the
+instrumented profile cannot predict its heap. Exact profile attribution and
+all measurements are in the [report](../../../karta-metrics-exporter/test/scale/results/controller-leaf-root.md#retained-heap-and-deletion-health).
+
+The samples do not identify every byte of the delta or establish bounded memory
+under indefinite identity turnover. Five-minute growth gates passed. A repeated
+create/delete endurance workload was not run.
+
+### Earlier retention hypotheses
+
+The measured build had separate informer and accepted-observation stores.
+Metadata verification could remove a missing object from Reader and Runtime
+before its informer processed deletion or relist results. That was a candidate
+cause, not a heap-profile diagnosis.
+
+The subsequent [controller change](controller-audit.md) removes the persistent
+informer store. [Source acceptance](../../../karta-metrics-exporter/pkg/controller/sources.go)
+now writes directly into Reader. This closes the duplicate ownership path, but
+does not by itself explain or close the measured heap failure.
 
 Two other ownership paths need checking:
 
 - Reader metadata, failed-read records and invalidation records have their own
   pruning or expiry. Inspect `pruneMetadataLocked` in
-  [metadata_owners.go](../../../karta-metrics-exporter/pkg/controller/metadata_owners.go)
+  [owners.go](../../../karta-metrics-exporter/pkg/controller/owners.go)
   and `expireMetadata` in
   [reader.go](../../../karta-metrics-exporter/pkg/controller/reader.go).
 - A scrape or diagnostic request can still hold a captured publication after
   Store removes it. `Capture` shares immutable publication pages until the reader
   finishes. See [Store capture](../../../karta-metrics-exporter/pkg/store/publication.go).
 
-### Proposed investigation and fix
+### Remaining investigation and possible fix
 
-1. Repeat the same giant-workload scenario with `--heap-profiles`. The existing
-   [scale harness](../../../karta-metrics-exporter/test/scale/runtime_scale.py)
-   saves `heap-NNN.pprof` files. The
-   [diagnostic wrapper](../../../karta-metrics-exporter/test/scale/cmd/main.go)
-   already supports the heap-profile request.
-2. Compare allocation sites before deletion, immediately after deletion and after
-   source caches have caught up. Add test-only object counts for informer stores,
-   Reader observations, roots, Pods, metadata, failures and Store publications.
-   Record whether scrape or diagnostic requests are still active.
-3. Preserve the immediate measurement. Add later measurements after completed
-   reads and a full refresh/expiry interval to distinguish delayed release from
-   persistent retention. In the current harness, `--settle-seconds` runs after the
-   recorded heap gate. Increasing that flag alone cannot explain or change the
-   failed measurement.
-4. Fix the owner that retains the objects once the profile and counts identify
-   it. Possible changes include correcting deletion or relist handling, pruning
-   unused metadata, or shortening the lifetime of a captured view. Do not clear
-   informer stores blindly or remove identity checks to reduce memory.
+Preserve the historical failing samples and the current passing samples.
+The [profile report](../../../karta-metrics-exporter/test/scale/results/controller-leaf-root.md#retained-heap-and-deletion-health)
+already supplies lifecycle profiles and queue-idle GC checks. The next useful
+measurement is repeated creation, deletion and recreation with new UIDs,
+including reused names. Record retained heap and index/queue capacity across
+cycles. Distinguish removed object references from backing storage that remains
+allocated. Measure the normal command separately if a normal-command memory
+claim is needed.
 
-Closure requires a regression that repeatedly creates, deletes and recreates
-workloads, including reuse of a name with a new UID. Assert that deleted objects
-and their references are released, new UIDs remain correct, and the existing
-post-delete heap gate passes. Rerun the giant scenario and relevant race tests.
-Do not widen the gate or substitute a delayed sample for the original failure.
+If repeated turnover shows unacceptable capacity growth, identify the retaining
+structure before changing its lifecycle. A bounded rebuild or shrink strategy
+may be appropriate, but is not implemented or established by this comparison.
+Preserve source acceptance, identity checks and the original absolute heap gate.
+Do not substitute a later sample for a failing immediate sample. The historical
+failure remains unattributed; current retained-memory cost remains a measured
+limitation even though all current gates pass.
 
 ## CPU increase during sustained updates
 
@@ -110,38 +133,72 @@ in the simplified run. The increase therefore is not explained by extra requests
 in this pair. Each version has only one runtime measurement. The result cannot
 yet establish a repeatable regression or identify its cause.
 
-### Proposed investigation and fix
+### Current disposition
 
-1. Repeat at least three matched pairs sequentially. Alternate their order. Keep
-   the host, toolchain, event count, scrape cadence and diagnostic settings equal.
-   Record process CPU separately for startup, steady updates and deletion.
-2. If the increase persists, collect CPU profiles for the same update interval.
-   Inspect the functions accounting for the extra CPU. Check reconciliation,
-   expression evaluation, allocation/GC and instrumentation costs without
-   assuming which one is responsible.
-3. Remove or reuse only work shown to be redundant by those profiles. Keep sparse
-   Pod updates, immutable pages, cancellation and final input-version checks.
-   Add a focused benchmark for the identified expensive path.
+The final comparison ran three alternating five-minute pairs with 30,000
+verified updates per run. CPU changed +0.3% between per-variant medians; the
+individual candidate-minus-baseline results had mixed signs. The earlier 10.4%
+increase therefore did not repeat. This is a descriptive result for the current
+source pair, not a causal explanation of the earlier measurement or a guarantee
+for other workloads. The [report](../../../karta-metrics-exporter/test/scale/results/controller-leaf-root.md#three-small-root-churn-pairs)
+retains every pair, including the higher RSS and slower drain sample. No
+CPU-specific production fix is proposed from these results.
 
-Closure requires either a repeatable improvement after a targeted fix or repeated
-measurements showing no consistent increase. Retain all measurements and their
-variation. A single faster rerun is not enough to close the finding. Unit and race
-checks must continue to pass after any source change.
+## Obsolete metadata health after workload deletion
+
+In the fresh giant-root comparison, workload rows disappeared 6.676 seconds
+after deletion began in the baseline and 6.757 seconds in the candidate. The
+candidate then retained an `apps/v1` ReplicaSet resource-type health failure with
+reason `unresolved_owner` for about 45 more seconds. No valid workload rows
+remained or reappeared during that health tail.
+
+An authoritative owner refresh records an unresolved-owner failure when a
+retained owner is missing. Reader retains that failure independently of workload
+publication. Ordinary deletion removes attribution and publication without
+immediately recomputing metadata demand. The next owner-maintenance pass prunes
+obsolete failures and republishes health. See
+[metadata pruning and refresh](../../../karta-metrics-exporter/pkg/controller/owners.go)
+and [retained failure health](../../../karta-metrics-exporter/pkg/controller/reader.go).
+
+`Runtime.refreshMetadata`, `Runtime.pruneMetadataLocked`, `Reader.failureHealth`
+and `Reader.recordMetadataFailureLocked` are byte-for-byte unchanged from
+`cdcc8779`. The candidate deletion crossed a scheduled 45-second refresh; the
+baseline deletion started after it. Clearance aligned with the following
+refresh. That ordering is an inference from the configured timer, API counters
+and scrape timestamps; individual request timestamps were not recorded.
+
+This is an inherited cleanup delay, not evidence of slower workload deletion or
+a newly missing invalidation path. Queue and API delays can extend it beyond one
+refresh interval. No production fix is recommended solely from this observation.
+
+If prompt removal of obsolete health becomes a requirement, consider coalescing
+a metadata-prune and health-publication pass after accepted deletion batches on
+the existing maintenance queue. This proposal is not implemented. Avoid a full
+Pod scan for every deletion. An empty path-dependency index alone cannot prove
+that no consumers remain, because unresolved consumers may lack a completed
+path. A deterministic characterization test should exercise the same refresh
+and deletion ordering on both versions before changing this behavior.
 
 ## Final-image acceptance and capacity evidence
 
 ### What remains unverified
 
-The simplified build passed exporter presubmit, unit tests, race checks and
-integration tests against a real Kubernetes API server. Its deployed operator
-and monitoring suites were compiled but were not executed for that image.
-Earlier-image acceptance is separate evidence.
+The earlier component comparison compiled the deployed suites without running
+them. The subsequent controller image has now passed all 24 default kind cases,
+both alternate API cases and focused bare-Pod exclusion. Its isolated probes
+also passed zero-Pod ancestor changes and workload/Karta source denial, expiry
+and recovery without restarting the exporter. The
+[controller audit](controller-audit.md#final-image-kind-acceptance) records the
+exact image and limits.
 
-The gap covers the installed exporter with real operators, chart configuration,
-RBAC, Prometheus collection, upgrade and removal. Source review and envtest cannot
-prove the complete deployed lifecycle.
+The dedicated monitoring suite has not been rerun for this image. Its upgrade,
+network-policy and complete monitoring lifecycle remain unverified. A clean
+snapshot passed unmodified `make check`, and Helm lint/validation passed. The
+actual branch still requires `make check` after the final commit and before push.
 
-The local scale runs cover the shapes listed in the measurement report. The
+All 17 planned local acceptance runs passed their applicable absolute gates.
+Four supplemental heap diagnostics also completed. The scale runs cover the
+shapes listed in the final comparison report. The
 single-workload 100,000-Pod case receives only 15 updates. Its p99 upper bound is
 the maximum of those observations. Higher giant-workload update rates and larger
 fleet sizes are not established capacity. Whole-process CPU and allocations also
@@ -149,17 +206,14 @@ include diagnostic and scrape work.
 
 ### Proposed acceptance work
 
-1. Build the final production image from the revision being released. Record its
-   immutable image identity and use that same image throughout acceptance.
-2. Run the [deployed operator matrix](../../../karta-metrics-exporter/test/e2e/README.md)
-   through `make test-exporter-e2e` in its isolated local cluster. Exercise the
-   configured workload kinds and supported API profiles.
-3. Run the [deployed monitoring suite](../../../karta-metrics-exporter/test/monitoring/README.md)
-   in its separate isolated cluster. Verify Prometheus collection, permission
-   denial and recovery, upgrade, network-policy behavior and exporter removal.
-4. Run the repository's required presubmit and applicable CI checks for the final
-   revision. Preserve the deployed reports separately from compilation results.
-5. If the release promises capacity beyond the measured shapes, define that
+1. Run the [deployed monitoring suite](../../../karta-metrics-exporter/test/monitoring/README.md)
+   for the same image in its separate isolated cluster. Verify Prometheus
+   collection, upgrade, network-policy behavior and exporter removal.
+2. Run required presubmit on the actual branch after the final commit. Preserve
+   the snapshot result and deployed reports separately.
+3. If product source changes, rebuild the image and repeat affected deployed
+   checks and matched measurements.
+4. If the release promises capacity beyond the measured shapes, define that
    workload mix and event rate, then run it with explicit latency, memory and
    cleanup gates. Do not infer that capacity from the current microbenchmarks.
 
@@ -171,5 +225,8 @@ claims must stay within the scenarios actually measured.
 
 Independent code and architecture reviews have no remaining findings. The
 passed API and metric-correctness checks are recorded in
-[verification](verification.md#automated-checks). They do not close the memory
-finding, explain the CPU result or prove deployed acceptance.
+[verification](verification.md#automated-checks) and the
+[controller audit](controller-audit.md#verification-status). The final architecture
+review found no remaining invariant blockers. Review does not explain the
+historical heap failure, establish endurance capacity or replace the scoped
+monitoring checks.

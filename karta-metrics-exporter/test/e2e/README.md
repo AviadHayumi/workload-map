@@ -7,6 +7,8 @@ This Ginkgo suite installs the exporter chart with the Karta operator disabled.
 It creates workload objects in separate labeled namespaces and scrapes the real
 exporter Service through a loopback port-forward. It requires the operators and
 images installed by the repository's pinned `hack/e2e/up.sh` workflow.
+The [2026-10-27 controller acceptance](../../../docs/design/metrics-exporter/controller-audit.md#final-image-kind-acceptance)
+records the tested image, matrix results and separate recovery-probe limits.
 
 ## Run
 
@@ -63,8 +65,9 @@ setup and run commands.
 ## API profiles
 
 `EXPORTER_E2E_API_PROFILE` selects the scenarios when Ginkgo registers the suite.
-The default is `default`, which keeps the existing 23 cases. `alternate` runs
-exactly two cases: DynamoGraphDeployment v1beta1 and LLMInferenceService v1alpha1.
+The default profile runs 23 workload cases and one native-adoption regression,
+for 24 cases total. `alternate` runs exactly two cases: DynamoGraphDeployment
+v1beta1 and LLMInferenceService v1alpha1.
 Each profile selects only one catalog Karta per GroupKind. Loading both versions
 of either family together would test definition selection instead of both mappings.
 The suite rejects other profile names and records the selected profile in its
@@ -115,14 +118,28 @@ Each passing stage saves the raw root, owned Pods and Prometheus exposition unde
 `EXPORTER_E2E_OUTPUT`. The suite records the profile, image and evidence directory in its
 Ginkgo report. A failed assertion remains a failure even if another case passes.
 
+The default-only native-adoption regression orphan-deletes a Deployment, then
+recreates its name and spec with a new UID. It requires adoption of the same
+ReplicaSet UID while the Pod name, UID, resourceVersion and owner references
+remain unchanged. A Pod watch starts at the preceding LIST resourceVersion and
+must observe no non-bookmark events through metric verification. The exporter
+must publish the replacement Deployment and remove every old-root series.
+
+`deployment-adoption-api.json` records before, orphan and after API objects plus
+the Pod watch interval and events. Stage files preserve root/Pod objects and
+scrapes; `deployment-adoption-old-root-absent.prom` records the absence check.
+A passing report establishes this transition for the tested images. It does not
+measure adoption frequency or cover every operator's adoption behavior.
+
 Dynamo uses the repository's CPU mocker backend. NIM uses the CPU test server, and
 LLMInferenceService uses its existing tiny HTTP server. These prove operator
 reconciliation and exporter attribution, not GPU inference or model quality.
 
 ## Coverage boundaries
 
-The default profile contains 23 cases across the catalog workload families.
-The alternate profile adds two separate API-version cases.
+The default profile contains 23 catalog workload cases and one native-adoption
+regression, for 24 cases total. The alternate profile adds two separate
+API-version cases. Bare-Pod exclusion is checked in a separate focused run.
 The three native Job cases cover suspended, completed and failed roots with zero
 Pods. Other cases cover the fixture states described above, not every lifecycle
 state for every operator.

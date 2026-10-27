@@ -32,7 +32,7 @@ func (c *countedLabels) ForWorkload(*unstructured.Unstructured) labelresolver.Re
 		return labelresolver.Result{}, nil
 	}
 }
-func drainQueue(q workqueue.TypedRateLimitingInterface[queueKey]) {
+func drainQueue[T comparable](q workqueue.TypedRateLimitingInterface[T]) {
 	for q.Len() > 0 {
 		key, stopped := q.Get()
 		if stopped {
@@ -53,7 +53,7 @@ func renewalClock(r *Runtime) *clocktesting.FakeClock {
 
 func resetRenewalQueue(r *Runtime, clock *clocktesting.FakeClock) {
 	r.rootQueue.ShutDown()
-	r.rootQueue = workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[queueKey](time.Millisecond, time.Second), workqueue.TypedRateLimitingQueueConfig[queueKey]{Clock: clock})
+	r.rootQueue = workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[rootKey](time.Millisecond, time.Second), workqueue.TypedRateLimitingQueueConfig[rootKey]{Clock: clock})
 }
 
 var _ = Describe("Source-owned renewal scheduling", func() {
@@ -96,13 +96,13 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		updatedPod := pod.DeepCopy()
 		updatedPod.SetResourceVersion("2")
 		r.acceptEvent(podWatch, updatedPod, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(updatedPod)), UID: updatedPod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(updatedPod)), UID: updatedPod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(labels.prepared).To(Equal(1))
 		updatedRoot := root.DeepCopy()
 		updatedRoot.SetResourceVersion("2")
 		r.acceptEvent(rootWatch, updatedRoot, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(updatedRoot)), UID: updatedRoot.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(updatedRoot)), UID: updatedRoot.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(labels.prepared).To(Equal(2))
 	})
@@ -123,9 +123,14 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		}
 		schedule()
 		original := state.renewalAt
-		record := *publications.Published(root.GetUID())
-		record.Creation.ExpiresAt = clock.Now().Add(4 * time.Second)
-		publications.Publish(&record)
+		r.reader.mu.Lock()
+		entry := r.reader.objects[keyOf(refOf(root))]
+		entry.evidence.ExpiresAt = clock.Now().Add(4 * time.Second)
+		r.reader.objects[keyOf(refOf(root))] = entry
+		r.reader.mu.Unlock()
+		state.fullRefresh = true
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		record := publications.Published(root.GetUID())
 		schedule()
 		Expect(state.renewalAt.Before(original)).To(BeTrue())
 		Expect(state.renewalAt.Before(record.Creation.ExpiresAt)).To(BeTrue())
@@ -153,7 +158,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		entry.evidence.ExpiresAt = expiry
 		r.reader.objects[keyOf(refOf(pod))] = entry
 		r.reader.mu.Unlock()
-		Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		Expect(state.renewalAt.Before(original)).To(BeTrue())
 		Expect(state.renewalAt.Before(expiry)).To(BeTrue())
@@ -190,33 +195,67 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		Expect(state.renewalAt.IsZero()).To(BeTrue())
 	})
 	DescribeTable("uses the earliest relevant publication expiry", func(ctx SpecContext, part string) {
-		r, _, publications := testRuntime(nil)
+		r, _, _ := testRuntime(nil)
 		clock := renewalClock(r)
 		root, pod := testObject(testRootGVK, "root"), testObject(podGVK, "pod")
 		seedWatch(r, testRootGVK, "jobs", root)
 		seedWatch(r, podGVK, "pods", pod)
 		seedRoot(r, root, pod)
+		expiry := clock.Now().Add(10 * time.Second)
+		object := root
+		if part == "pod" {
+			object = pod
+		}
+		r.reader.mu.Lock()
+		entry := r.reader.objects[keyOf(refOf(object))]
+		entry.evidence.ExpiresAt = expiry
+		r.reader.objects[keyOf(refOf(object))] = entry
+		r.reader.mu.Unlock()
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		drainQueue(r.rootQueue)
-		old := publications.Published(root.GetUID())
-		record := *old
-		expiry := clock.Now().Add(10 * time.Second)
-		if part == "status" {
-			record.Workload.HasStatus = true
-			record.Status.ExpiresAt = expiry
-		} else {
-			row, _ := record.Pod(pod.GetUID())
-			row.Mapping.ExpiresAt = expiry
-			record.PodPages = store.BuildPodPages([]store.PublishedPod{row}, nil)
-		}
-		publications.Publish(&record)
 		r.mu.Lock()
 		r.reader.mu.RLock()
 		Expect(r.scheduleRenewalLocked(root.GetUID())).To(BeTrue())
 		r.reader.mu.RUnlock()
 		r.mu.Unlock()
 		Expect(r.roots[root.GetUID()].renewalAt.Before(expiry)).To(BeTrue())
-	}, Entry("status proof", "status"), Entry("Pod path proof", "pod"))
+	}, Entry("root proof", "root"), Entry("Pod path proof", "pod"))
+	It("renews a zero-Pod workload before its independently shorter status proof expires", func(ctx SpecContext) {
+		r, _, publications := testRuntime(nil)
+		clock := renewalClock(r)
+		clusterDefinitions(r, false)
+		definition := seedWatch(r, kartaGVK, "kartas", kartaObject("job", "1"))
+		definition.verifiedAt = clock.Now()
+		Expect(r.refreshDefinitions()).To(Succeed())
+		expiry := clock.Now().Add(r.config.MaxAge)
+		clock.Step(r.config.MaxAge - 10*time.Second)
+		root := testObject(testRootGVK, "root")
+		rootWatch := seedWatch(r, testRootGVK, "jobs", root)
+		rootWatch.verifiedAt = clock.Now()
+		state := seedRoot(r, root)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		record := publications.Published(root.GetUID())
+		Expect(record.Workload.HasStatus).To(BeTrue())
+		Expect(record.PodPages).To(BeEmpty())
+		Expect(record.Status.ExpiresAt).To(Equal(expiry))
+		Expect(record.Status.ExpiresAt.Before(record.Creation.ExpiresAt)).To(BeTrue())
+		Expect(state.publicationDeadline).To(Equal(record.Status.ExpiresAt))
+		r.mu.Lock()
+		r.reader.mu.RLock()
+		Expect(r.scheduleRenewalLocked(root.GetUID())).To(BeTrue())
+		r.reader.mu.RUnlock()
+		r.mu.Unlock()
+		Expect(state.renewalAt.After(clock.Now())).To(BeTrue())
+		Expect(state.renewalAt.Before(record.Status.ExpiresAt)).To(BeTrue())
+		drainQueue(r.rootQueue)
+		clock.Step(state.renewalAt.Sub(clock.Now()))
+		Eventually(r.rootQueue.Len).Should(Equal(1))
+		key, stopped := r.rootQueue.Get()
+		Expect(stopped).To(BeFalse())
+		Expect(key.UID).To(Equal(root.GetUID()))
+		r.rootQueue.Done(key)
+		Expect(clock.Now().Before(record.Status.ExpiresAt)).To(BeTrue())
+	})
 	DescribeTable("dispatches source recovery and version changes immediately", func(ctx SpecContext, condition string) {
 		r, metadata, _ := testRuntime(nil)
 		renewalClock(r)
@@ -224,7 +263,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		w := seedWatch(r, testRootGVK, "jobs", root)
 		seedRoot(r, root)
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		if condition == "recovered" {
 			r.mu.Lock()
@@ -241,7 +280,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		})
 		Expect(r.verifyWatch(ctx, w.key)).To(Succeed())
 		Expect(r.rootQueue.Len()).To(Equal(1))
-		Expect(r.queue.Len()).To(Equal(1))
+		Expect(queuedObjects(r)).To(ConsistOf(root.GetUID()))
 	}, Entry("watch recovered", "recovered"), Entry("LIST observed a newer version", "changed"))
 	DescribeTable("does not lose owner-path work when refresh fails or expiry removes inputs", func(ctx SpecContext, expired bool) {
 		r, metadata, publications := testRuntime(nil)
@@ -257,7 +296,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		state := seedRoot(r, root, pod)
 		r.setPodPathLocked(state, pod.GetUID(), []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		if expired {
 			entry.expires = time.Now().Add(-time.Second)
@@ -273,7 +312,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		} else {
 			Expect(err).To(HaveOccurred())
 		}
-		Expect(r.queue.Len()).To(BeNumerically(">", 0))
+		Expect(r.inputQueue.Len()).To(BeNumerically(">", 0))
 		Expect(r.rootQueue.Len()).To(BeNumerically(">", 0))
 		row, _ := publications.Published(root.GetUID()).Pod(pod.GetUID())
 		valid, _ := publications.Capture().Valid(row.Mapping)
@@ -295,7 +334,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		}
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		initialCalls := labels.calls
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		initial := publications.Published(root.GetUID()).Creation.ExpiresAt
 		clock.Step(45 * time.Second)
@@ -311,7 +350,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		Expect(r.verifyWatch(ctx, rw.key)).To(Succeed())
 		Expect(r.verifyWatch(ctx, pw.key)).To(Succeed())
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeZero())
+		Expect(r.inputQueue.Len()).To(BeZero())
 		Expect(r.rootQueue.Len()).To(BeZero())
 		Expect(labels.calls).To(Equal(initialCalls))
 		deadline := r.roots[root.GetUID()].renewalAt
@@ -336,7 +375,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		rw := seedWatch(r, testRootGVK, "jobs", root)
 		state := seedRoot(r, root)
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		r.mu.Lock()
 		r.reader.mu.RLock()
@@ -379,6 +418,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		case "pending":
 			state.failResolution(testRootGVK, discovery.ErrPending)
 		case "failure":
+			r.invalidatePodLocked(state, "pod", store.ReasonUnresolvedOwner)
 			pod := state.pods["pod"]
 			pod.resolveError = errors.New("owner unavailable")
 			state.pods["pod"] = pod
@@ -440,7 +480,7 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 		state := seedRoot(r, root, pod)
 		r.setPodPathLocked(state, pod.GetUID(), []discovery.ObjectRef{refOf(pod), refOf(middle), refOf(ancestor), refOf(root)})
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
-		drainQueue(r.queue)
+		drainQueue(r.inputQueue)
 		drainQueue(r.rootQueue)
 		metadata.PrependReactor("list", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			first := ownerMetadata("middle", "1")
@@ -451,12 +491,45 @@ var _ = Describe("Source-owned renewal scheduling", func() {
 			return true, metadataList(first, last), nil
 		})
 		Expect(r.refreshMetadata(ctx)).To(Succeed())
-		Expect(r.queue.Len()).To(BeNumerically(">", 0))
+		Expect(r.inputQueue.Len()).To(BeNumerically(">", 0))
 		Expect(r.rootQueue.Len()).To(BeNumerically(">", 0))
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.podRoots[pod.GetUID()]).To(Equal(types.UID("other")))
 		row, _ := publications.Published(root.GetUID()).Pod(pod.GetUID())
 		valid, _ := publications.Capture().Valid(row.Mapping)
 		Expect(valid).To(BeFalse())
+	})
+})
+
+var _ = Describe("Conservative publication deadlines", func() {
+	It("does not extend unchanged row evidence when a sparse update replaces or removes the earliest row", func(ctx SpecContext) {
+		r, _, _ := testRuntime(nil)
+		clock := renewalClock(r)
+		root, first, second := testObject(testRootGVK, "root"), testObject(podGVK, "first"), testObject(podGVK, "second")
+		ownedBy(first, root)
+		ownedBy(second, root)
+		seedWatch(r, testRootGVK, "jobs", root)
+		w := seedWatch(r, podGVK, "pods", first, second)
+		state := seedRoot(r, root, first, second)
+		early := clock.Now().Add(10 * time.Second)
+		r.reader.mu.Lock()
+		entry := r.reader.objects[keyOf(refOf(first))]
+		entry.evidence.ExpiresAt = early
+		r.reader.objects[keyOf(refOf(first))] = entry
+		r.reader.mu.Unlock()
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(state.publicationDeadline).To(Equal(early))
+		changed := first.DeepCopy()
+		changed.SetResourceVersion("2")
+		r.acceptEvent(w, changed, false)
+		Expect(r.resolveLeaf(ctx, inputKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(Succeed())
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(state.publicationDeadline).To(Equal(early))
+		r.acceptEvent(w, changed, true)
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(state.publicationDeadline).To(Equal(early))
+		state.fullRefresh = true
+		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
+		Expect(state.publicationDeadline.After(early)).To(BeTrue())
 	})
 })

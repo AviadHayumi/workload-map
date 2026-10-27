@@ -18,7 +18,6 @@ import (
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
@@ -62,24 +61,33 @@ type Config struct {
 	RefreshInterval      time.Duration
 	MaxAge               time.Duration
 	Workers              int
+	LeafWorkers          int
+	RootWorkers          int
 	Now                  func() time.Time
+}
+
+type ResourceRule struct {
+	APIGroups   []string `json:"apiGroups"`
+	APIVersions []string `json:"apiVersions"`
+	Resources   []string `json:"resources"`
 }
 
 // Runtime orders accepted events and final publication under its own guard.
 // Store methods acquire only Store's lock, after the Runtime guard.
 type Runtime struct {
-	pathDependents                                 map[objectKey]map[types.UID]pathDependent
+	pathDependents                                 map[objectKey]map[pathConsumer]pathDependent
 	primeAttempts                                  map[watchKey]time.Time
 	watchFailures                                  map[discovery.WatchRequest]error
 	mu                                             sync.Mutex
 	config                                         Config
 	deps                                           Dependencies
 	reader                                         *Reader
-	controlQueue                                   workqueue.TypedRateLimitingInterface[queueKey]
-	rootQueue                                      workqueue.TypedRateLimitingInterface[queueKey]
-	queue                                          workqueue.TypedRateLimitingInterface[queueKey]
+	controlQueue                                   workqueue.TypedRateLimitingInterface[sourceKey]
+	rootQueue                                      workqueue.TypedRateLimitingInterface[rootKey]
+	inputQueue                                     workqueue.TypedRateLimitingInterface[inputKey]
 	watches                                        map[watchKey]*resourceWatch
 	roots                                          map[types.UID]*rootState
+	candidates                                     map[types.UID]map[objectKey]*rootCandidate
 	podRoots                                       map[types.UID]types.UID
 	definitionKeys                                 map[schema.GroupKind]string
 	selections                                     map[schema.GroupKind]inventory.Selection
@@ -94,11 +102,29 @@ type Runtime struct {
 	namespaceSelector, objectSelector, podSelector labels.Selector
 }
 
-type queueKey struct {
-	Operation string
-	Object    objectKey
-	UID       types.UID
+type inputKey struct {
+	Object objectKey
+	UID    types.UID
+}
+type rootKey struct{ UID types.UID }
+type sourceKey struct {
+	Operation sourceOperation
 	Watch     watchKey
+}
+type sourceOperation uint8
+
+const (
+	syncSources sourceOperation = iota
+	verifySource
+	primeOwners
+	refreshOwners
+	restartSource
+)
+
+type rootCandidate struct {
+	ref   discovery.ObjectRef
+	path  []discovery.ObjectRef
+	dirty bool
 }
 type watchKey struct {
 	Resource  schema.GroupVersionResource
@@ -110,8 +136,11 @@ type resourceWatch struct {
 	objects      map[objectKey]struct{}
 	key          watchKey
 	gvk          schema.GroupVersionKind
-	informer     cache.SharedIndexInformer
+	restart      chan struct{}
+	relist       bool
+	replacement  *sourceRead
 	cancel       context.CancelFunc
+	ctx          context.Context
 	ready        bool
 	generation   uint64
 	failureEpoch uint64
@@ -122,6 +151,8 @@ type resourceWatch struct {
 }
 type rootState struct {
 	renewalAt           time.Time
+	publicationDeadline time.Time
+	publicationHealthy  bool
 	resolutionErrors    map[schema.GroupVersionKind]resolutionFailure
 	labelFailures       int
 	labelObject         discovery.ObjectRef
@@ -179,16 +210,22 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.Workers == 0 {
 		config.Workers = 2
 	}
+	if config.LeafWorkers == 0 {
+		config.LeafWorkers = config.Workers
+	}
+	if config.RootWorkers == 0 {
+		config.RootWorkers = config.Workers
+	}
 	if config.Now == nil {
 		config.Now = time.Now
 	}
-	if config.RefreshInterval <= 0 || config.MaxAge <= config.RefreshInterval || config.Workers < 1 {
+	if config.RefreshInterval <= 0 || config.MaxAge <= config.RefreshInterval || config.Workers < 1 || config.LeafWorkers < 1 || config.RootWorkers < 1 {
 		return nil, errors.New("workers and refresh interval must be positive; max age must exceed refresh interval")
 	}
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := &Runtime{pathDependents: map[objectKey]map[types.UID]pathDependent{}, watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", definitionsDirty: true, queue: newQueue("exporter-objects"), rootQueue: newQueue("exporter-roots"), controlQueue: newQueue("exporter-sources")}
+	r := &Runtime{pathDependents: map[objectKey]map[pathConsumer]pathDependent{}, watchFailures: map[discovery.WatchRequest]error{}, config: config, deps: deps, reader: reader, watches: map[watchKey]*resourceWatch{}, roots: map[types.UID]*rootState{}, podRoots: map[types.UID]types.UID{}, definitionKeys: map[schema.GroupKind]string{}, selections: map[schema.GroupKind]inventory.Selection{}, definitionKey: "definitions:0", definitionsDirty: true, candidates: map[types.UID]map[objectKey]*rootCandidate{}, inputQueue: newQueue[inputKey]("exporter-inputs"), rootQueue: newQueue[rootKey]("exporter-roots"), controlQueue: newQueue[sourceKey]("exporter-sources")}
 	if config.Definitions.Cluster.Enabled {
 		r.definitionError = discovery.ErrPending
 		deps.Publications.SetPublicationFailure(r.definitionKey, store.ReasonAPIUnavailable)
@@ -212,8 +249,8 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	return r, nil
 }
 
-func newQueue(name string) workqueue.TypedRateLimitingInterface[queueKey] {
-	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[queueKey](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: name})
+func newQueue[T comparable](name string) workqueue.TypedRateLimitingInterface[T] {
+	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[T](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[T]{Name: name})
 }
 
 func selector(value *metav1.LabelSelector) (labels.Selector, error) {
@@ -232,23 +269,28 @@ func (r *Runtime) Run(ctx context.Context) error {
 	r.started = true
 	r.ctx = ctx
 	r.mu.Unlock()
-	for i := 0; i < r.config.Workers; i++ {
+	for i := 0; i < r.config.LeafWorkers; i++ {
 		r.wg.Add(1)
-		go func() { defer r.wg.Done(); r.worker(ctx, r.queue) }()
+		go func() { defer r.wg.Done(); runWorker(ctx, r.inputQueue, r.resolveInput) }()
+	}
+	for i := 0; i < r.config.RootWorkers; i++ {
 		r.wg.Add(1)
-		go func() { defer r.wg.Done(); r.worker(ctx, r.rootQueue) }()
+		go func() {
+			defer r.wg.Done()
+			runWorker(ctx, r.rootQueue, func(ctx context.Context, key rootKey) error { return r.reconcile(ctx, key.UID) })
+		}()
 	}
 	for i := 0; i < 2; i++ {
 		r.wg.Add(1)
-		go func() { defer r.wg.Done(); r.worker(ctx, r.controlQueue) }()
+		go func() { defer r.wg.Done(); runWorker(ctx, r.controlQueue, r.maintainSource) }()
 	}
-	r.controlQueue.Add(queueKey{Operation: "sync"})
+	r.controlQueue.Add(sourceKey{Operation: syncSources})
 	refresh := time.NewTicker(r.config.RefreshInterval)
 	defer refresh.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			r.queue.ShutDown()
+			r.inputQueue.ShutDown()
 			r.rootQueue.ShutDown()
 			r.controlQueue.ShutDown()
 			r.mu.Lock()
@@ -259,39 +301,24 @@ func (r *Runtime) Run(ctx context.Context) error {
 			r.wg.Wait()
 			return nil
 		case <-refresh.C:
-			r.controlQueue.Add(queueKey{Operation: "metadata"})
+			r.controlQueue.Add(sourceKey{Operation: refreshOwners})
 			r.mu.Lock()
 			for key := range r.watches {
-				r.controlQueue.Add(queueKey{Operation: "verify", Watch: key})
+				r.controlQueue.Add(sourceKey{Operation: verifySource, Watch: key})
 			}
 			r.mu.Unlock()
-			r.controlQueue.Add(queueKey{Operation: "sync"})
+			r.controlQueue.Add(sourceKey{Operation: syncSources})
 		}
 	}
 }
 
-func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingInterface[queueKey]) {
+func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimitingInterface[T], reconcile func(context.Context, T) error) {
 	for {
 		key, shutdown := queue.Get()
 		if shutdown {
 			return
 		}
-		var err error
-		switch key.Operation {
-		case "sync":
-			err = r.syncWatches(ctx)
-		case "verify":
-			err = r.verifyWatch(ctx, key.Watch)
-		case "prime":
-			err = r.primeMetadata(ctx)
-		case "metadata":
-			err = r.refreshMetadata(ctx)
-		case "object":
-			err = r.resolve(ctx, key)
-		case "root":
-			err = r.reconcile(ctx, key.UID)
-		}
-		if err != nil && ctx.Err() == nil {
+		if err := reconcile(ctx, key); err != nil && ctx.Err() == nil {
 			queue.AddRateLimited(key)
 		} else {
 			queue.Forget(key)
@@ -299,11 +326,35 @@ func (r *Runtime) worker(ctx context.Context, queue workqueue.TypedRateLimitingI
 		queue.Done(key)
 	}
 }
+func (r *Runtime) maintainSource(ctx context.Context, key sourceKey) error {
+	switch key.Operation {
+	case syncSources:
+		return r.syncWatches(ctx)
+	case verifySource:
+		return r.verifyWatch(ctx, key.Watch)
+	case primeOwners:
+		return r.primeMetadata(ctx)
+	case refreshOwners:
+		return r.refreshMetadata(ctx)
+	case restartSource:
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if w := r.watches[key.Watch]; w != nil && w.relist {
+			select {
+			case w.restart <- struct{}{}:
+			default:
+			}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
 
 func (r *Runtime) Ready() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.started || r.definitionError != nil || len(r.watches) == 0 {
+	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionError != nil || len(r.watches) == 0 {
 		return false
 	}
 	for request := range r.watchFailures {
@@ -315,7 +366,7 @@ func (r *Runtime) Ready() bool {
 		if !r.requiredWatch(w.gvk) {
 			continue
 		}
-		if !w.ready || w.err != nil || !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)) {
+		if !w.ready || w.relist || w.err != nil || !r.config.Now().Before(w.verifiedAt.Add(r.config.MaxAge)) {
 			return false
 		}
 	}
@@ -438,7 +489,7 @@ func (r *Runtime) refreshDefinitionsLocked() error {
 		}
 	}
 	if recovered || len(changedKinds) > 0 {
-		r.controlQueue.Add(queueKey{Operation: "sync"})
+		r.controlQueue.Add(sourceKey{Operation: syncSources})
 	}
 	return nil
 }
@@ -484,12 +535,12 @@ func (r *Runtime) invalidateDefinitionLocked(gk schema.GroupKind) {
 func (r *Runtime) touchRoot(uid types.UID) {
 	if root := r.roots[uid]; root != nil {
 		root.generation++
-		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, 20*time.Millisecond)
+		r.rootQueue.AddAfter(rootKey{UID: uid}, 20*time.Millisecond)
 	}
 }
 func (r *Runtime) dirtyPod(root *rootState, uid types.UID) {
 	root.dirty[uid] = true
-	r.rootQueue.AddAfter(queueKey{Operation: "root", UID: root.ref.UID}, 20*time.Millisecond)
+	r.rootQueue.AddAfter(rootKey{UID: root.ref.UID}, 20*time.Millisecond)
 }
 
 func (r *Runtime) invalidatePodLocked(root *rootState, uid types.UID, reason string) {

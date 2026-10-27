@@ -38,6 +38,9 @@ var _ = Describe("chart label configuration", func() {
 			"--set", "exporter.enabled=true",
 			"--set-json", "exporter.labelRules="+string(raw),
 			"--set", "exporter.labelLimits.maxValueBytes=32",
+			"--set", "exporter.workers=3",
+			"--set", "exporter.leafWorkers=4",
+			"--set", "exporter.rootWorkers=5",
 		).CombinedOutput()
 		Expect(err).To(Succeed(), string(out))
 		decoder := yaml.NewDecoder(bytes.NewReader(out))
@@ -60,6 +63,9 @@ var _ = Describe("chart label configuration", func() {
 			Expect(err).To(Succeed())
 			Expect(cfg.LabelRules).To(Equal(rules))
 			Expect(cfg.LabelLimits.MaxValueBytes).To(Equal(32))
+			Expect(cfg.Workers).To(Equal(3))
+			Expect(cfg.LeafWorkers).To(Equal(4))
+			Expect(cfg.RootWorkers).To(Equal(5))
 			for _, rule := range cfg.LabelRules {
 				_, err = labelevaluator.Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.LabelLimits})
 				Expect(err).To(Succeed())

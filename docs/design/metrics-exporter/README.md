@@ -12,7 +12,8 @@ describes deployment settings.
 The [complete sequence](full-flow/design.md) follows startup, Pod discovery,
 root status evaluation, publication and error recovery through the process.
 [Open issues and proposed fixes](open-issues.md) records the remaining memory,
-CPU and deployed-acceptance findings.
+CPU and deployed-acceptance findings. The [controller audit](controller-audit.md)
+records the leaf/root change, alternatives and 13 operator source findings.
 
 ## From one Pod to workload metrics
 
@@ -83,6 +84,10 @@ karta_workload_status{workload_name="train",phase="Completed"} 1
 ## Components and lifecycle
 
 The exporter is one process. Each component has one owner for its mutable state:
+
+![Reflector acceptance, leaf attribution, root publication and maintenance](./exporter-component-flow.png)
+
+[Diagram source](./exporter-component-flow.excalidraw).
 
 | Component | Owns |
 | --- | --- |
@@ -200,11 +205,27 @@ Runtime caches full watched Pods and roots, with managed fields removed.
 Intermediate reads keep metadata. A Job may already be watched independently
 because its definition is selected.
 
-Object events enter an object-resolution queue. Resolved roots enter a root
-queue. Source synchronization and verification use a separate control queue.
-Each queue retries failed work with a bounded delay. A root key has one worker
-at a time, while different roots can reconcile concurrently. An event accepted
-during evaluation schedules another pass.
+Direct Reflectors accept objects into Reader without a second informer store.
+Their callbacks invalidate changed evidence and enqueue work without API reads
+or expression evaluation. Complete replacement checks provenance before making
+present objects and UID-safe absence visible.
+
+Pod events and selected non-Pod candidates enter a typed ownership-discovery
+queue keyed by object address, API representation and UID. A discovery worker
+resolves ownership and commits Pod attribution or candidate admission, then
+queues the root UID. A selected child can reveal an unselected generic ancestor
+even with no Pods. Candidate and Pod paths both use targeted ancestor invalidation.
+
+Candidate owner reads can be slow. Keeping them in the discovery queue leaves
+root workers available to publish changes for already admitted healthy roots.
+
+Only root workers publish complete workloads. A root key contains just its UID,
+so API representations share serialization. Source synchronization, verification
+and metadata refresh use a separate maintenance queue. Each queue retries failed
+work with a bounded delay. Different roots can reconcile concurrently. An event
+accepted during evaluation schedules another pass. `leafWorkers` controls
+ownership discovery for Pods and candidates; `rootWorkers` controls publication.
+Both settings inherit `workers` when zero.
 
 Namespace selection controls watched namespaces. [Selection settings](../../karta-metrics-exporter/configuration.md#selection)
 control output after resolution. Supplemental watches stop during synchronization

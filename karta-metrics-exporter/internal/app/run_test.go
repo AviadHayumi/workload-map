@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -128,18 +129,25 @@ var _ = Describe("Application lifecycle", func() {
 		defer cancel()
 		done := make(chan error, 1)
 		go func() { done <- application.ServeListener(ctx, listener) }()
-		client := &http.Client{Timeout: time.Second}
+		transport := &http.Transport{}
+		defer transport.CloseIdleConnections()
+		client := &http.Client{Transport: transport, Timeout: time.Second}
 		for path, expected := range map[string]int{"/metrics": http.StatusOK, "/healthz": http.StatusOK, "/readyz": http.StatusServiceUnavailable} {
 			response, err := client.Get("http://" + listener.Addr().String() + path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(response.StatusCode).To(Equal(expected), path)
+			_, err = io.Copy(io.Discard, response.Body)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(response.Body.Close()).To(Succeed())
 		}
 		worker.ready.Store(true)
 		response, err := client.Get("http://" + listener.Addr().String() + "/readyz")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(response.StatusCode).To(Equal(http.StatusOK))
+		_, err = io.Copy(io.Discard, response.Body)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(response.Body.Close()).To(Succeed())
+		transport.CloseIdleConnections()
 		Expect(listener.Close()).To(Succeed())
 		Eventually(done).Should(Receive(&err))
 		Expect(err).To(HaveOccurred())

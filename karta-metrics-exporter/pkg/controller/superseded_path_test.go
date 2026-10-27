@@ -50,7 +50,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		paused := &pausedPodDiscovery{Discoverer: r.deps.Discovery, entered: make(chan struct{}), resume: make(chan struct{})}
 		r.deps.Discovery = paused
 		finished := make(chan error, 1)
-		go func() { finished <- r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
+		go func() { finished <- r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
 		Eventually(paused.entered).Should(BeClosed())
 		changed := root.DeepCopy()
 		changed.SetResourceVersion("2")
@@ -59,7 +59,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, nil, apierrors.NewForbidden(w.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
 		Expect(state.resolutionErrors).NotTo(BeEmpty())
 		close(paused.resume)
 		Eventually(finished).Should(Receive(MatchError(discovery.ErrStale)))
@@ -136,7 +136,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		paused := &pausedPodDiscovery{Discoverer: r.deps.Discovery, entered: make(chan struct{}), resume: make(chan struct{})}
 		r.deps.Discovery = paused
 		done := make(chan error, 1)
-		go func() { done <- r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
+		go func() { done <- r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
 		Eventually(paused.entered).Should(BeClosed())
 		changed := canonical.DeepCopy()
 		changed.SetResourceVersion("2")
@@ -145,7 +145,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		metadata.PrependReactor("get", "jobs", func(clienttesting.Action) (bool, kruntime.Object, error) {
 			return true, nil, apierrors.NewForbidden(cw.key.Resource.GroupResource(), "parent", errors.New("denied"))
 		})
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(HaveOccurred())
 		close(paused.resume)
 		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
@@ -196,12 +196,12 @@ var _ = Describe("Superseded dependency paths", func() {
 		Expect(state.resolutionErrors).To(HaveKey(v2))
 		close(resume)
 		Eventually(done).Should(Receive(Succeed()))
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrPending))
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrPending))
 		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
 		valid, _ := publications.Capture().Valid(publications.Published(canonical.GetUID()).Creation)
 		Expect(valid).To(BeFalse())
 		Expect(r.verifyWatch(ctx, replacement.key)).To(Succeed())
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(state.resolutionErrors).To(BeEmpty())
 		Expect(r.reconcile(ctx, canonical.GetUID())).To(Succeed())
 		valid, _ = publications.Capture().Valid(publications.Published(canonical.GetUID()).Creation)
@@ -221,7 +221,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		}
 		seedWatch(r, testRootGVK, "jobs", root)
 		pw := seedWatch(r, podGVK, "pods", pod)
-		err := r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})
+		err := r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})
 		Expect(err).To(MatchError(ContainSubstring(discovery.ErrUnresolvedOwner.Error())))
 		Expect(r.roots).To(BeEmpty())
 		Expect(publications.Capture().Records).To(BeEmpty())
@@ -230,7 +230,7 @@ var _ = Describe("Superseded dependency paths", func() {
 		corrected.SetResourceVersion("2")
 		ownedBy(corrected, root)
 		r.acceptEvent(pw, corrected, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(corrected)), UID: corrected.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(corrected)), UID: corrected.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		record := publications.Published(root.GetUID())
 		Expect(record).NotTo(BeNil())
@@ -271,13 +271,13 @@ var _ = Describe("Superseded dependency paths", func() {
 		paused := &pausedPodDiscovery{Discoverer: r.deps.Discovery, entered: make(chan struct{}), resume: make(chan struct{})}
 		r.deps.Discovery = paused
 		done := make(chan error, 1)
-		go func() { done <- r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
+		go func() { done <- r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()}) }()
 		Eventually(paused.entered).Should(BeClosed())
 		changed := canonical.DeepCopy()
 		changed.SetResourceVersion("2")
 		ownedBy(changed, parent)
 		r.acceptEvent(cw, changed, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(changed)), UID: changed.GetUID()})).To(Succeed())
 		Expect(r.roots).NotTo(HaveKey(canonical.GetUID()))
 		if retire {
 			r.mu.Lock()
@@ -290,14 +290,14 @@ var _ = Describe("Superseded dependency paths", func() {
 		close(paused.resume)
 		Eventually(done).Should(Receive(MatchError(discovery.ErrStale)))
 		r.deps.Discovery = paused.Discoverer
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(MatchError(discovery.ErrStale))
 		Expect(r.roots).NotTo(HaveKey(canonical.GetUID()))
 		Expect(publications.Published(canonical.GetUID())).To(BeNil())
 		updatedAlias := alias.DeepCopy()
 		updatedAlias.SetResourceVersion("2")
 		ownedBy(updatedAlias, parent)
 		r.acceptEvent(aw, updatedAlias, false)
-		Expect(r.resolve(ctx, queueKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, parent.GetUID())).To(Succeed())
 		record := publications.Published(parent.GetUID())
 		Expect(record).NotTo(BeNil())

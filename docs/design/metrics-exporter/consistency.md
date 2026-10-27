@@ -16,8 +16,8 @@ generation, resolves the new path and publishes only after checking its inputs.
 ## Observations and evidence
 
 Runtime's reader keeps full watched Pods and workload objects. It shares immutable
-informer objects after removing managed fields. Intermediate owners fetched for
-traversal are cached as metadata. Discovery checks names, UIDs and resourceVersions
+accepted source objects after removing managed fields. Intermediate owners
+fetched for traversal are cached as metadata. Discovery checks names, UIDs and resourceVersions
 before using an object. A matching name with a different UID is a replacement.
 
 Every published result has evidence:
@@ -37,7 +37,7 @@ are invalid. A mapping uses the earliest expiry among its required inputs.
 Root creation and status do not depend on unrelated Pod paths.
 
 Runtime timestamps a WATCH event when it receives it. A LIST uses the time its
-read started. That timestamp follows the object through the informer queue, so
+read started. That timestamp follows the object into Reflector acceptance, so
 delayed delivery does not extend its lifetime. Periodic verification renews
 unchanged observations. Scrapes and watch bookmarks never renew evidence.
 Local generations detect changes already accepted by this exporter. They do not
@@ -73,11 +73,11 @@ for switching between these paths.
 
 After refresh, Runtime compares each retained path with the current owner and its
 proof. Healthy, unchanged paths renew their root without repeating Pod discovery.
-Changed or failed paths requeue their dependent Pods. Each affected root is
-scheduled once, even when several Pods share an owner.
+Changed or failed paths requeue their dependent Pod leaves or non-Pod candidates.
+Each affected root is scheduled once, even when several Pods share an owner.
 
 Watched resources have separate periodic metadata verification. Runtime compares
-the returned UID and resourceVersion with the accepted informer observation for
+the returned UID and resourceVersion with the accepted full-object observation for
 the same API representation. Matching metadata renews the full object's evidence.
 A mismatch invalidates the old result and queues work. A complete LIST can remove
 an object absent from that snapshot if no newer local event superseded it.
@@ -97,9 +97,9 @@ Queue and API delays can exceed the evidence deadline, which makes affected rows
 invalid until fresh verification succeeds.
 
 An intermediate type can already be watched because its own Karta is selected.
-Runtime records which Pods depend on each intermediate object. A change to that
-watched object invalidates and requeues those Pods. Replacing or removing a Pod
-path removes its old dependencies. This index does not create intermediate
+Runtime records which Pod leaves and non-Pod candidates depend on each
+intermediate object. A change to that watched object invalidates and requeues
+those consumers. Replacing or removing a Pod path removes its old dependencies. This index does not create intermediate
 watches. Pod and root changes already have their own update paths.
 
 The command defaults to a 45-second refresh interval, two-minute maximum age and
@@ -147,7 +147,7 @@ owner outside an explicit ignore boundary, the object cannot be published as a
 root. Removing its old publication does not remove that ownership evidence.
 A conflicting version invalidates the root's ownership key immediately, including
 results already in Store. Removing that conflict cannot make an older read or
-buffered informer event valid again. Fresh verification is required.
+delayed source event valid again. Fresh verification is required.
 
 Each root queue key has one worker at a time. This also serializes use of that
 root's calculation cache and the read/replace/publish sequence. Store

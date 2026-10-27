@@ -117,7 +117,7 @@ var _ = Describe("Proof retirement reasons", func() {
 		key := rememberOwner(r.reader, "middle", "1")
 		old := r.reader.metadata[key]
 		old.object.SetOwnerReferences(middle.GetOwnerReferences())
-		Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		row, _ := publications.Published(root.GetUID()).Pod(pod.GetUID())
 		changed := old.object.DeepCopy()
@@ -144,7 +144,7 @@ var _ = Describe("Proof retirement reasons", func() {
 		ownedBy(pod, middle)
 		w := seedWatch(r, testRootGVK, "jobs", root, middle)
 		seedWatch(r, podGVK, "pods", pod)
-		Expect(r.resolve(ctx, queueKey{Operation: "object", Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
+		Expect(r.resolveInput(ctx, inputKey{Object: keyOf(refOf(pod)), UID: pod.GetUID()})).To(Succeed())
 		Expect(r.reconcile(ctx, root.GetUID())).To(Succeed())
 		collect := collectProofMetrics(publications)
 		row, found := publications.Published(root.GetUID()).Pod(pod.GetUID())

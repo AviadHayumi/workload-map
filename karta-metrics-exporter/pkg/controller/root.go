@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"maps"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
@@ -26,180 +28,6 @@ import (
 )
 
 func labelsFor(object *unstructured.Unstructured) labels.Set { return labels.Set(object.GetLabels()) }
-
-func (r *Runtime) resolve(ctx context.Context, key queueKey) error {
-	ref := discovery.ObjectRef{GVK: key.Object.GVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
-	object, ok := r.reader.Cached(ref)
-	if !ok {
-		return nil
-	}
-	ref = refOf(object)
-	if ref.GVK == namespaceGVK || ref.GVK == kartaGVK {
-		return nil
-	}
-	if ref.GVK == podGVK && !r.podSelector.Matches(labelsFor(object)) {
-		r.mu.Lock()
-		if uid := r.podRoots[ref.UID]; uid != "" {
-			r.invalidatePodLocked(r.roots[uid], ref.UID, store.ReasonUnresolvedOwner)
-			r.removePodPathLocked(r.roots[uid], ref.UID)
-			delete(r.podRoots, ref.UID)
-		}
-		r.mu.Unlock()
-		return nil
-	}
-	var rootWatch watchKey
-	result, err := r.deps.Discovery.Get(ctx, ref)
-	if result.Workload != nil && result.Workload.Root.UID != "" {
-		root := result.Workload.Root
-		gvk := root.GVK
-		if selection, lookupErr := r.lookupDefinition(root.GVK); lookupErr == nil && selection.Definition != nil {
-			gvk = selection.GVK
-		} else {
-			selected, selectionErr := r.selectedResource(gvk)
-			if selectionErr != nil {
-				return selectionErr
-			}
-			if !selected {
-				r.mu.Lock()
-				if previous := r.roots[r.podRoots[ref.UID]]; previous != nil {
-					r.invalidatePodLocked(previous, ref.UID, store.ReasonUnresolvedOwner)
-					r.removePodPathLocked(previous, ref.UID)
-					delete(r.podRoots, ref.UID)
-				}
-				r.mu.Unlock()
-				return nil
-			}
-			r.mu.Lock()
-			if existing := r.roots[root.UID]; existing != nil {
-				gvk = existing.ref.GVK
-			}
-			r.mu.Unlock()
-		}
-		namespace := root.Namespace
-		if r.config.NamespaceSelector == nil {
-			namespace = ""
-		}
-		var watchErr error
-		rootWatch, watchErr = r.ensureWatch(ctx, gvk, namespace, false)
-		if watchErr != nil {
-			err = errors.Join(err, watchErr)
-		}
-	}
-	if err != nil {
-		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
-			return err
-		}
-		r.mu.Lock()
-		if root := r.roots[ref.UID]; root != nil {
-			if current, ok := r.reader.Cached(ref); ok && current.GetResourceVersion() == ref.ResourceVersion {
-				root.failResolution(ref.GVK, err)
-				r.failPublicationLocked(ref.UID, err)
-				r.rootQueue.Add(queueKey{Operation: "root", UID: ref.UID})
-			}
-		}
-		r.mu.Unlock()
-		if errors.Is(err, discovery.ErrStale) || errors.Is(err, discovery.ErrPending) {
-			return err
-		}
-		r.mu.Lock()
-		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
-			r.invalidatePodLocked(root, ref.UID, failureReason(err))
-			pod := root.pods[ref.UID]
-			pod.resolveError = err
-			root.pods[ref.UID] = pod
-			r.deps.Publications.SetPublicationFailure(pod.proofKey, failureReason(err))
-		}
-		r.failPublicationLocked(ref.UID, err)
-		r.publishHealthLocked()
-		r.mu.Unlock()
-		return err
-	}
-	if result.Workload == nil {
-		return errors.New("discovery returned no workload")
-	}
-	workload := result.Workload
-	if workload.Root.GVK == podGVK {
-		if selection, err := r.lookupDefinition(podGVK); err == nil && selection.Definition == nil {
-			r.mu.Lock()
-			r.removeRoot(workload.Root.UID)
-			r.mu.Unlock()
-			return nil
-		}
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, dependency := range workload.Path {
-		if _, err := r.reader.evidence(dependency); err != nil {
-			return discovery.ErrStale
-		}
-	}
-	if current, ok := r.reader.Cached(ref); !ok || current.GetResourceVersion() != ref.ResourceVersion {
-		return discovery.ErrStale
-	}
-	r.reader.mu.RLock()
-	terminal := r.rootBoundaryLocked(workload.Root)
-	r.reader.mu.RUnlock()
-	if !terminal {
-		return discovery.ErrStale
-	}
-	if old := r.roots[ref.UID]; old != nil && workload.Root.UID != ref.UID {
-		for uid, pod := range old.pods {
-			if len(pod.path) > 0 {
-				r.queue.Add(queueKey{Operation: "object", Object: keyOf(pod.path[0]), UID: uid})
-			}
-		}
-		r.removeRoot(ref.UID)
-	}
-	if r.watches[rootWatch] == nil {
-		r.controlQueue.Add(queueKey{Operation: "sync"})
-		return discovery.ErrPending
-	}
-	root := r.roots[workload.Root.UID]
-	if root == nil {
-		root = &rootState{ref: workload.Root, pods: map[types.UID]podState{}, dirty: map[types.UID]bool{}, fullRefresh: true}
-		r.roots[workload.Root.UID] = root
-	}
-	if failure, unresolved := root.resolutionErrors[workload.Root.GVK]; unresolved {
-		if failure.verifyAfter > 0 && r.watches[rootWatch].verifiedRead <= failure.verifyAfter {
-			return discovery.ErrPending
-		}
-		delete(root.resolutionErrors, workload.Root.GVK)
-	}
-	if len(root.resolutionErrors) > 0 {
-		return discovery.ErrStale
-	}
-	root.watch = rootWatch
-	if root.ref.GVK == workload.Root.GVK {
-		root.ref = workload.Root
-	}
-	root.resolution = workload.Resolution
-	if ref.GVK == podGVK {
-		if previous := r.podRoots[ref.UID]; previous != "" && previous != workload.Root.UID {
-			if old := r.roots[previous]; old != nil {
-				r.invalidatePodLocked(old, ref.UID, store.ReasonUnresolvedOwner)
-				r.removePodPathLocked(old, ref.UID)
-			}
-		}
-		if root.pods[ref.UID].resolveError != nil {
-			r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
-		}
-		pod := root.pods[ref.UID]
-		pod.resolveError = nil
-		if pod.proofKey == "" {
-			r.sequence++
-			pod.proofKey = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
-		}
-		root.pods[ref.UID] = pod
-		r.setPodPathLocked(root, ref.UID, workload.Path)
-		r.dirtyPod(root, ref.UID)
-		r.podRoots[ref.UID] = workload.Root.UID
-	}
-	if ref.GVK != podGVK {
-		root.fullRefresh = true
-		r.rootQueue.Add(queueKey{Operation: "root", UID: workload.Root.UID})
-	}
-	return nil
-}
 
 func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	r.mu.Lock()
@@ -213,7 +41,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		state.renewalAt = time.Time{}
 	} else if !state.renewalAt.IsZero() {
 		// An urgent AddAfter may have consumed the queue's earlier renewal entry.
-		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, state.renewalAt.Sub(r.config.Now()))
+		r.rootQueue.AddAfter(rootKey{UID: uid}, state.renewalAt.Sub(r.config.Now()))
 	}
 	ref, generation, resolution := state.ref, state.generation, state.resolution
 	var rootFailure error
@@ -394,7 +222,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 		podObject, found := r.reader.Cached(path[0])
 		if !found {
-			r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: podUID})
+			r.inputQueue.Add(inputKey{Object: keyOf(path[0]), UID: podUID})
 			if compatible {
 				if row, found := previous.Pod(podUID); found {
 					row.Mapping.Reason = store.ReasonAPIUnavailable
@@ -406,7 +234,6 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		}
 		evidence := statusEvidence
 		evidence.Dependencies = append(slices.Clone(evidence.Dependencies), pod.proofKey)
-		valid := true
 		var pathFailure error
 		for _, dependency := range path {
 			// Root updates are evaluated with their current selected representation.
@@ -430,8 +257,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			}
 			if proofErr != nil {
 				pathFailure = proofErr
-				valid = false
-				r.queue.Add(queueKey{Operation: "object", Object: keyOf(path[0]), UID: podUID})
+				r.inputQueue.Add(inputKey{Object: keyOf(path[0]), UID: podUID})
 				break
 			}
 			evidence = mergeEvidence(evidence, proof)
@@ -443,7 +269,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		reuse := pod.cached != nil && cached.resourceVersion == podObject.GetResourceVersion() && (cached.generation == generation || definitionError != nil)
 		if !reuse {
 			cached = cachedPod{resourceVersion: podObject.GetResourceVersion(), generation: generation, record: store.PodRecord{UID: podUID, Name: podObject.GetName(), Namespace: podObject.GetNamespace(), Instance: "<unknown>", Component: "<unknown>", OwnerResolution: store.OwnerResolution(resolution)}}
-			if factory != nil && summary != nil && valid {
+			if factory != nil && summary != nil && pathFailure == nil {
 				component, instance, group, mappingErr := mapPod(ctx, factory, summary, podObject)
 				if mappingErr != nil {
 					cached.reason = store.ReasonEvaluationFailed
@@ -459,7 +285,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			}
 			cached.record.Labels = resolved.Labels
 			cached.labelFailure = len(resolved.Errors) > 0
-			if valid && definitionError == nil && rootFailure == nil {
+			if pathFailure == nil && definitionError == nil && rootFailure == nil {
 				pod.cached = &cached
 			}
 
@@ -469,10 +295,10 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		if interpretationOrigin == (inventory.Origin{}) && len(path) > 0 {
 			podRecord.WorkloadGVK = path[len(path)-1].GVK
 		}
-		if !valid || pod.resolveError != nil || rootFailure != nil {
+		if pathFailure != nil || pod.resolveError != nil || rootFailure != nil {
 			podRecord.OwnerResolution = store.UnknownOwner
 		}
-		if !valid {
+		if pathFailure != nil {
 			evidence.Reason = failureReason(pathFailure)
 			if cause := pod.resolveError; cause != nil {
 				evidence.Reason = failureReason(cause)
@@ -560,6 +386,18 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			return discovery.ErrStale
 		}
 	}
+	if full {
+		current.publicationDeadline = time.Time{}
+		current.publicationHealthy = true
+	}
+	for _, proof := range proofs {
+		if proof.ExpiresAt.IsZero() || (proof.Reason != "" && proof.Reason != store.ReasonNone) {
+			current.publicationHealthy = false
+		}
+		if current.publicationDeadline.IsZero() || proof.ExpiresAt.Before(current.publicationDeadline) {
+			current.publicationDeadline = proof.ExpiresAt
+		}
+	}
 	r.deps.Publications.Publish(record)
 	// Changed rows can introduce an earlier path deadline between source rounds.
 	// Inspect only the proofs already evaluated by this reconciliation.
@@ -570,7 +408,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 				current.renewalAt = now.Add(max(time.Duration(0), proof.ExpiresAt.Sub(now)/2))
 			}
 		}
-		r.rootQueue.AddAfter(queueKey{Operation: "root", UID: uid}, current.renewalAt.Sub(now))
+		r.rootQueue.AddAfter(rootKey{UID: uid}, current.renewalAt.Sub(now))
 	}
 	for uid, evaluated := range pods {
 		pod, exists := current.pods[uid]
@@ -669,4 +507,255 @@ func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *in
 		}
 	}
 	return name, instance, group, nil
+}
+
+func ValidateResourceRules(rules []ResourceRule) error {
+	for index, rule := range rules {
+		if len(rule.APIGroups) == 0 || len(rule.APIVersions) == 0 || len(rule.Resources) == 0 {
+			return fmt.Errorf("resource rule %d requires apiGroups, apiVersions and resources", index)
+		}
+		for _, version := range rule.APIVersions {
+			if version == "" || strings.ContainsAny(version, "/ \t\n") {
+				return errors.New("resource rule API versions must name a version or *")
+			}
+		}
+		for _, resource := range rule.Resources {
+			if resource == "" || strings.ContainsAny(resource, "/ \t\n") {
+				return errors.New("resource rules must name whole resources or *")
+			}
+		}
+	}
+	return nil
+}
+
+func matchesResource(rule ResourceRule, gvr schema.GroupVersionResource) bool {
+	return (slices.Contains(rule.APIGroups, "*") || slices.Contains(rule.APIGroups, gvr.Group)) && (slices.Contains(rule.APIVersions, "*") || slices.Contains(rule.APIVersions, gvr.Version)) && (slices.Contains(rule.Resources, "*") || slices.Contains(rule.Resources, gvr.Resource))
+}
+
+func (r *Runtime) selectedRoot(object *unstructured.Unstructured) (bool, error) {
+	if !r.objectSelector.Matches(labelsFor(object)) {
+		return false, nil
+	}
+	return r.selectedResource(object.GroupVersionKind())
+}
+
+func (r *Runtime) selectedResource(gvk schema.GroupVersionKind) (bool, error) {
+	if len(r.config.ResourceRules) == 0 && len(r.config.ExcludeResourceRules) == 0 {
+		return true, nil
+	}
+	mapping, err := r.reader.clients.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return false, err
+	}
+	for _, rule := range r.config.ExcludeResourceRules {
+		if matchesResource(rule, mapping.Resource) {
+			return false, nil
+		}
+	}
+	if len(r.config.ResourceRules) == 0 {
+		return true, nil
+	}
+	for _, rule := range r.config.ResourceRules {
+		if matchesResource(rule, mapping.Resource) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// Runtime and Reader are locked. Only already-valid observations may wait;
+// mutations use Add and overtake delayed renewal on the same serialized key.
+func (r *Runtime) scheduleRenewalLocked(uid types.UID) bool {
+	state := r.roots[uid]
+	if state == nil {
+		return false
+	}
+	record := r.deps.Publications.Published(uid)
+	healthy := record != nil && state.publicationHealthy && record.Workload.OwnerResolution != store.UnknownOwner &&
+		len(record.FailureReasons) == 0 && len(state.dirty) == 0 && len(state.resolutionErrors) == 0 &&
+		state.publishedGeneration == state.generation && !state.fullRefresh && r.definitionError == nil
+	now, earliest := r.config.Now(), state.publicationDeadline
+	// Source callbacks invalidate dirty/generation state. Root proof can also be
+	// retired by a metadata alias before its Runtime wakeup arrives.
+	if entry := r.reader.objects[keyOf(state.ref)]; entry.object != nil {
+		for _, key := range entry.evidence.Dependencies {
+			healthy = healthy && r.reader.activeKeys[key]
+		}
+	}
+	remaining := earliest.Sub(now)
+	if !healthy || remaining <= 2*time.Second {
+		state.renewalAt = time.Time{}
+		state.fullRefresh = true
+		r.rootQueue.Add(rootKey{UID: uid})
+		return false
+	}
+	window := min(r.config.RefreshInterval, remaining/2)
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(uid))
+	delay := window/4 + time.Duration(hash.Sum64()%uint64(max(window*3/4, time.Nanosecond)))
+	deadline := now.Add(delay)
+	if state.renewalAt.IsZero() || deadline.Before(state.renewalAt) {
+		state.renewalAt = deadline
+	}
+	r.rootQueue.AddAfter(rootKey{UID: uid}, state.renewalAt.Sub(now))
+	return true
+}
+
+func (r *Runtime) admitRoot(ctx context.Context, ref discovery.ObjectRef) error {
+	ref.ResourceVersion = ""
+	object, ok := r.reader.Cached(ref)
+	if !ok {
+		return nil
+	}
+	ref = refOf(object)
+	workload, watch, err := r.discoverPath(ctx, ref)
+	if err != nil || workload == nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	root, err := r.acceptPathLocked(ref, workload, watch)
+	if err != nil {
+		return err
+	}
+	if candidate := r.candidates[ref.UID][keyOf(ref)]; candidate != nil && candidate.ref == ref {
+		r.setCandidatePathLocked(candidate, workload.Path)
+		candidate.dirty = false
+	}
+	root.fullRefresh = true
+	r.rootQueue.Add(rootKey{UID: workload.Root.UID})
+	return nil
+}
+
+func (r *Runtime) discoverPath(ctx context.Context, ref discovery.ObjectRef) (*discovery.GenericWorkload, watchKey, error) {
+	var rootWatch watchKey
+	result, err := r.deps.Discovery.Get(ctx, ref)
+	if result.Workload != nil && result.Workload.Root.UID != "" {
+		root := result.Workload.Root
+		gvk := root.GVK
+		if selection, lookupErr := r.lookupDefinition(root.GVK); lookupErr == nil && selection.Definition != nil {
+			gvk = selection.GVK
+		} else {
+			selected, selectionErr := r.selectedResource(gvk)
+			if selectionErr != nil {
+				return nil, rootWatch, selectionErr
+			}
+			if !selected {
+				r.mu.Lock()
+				if previous := r.roots[r.podRoots[ref.UID]]; previous != nil {
+					r.invalidatePodLocked(previous, ref.UID, store.ReasonUnresolvedOwner)
+					r.removePodPathLocked(previous, ref.UID)
+					delete(r.podRoots, ref.UID)
+				}
+				r.mu.Unlock()
+				return nil, rootWatch, nil
+			}
+			r.mu.Lock()
+			if existing := r.roots[root.UID]; existing != nil {
+				gvk = existing.ref.GVK
+			}
+			r.mu.Unlock()
+		}
+		namespace := root.Namespace
+		if r.config.NamespaceSelector == nil {
+			namespace = ""
+		}
+		var watchErr error
+		rootWatch, watchErr = r.ensureWatch(ctx, gvk, namespace, false)
+		if watchErr != nil {
+			err = errors.Join(err, watchErr)
+		}
+	}
+	if err != nil {
+		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+			return nil, rootWatch, err
+		}
+		r.mu.Lock()
+		if root := r.roots[ref.UID]; root != nil {
+			if current, ok := r.reader.Cached(ref); ok && current.GetResourceVersion() == ref.ResourceVersion {
+				root.failResolution(ref.GVK, err)
+				r.failPublicationLocked(ref.UID, err)
+				r.rootQueue.Add(rootKey{UID: ref.UID})
+			}
+		}
+		r.mu.Unlock()
+		if errors.Is(err, discovery.ErrStale) || errors.Is(err, discovery.ErrPending) {
+			return nil, rootWatch, err
+		}
+		r.mu.Lock()
+		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
+			r.invalidatePodLocked(root, ref.UID, failureReason(err))
+			pod := root.pods[ref.UID]
+			pod.resolveError = err
+			root.pods[ref.UID] = pod
+			r.deps.Publications.SetPublicationFailure(pod.proofKey, failureReason(err))
+		}
+		r.failPublicationLocked(ref.UID, err)
+		r.publishHealthLocked()
+		r.mu.Unlock()
+		return nil, rootWatch, err
+	}
+	if result.Workload == nil {
+		return nil, rootWatch, errors.New("discovery returned no workload")
+	}
+	workload := result.Workload
+	if workload.Root.GVK == podGVK {
+		if selection, err := r.lookupDefinition(podGVK); err == nil && selection.Definition == nil {
+			r.mu.Lock()
+			r.removeRoot(workload.Root.UID)
+			r.mu.Unlock()
+			return nil, rootWatch, nil
+		}
+	}
+	return workload, rootWatch, nil
+}
+
+// Pod and candidate discovery validate the complete path before changing state.
+func (r *Runtime) acceptPathLocked(ref discovery.ObjectRef, workload *discovery.GenericWorkload, rootWatch watchKey) (*rootState, error) {
+	for _, dependency := range workload.Path {
+		if _, err := r.reader.evidence(dependency); err != nil {
+			return nil, discovery.ErrStale
+		}
+	}
+	if current, ok := r.reader.Cached(ref); !ok || current.GetResourceVersion() != ref.ResourceVersion {
+		return nil, discovery.ErrStale
+	}
+	r.reader.mu.RLock()
+	terminal := r.rootBoundaryLocked(workload.Root)
+	r.reader.mu.RUnlock()
+	if !terminal {
+		return nil, discovery.ErrStale
+	}
+	if old := r.roots[ref.UID]; old != nil && workload.Root.UID != ref.UID {
+		for uid, pod := range old.pods {
+			if len(pod.path) > 0 {
+				r.inputQueue.Add(inputKey{Object: keyOf(pod.path[0]), UID: uid})
+			}
+		}
+		r.removeRoot(ref.UID)
+	}
+	if r.watches[rootWatch] == nil {
+		r.controlQueue.Add(sourceKey{Operation: syncSources})
+		return nil, discovery.ErrPending
+	}
+	root := r.roots[workload.Root.UID]
+	if root == nil {
+		root = &rootState{ref: workload.Root, pods: map[types.UID]podState{}, dirty: map[types.UID]bool{}, fullRefresh: true}
+		r.roots[workload.Root.UID] = root
+	}
+	if failure, unresolved := root.resolutionErrors[workload.Root.GVK]; unresolved {
+		if failure.verifyAfter > 0 && r.watches[rootWatch].verifiedRead <= failure.verifyAfter {
+			return nil, discovery.ErrPending
+		}
+		delete(root.resolutionErrors, workload.Root.GVK)
+	}
+	if len(root.resolutionErrors) > 0 {
+		return nil, discovery.ErrStale
+	}
+	root.watch = rootWatch
+	if root.ref.GVK == workload.Root.GVK {
+		root.ref = workload.Root
+	}
+	root.resolution = workload.Resolution
+	return root, nil
 }
