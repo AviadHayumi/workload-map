@@ -1,0 +1,490 @@
+@startuml
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+title Karta metrics exporter: startup, ownership, status, failures and recovery
+hide footbox
+actor "Operator\nconfiguration / signals" as User #455A64
+box "Kubernetes control plane (external)" #E8F5E9
+participant "Kubernetes API\nobjects / discovery / streams" as API #2E7D32
+end box
+box "One exporter process: logical components, not separate services" #EAF2F8
+participant "Application + HTTP\nconfig / lifecycle / collector" as App #1565C0
+participant "Runtime\nobserver / queues / publication" as Runtime #1565C0
+participant "Discovery\ncontroller-owner traversal" as Discovery #1565C0
+participant "Reader\naccepted objects / metadata" as Reader #1565C0
+participant "Inventory\nfilter / elect Karta" as Inventory #1565C0
+participant "Karta SDK + JQ\nroot status / Pod mapping" as SDK #1565C0
+participant "Label resolver + CEL\ncustom label rules" as Labels #1565C0
+participant "Publication Store\nimmutable records / failures" as Store #1565C0
+end box
+box "Monitoring system (external)" #F3E5F5
+participant "Prometheus\nHTTP pull" as Prom #7B1FA2
+end box
+legend left
+  Blue [call] = request or local computation
+  Green [event/result] = observation or returned data
+  Purple [decision] = state transition or validity decision
+  Yellow notes = explanation; pink notes = failure or limit
+endlegend
+note over User,Prom
+Illustrative execution of the simplified branch. This is not a captured cluster trace.
+Example: namespace demo; JobSet train (UID js-1) -> Job train-worker-0 (UID job-1) -> Pod train-worker-0-a (UID pod-1).
+Each stage explains one path. Source callbacks, different queue keys and HTTP collection can overlap.
+The JobSet controller writes JobSet status. Its own reconciliation is outside this exporter diagram.
+end note
+
+== A. Load configuration and reject invalid startup ==
+User -[#1565C0]> App : [call] start karta-metrics-exporter\n--config exporter.yaml
+App -[#7B1FA2]> App : [decision] defaults < YAML < environment < explicit flags
+App -[#1565C0]> App : [call] validate selectors, duration bounds,\nresource rules, sources and label limits
+note right of App
+Defaults: refresh 45s; maxAge 2m;
+request timeout 30s; workers 2;
+shared API QPS 20 / burst 40.
+maxAge must exceed refreshInterval.
+end note
+alt invalid config / Kubernetes config / CEL compile failure
+  App --[#388E3C]> User : [result] return error; main logs and exits 1
+else valid configuration
+  App -[#1565C0]> App : [call] signal context; BuildConfigFromFlags\nconfigure Kubernetes clients
+end
+
+== B. Construct one dependency graph before serving ==
+App -[#1565C0]> Reader : [call] dynamic + metadata clients; deferred REST mapper\nshared API token bucket; TTL=maxAge
+App -[#1565C0]> Inventory : [call] New(selected catalog; cluster source policy)
+Inventory -[#7B1FA2]> Inventory : [decision] validate catalog names; select entries\ncluster snapshot initially empty
+App -[#1565C0]> Discovery : [call] New(Reader, ignoredOwnerKinds)
+App -[#1565C0]> Labels : [call] validate rule names / metrics / sources\ncompile CEL once per configured rule
+Labels --[#388E3C]> App : [result] compiled resolver, or startup error
+App -[#1565C0]> Store : [call] New(publication store)
+App -[#1565C0]> Runtime : [call] New(filters, sources, queues, dependencies)
+opt cluster definitions enabled
+  Runtime -[#1565C0]> Store : [call] mark definition source pending
+end
+App -[#1565C0]> App : [call] OTel meter provider + Prometheus registry\nregister observable gauges before workers
+note over Runtime,Inventory
+Runtime owns every Kubernetes source stream, including Karta definitions.
+Inventory is a synchronous selection helper. It has no watcher or worker.
+Reader shares accepted full objects and caches intermediate-owner metadata.
+end note
+
+== C. Start workers, source synchronization and HTTP together ==
+par Runtime goroutine
+  App -[#1565C0]> Runtime : [call] Run(childContext)
+  Runtime -[#7B1FA2]> Runtime : [decision] start 2 object workers + 2 root workers\nplus 2 control workers at default configuration
+  Runtime -[#1565C0]> Runtime : [call] enqueue control sync; start refresh ticker
+else HTTP server goroutine
+  App -[#7B1FA2]> App : [decision] serve /metrics, /healthz and /readyz
+  Prom -[#1565C0]> App : [call] GET /readyz
+  App -[#1565C0]> Runtime : [call] Ready()
+  Runtime --[#388E3C]> App : [result] false until required sources ready / fresh
+  App --[#388E3C]> Prom : [result] 503 initially; /healthz returns 200
+end
+note over Runtime,Store
+A queue key is processed once at a time in its queue.
+Different roots can reconcile concurrently. Calculation runs outside Runtime's lock.
+Publication commit returns under that lock to reject obsolete work.
+end note
+
+== D. Establish Kubernetes source streams and their evidence ==
+opt cluster definitions enabled
+  Runtime -[#1565C0]> Reader : [call] map Karta GVK to resource and scope
+  Reader -[#1565C0]> API : [call] API discovery when mapper needs it
+  API --[#388E3C]> Reader : [result] GVR and namespaced / cluster scope
+  Reader --[#388E3C]> Runtime : [result] REST mapping
+  Runtime -[#1565C0]> Runtime : [call] ensureWatch(Karta, discover=true)\ncreate SharedIndexInformer and callbacks
+  Runtime -[#1565C0]> API : [call] full-object LIST; then WATCH\nclient-go may negotiate initial watch events
+  API --[#388E3C]> Runtime : [event] Karta full objects / add / update / delete
+  Runtime -[#7B1FA2]> Runtime : [decision] retain read sequence and failure epoch\nLIST proof expires at read-start + maxAge
+  Runtime -[#1565C0]> Reader : [call] accept full objects with source proof\nstrip managedFields; preserve UID / RV / owner refs
+end
+note over API,Reader
+LIST/WATCH callbacks belong to Runtime. sourceObject keeps provenance outside Kubernetes fields.
+A delayed callback does not receive a fresh lifetime just because it was delivered late.
+ResourceVersion (RV) is checked for equality; it is not compared numerically across resources.
+end note
+
+== E. Elect the definition and plan namespaces / resource watches ==
+Runtime -[#1565C0]> Inventory : [call] ReplaceCluster(complete accepted Karta snapshot)\nwhen cluster source enabled and usable
+Inventory -[#7B1FA2]> Inventory : [decision] apply name / label filters; group by GroupKind\ncluster winner = oldest timestamp, then lexical name
+Inventory -[#7B1FA2]> Inventory : [decision] winning cluster Karta takes precedence\notherwise selected built-in catalog Karta
+alt selected winner invalid
+  Inventory --[#388E3C]> Runtime : [result] invalid_definition; do not pick a losing fallback
+else winner valid
+  Inventory --[#388E3C]> Runtime : [result] Selection{Definition, GVK, Origin}\nexample catalog JobSet v1alpha2
+end
+opt namespaceSelector configured
+  Runtime -[#1565C0]> API : [call] full Namespace LIST/WATCH
+  API --[#388E3C]> Runtime : [event] namespace labels
+  Runtime -[#7B1FA2]> Runtime : [decision] create namespaced watches only for matching namespaces
+end
+Runtime -[#1565C0]> Runtime : [call] ensure Pod, selected-definition and RequiredKinds watches\nplus watches needed by existing roots
+Runtime -[#1565C0]> API : [call] full Pod and JobSet LIST/WATCH\nexample includes only the JobSet catalog definition
+API --[#388E3C]> Runtime : [event] initial objects and later changes
+Runtime -[#1565C0]> Reader : [call] store accepted full Pod / JobSet observations
+Runtime -[#7B1FA2]> Runtime : [decision] cache-sync marks watch ready\nenqueue verify; Pod sync also enqueues metadata prime
+note over Runtime,Inventory
+With no namespaceSelector, a namespaced resource uses an all-namespace watch.
+Cluster-scoped resources normalize to empty namespace and reuse one watch key.
+Known definitions enable root discovery even when no Pods exist.
+end note
+
+== F. Accept a Pod change and queue its discovery ==
+API --[#388E3C]> Runtime : [event] Pod train-worker-0-a\nUID pod-1; RV p10; controller Job job-1
+Runtime -[#7B1FA2]> Runtime : [decision] reject retired stream / obsolete deletion\nfence stale provenance and same-name UID replacement
+Runtime -[#1565C0]> Store : [call] invalidate proofs affected by a changed object\nbefore a replacement publication is ready
+Runtime -[#1565C0]> Reader : [call] replace accepted Pod observation\nsource evidence + object identity
+Runtime -[#1565C0]> Runtime : [call] enqueue object{GVK, namespace, name, UID}
+Runtime -[#1565C0]> Reader : [call] Cached(Pod ref)
+Reader --[#388E3C]> Runtime : [result] immutable full Pod p10
+alt Pod does not match podSelector
+  Runtime -[#7B1FA2]> Runtime : [decision] detach previous Pod path and mapping
+else Pod selected
+  Runtime -[#1565C0]> Discovery : [call] Get(Pod ref including UID and RV)
+end
+
+== G. Follow controller ownership: Pod -> Job -> JobSet ==
+Discovery -[#1565C0]> Reader : [call] Cached(Pod pod-1 / p10)
+Reader --[#388E3C]> Discovery : [result] full Pod; controller owner Job job-1
+Discovery -[#7B1FA2]> Discovery : [decision] validate name / namespace / UID / requested RV\nappend Pod to Path; accept one controller owner
+Discovery -[#1565C0]> Reader : [call] Cached(Job job-1)
+Reader --[#388E3C]> Discovery : [result] no full Job watch object in this example
+Discovery -[#1565C0]> Reader : [call] GetMetadata(Job demo/train-worker-0, UID job-1)
+alt matching fresh metadata exists from earlier work / priming
+  Reader --[#388E3C]> Discovery : [result] copied metadata; UID / RV / controller owner
+else metadata read required
+  Reader -[#7B1FA2]> Reader : [decision] map GVK/scope; coalesce concurrent GETs for key\nrecord read revision and start time
+  Reader -[#1565C0]> API : [call] GET PartialObjectMetadata for Job\nrequest timeout bounded
+  alt server accepts metadata representation
+    API --[#388E3C]> Reader : [result] Job job-1 / j7; controller JobSet js-1
+  else server rejects metadata representation (406 / 415)
+    API --[#388E3C]> Reader : [result] 406 / 415 representation error
+    Reader -[#1565C0]> API : [call] fallback full-object GET
+    API --[#388E3C]> Reader : [result] full Job; retain only metadata
+  end
+  Reader -[#7B1FA2]> Reader : [decision] reject elapsed TTL / changed in-flight revision\notherwise cache metadata with read-start expiry
+  Reader --[#388E3C]> Discovery : [result] Job metadata or stale / API error
+end
+Discovery -[#7B1FA2]> Discovery : [decision] verify expected job-1; append Job j7 to Path
+Discovery -[#1565C0]> Reader : [call] Cached(JobSet js-1)
+Reader --[#388E3C]> Discovery : [result] full JobSet js-1 / s5 with no controller owner
+Discovery -[#7B1FA2]> Discovery : [decision] terminal boundary found; append JobSet\nRoot=JobSet js-1; Path=[Pod p10, Job j7, JobSet s5]
+Discovery --[#388E3C]> Runtime : [result] GenericWorkload{Root, full Path, resolved}
+note over Discovery,Reader
+No controller owner ends the path. Non-controller ownerReferences are not traversed.
+An explicitly ignored next-owner GVK stops at the current object: ignored_owner.
+A missing owner, UID mismatch, cycle or path over 1024 objects does not invent a root.
+Kubernetes scope determines whether the next GET uses demo or empty namespace.
+end note
+
+== H. Confirm the root representation and register path dependencies ==
+Runtime -[#1565C0]> Inventory : [call] Lookup(discovered root GroupKind)
+Inventory --[#388E3C]> Runtime : [result] JobSet definition selects v1alpha2 representation
+Runtime -[#1565C0]> Runtime : [call] ensure full JobSet watch exists\ncreate dynamic root watch if this kind was not planned
+opt dynamically discovered root kind lacks a full observation
+  Runtime -[#1565C0]> API : [call] full root resource LIST/WATCH
+  API --[#388E3C]> Runtime : [event] root object available; enqueue resolution again
+end
+Runtime -[#1565C0]> Reader : [call] verify complete path evidence and input Pod RV
+Reader --[#388E3C]> Runtime : [result] matching identities and available path evidence\ninput Pod RV unchanged
+Runtime -[#7B1FA2]> Runtime : [decision] confirm root remains terminal across known versions\nreject conflicting owner-bearing alias
+Runtime -[#7B1FA2]> Runtime : [decision] attach pod-1 to root js-1; replace old attachment if moved\nindex every path object -> dependent Pod / root
+Runtime -[#1565C0]> Runtime : [call] mark pod-1 dirty; queue root js-1 after 20ms
+note over Runtime,Inventory
+A definition chooses interpretation after ownership determines the root.
+It does not stop traversal merely because an intermediate Job has a Karta.
+Unknown non-Pod roots can still have generic ownership rows and creation time.
+A standalone Pod without a Karta is excluded by this implementation.
+end note
+
+== I. A root with zero Pods uses the same root calculation ==
+API --[#388E3C]> Runtime : [event] JobSet root from selected-definition watch\npossibly before any Pod exists
+Runtime -[#1565C0]> Discovery : [call] Get(JobSet ref)
+Discovery -[#1565C0]> Reader : [call] Cached(JobSet ref); inspect controller owner
+Reader --[#388E3C]> Discovery : [result] terminal JobSet
+Discovery --[#388E3C]> Runtime : [result] Path=[JobSet]; same Root js-1
+Runtime -[#7B1FA2]> Runtime : [decision] create / refresh rootState and enqueue root key
+note over Runtime,Store
+Zero Pods does not imply Undefined or absence of the workload.
+A known root can publish creation and normalized status with an empty PodPages list.
+Pod mapping work is skipped when there are no attached Pods.
+end note
+
+== J. Snapshot inputs and prepare separate creation / interpretation proofs ==
+Runtime -[#1565C0]> Store : [call] Published(js-1)
+Store --[#388E3C]> Runtime : [result] previous immutable publication, if any
+Runtime -[#7B1FA2]> Runtime : [decision] under lock capture root generation, dirty Pods,\nKarta origin, global/kind definition keys and root failures
+Runtime -[#7B1FA2]> Runtime : [decision] full refresh if needed; otherwise copy only dirty Pod state\nrelease Runtime lock for evaluation
+Runtime -[#1565C0]> Reader : [call] Cached(selected JobSet representation)\nread current full root object and evidence
+Reader --[#388E3C]> Runtime : [result] JobSet s5; root object proof and expiry
+Runtime -[#7B1FA2]> Runtime : [decision] objectSelector + resource inclusion/exclusion rules\nremove publication if root is excluded
+Runtime -[#7B1FA2]> Runtime : [decision] Creation = root evidence + root-generation dependency\nStatus = Creation + global/kind definition + Karta-source evidence
+note over Runtime,Store
+Definition failure can invalidate interpretation without erasing independently proven creation time.
+Merged evidence takes the earliest expiry and all required dependencies.
+Pod mapping additionally requires its complete ownership path and Pod proof.
+end note
+
+== K. Evaluate workload status from the full JobSet object ==
+Runtime -[#1565C0]> SDK : [call] prepareWorkload(Karta, full JobSet s5)\nStructureSummary + ComponentFactoryFromObject
+SDK -[#7B1FA2]> SDK : [decision] factory creates named components and owner links\nall component spec/status accessors bind this JobSet object
+Runtime -[#1565C0]> SDK : [call] GetRootComponent().GetStatus(ctx)
+SDK -[#1565C0]> SDK : [call] Accessor.ExtractStatus(StatusDefinition)\nread JobSet .status.conditions
+note right of SDK
+Example JobSet input:
+replicatedJobsStatus =
+[{name: worker, active: 2,
+  ready: 0, failed: 0}]
+conditions = []
+end note
+SDK -[#1565C0]> SDK : [call] run configured JQ matchers on JobSet JSON\nInitializing expression -> true\nRunning expression -> true
+SDK -[#7B1FA2]> SDK : [decision] OR matchers within a status; AND their clauses\ncollect every matching status, not first match
+SDK --[#388E3C]> Runtime : [result] MatchedStatuses=[Running, Initializing]\nHasStatus=true; both phases are retained
+note over Runtime,SDK
+The exporter does not sum Pod phases or child Job states into workload status.
+JobSet's own controller already wrote the counts and conditions on the root.
+Successful evaluation with no matches yields Undefined. No StatusDefinition yields no status series.
+JQ/extraction failure is evaluation_failed, not an application Failed phase.
+end note
+
+== L. Resolve workload-status labels before the Pod loop ==
+Runtime -[#1565C0]> Labels : [call] ForWorkload(full JobSet s5), when root object changes
+Labels --[#388E3C]> Runtime : [result] ResolveFunc with lazy workload-result cache
+Runtime -[#1565C0]> Labels : [call] resolve(karta_workload_status, nil Pod)
+Labels -[#1565C0]> Labels : [call] configured CEL on object=JobSet\nexample object.metadata.labels["team"] -> platform
+Labels --[#388E3C]> Runtime : [result] status labels and per-label errors
+
+== M. Map each changed Pod, then resolve its custom labels ==
+Runtime -[#1565C0]> Reader : [call] Cached(Pod pod-1); validate path evidence again
+Reader --[#388E3C]> Runtime : [result] full Pod p10; live Pod->Job->JobSet proofs
+Runtime -[#1565C0]> SDK : [call] mapPod(factory, summary, full Pod)
+SDK -[#1565C0]> SDK : [call] NewPodQuerier(Pod); InferPodComponent(summary)
+SDK -[#7B1FA2]> SDK : [decision] JobSet definition has one Pod-bearing leaf\ncomponent = replicatedjob
+SDK -[#1565C0]> SDK : [call] component instance IDs on JobSet:\n.spec.replicatedJobs[].name -> [worker]
+SDK -[#1565C0]> SDK : [call] instance selector on Pod labels:\njobset.sigs.k8s.io/replicatedjob-name -> worker
+SDK -[#7B1FA2]> SDK : [decision] require selected instance to belong to root's IDs
+SDK -[#1565C0]> SDK : [call] replica selector on Pod labels:\njobset.sigs.k8s.io/job-index -> "0"
+SDK --[#388E3C]> Runtime : [result] component=replicatedjob\ninstance=worker; replica_group_id=0
+note over Runtime,SDK
+The child component has Kind=Job, but its spec accessor still reads the JobSet.
+Pod selectors read the Pod through a separate PodQuerier.
+replica_group_id comes from ReplicaSelector, not GangScheduling group-by fields.
+A missing required instance or invalid selector result is a mapping error.
+end note
+
+Runtime -[#1565C0]> Labels : [call] resolve(karta_pod_workload_info, full Pod)
+loop sources in configured order; example [pod, workload]
+  Labels -[#1565C0]> Labels : [call] evaluate CEL on chosen object\nPod team=batch; workload team=platform
+  Labels -[#7B1FA2]> Labels : [decision] first nonempty string wins: team=batch\nempty value tries next source
+end
+Labels --[#388E3C]> Runtime : [result] custom label map; separate error map
+note over Runtime,Labels
+Workload results are cached for this immutable root object across metrics and Pods.
+Pod evaluation uses the current Pod. Rules compile once, outside reconciliation.
+An error can be retained even if a later source succeeds: report evaluation_failed health.
+Cancellation aborts the call. Bad / absent custom labels do not become an application phase.
+end note
+
+== N. Build rows and atomically reject superseded calculations ==
+Runtime -[#7B1FA2]> Runtime : [decision] combine mapping evidence; cache evaluated Pod result\nand its mapping error reason\nreuse only with compatible definition / root generation / Pod RV
+Runtime -[#1565C0]> Store : [call] build immutable sorted PodPages\nfull BuildPodPages or WithPod for dirty rows
+Store --[#388E3C]> Runtime : [result] new pages; share unchanged pages (max 256 rows/page)
+Runtime -[#7B1FA2]> Runtime : [decision] reacquire lock: same root state + generation?\nsame global/kind keys + lookup success + Karta origin/GVK?
+Runtime -[#1565C0]> Reader : [call] check selected full root RV and active proof keys\nfor evidence without a failure reason
+Reader --[#388E3C]> Runtime : [result] matching root and active dependencies, or stale
+Runtime -[#7B1FA2]> Runtime : [decision] rootBoundaryLocked under Reader read lock\nwhen not publishing an existing root failure
+alt any commit guard changed
+  Runtime -[#7B1FA2]> Runtime : [decision] discard calculation; restore drained dirty work\nreturn ErrStale; queue retries
+else all commit guards pass
+  Runtime -[#1565C0]> Store : [call] Publish(Publication for js-1)
+  Store -[#7B1FA2]> Store : [decision] swap root record and dependency references under Store lock
+  Store --[#388E3C]> Runtime : [result] publication visible atomically
+  Runtime -[#7B1FA2]> Runtime : [decision] save compatible caches; schedule renewal before proof expiry
+end
+note over Runtime,Store
+Publishing transfers ownership of nested maps and slices. They remain immutable.
+An old computation cannot make a new source generation valid.
+These guards are concurrency protection, not a second ownership discovery algorithm.
+end note
+
+== O. Prometheus pulls only a captured publication view ==
+Prom -[#1565C0]> App : [call] GET /metrics (one in-flight request allowed)
+App -[#1565C0]> Store : [call] OTel observable callback: Capture() once
+Store --[#388E3C]> App : [result] immutable publications + copied failure state\nand one captured time At
+App -[#7B1FA2]> App : [decision] Valid(evidence): reason, failed dependencies, expiry\nformat gauges and custom labels
+App --[#388E3C]> Prom : [result] pod_workload_info=1 with component/instance/group\nworkload_status: Running=1, Initializing=1, seven others=0\ncreated_timestamp only while its proof is valid
+note over App,Prom
+Full metric names start with karta_. Status and Pod rows carry observation_valid=true/false.
+Invalid known rows can remain visible with false. Workload failure adds observation_valid health=0.
+Scraping makes no Kubernetes request and runs no JQ or CEL.
+A captured view is consistent at Capture(); a later invalidation affects the next capture.
+end note
+Prom -[#1565C0]> App : [call] GET /readyz after source synchronization
+App -[#1565C0]> Runtime : [call] Ready()
+Runtime --[#388E3C]> App : [result] Pod + selected namespace/Karta sources + RequiredKinds\nready, without error and not past verification maxAge?
+App --[#388E3C]> Prom : [result] 200 if required source gate passes; otherwise 503
+note over Runtime,Inventory
+Readiness is not workload readiness. An optional selected kind can fail without blocking /readyz.
+Resource-type observation health still reports that failure.
+end note
+
+== P. Reuse unchanged Pod results while refreshing the root publication ==
+alt only one Pod changes
+  API --[#388E3C]> Runtime : [event] Pod p11; same root, possibly new label / owner
+  Runtime -[#1565C0]> Store : [call] invalidate that Pod's old mapping proof immediately
+  Runtime -[#1565C0]> Runtime : [call] rerun discovery; mark only that Pod dirty
+  Runtime -[#7B1FA2]> Runtime : [decision] reuse root label closure; reevaluate changed Pod\nroot status is still reevaluated; WithPod shares other pages
+else root status / spec / labels change
+  API --[#388E3C]> Runtime : [event] JobSet s6
+  Runtime -[#1565C0]> Store : [call] invalidate old root-generation proof
+  Runtime -[#7B1FA2]> Runtime : [decision] full root refresh; rebuild interpretation and label scope
+else Karta definition changes
+  API --[#388E3C]> Runtime : [event] Karta add / update / delete
+  Runtime -[#1565C0]> Inventory : [call] ReplaceCluster(accepted complete snapshot)
+  Inventory --[#388E3C]> Runtime : [result] newly elected selections
+  Runtime -[#7B1FA2]> Runtime : [decision] compare identity / GVK / Spec; invalidate affected GroupKind\nRV-only change is still checked by final origin guard
+  Runtime -[#1565C0]> Runtime : [call] resync selected root watches and reevaluate affected roots
+end
+
+== Q. Discovery, API and evaluation failures retain honest validity ==
+alt owner read Forbidden / Unauthorized
+  API --[#388E3C]> Reader : [result] permission error
+  Reader -[#1565C0]> Store : [call] invalidate metadata proof; record permission_denied
+  Reader --[#388E3C]> Discovery : [result] owner unavailable
+  Discovery --[#388E3C]> Runtime : [result] fail discovery; no guessed root
+else missing / replaced / malformed owner or cycle
+  Discovery --[#388E3C]> Runtime : [result] unresolved or stale chain; do not invent a root
+else root status JQ / condition extraction fails
+  SDK --[#388E3C]> Runtime : [result] evaluation error
+  Runtime -[#7B1FA2]> Runtime : [decision] retain compatible previous workload status\nwith invalid status evidence, if available
+else changed Pod mapping evaluation fails
+  SDK --[#388E3C]> Runtime : [result] component / instance / replica-selector error
+  Runtime -[#7B1FA2]> Runtime : [decision] new row has unknown component / instance\ncache error reason when input sources are otherwise usable
+else custom CEL label fails
+  Labels --[#388E3C]> Runtime : [result] per-label error; continue other labels / source fallback
+  Runtime -[#7B1FA2]> Runtime : [decision] record evaluation_failed health; retain usable other output
+end
+Runtime -[#1565C0]> Store : [call] source / path failures revoke live dependencies immediately
+Runtime -[#7B1FA2]> Runtime : [decision] returned queue errors retry with 10ms..10s backoff\nForget after success; cancellation does not retry
+note over Runtime,Store #FCE4EC
+Not every evaluation error is a queue error: some are published as failed evidence.
+Known values are not converted into a fake application Failed state.
+Without a previous successful status there may be no status series to retain.
+A first unresolved Pod has no confirmed root publication to fabricate.
+end note
+
+== R. Refresh sources and ownership proofs before they expire ==
+Runtime -[#1565C0]> Runtime : [call] refresh tick: enqueue verify per watch, metadata, sync
+Runtime -[#1565C0]> API : [call] metadata LIST pages (limit 500) for watched resource\nbound whole verification round and each page
+API --[#388E3C]> Runtime : [result] complete UID -> RV snapshot; consistent list RV
+Runtime -[#7B1FA2]> Runtime : [decision] reject repeated continuation / changed epoch / stale round\ncompare accepted objects without overwriting newer callbacks
+alt same UID and RV, accepted object still compatible
+  Runtime -[#1565C0]> Reader : [call] renew full-object evidence to verification-start + maxAge
+  Runtime -[#1565C0]> Runtime : [call] schedule root proof renewal
+else UID missing from complete snapshot
+  Runtime -[#7B1FA2]> Runtime : [decision] delete accepted object and invalidate dependent paths
+else RV differs
+  Runtime -[#1565C0]> Reader : [call] invalidate cached full object's evidence\nwait for current full representation
+  Runtime -[#1565C0]> Runtime : [call] queue rediscovery / root refresh
+end
+Runtime -[#1565C0]> Reader : [call] refresh cached intermediate-owner metadata\ngroup by resource and namespace
+Reader -[#1565C0]> API : [call] paged metadata LIST; individual GET fallback where applicable
+API --[#388E3C]> Reader : [result] owner UID / RV / controller references or explicit failure
+Reader -[#7B1FA2]> Reader : [decision] accept only unchanged in-flight revisions\nrenew metadata or invalidate missing / changed paths
+Reader --[#388E3C]> Runtime : [result] refresh outcome
+Runtime -[#7B1FA2]> Runtime : [decision] reverse path index finds affected Pods\nrequeue discovery for changed ownership; renew unaffected proof
+note over Runtime,Reader
+Initial Pod sync also primes metadata for referenced owner groups, then traverses upward.
+That optimization can avoid one API GET per Pod. It does not replace UID/path validation.
+An unchanging watch stream alone does not grant permanent freshness.
+end note
+opt proof deadline reached before successful refresh
+  Prom -[#1565C0]> App : [call] next scrape
+  App -[#1565C0]> Store : [call] Capture; Valid at captured time
+  Store --[#388E3C]> App : [result] expired evidence is invalid even without another event
+  App --[#388E3C]> Prom : [result] retained rows observation_valid=false\nexpired creation metric omitted
+end
+
+== S. Recover sources without reviving old evidence ==
+alt normal watch cursor expiration / unsupported initial events
+  API --[#388E3C]> Runtime : [event/result] expired resourceVersion / negotiation rejected
+  Runtime -[#1565C0]> Runtime : [call] request verification; reflector re-LIST / re-WATCH
+else permission / API failure, or Karta stream closes
+  API --[#388E3C]> Runtime : [event/result] source cannot be trusted
+  Runtime -[#1565C0]> Store : [call] fail old watch key; Karta source also fails definition key
+  Runtime -[#7B1FA2]> Runtime : [decision] queue affected roots; no catalog fallback while cluster source unknown
+end
+Runtime -[#1565C0]> API : [call] retry LIST / verification
+API --[#388E3C]> Runtime : [result] fresh successful source observation
+Runtime -[#7B1FA2]> Runtime : [decision] allocate new watch proof key after failure\nrefresh source snapshot and affected roots
+Runtime -[#1565C0]> Store : [call] publish rebuilt observations using new valid dependencies
+note over Runtime,Store #FCE4EC
+Old failure generations remain invalid while any current publication refers to them.
+A successful unrelated read cannot make old rows trustworthy.
+Failure keys are released when their publication / health references disappear.
+end note
+
+== T. Deletion, reparenting and namespace exclusion ==
+alt Pod deletion / selector exclusion
+  API --[#388E3C]> Runtime : [event] Pod deleted, or labels no longer selected
+  Runtime -[#7B1FA2]> Runtime : [decision] remove Pod attachment and path reverse-index entries
+  Runtime -[#1565C0]> Store : [call] next publication removes that Pod row
+else root deletion or same-name new UID
+  API --[#388E3C]> Runtime : [event] old root UID removed / replaced
+  Runtime -[#7B1FA2]> Runtime : [decision] remove old root state and dependent attachments\nnew UID follows discovery as a different workload
+  Runtime -[#1565C0]> Store : [call] RemovePublication(old root UID)
+else owner is reparented to another root
+  API --[#388E3C]> Runtime : [event/result] controller owner reference changed
+  Runtime -[#1565C0]> Store : [call] invalidate old path proof before rediscovery
+  Runtime -[#7B1FA2]> Runtime : [decision] rediscover full chain; migrate Pod attachment\nretire root if it is no longer a root
+else namespace stops matching selector
+  API --[#388E3C]> Runtime : [event] Namespace label update / deletion
+  Runtime -[#7B1FA2]> Runtime : [decision] remove roots in namespace; resync desired watches\nprune metadata; retire obsolete stream generations
+end
+
+== U. Shut down workers, serving and telemetry ==
+User -[#1565C0]> App : [call] SIGTERM / interrupt (or a server/runtime error occurs)
+App -[#7B1FA2]> App : [decision] cancel shared child context
+App -[#1565C0]> Runtime : [call] stop via context cancellation
+Runtime -[#1565C0]> Runtime : [call] shut down queues; cancel watches; wait for workers
+Runtime -[#1565C0]> API : [call] cancel outstanding LIST / WATCH / GET contexts
+Runtime --[#388E3C]> App : [result] runtime goroutine finishes
+App -[#1565C0]> App : [call] HTTP Shutdown with 10s bound; wait for goroutines\nunregister collector; shutdown meter provider with 10s bound
+App --[#388E3C]> User : [result] clean stop or joined shutdown error
+note over User,Prom
+The in-memory publication store is rebuilt on the next process start.
+No new deployment, cluster request or workload execution was performed to create this explanation.
+end note
+@enduml
