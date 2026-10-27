@@ -46,11 +46,12 @@ type sourceFilter struct {
 
 // resolve does not validate: an invalid winner still shadows what it outranked.
 func resolve(catalogDefinitions, clusterDefinitions []*v1alpha1.Karta, catalogFilter, clusterFilter sourceFilter) snapshot {
-	s := snapshot{selections: map[schema.GroupKind]candidate{}}
 	// The SDK refuses to build a catalog with an unkeyable definition.
-	fromCatalog, _ := admit(catalogDefinitions, catalogFilter)
-	fromCluster, unkeyable := admit(clusterDefinitions, clusterFilter)
-	s.unkeyable = unkeyable
+	fromCatalog, _ := selectDefinitions(catalogDefinitions, catalogFilter, SourceCatalog)
+	fromCluster, unkeyable := selectDefinitions(clusterDefinitions, clusterFilter, SourceCluster)
+	// A selected cluster definition replaces the catalog one for its group and kind.
+	maps.Copy(fromCatalog, fromCluster)
+	s := snapshot{selections: fromCatalog, unkeyable: unkeyable}
 
 	if clusterFilter.enabled {
 		names := sets.New[string]()
@@ -60,38 +61,14 @@ func resolve(catalogDefinitions, clusterDefinitions []*v1alpha1.Karta, catalogFi
 		s.unmatchedIncludes = sets.List(clusterFilter.include.Difference(names))
 	}
 
-	// Both orders end on the name, so each winner is independent of input order.
-	for gk, candidates := range fromCatalog {
-		// Highest Kubernetes version priority first, as the API server prefers.
-		winner := slices.MinFunc(candidates, func(a, b *v1alpha1.Karta) int {
-			return cmp.Or(
-				version.CompareKubeAwareVersionStrings(catalog.RootKey(b).Version, catalog.RootKey(a).Version),
-				strings.Compare(a.Name, b.Name))
-		})
-		s.selections[gk] = newCandidate(winner, SourceCatalog, validateDefinition)
-	}
-	// A selected cluster definition replaces the catalog one for its group and kind.
-	for gk, candidates := range fromCluster {
-		winner := slices.MinFunc(candidates, func(a, b *v1alpha1.Karta) int {
-			return cmp.Or(
-				a.CreationTimestamp.Compare(b.CreationTimestamp.Time),
-				strings.Compare(a.Name, b.Name))
-		})
-		s.selections[gk] = newCandidate(winner, SourceCluster, validateDefinition)
-	}
 	return s
 }
 
-func admit(definitions []*v1alpha1.Karta, filter sourceFilter) (map[schema.GroupKind][]*v1alpha1.Karta, []string) {
-	byKind := map[schema.GroupKind][]*v1alpha1.Karta{}
-	if !filter.enabled {
-		return byKind, nil
-	}
+func selectDefinitions(definitions []*v1alpha1.Karta, filter sourceFilter, source Source) (map[schema.GroupKind]candidate, []string) {
+	selected := map[schema.GroupKind]candidate{}
 	var unkeyable []string
 	for _, k := range definitions {
-		included := filter.include.Len() == 0 || filter.include.Has(k.Name)
-		matches := filter.selector == nil || filter.selector.Matches(labels.Set(k.Labels))
-		if !included || !matches || filter.exclude.Has(k.Name) {
+		if !filter.matches(k) {
 			continue
 		}
 		gvk := catalog.RootKey(k)
@@ -99,10 +76,35 @@ func admit(definitions []*v1alpha1.Karta, filter sourceFilter) (map[schema.Group
 			unkeyable = append(unkeyable, k.Name)
 			continue
 		}
-		byKind[gvk.GroupKind()] = append(byKind[gvk.GroupKind()], k)
+		c := newCandidate(k, source, validateDefinition)
+		if c.preferredTo(selected[gvk.GroupKind()]) {
+			selected[gvk.GroupKind()] = c
+		}
 	}
 	slices.Sort(unkeyable)
-	return byKind, unkeyable
+	return selected, unkeyable
+}
+
+func (f sourceFilter) matches(k *v1alpha1.Karta) bool {
+	return f.enabled && (f.include.Len() == 0 || f.include.Has(k.Name)) &&
+		!f.exclude.Has(k.Name) && (f.selector == nil || f.selector.Matches(labels.Set(k.Labels)))
+}
+
+func (c candidate) preferredTo(other candidate) bool {
+	if other.selection.Definition == nil {
+		return true
+	}
+	if c.selection.Origin.Source != other.selection.Origin.Source {
+		return c.selection.Origin.Source == SourceCluster
+	}
+	a, b := c.selection.Definition, other.selection.Definition
+	var order int
+	if c.selection.Origin.Source == SourceCluster {
+		order = a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
+	} else {
+		order = version.CompareKubeAwareVersionStrings(other.selection.GVK.Version, c.selection.GVK.Version)
+	}
+	return cmp.Or(order, strings.Compare(a.Name, b.Name)) < 0
 }
 
 func newCandidate(k *v1alpha1.Karta, source Source, validate func(*v1alpha1.Karta) error) candidate {
@@ -125,8 +127,11 @@ func validateDefinition(k *v1alpha1.Karta) error {
 
 // lookup ignores the requested version and never falls back from an invalid winner.
 func (s snapshot) lookup(gvk schema.GroupVersionKind) (Selection, error) {
-	c, ok := s.selections[gvk.GroupKind()]
-	if !ok {
+	return s.selections[gvk.GroupKind()].lookup()
+}
+
+func (c candidate) lookup() (Selection, error) {
+	if c.selection.Definition == nil {
 		return Selection{}, nil
 	}
 	if err := c.validate(); err != nil {
@@ -146,13 +151,17 @@ func (s snapshot) elected(gvk schema.GroupVersionKind) (Selection, bool) {
 
 // list keeps invalid winners: watch setup still needs their kinds.
 func (s snapshot) list() ([]Selection, error) {
-	out := make([]Selection, 0, len(s.selections))
+	return listCandidates(s.selections)
+}
+
+func listCandidates(candidates map[schema.GroupKind]candidate) ([]Selection, error) {
+	out := make([]Selection, 0, len(candidates))
 	var errs []error
-	kinds := slices.SortedFunc(maps.Keys(s.selections), func(a, b schema.GroupKind) int {
+	kinds := slices.SortedFunc(maps.Keys(candidates), func(a, b schema.GroupKind) int {
 		return strings.Compare(a.String(), b.String())
 	})
 	for _, gk := range kinds {
-		c := s.selections[gk]
+		c := candidates[gk]
 		if err := c.validate(); err != nil {
 			errs = append(errs, fmt.Errorf("%w %q: %w", ErrInvalidDefinition, c.selection.Origin.Name, err))
 		}

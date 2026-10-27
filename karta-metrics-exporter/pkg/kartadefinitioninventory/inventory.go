@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
-	"sync/atomic"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,40 +40,40 @@ var (
 // call the API server.
 type Inventory struct {
 	client        dynamic.Interface
-	catalog       []*v1alpha1.Karta
-	catalogFilter sourceFilter
+	catalog       map[schema.GroupKind]candidate
 	clusterFilter sourceFilter
 	log           *slog.Logger
+	loaded        chan struct{}
+	done          chan struct{}
 
-	current atomic.Pointer[published]
-	runOnce sync.Once
-
-	mu    sync.Mutex
-	store cache.Store
-	// synced turns true at the first Replace, when a complete list is in the store.
+	mu       sync.RWMutex
+	cluster  map[string]clusterEntry
+	started  bool
 	synced   bool
+	stopped  bool
 	failure  error
 	failures uint64
 	// listedFrom is the failure count when the latest list began.
 	listedFrom        uint64
-	stopped           bool
 	unkeyable         []string
 	unmatchedIncludes []string
 }
 
-// published is what readers load: the latest snapshot, or why none can be served.
-type published struct {
-	resolved snapshot
-	err      error
+// Entries own their definitions and are replaced whole, so readers can retain
+// a candidate after releasing the lock.
+type clusterEntry struct {
+	candidate candidate
+	err       error
 }
 
-// observedStore republishes the snapshot after every write.
-type observedStore struct {
-	cache.Store
+type reflectorStore struct {
 	inventory *Inventory
 }
 
-var _ Interface = (*Inventory)(nil)
+var (
+	_ Interface            = (*Inventory)(nil)
+	_ cache.ReflectorStore = reflectorStore{}
+)
 
 // New needs a client only when the cluster source is enabled.
 func New(client dynamic.Interface, options Options) (*Inventory, error) {
@@ -84,49 +84,75 @@ func New(client dynamic.Interface, options Options) (*Inventory, error) {
 	if clusterFilter.enabled && client == nil {
 		return nil, errors.New("the cluster definition source requires a client")
 	}
+	fromCatalog, _ := selectDefinitions(catalog.List(), catalogFilter, SourceCatalog)
 	i := &Inventory{
 		client:        client,
-		catalog:       catalog.List(),
-		catalogFilter: catalogFilter,
+		catalog:       fromCatalog,
 		clusterFilter: clusterFilter,
 		log:           slog.Default(),
+		loaded:        make(chan struct{}),
+		done:          make(chan struct{}),
+		cluster:       make(map[string]clusterEntry),
 	}
 	if !catalogFilter.enabled && !clusterFilter.enabled {
 		i.log.Warn("both Karta definition sources are disabled; no workload has a definition")
 	}
-	if clusterFilter.enabled {
-		i.current.Store(&published{err: ErrNotReady})
-	} else {
-		i.current.Store(&published{resolved: resolve(i.catalog, nil, catalogFilter, clusterFilter)})
+	if !clusterFilter.enabled {
+		i.synced = true
+		close(i.loaded)
 	}
 	return i, nil
 }
 
 // Run blocks until ctx ends. Afterwards cluster lookups fail; a catalog-only
-// inventory keeps serving.
+// inventory keeps serving. Run may be called only once.
 func (i *Inventory) Run(ctx context.Context) error {
-	// The Once only claims the run, so a second call fails at once instead of
-	// waiting for the first Run to end.
-	first := false
-	i.runOnce.Do(func() { first = true })
-	if !first {
+	i.mu.Lock()
+	if i.started {
+		i.mu.Unlock()
 		return errors.New("definition inventory already started")
 	}
+	i.started = true
+	i.mu.Unlock()
+	defer func() {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+		i.stopped = true
+		close(i.done)
+	}()
 	if !i.clusterFilter.enabled {
 		<-ctx.Done()
 		return nil
 	}
 
-	store := observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: i}
-	i.update(func() { i.store = store })
 	resource := i.client.Resource(v1alpha1.GroupVersion.WithResource("kartas"))
 	reflector := cache.NewReflectorWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(i.listWatch(resource), i.client),
-		&unstructured.Unstructured{}, store,
+		&unstructured.Unstructured{}, reflectorStore{inventory: i},
 		cache.ReflectorOptions{Name: "karta-definitions", TypeDescription: "Karta definitions"})
 	reflector.RunWithContext(ctx)
-	i.update(func() { i.stopped = true })
 	return nil
+}
+
+// WaitLoaded waits for the first complete cluster list to be applied. It does
+// not start Run or report later source failures; use Ready for current health.
+func (i *Inventory) WaitLoaded(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case <-i.loaded:
+		return nil
+	case <-i.done:
+		i.mu.RLock()
+		defer i.mu.RUnlock()
+		if i.synced {
+			return nil
+		}
+		return fmt.Errorf("%w: %w", ErrUnavailable, errStopped)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // listWatch records every failure; the reflector retries some without reporting them.
@@ -141,7 +167,9 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 			}
 			list, err := resource.List(ctx, options)
 			if err != nil {
-				i.update(func() { i.fail(err) })
+				i.mu.Lock()
+				i.fail(err)
+				i.mu.Unlock()
 			}
 			return list, err
 		},
@@ -163,7 +191,9 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 			case err != nil && streaming && apierrors.IsInvalid(err):
 				return nil, err
 			case err != nil:
-				i.update(func() { i.fail(err) })
+				i.mu.Lock()
+				i.fail(err)
+				i.mu.Unlock()
 				return nil, err
 			}
 			events := make(chan watch.Event)
@@ -175,27 +205,27 @@ func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWat
 					select {
 					case event, ok := <-w.ResultChan():
 						if !ok {
-							i.update(func() {
-								if !proxy.Stopping() && ctx.Err() == nil {
-									// A decoder failure can close a watch without an Error event.
-									// Keep an earlier cause, but invalidate any list already in flight.
-									cause := i.failure
-									if cause == nil {
-										cause = io.ErrUnexpectedEOF
-									}
-									i.fail(cause)
+							i.mu.Lock()
+							if !proxy.Stopping() && ctx.Err() == nil {
+								// A decoder failure can close a watch without an Error event.
+								// Keep an earlier cause, but invalidate any list already in flight.
+								cause := i.failure
+								if cause == nil {
+									cause = io.ErrUnexpectedEOF
 								}
-							})
+								i.fail(cause)
+							}
+							i.mu.Unlock()
 							return
 						}
 						// Recorded before the reflector sees it. A stopped watch is abandoned.
 						if event.Type == watch.Error {
 							err := apierrors.FromObject(event.Object)
-							i.update(func() {
-								if !proxy.Stopping() && ctx.Err() == nil {
-									i.fail(err)
-								}
-							})
+							i.mu.Lock()
+							if !proxy.Stopping() && ctx.Err() == nil {
+								i.fail(err)
+							}
+							i.mu.Unlock()
 						}
 						select {
 						case events <- event:
@@ -222,113 +252,171 @@ func (i *Inventory) fail(err error) {
 	i.failures++
 }
 
-func (s observedStore) Add(obj any) error {
-	err := s.Store.Add(obj)
-	s.inventory.update(nil)
-	return err
-}
-
-func (s observedStore) Update(obj any) error {
-	err := s.Store.Update(obj)
-	s.inventory.update(nil)
-	return err
-}
-
-func (s observedStore) Delete(obj any) error {
-	err := s.Store.Delete(obj)
-	s.inventory.update(nil)
-	return err
-}
-
-func (s observedStore) Replace(list []any, resourceVersion string) error {
-	err := s.Store.Replace(list, resourceVersion)
-	first := false
-	s.inventory.update(func() {
-		first = !s.inventory.synced
-		s.inventory.synced = true
-		// A failure after this list began is newer than the list.
-		if s.inventory.failures == s.inventory.listedFrom {
-			s.inventory.failure = nil
-		}
-	})
-	if first {
-		s.inventory.log.Info("Karta definition inventory synced", "listed", len(list), "error", s.inventory.Ready())
+func (s reflectorStore) Add(obj any) error {
+	name, entry, err := decodeKarta(obj)
+	if err != nil {
+		return err
 	}
-	return err
-}
-
-// update applies change, then rebuilds the snapshot from the store.
-func (i *Inventory) update(change func()) {
+	i := s.inventory
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if change != nil {
-		change()
-	}
+	i.cluster[name] = entry
+	i.report()
+	return nil
+}
 
-	var err error
-	switch {
-	case i.stopped:
-		err = fmt.Errorf("%w: %w", ErrUnavailable, errStopped)
-	case i.failure != nil && (apierrors.IsForbidden(i.failure) || apierrors.IsUnauthorized(i.failure)):
-		err = fmt.Errorf("%w: %w", ErrPermissionDenied, i.failure)
-	case i.failure != nil:
-		err = fmt.Errorf("%w: %w", ErrUnavailable, i.failure)
-	case !i.synced:
-		err = ErrNotReady
-	}
-	if err != nil {
-		i.current.Store(&published{err: err})
-		return
-	}
+func (s reflectorStore) Update(obj any) error { return s.Add(obj) }
 
-	objects := i.store.List()
-	definitions := make([]*v1alpha1.Karta, 0, len(objects))
-	for _, obj := range objects {
-		u := obj.(*unstructured.Unstructured)
-		var k v1alpha1.Karta
-		if err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &k); err != nil {
-			i.current.Store(&published{err: fmt.Errorf("%w: decode Karta %q: %w", ErrUnavailable, u.GetName(), err)})
-			return
-		}
-		definitions = append(definitions, &k)
+func (s reflectorStore) Delete(obj any) error {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("unexpected Karta object %T", obj)
 	}
-	resolved := resolve(i.catalog, definitions, i.catalogFilter, i.clusterFilter)
+	i := s.inventory
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	delete(i.cluster, u.GetName())
+	i.report()
+	return nil
+}
 
-	// Log reports only when they change.
-	if !slices.Equal(resolved.unkeyable, i.unkeyable) {
-		i.unkeyable = resolved.unkeyable
-		if len(i.unkeyable) > 0 {
-			i.log.Warn("ignoring cluster Karta definitions whose root has no version or kind", "names", i.unkeyable)
+func (s reflectorStore) Replace(list []any, _ string) error {
+	cluster := make(map[string]clusterEntry, len(list))
+	for _, obj := range list {
+		name, entry, err := decodeKarta(obj)
+		if err != nil {
+			return err
+		}
+		cluster[name] = entry
+	}
+	i := s.inventory
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.cluster = cluster
+	// A failure after this list began is newer than the list.
+	if i.failures == i.listedFrom {
+		i.failure = nil
+	}
+	i.report()
+	if !i.synced {
+		i.synced = true
+		close(i.loaded)
+		i.log.Info("Karta definition inventory synced", "listed", len(list), "error", i.ready())
+	}
+	return nil
+}
+
+func (s reflectorStore) Resync() error { return nil }
+
+func decodeKarta(obj any) (string, clusterEntry, error) {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return "", clusterEntry{}, fmt.Errorf("unexpected Karta object %T", obj)
+	}
+	var k v1alpha1.Karta
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.DeepCopy().Object, &k); err != nil {
+		return u.GetName(), clusterEntry{err: fmt.Errorf("%w: decode Karta %q: %w", ErrUnavailable, u.GetName(), err)}, nil
+	}
+	return u.GetName(), clusterEntry{candidate: newCandidate(&k, SourceCluster, validateDefinition)}, nil
+}
+
+// report logs diagnostics only when they change; callers hold i.mu.
+func (i *Inventory) report() {
+	var unkeyable, unmatched []string
+	for name, entry := range i.cluster {
+		c := entry.candidate
+		if entry.err == nil && i.clusterFilter.matches(c.selection.Definition) &&
+			(c.selection.GVK.Version == "" || c.selection.GVK.Kind == "") {
+			unkeyable = append(unkeyable, name)
 		}
 	}
-	if !slices.Equal(resolved.unmatchedIncludes, i.unmatchedIncludes) {
-		i.unmatchedIncludes = resolved.unmatchedIncludes
-		if len(i.unmatchedIncludes) > 0 {
-			i.log.Warn("cluster include names match no Karta definition", "names", i.unmatchedIncludes)
+	for name := range i.clusterFilter.include {
+		if _, ok := i.cluster[name]; !ok {
+			unmatched = append(unmatched, name)
 		}
 	}
-	i.current.Store(&published{resolved: resolved})
+	slices.Sort(unkeyable)
+	slices.Sort(unmatched)
+	if !slices.Equal(unkeyable, i.unkeyable) {
+		i.unkeyable = unkeyable
+		if len(unkeyable) > 0 {
+			i.log.Warn("ignoring cluster Karta definitions whose root has no version or kind", "names", unkeyable)
+		}
+	}
+	if !slices.Equal(unmatched, i.unmatchedIncludes) {
+		i.unmatchedIncludes = unmatched
+		if len(unmatched) > 0 {
+			i.log.Warn("cluster include names match no Karta definition", "names", unmatched)
+		}
+	}
 }
 
 // Ready is nil once lookups can succeed.
 func (i *Inventory) Ready() error {
-	return i.current.Load().err
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.ready()
+}
+
+// ready checks source state; callers hold i.mu.
+func (i *Inventory) ready() error {
+	if !i.clusterFilter.enabled {
+		return nil
+	}
+	switch {
+	case i.stopped:
+		return fmt.Errorf("%w: %w", ErrUnavailable, errStopped)
+	case i.failure != nil && (apierrors.IsForbidden(i.failure) || apierrors.IsUnauthorized(i.failure)):
+		return fmt.Errorf("%w: %w", ErrPermissionDenied, i.failure)
+	case i.failure != nil:
+		return fmt.Errorf("%w: %w", ErrUnavailable, i.failure)
+	case !i.synced:
+		return ErrNotReady
+	}
+	for _, entry := range i.cluster {
+		if entry.err != nil {
+			return entry.err
+		}
+	}
+	return nil
 }
 
 // Lookup ignores the requested version and never falls back while a source fails.
 func (i *Inventory) Lookup(gvk schema.GroupVersionKind) (Selection, error) {
-	p := i.current.Load()
-	if p.err != nil {
-		return Selection{}, p.err
+	i.mu.RLock()
+	if err := i.ready(); err != nil {
+		i.mu.RUnlock()
+		return Selection{}, err
 	}
-	return p.resolved.lookup(gvk)
+	gk := gvk.GroupKind()
+	winner := i.catalog[gk]
+	for _, entry := range i.cluster {
+		c := entry.candidate
+		if c.selection.GVK.GroupKind() == gk && c.selection.GVK.Version != "" && c.selection.GVK.Kind != "" &&
+			i.clusterFilter.matches(c.selection.Definition) && c.preferredTo(winner) {
+			winner = c
+		}
+	}
+	i.mu.RUnlock()
+	return winner.lookup()
 }
 
 // Selections returns nothing while a source fails.
 func (i *Inventory) Selections() ([]Selection, error) {
-	p := i.current.Load()
-	if p.err != nil {
-		return nil, p.err
+	i.mu.RLock()
+	if err := i.ready(); err != nil {
+		i.mu.RUnlock()
+		return nil, err
 	}
-	return p.resolved.list()
+	selected := maps.Clone(i.catalog)
+	for _, entry := range i.cluster {
+		c := entry.candidate
+		gk := c.selection.GVK.GroupKind()
+		if c.selection.GVK.Version != "" && c.selection.GVK.Kind != "" &&
+			i.clusterFilter.matches(c.selection.Definition) && c.preferredTo(selected[gk]) {
+			selected[gk] = c
+		}
+	}
+	i.mu.RUnlock()
+	return listCandidates(selected)
 }

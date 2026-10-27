@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	ktesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
 )
 
 // truncatedDecoder optionally sends a bookmark, then ends with a decode error.
@@ -57,8 +56,7 @@ var _ = Describe("Inventory watch recovery", func() {
 		})
 		inventory, err := New(client, withCatalog)
 		Expect(err).NotTo(HaveOccurred())
-		store := observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: inventory}
-		inventory.update(func() { inventory.store = store })
+		store := reflectorStore{inventory: inventory}
 		Expect(store.Replace(nil, "1")).To(Succeed())
 		w, err := inventory.listWatch(client.Resource(kartasGVR)).WatchFuncWithContext(context.Background(), metav1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
@@ -81,8 +79,7 @@ var _ = Describe("Inventory watch recovery", func() {
 		})
 		inventory, err := New(client, withCatalog)
 		Expect(err).NotTo(HaveOccurred())
-		store := observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: inventory}
-		inventory.update(func() { inventory.store = store })
+		store := reflectorStore{inventory: inventory}
 		Expect(store.Replace(nil, "1")).To(Succeed())
 		w, err := inventory.listWatch(client.Resource(kartasGVR)).WatchFuncWithContext(context.Background(), metav1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
@@ -116,8 +113,7 @@ var _ = Describe("Inventory watch recovery", func() {
 		})
 		inventory, err := New(client, withCatalog)
 		Expect(err).NotTo(HaveOccurred())
-		store := observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: inventory}
-		inventory.update(func() { inventory.store = store })
+		store := reflectorStore{inventory: inventory}
 		Expect(store.Replace(nil, "1")).To(Succeed())
 		Expect(lookupOrigin(inventory, jobGVK)).To(Equal(catalogJobOrigin))
 		w, err := inventory.listWatch(client.Resource(kartasGVR)).WatchFuncWithContext(context.Background(), metav1.ListOptions{ResourceVersion: "1"})

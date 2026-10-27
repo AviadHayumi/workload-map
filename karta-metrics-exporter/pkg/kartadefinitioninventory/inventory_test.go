@@ -47,7 +47,7 @@ var (
 // pausedStore holds its first Replace until released, so a spec can act after
 // a streaming list ends and before the store applies it.
 type pausedStore struct {
-	cache.Store
+	cache.ReflectorStore
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
@@ -58,7 +58,7 @@ func (s *pausedStore) Replace(list []any, resourceVersion string) error {
 		close(s.entered)
 		<-s.release
 	})
-	return s.Store.Replace(list, resourceVersion)
+	return s.ReflectorStore.Replace(list, resourceVersion)
 }
 
 // lateStatus holds the forwarder while it decodes a watch error, so a spec can
@@ -435,13 +435,11 @@ var _ = Describe("Inventory", func() {
 				})
 				inventory, err := New(client, withCatalog)
 				Expect(err).NotTo(HaveOccurred())
-				paused := &pausedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), entered: make(chan struct{}), release: make(chan struct{})}
-				store := observedStore{Store: paused, inventory: inventory}
-				inventory.update(func() { inventory.store = store })
+				paused := &pausedStore{ReflectorStore: reflectorStore{inventory: inventory}, entered: make(chan struct{}), release: make(chan struct{})}
 				// Without the fake client's opt-out, the reflector uses streaming lists.
 				reflector := cache.NewReflectorWithOptions(
 					cache.ToListWatcherWithWatchListSemantics(inventory.listWatch(client.Resource(kartasGVR)), nil),
-					&unstructured.Unstructured{}, store, cache.ReflectorOptions{})
+					&unstructured.Unstructured{}, paused, cache.ReflectorOptions{})
 				ctx, cancel := context.WithCancel(context.Background())
 				done := make(chan struct{})
 				go func() {
@@ -492,7 +490,7 @@ var _ = Describe("Inventory", func() {
 		var (
 			ctx       = context.Background()
 			inventory *Inventory
-			store     observedStore
+			store     reflectorStore
 			lw        *cache.ListWatch
 			listErr   atomic.Pointer[error]
 			watchErr  atomic.Pointer[error]
@@ -540,8 +538,7 @@ var _ = Describe("Inventory", func() {
 			var err error
 			inventory, err = New(client, withCatalog)
 			Expect(err).NotTo(HaveOccurred())
-			store = observedStore{Store: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc), inventory: inventory}
-			inventory.update(func() { inventory.store = store })
+			store = reflectorStore{inventory: inventory}
 			lw = inventory.listWatch(client.Resource(kartasGVR))
 		})
 
@@ -610,7 +607,9 @@ var _ = Describe("Inventory", func() {
 
 		It("does not let a later page clear a failure recorded after its list began", func() {
 			list()
-			inventory.update(func() { inventory.fail(apierrors.NewServiceUnavailable("after the first page")) })
+			inventory.mu.Lock()
+			inventory.fail(apierrors.NewServiceUnavailable("after the first page"))
+			inventory.mu.Unlock()
 			_, err := lw.ListWithContextFunc(ctx, metav1.ListOptions{Continue: "page-2"})
 			Expect(err).NotTo(HaveOccurred())
 
