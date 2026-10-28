@@ -98,7 +98,10 @@ equivalence with the previous publication model.
 
 The exporter presubmit includes formatting, vet, pinned lint, module checks, unit
 tests, chart tests, real API integration, e2e compilation and a version smoke test.
-The full repository presubmit is `make check` in a clean checkout of the candidate.
+The full repository `make check` passed in a clean checkout of implementation
+and evidence commit `28ad1db7`. Regeneration left that checkout clean. The command
+reused the same pinned tools through `LOCALBIN`. Prometheus query-rule tests also
+passed. Subsequent changes only record validation and clarify documentation.
 The completed exporter presubmit passed. Scoped race detection covers the
 controller, store, collector, app and configuration. The real API suite contains
 21 controller cases. Deployed kind and matched performance results are recorded
@@ -109,6 +112,28 @@ Independent architecture review found no blocker and retained one performance
 watch: global cache scans during scope sweeps. Review fixes have regression tests
 for initial Karta denial, first-error identity, rejected snapshots, late mapping
 failures and API-version handover/removal.
+
+## Deployed kind result
+
+The final image passed 27 executed cases on the existing `exporter-e2e` kind
+cluster. The default profile includes 23 workload cases and the regression where
+an unchanged Pod moves after a replacement Deployment adopts its ReplicaSet.
+
+| Run | Result |
+| --- | --- |
+| Default profile with bare-Pod catalog opt-in | 24 passed, 0 failed |
+| Alternate Dynamo v1beta1 and LLMInferenceService v1alpha1 | 2 passed, 0 failed |
+| Default catalog bare-Pod exclusion | 1 passed, 0 failed; 23 intentionally unselected cases skipped |
+
+The [case record](../../../karta-metrics-exporter/test/e2e/results/simple-controller.json)
+contains per-case durations, report hashes and the exact image manifest digest.
+Its production-source hashes were checked against commit `28ad1db7`. All runs
+used `make test-exporter-e2e`; the final run selected only the Pod case and omitted
+the catalog opt-in. The cluster and existing operators were reused. The suite
+cleaned its exporter release and test namespaces.
+
+These cases check the recorded CPU fixtures and supported API profiles. They do
+not establish every operator feature, production topology or performance limit.
 
 ## Matched performance result
 

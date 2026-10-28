@@ -103,8 +103,8 @@ leaf role.
 ## API versions
 
 A generic Pod mapping retains the API version verified in its own owner chain.
-The workload row has one canonical representation per UID, chosen independently
-from the admitted resource rules. A Karta can select a different evaluated version.
+The workload row uses one allowed canonical representation per UID. This choice
+does not change each generic Pod's verified version. A Karta can select a different evaluated version.
 That full source must synchronize before its owner boundary becomes authoritative.
 A failed, retired alias cannot permanently veto a healthy elected representation.
 A Pod still referencing that failed alias remains invalid through its own sources.

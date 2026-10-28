@@ -18,7 +18,7 @@ coalesced scope sweep. Ordinary Pod changes only enqueue that Pod unless it has
 also appeared as an ancestor. UID checks reject stale deletes and replaced
 objects. Retired source callbacks cannot alter an active cache.
 
-Runtime owns the accepted Karta snapshot and definition election. Failed reads
+Runtime owns the accepted Karta snapshot and asks inventory to elect definitions. Failed reads
 retain the previous selection. Each reconciliation prepares its own SDK factory
 and label resolver closure. Compiled label rules, accepted definitions and their
 immutable structure summaries are shared. Failed evaluations retain the last
