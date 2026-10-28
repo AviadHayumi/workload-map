@@ -8,15 +8,25 @@ owned by a JobSet, it returns the JobSet reference and the path from Pod to root
 A missing Karta does not make the Job the root. Only an explicitly ignored owner
 allows traversal to stop early.
 
-`Dependencies` supplies the object reader and definition inventory. The reader
-checks Runtime's informer cache and performs metadata GETs. Discovery does not
-start watches. `MissingCoverage` requests a root watch only; intermediate owners
-are not included. Runtime handles the request and retries after synchronization.
+`New(reader, config)` takes an object reader and an explicit `IgnoredTopOwners`
+GVK list. The reader checks Runtime's informer cache and performs metadata GETs.
+An ignored GVK must match the owner's group, version and kind. The last verified
+object below that owner becomes the root with resolution `IgnoredOwner`.
 
-Callers inspect errors with `errors.Is`. Missing coverage can accompany a Karta
-selection error once the root is known. An unresolved chain cannot request a
-root watch.
+Traversal follows controller owner references. UID replacement, stale input
+resource versions, malformed or multiple controller references, cycles and
+missing owners fail resolution. A chain may contain at most 1024 objects.
+`ControllerOwner` exposes the same reference validation for callers. Callers
+inspect errors with `errors.Is`.
 
-The interfaces and result types are included here. Ownership indexing, input
-verification, Karta evaluation handles and their batches remain implementation
-work. `GenericWorkload` currently carries identity, path and resolution only.
+The reader owns metadata refresh and coalescing. Discovery retains no metadata
+between calls. Returned references include the observed resource versions so
+the caller can verify them before publication. The reader resolves API scope;
+cluster-scoped owners have an empty namespace in the returned path.
+
+This constructor implements ownership resolution only. It does not look up Karta
+definitions, evaluate expressions or start watches. `GenericWorkload` carries
+identity, path and resolution. `Dependencies` and `Result.MissingCoverage` remain
+available for the component contracts; this resolver leaves `MissingCoverage`
+empty. Definition selection, root coverage and runtime wiring remain integration
+work. Intermediate owners do not require watches.
