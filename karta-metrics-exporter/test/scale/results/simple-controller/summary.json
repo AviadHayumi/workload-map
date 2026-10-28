@@ -1,0 +1,630 @@
+[
+  {
+    "run": "baseline-1000-1-r1",
+    "complete": true,
+    "cold_seconds": 0.3868,
+    "rss_mib": 134.58,
+    "p99_ms": 31.82,
+    "drain_ms": 12.74,
+    "cpu_seconds": 2.72,
+    "post_delete_heap_mib": 6.37,
+    "total_alloc_mib": 1431.45,
+    "api_requests": {
+      "all_requests": 38,
+      "response_bytes": 4900712,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.full": 2,
+      "jobs.objects.full": 1000,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "pods.list.metadata": 4,
+      "pods.objects.metadata": 2000,
+      "jobs.list.metadata": 4,
+      "jobs.objects.metadata": 2000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.get.metadata": 10,
+      "replicasets.list.metadata": 2,
+      "replicasets.objects.metadata": 1000,
+      "jobs.watch_events": 1443,
+      "pods.watch_events": 1103
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0006733330083079636,
+        "max": 0.0003163330111419782
+      },
+      "namespaces.list.metadata": {
+        "count": 2,
+        "sum": 0.000246291994699277,
+        "max": 0.0001490419963374734
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 7.341700256802142e-05,
+        "max": 7.341700256802142e-05
+      },
+      "jobs.list.full": {
+        "count": 2,
+        "sum": 0.01448533299844712,
+        "max": 0.00870783299615141
+      },
+      "jobs.list.metadata": {
+        "count": 4,
+        "sum": 0.007446334988344461,
+        "max": 0.0035761249891947955
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.011336168012348935,
+        "max": 0.007221209001727402
+      },
+      "pods.list.metadata": {
+        "count": 4,
+        "sum": 0.013485582996509038,
+        "max": 0.003871166001772508
+      },
+      "replicasets.get.metadata": {
+        "count": 10,
+        "sum": 0.0055248780263355,
+        "max": 0.002136875002179295
+      },
+      "replicasets.list.metadata": {
+        "count": 2,
+        "sum": 0.002836874991771765,
+        "max": 0.0014199169963831082
+      }
+    }
+  },
+  {
+    "run": "candidate-1000-1-r1",
+    "complete": true,
+    "cold_seconds": 0.3911,
+    "rss_mib": 141.73,
+    "p99_ms": 42.35,
+    "drain_ms": 17.58,
+    "cpu_seconds": 3.01,
+    "post_delete_heap_mib": 6.83,
+    "total_alloc_mib": 1571.44,
+    "api_requests": {
+      "all_requests": 20,
+      "response_bytes": 3828878,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.full": 2,
+      "jobs.objects.full": 1000,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.list.metadata": 2,
+      "replicasets.objects.metadata": 1000,
+      "replicasets.watch": 1,
+      "replicasets.watch.metadata": 1,
+      "jobs.watch_events": 1443,
+      "pods.watch_events": 1103,
+      "replicasets.watch_events": 1002
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1,
+      "replicasets.metadata": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0010830840037669986,
+        "max": 0.0006705420091748238
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 8.341700595337898e-05,
+        "max": 8.341700595337898e-05
+      },
+      "jobs.list.full": {
+        "count": 2,
+        "sum": 0.008636665996164083,
+        "max": 0.006450000000768341
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.00852070799737703,
+        "max": 0.0050109580042771995
+      },
+      "replicasets.list.metadata": {
+        "count": 2,
+        "sum": 0.003159667001455091,
+        "max": 0.0016966249968390912
+      }
+    }
+  },
+  {
+    "run": "baseline-1000-1-r2",
+    "complete": true,
+    "cold_seconds": 0.4173,
+    "rss_mib": 136.97,
+    "p99_ms": 33.1,
+    "drain_ms": 15.19,
+    "cpu_seconds": 2.95,
+    "post_delete_heap_mib": 6.4,
+    "total_alloc_mib": 1429.32,
+    "api_requests": {
+      "all_requests": 29,
+      "response_bytes": 4898057,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.full": 2,
+      "jobs.objects.full": 1000,
+      "jobs.list.metadata": 4,
+      "jobs.objects.metadata": 2000,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "pods.list.metadata": 4,
+      "pods.objects.metadata": 2000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.list.metadata": 2,
+      "replicasets.objects.metadata": 1000,
+      "jobs.watch_events": 1443,
+      "pods.watch_events": 1103,
+      "replicasets.get.metadata": 1
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0006017919949954376,
+        "max": 0.0002990420034620911
+      },
+      "namespaces.list.metadata": {
+        "count": 2,
+        "sum": 0.000204333002329804,
+        "max": 0.0001397500018356368
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 7.491699943784624e-05,
+        "max": 7.491699943784624e-05
+      },
+      "jobs.list.metadata": {
+        "count": 4,
+        "sum": 0.009245541979908012,
+        "max": 0.004888374998699874
+      },
+      "jobs.list.full": {
+        "count": 2,
+        "sum": 0.012993666008696891,
+        "max": 0.010555500004556961
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.010109625000040978,
+        "max": 0.00634350000473205
+      },
+      "pods.list.metadata": {
+        "count": 4,
+        "sum": 0.01082749999477528,
+        "max": 0.004198374997940846
+      },
+      "replicasets.list.metadata": {
+        "count": 2,
+        "sum": 0.005042833989136852,
+        "max": 0.0035297089925734326
+      },
+      "replicasets.get.metadata": {
+        "count": 1,
+        "sum": 0.00012133299605920911,
+        "max": 0.00012133299605920911
+      }
+    }
+  },
+  {
+    "run": "candidate-1000-1-r2",
+    "complete": true,
+    "cold_seconds": 0.3903,
+    "rss_mib": 139.62,
+    "p99_ms": 28.21,
+    "drain_ms": 22.08,
+    "cpu_seconds": 3.07,
+    "post_delete_heap_mib": 6.87,
+    "total_alloc_mib": 1573.79,
+    "api_requests": {
+      "all_requests": 20,
+      "response_bytes": 3828878,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.full": 2,
+      "jobs.objects.full": 1000,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.list.metadata": 2,
+      "replicasets.objects.metadata": 1000,
+      "replicasets.watch": 1,
+      "replicasets.watch.metadata": 1,
+      "jobs.watch_events": 1443,
+      "pods.watch_events": 1103,
+      "replicasets.watch_events": 1002
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1,
+      "replicasets.metadata": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0006964149797568098,
+        "max": 0.00031312499777413905
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 8.891700417734683e-05,
+        "max": 8.891700417734683e-05
+      },
+      "jobs.list.full": {
+        "count": 2,
+        "sum": 0.008755000002565794,
+        "max": 0.006499916999018751
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.008954874996561557,
+        "max": 0.005469707990414463
+      },
+      "replicasets.list.metadata": {
+        "count": 2,
+        "sum": 0.002845375012839213,
+        "max": 0.0016032910061767325
+      }
+    }
+  },
+  {
+    "run": "baseline-10-100-r1",
+    "complete": true,
+    "cold_seconds": 0.2409,
+    "rss_mib": 62.34,
+    "p99_ms": 24.6,
+    "drain_ms": 14.49,
+    "cpu_seconds": 1.74,
+    "post_delete_heap_mib": 8.07,
+    "total_alloc_mib": 420.34,
+    "api_requests": {
+      "all_requests": 29,
+      "response_bytes": 2709563,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "pods.list.metadata": 4,
+      "pods.objects.metadata": 2000,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "jobs.list.metadata": 2,
+      "jobs.objects.metadata": 20,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.get.metadata": 5,
+      "replicasets.list.metadata": 1,
+      "replicasets.objects.metadata": 10,
+      "jobs.watch_events": 232,
+      "pods.watch_events": 895
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0007339999865507707,
+        "max": 0.0003096669970545918
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 0.00015662499936297536,
+        "max": 0.00015662499936297536
+      },
+      "namespaces.list.metadata": {
+        "count": 2,
+        "sum": 0.002584999005193822,
+        "max": 0.002502165996702388
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.010434124997118488,
+        "max": 0.007051791995763779
+      },
+      "jobs.list.full": {
+        "count": 1,
+        "sum": 0.0002778750058496371,
+        "max": 0.0002778750058496371
+      },
+      "pods.list.metadata": {
+        "count": 4,
+        "sum": 0.00944750000780914,
+        "max": 0.002788416008115746
+      },
+      "jobs.list.metadata": {
+        "count": 2,
+        "sum": 0.0001754160039126873,
+        "max": 8.779100608080626e-05
+      },
+      "replicasets.get.metadata": {
+        "count": 5,
+        "sum": 0.0005464579880936071,
+        "max": 0.0002322919899597764
+      },
+      "replicasets.list.metadata": {
+        "count": 1,
+        "sum": 0.0001042500080075115,
+        "max": 0.0001042500080075115
+      }
+    }
+  },
+  {
+    "run": "candidate-10-100-r1",
+    "complete": true,
+    "cold_seconds": 0.2501,
+    "rss_mib": 64.03,
+    "p99_ms": 22.29,
+    "drain_ms": 17.82,
+    "cpu_seconds": 2.7,
+    "post_delete_heap_mib": 4.39,
+    "total_alloc_mib": 774.12,
+    "api_requests": {
+      "all_requests": 18,
+      "response_bytes": 2099263,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.list.metadata": 1,
+      "replicasets.objects.metadata": 10,
+      "replicasets.watch": 1,
+      "replicasets.watch.metadata": 1,
+      "jobs.watch_events": 232,
+      "pods.watch_events": 1211,
+      "replicasets.watch_events": 12
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1,
+      "replicasets.metadata": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0006987079977989197,
+        "max": 0.0002905409928644076
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 8.095799421425909e-05,
+        "max": 8.095799421425909e-05
+      },
+      "jobs.list.full": {
+        "count": 1,
+        "sum": 0.00013145800039637834,
+        "max": 0.00013145800039637834
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.009019000004627742,
+        "max": 0.005608583000139333
+      },
+      "replicasets.list.metadata": {
+        "count": 1,
+        "sum": 0.00011554101365618408,
+        "max": 0.00011554101365618408
+      }
+    }
+  },
+  {
+    "run": "baseline-10-100-r2",
+    "complete": true,
+    "cold_seconds": 0.2439,
+    "rss_mib": 63.03,
+    "p99_ms": 23.62,
+    "drain_ms": 16.06,
+    "cpu_seconds": 1.47,
+    "post_delete_heap_mib": 8.68,
+    "total_alloc_mib": 420.56,
+    "api_requests": {
+      "all_requests": 28,
+      "response_bytes": 2565959,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.list.metadata": 2,
+      "namespaces.objects.metadata": 2,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "jobs.list.metadata": 2,
+      "jobs.objects.metadata": 20,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "pods.list.metadata": 4,
+      "pods.objects.metadata": 2000,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.get.metadata": 4,
+      "replicasets.list.metadata": 1,
+      "replicasets.objects.metadata": 10,
+      "jobs.watch_events": 232,
+      "pods.watch_events": 735
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0007995830092113465,
+        "max": 0.00035562500124797225
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 0.0002588330098660663,
+        "max": 0.0002588330098660663
+      },
+      "namespaces.list.metadata": {
+        "count": 2,
+        "sum": 0.0005195839912630618,
+        "max": 0.00039312499575316906
+      },
+      "jobs.list.metadata": {
+        "count": 2,
+        "sum": 0.0005287090025376529,
+        "max": 0.00033637500018812716
+      },
+      "jobs.list.full": {
+        "count": 1,
+        "sum": 0.00020195799879729748,
+        "max": 0.00020195799879729748
+      },
+      "pods.list.metadata": {
+        "count": 4,
+        "sum": 0.010321959023713134,
+        "max": 0.003063709009438753
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.013685957994312048,
+        "max": 0.00870408299670089
+      },
+      "replicasets.get.metadata": {
+        "count": 4,
+        "sum": 0.0007178749801823869,
+        "max": 0.00027387500449549407
+      },
+      "replicasets.list.metadata": {
+        "count": 1,
+        "sum": 0.0001240419951500371,
+        "max": 0.0001240419951500371
+      }
+    }
+  },
+  {
+    "run": "candidate-10-100-r2",
+    "complete": true,
+    "cold_seconds": 0.246,
+    "rss_mib": 64.38,
+    "p99_ms": 25.56,
+    "drain_ms": 19.74,
+    "cpu_seconds": 2.75,
+    "post_delete_heap_mib": 4.4,
+    "total_alloc_mib": 767.62,
+    "api_requests": {
+      "all_requests": 18,
+      "response_bytes": 2099263,
+      "namespaces.list.full": 1,
+      "namespaces.objects.full": 1,
+      "namespaces.watch": 1,
+      "namespaces.watch.full": 1,
+      "pods.list.full": 2,
+      "pods.objects.full": 1000,
+      "jobs.list.full": 1,
+      "jobs.objects.full": 10,
+      "jobs.watch": 1,
+      "jobs.watch.full": 1,
+      "pods.watch": 1,
+      "pods.watch.full": 1,
+      "replicasets.list.metadata": 1,
+      "replicasets.objects.metadata": 10,
+      "replicasets.watch": 1,
+      "replicasets.watch.metadata": 1,
+      "jobs.watch_events": 232,
+      "pods.watch_events": 1211,
+      "replicasets.watch_events": 12
+    },
+    "watch_peaks": {
+      "namespaces.full": 1,
+      "jobs.full": 1,
+      "pods.full": 1,
+      "replicasets.metadata": 1
+    },
+    "api_duration_seconds": {
+      "discovery": {
+        "count": 5,
+        "sum": 0.0006632919685216621,
+        "max": 0.0003182090003974736
+      },
+      "namespaces.list.full": {
+        "count": 1,
+        "sum": 7.745799666736275e-05,
+        "max": 7.745799666736275e-05
+      },
+      "jobs.list.full": {
+        "count": 1,
+        "sum": 0.0001287500053877011,
+        "max": 0.0001287500053877011
+      },
+      "pods.list.full": {
+        "count": 2,
+        "sum": 0.008946208006818779,
+        "max": 0.0054583750024903566
+      },
+      "replicasets.list.metadata": {
+        "count": 1,
+        "sum": 0.00011325000377837569,
+        "max": 0.00011325000377837569
+      }
+    }
+  }
+]

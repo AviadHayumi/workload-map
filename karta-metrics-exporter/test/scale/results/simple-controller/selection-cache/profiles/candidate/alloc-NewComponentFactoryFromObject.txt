@@ -1,0 +1,12 @@
+Total: 671.01MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource.NewComponentFactoryFromObject in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta/sdk/pkg/resource/component_factory.go
+         0    30.52MB (flat, cum)  4.55% of Total
+         .          .     78:func NewComponentFactoryFromObject(karta *v1alpha1.Karta, object KubernetesObject) *ComponentFactory {
+         .     3.50MB     79:	jqRunner := execution.NewDefaultRunner(object)
+         .        1MB     80:	accessor := NewAccessor(jqRunner)
+         .    26.02MB     81:	return NewComponentFactory(karta, accessor)
+         .          .     82:}
+         .          .     83:
+         .          .     84:// GetComponent retrieves a component by name
+         .          .     85:func (f *ComponentFactory) GetComponent(name string) (*Component, error) {
+         .          .     86:	definition, exists := f.componentDefinitionsByName[name]

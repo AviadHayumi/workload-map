@@ -1,0 +1,87 @@
+File: baseline-profile-exporter
+Type: cpu
+Time: 2026-10-28 19:19:37 IST
+Duration: 11.72s, Total samples = 1.58s (13.48%)
+Showing nodes accounting for 1.04s, 65.82% of 1.58s total
+Showing top 80 nodes out of 306
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      0.67s 42.41%  runtime.systemstack
+         0     0%     0%      0.50s 31.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func2
+         0     0%     0%      0.50s 31.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func2.1
+     0.02s  1.27%  1.27%      0.50s 31.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).reconcile
+         0     0%  1.27%      0.50s 31.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.runWorker[go.shape.struct { UID k8s.io/apimachinery/pkg/types.UID }]
+         0     0%  1.27%      0.40s 25.32%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.mapPod
+         0     0%  1.27%      0.40s 25.32%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructured (inline)
+         0     0%  1.27%      0.40s 25.32%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructuredWithValidation
+         0     0%  1.27%      0.40s 25.32%  k8s.io/apimachinery/pkg/runtime.fromUnstructured
+     0.03s  1.90%  3.16%      0.40s 25.32%  k8s.io/apimachinery/pkg/runtime.structFromUnstructured
+         0     0%  3.16%      0.40s 25.32%  runtime.notewakeup
+     0.40s 25.32% 28.48%      0.40s 25.32%  runtime.pthread_cond_signal
+         0     0% 28.48%      0.40s 25.32%  runtime.semawakeup
+         0     0% 28.48%      0.40s 25.32%  runtime.startm
+         0     0% 28.48%      0.40s 25.32%  runtime.wakep
+         0     0% 28.48%      0.37s 23.42%  _.goready.func1
+         0     0% 28.48%      0.37s 23.42%  runtime.ready
+         0     0% 28.48%      0.20s 12.66%  runtime.findRunnable
+         0     0% 28.48%      0.20s 12.66%  runtime.schedule
+         0     0% 28.48%      0.19s 12.03%  runtime.mcall
+     0.01s  0.63% 29.11%      0.17s 10.76%  k8s.io/apimachinery/pkg/runtime.sliceFromUnstructured
+         0     0% 29.11%      0.16s 10.13%  runtime.park_m
+         0     0% 29.11%      0.14s  8.86%  runtime.gcBgMarkWorker.func2
+         0     0% 29.11%      0.14s  8.86%  runtime.gcDrain
+     0.03s  1.90% 31.01%      0.14s  8.86%  runtime.mapaccess2
+     0.14s  8.86% 39.87%      0.14s  8.86%  syscall.rawsyscalln
+         0     0% 39.87%      0.14s  8.86%  syscall.syscalln
+         0     0% 39.87%      0.13s  8.23%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 39.87%      0.13s  8.23%  runtime.mPark (inline)
+         0     0% 39.87%      0.13s  8.23%  runtime.notesleep
+     0.13s  8.23% 48.10%      0.13s  8.23%  runtime.pthread_cond_wait
+         0     0% 48.10%      0.13s  8.23%  runtime.semasleep
+         0     0% 48.10%      0.13s  8.23%  runtime.stopm
+         0     0% 48.10%      0.13s  8.23%  syscall.syscall
+     0.01s  0.63% 48.73%      0.12s  7.59%  k8s.io/apimachinery/pkg/runtime.fieldInfoFromField
+         0     0% 48.73%      0.12s  7.59%  net/http.(*conn).serve
+         0     0% 48.73%      0.12s  7.59%  runtime.gcBgMarkWorker
+     0.01s  0.63% 49.37%      0.12s  7.59%  runtime.mapaccess2_faststr
+         0     0% 49.37%      0.11s  6.96%  bufio.(*Writer).Write
+         0     0% 49.37%      0.11s  6.96%  internal/poll.(*FD).Write
+         0     0% 49.37%      0.11s  6.96%  net.(*conn).Write
+         0     0% 49.37%      0.11s  6.96%  net.(*netFD).Write
+         0     0% 49.37%      0.11s  6.96%  net/http.(*ServeMux).ServeHTTP
+         0     0% 49.37%      0.11s  6.96%  net/http.(*chunkWriter).Write
+         0     0% 49.37%      0.11s  6.96%  net/http.(*response).Write
+         0     0% 49.37%      0.11s  6.96%  net/http.(*response).write
+         0     0% 49.37%      0.11s  6.96%  net/http.HandlerFunc.ServeHTTP
+         0     0% 49.37%      0.11s  6.96%  net/http.checkConnErrorWriter.Write
+         0     0% 49.37%      0.11s  6.96%  net/http.serverHandler.ServeHTTP
+         0     0% 49.37%      0.11s  6.96%  syscall.Write (inline)
+         0     0% 49.37%      0.11s  6.96%  syscall.write
+     0.05s  3.16% 52.53%      0.10s  6.33%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+         0     0% 52.53%      0.10s  6.33%  runtime.(*mheap).alloc.func1
+         0     0% 52.53%      0.10s  6.33%  runtime.(*mheap).allocSpan
+     0.01s  0.63% 53.16%      0.10s  6.33%  runtime.scanSpan
+         0     0% 53.16%      0.09s  5.70%  bufio.(*Writer).Flush
+     0.09s  5.70% 58.86%      0.09s  5.70%  runtime.madvise
+     0.03s  1.90% 60.76%      0.09s  5.70%  runtime.scanObjectsSmall
+         0     0% 60.76%      0.09s  5.70%  runtime.sysUsed (inline)
+         0     0% 60.76%      0.09s  5.70%  runtime.sysUsedOS (inline)
+         0     0% 60.76%      0.08s  5.06%  encoding/json.(*Encoder).Encode
+         0     0% 60.76%      0.08s  5.06%  github.com/prometheus/client_golang/prometheus.(*Registry).Gather.func1
+         0     0% 60.76%      0.08s  5.06%  github.com/prometheus/client_golang/prometheus.safeCollect
+         0     0% 60.76%      0.08s  5.06%  go.opentelemetry.io/otel/exporters/prometheus.(*collector).Collect
+         0     0% 60.76%      0.08s  5.06%  main.diagnostic.handler.func3
+         0     0% 60.76%      0.08s  5.06%  main.writeJSON
+         0     0% 60.76%      0.08s  5.06%  reflect.Value.MapIndex
+         0     0% 60.76%      0.08s  5.06%  reflect.mapaccess_faststr
+         0     0% 60.76%      0.08s  5.06%  runtime.gcDrainMarkWorkerIdle (inline)
+         0     0% 60.76%      0.07s  4.43%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.(*collector).collect
+         0     0% 60.76%      0.07s  4.43%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.gauge.observe
+         0     0% 60.76%      0.07s  4.43%  go.opentelemetry.io/otel/sdk/metric.(*ManualReader).Collect
+         0     0% 60.76%      0.07s  4.43%  go.opentelemetry.io/otel/sdk/metric.(*meter).RegisterCallback.func1
+         0     0% 60.76%      0.07s  4.43%  go.opentelemetry.io/otel/sdk/metric.(*pipeline).produce
+     0.01s  0.63% 61.39%      0.07s  4.43%  reflect.Value.Set
+         0     0% 61.39%      0.06s  3.80%  go.opentelemetry.io/otel/attribute.NewSet (inline)
+     0.01s  0.63% 62.03%      0.06s  3.80%  go.opentelemetry.io/otel/attribute.NewSetWithFiltered
+         0     0% 62.03%      0.06s  3.80%  runtime.gcDrainMarkWorkerDedicated (inline)
+     0.06s  3.80% 65.82%      0.06s  3.80%  runtime.usleep
+         0     0% 65.82%      0.05s  3.16%  runtime.mallocgc

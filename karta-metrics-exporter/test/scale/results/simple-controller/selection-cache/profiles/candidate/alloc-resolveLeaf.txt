@@ -1,0 +1,155 @@
+Total: 671.01MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveLeaf in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/pkg/controller/leaf.go
+   28.52MB   380.64MB (flat, cum) 56.73% of Total
+         .          .     42:func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
+         .          .     43:	ref := key.ref()
+         .          .     44:	if !r.namespaceAdmitted(ref.Namespace) {
+         .          .     45:		r.mu.Lock()
+         .          .     46:		r.removePodLocked(key)
+         .          .     47:		r.mu.Unlock()
+         .          .     48:		return nil
+         .          .     49:	}
+         .     1.50MB     50:	object, _, err := r.reader.read(ref, true)
+         .          .     51:	if apierrors.IsNotFound(err) {
+         .          .     52:		r.mu.Lock()
+         .   512.06kB     53:		r.removePodLocked(key)
+         .          .     54:		r.mu.Unlock()
+         .          .     55:		return nil
+         .          .     56:	}
+         .          .     57:	if err != nil {
+         .          .     58:		return r.failPod(key, nil, err)
+         .          .     59:	}
+         .       12MB     60:	if !r.podSelector.Matches(labelsFor(object)) {
+         .          .     61:		r.mu.Lock()
+         .          .     62:		r.removePodLocked(key)
+         .          .     63:		r.mu.Unlock()
+         .          .     64:		return nil
+         .          .     65:	}
+         .          .     66:	ref = refOf(object)
+         .    21.50MB     67:	result, err := r.deps.Discovery.Get(ctx, ref)
+         .          .     68:	if err != nil {
+         .        9MB     69:		return r.failPod(key, []discovery.ObjectRef{ref}, err)
+         .          .     70:	}
+         .          .     71:	if result.Workload == nil {
+         .          .     72:		return r.failPod(key, []discovery.ObjectRef{ref}, discovery.ErrUnresolvedOwner)
+         .          .     73:	}
+         .          .     74:	workload := result.Workload
+         .          .     75:	selection, selectionErr := r.lookupDefinition(workload.Root.GVK)
+         .          .     76:	if workload.Root.GVK == podGVK && selectionErr != nil {
+         .          .     77:		return r.failPod(key, workload.Path, selectionErr)
+         .          .     78:	}
+         .          .     79:	if workload.Root.GVK == podGVK && selection.Definition == nil {
+         .          .     80:		r.mu.Lock()
+         .          .     81:		r.removePodLocked(key)
+         .          .     82:		r.mu.Unlock()
+         .          .     83:		return nil
+         .          .     84:	}
+         .          .     85:
+         .          .     86:	rootRef := workload.Root
+         .          .     87:	if selection.Definition != nil {
+         .          .     88:		rootRef.GVK = selection.GVK
+         .          .     89:	}
+         .          .     90:	allowed, scopeErr := r.selectedResource(rootRef.GVK)
+         .          .     91:	if scopeErr != nil {
+         .          .     92:		return r.failPod(key, workload.Path, scopeErr, rootRef)
+         .          .     93:	}
+         .          .     94:	if !allowed {
+         .          .     95:		r.mu.Lock()
+         .          .     96:		r.removePodLocked(key)
+         .          .     97:		r.mu.Unlock()
+         .          .     98:		return nil
+         .          .     99:	}
+         .          .    100:	r.mu.Lock()
+         .          .    101:	if !r.currentPathLocked(workload.Path) {
+         .          .    102:		r.mu.Unlock()
+         .          .    103:		return discovery.ErrStale
+         .          .    104:	}
+         .          .    105:	if !r.isRootLocked(workload.Root) {
+         .          .    106:		r.mu.Unlock()
+         .          .    107:		return r.failPod(key, workload.Path, discovery.ErrUnresolvedOwner, workload.Root)
+         .          .    108:	}
+         .          .    109:	// Register before reading the root body. Root-event fanout takes this same lock.
+         .          .    110:	previous := r.podRoots[key.UID]
+         .          .    111:	root := r.rootLocked(workload)
+         .          .    112:	if previous != root.ref.UID {
+         .          .    113:		if old := r.roots[previous]; old != nil {
+         .          .    114:			delete(old.pods, key.UID)
+         .          .    115:			r.rootQueue.Add(rootKey{UID: previous})
+         .          .    116:		}
+         .          .    117:		r.podRoots[key.UID] = root.ref.UID
+         .          .    118:		root.pods[key.UID] = key
+         .   512.75kB    119:		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+         .          .    120:	}
+         .          .    121:	r.mu.Unlock()
+         .          .    122:	rootRef.ResourceVersion = ""
+         .    20.50MB    123:	if _, err = r.ensureWatch(ctx, rootRef.GVK, rootRef.Namespace, true); err != nil {
+         .          .    124:		return r.failPod(key, workload.Path, err, workload.Root)
+         .          .    125:	}
+         .          .    126:	rootObject, _, err := r.reader.read(rootRef, true)
+         .          .    127:	if err != nil {
+         .          .    128:		return r.failPod(key, workload.Path, err, workload.Root)
+         .          .    129:	}
+         .        8MB    130:	selected, err := r.selectedRoot(rootObject)
+         .          .    131:	if err != nil {
+         .          .    132:		return r.failPod(key, workload.Path, err, workload.Root)
+         .          .    133:	}
+         .          .    134:	if !selected {
+         .          .    135:		r.mu.Lock()
+         .          .    136:		r.removePodLocked(key)
+         .          .    137:		r.mu.Unlock()
+         .          .    138:		return nil
+         .          .    139:	}
+         .          .    140:	rootRef = refOf(rootObject)
+         .          .    141:	if selectionErr != nil {
+         .          .    142:		return r.failPod(key, workload.Path, selectionErr, rootRef)
+         .          .    143:	}
+         .          .    144:	record := store.PodRecord{
+         .          .    145:		UID:             key.UID,
+         .          .    146:		Name:            ref.Name,
+         .          .    147:		Namespace:       ref.Namespace,
+         .          .    148:		Component:       "<unknown>",
+         .          .    149:		Instance:        "<unknown>",
+         .          .    150:		Workload:        storedRef(rootRef),
+         .          .    151:		WorkloadGVK:     rootRef.GVK,
+         .          .    152:		OwnerResolution: store.OwnerResolution(workload.Resolution),
+         .          .    153:	}
+         .          .    154:	if selection.Definition != nil {
+         .          .    155:		record.Karta = selection.Origin.Name
+         .          .    156:		record.KartaSource = string(selection.Origin.Source)
+         .    71.52MB    157:		factory, summary, prepareErr := prepareWorkload(selection, rootObject)
+         .          .    158:		if prepareErr != nil {
+         .          .    159:			return r.failPod(key, workload.Path, prepareErr, workload.Root)
+         .          .    160:		}
+         .   129.06MB    161:		record.Component, record.Instance, record.Group, err = mapPod(ctx, factory, summary, object)
+         .          .    162:		if err != nil {
+         .          .    163:			return r.failPod(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), workload.Root)
+         .          .    164:		}
+         .          .    165:	}
+         .    33.01MB    166:	labelResult, err := r.deps.Labels.ForWorkload(rootObject)(ctx, "karta_pod_workload_info", object)
+         .          .    167:	if err != nil {
+         .          .    168:		return r.failPod(key, workload.Path, err, workload.Root)
+         .          .    169:	}
+         .          .    170:	record.Labels = labelResult.Labels
+   14.51MB    25.51MB    171:	sources := r.sourcesFor(append(workload.Path, rootRef))
+         .          .    172:	r.mu.Lock()
+         .          .    173:	defer r.mu.Unlock()
+         .          .    174:	if !r.currentPathLocked(workload.Path) || !r.isRootLocked(rootRef) || !r.currentSelectionLocked(rootRef, selection) {
+         .          .    175:		return discovery.ErrStale
+         .          .    176:	}
+         .          .    177:	if current, ok := r.reader.Cached(rootRef); !ok || current.GetResourceVersion() != rootRef.ResourceVersion {
+         .          .    178:		return discovery.ErrStale
+         .          .    179:	}
+   14.01MB    14.01MB    180:	next := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources}
+         .          .    181:	if len(labelResult.Errors) > 0 {
+         .          .    182:		next.Error = store.ReasonEvaluationFailed
+         .          .    183:		if previous := r.deps.Publications.Pod(key.UID); previous != nil && previous.HasValue {
+         .          .    184:			next.Record = previous.Record
+         .          .    185:			next.Sources = appendSources(previous.Sources, sources)
+         .          .    186:		}
+         .          .    187:	}
+         .    34.01MB    188:	r.deps.Publications.UpsertPod(&next)
+         .          .    189:	return nil
+         .          .    190:}
+         .          .    191:
+         .          .    192:func (r *Runtime) failPod(key inputKey, path []discovery.ObjectRef, cause error, root ...discovery.ObjectRef) error {
+         .          .    193:	if errors.Is(cause, context.Canceled) {

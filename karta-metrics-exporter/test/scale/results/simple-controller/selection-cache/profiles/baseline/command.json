@@ -1,0 +1,43 @@
+{
+  "command": [
+    "python3",
+    "/Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/test/scale/runtime_scale.py",
+    "--binary",
+    "/private/tmp/karta-simple-final/baseline-profile-exporter",
+    "--source-revision",
+    "ee7d2ac6+cpu-wrapper",
+    "--diagnostics",
+    "--heap-profiles",
+    "--roots",
+    "10",
+    "--pods",
+    "100",
+    "--api-qps",
+    "20",
+    "--api-burst",
+    "40",
+    "--workers",
+    "2",
+    "--settle-seconds",
+    "0",
+    "--poll-seconds",
+    "0.2",
+    "--max-seconds",
+    "180",
+    "--stage-seconds",
+    "60",
+    "--churn-seconds",
+    "10",
+    "--churn-rate",
+    "20",
+    "--continuity-seconds",
+    "2",
+    "--output",
+    "/private/tmp/karta-simple-final/baseline-10-100-profile",
+    "--legacy-proof-config"
+  ],
+  "environment": {
+    "SCALE_CPU_PROFILE": "/private/tmp/karta-simple-final/baseline-10-100-profile/cpu.pprof"
+  },
+  "purpose": "Diagnostic CPU and allocation attribution; not matched acceptance timings"
+}

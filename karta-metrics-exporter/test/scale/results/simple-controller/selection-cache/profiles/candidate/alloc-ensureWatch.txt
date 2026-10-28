@@ -1,0 +1,31 @@
+Total: 671.01MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/pkg/controller/sources.go
+       1MB    25.01MB (flat, cum)  3.73% of Total
+         .          .    130:func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, full bool) (watchKey, error) {
+         .          .    131:	request := discovery.WatchRequest{GVK: gvk, Namespace: namespace}
+       1MB        1MB    132:	failureRef := store.ObjectRef{GVK: gvk, Namespace: namespace, UID: types.UID("source:" + gvk.String() + "/" + namespace)}
+         .    24.01MB    133:	mapping, err := r.reader.mapping(gvk)
+         .          .    134:	if err != nil {
+         .          .    135:		r.mu.Lock()
+         .          .    136:		if r.config.NamespaceSelector != nil && namespace != "" && !r.scopes[namespace] {
+         .          .    137:			r.mu.Unlock()
+         .          .    138:			return watchKey{}, discovery.ErrPending
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func1 in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/pkg/controller/sources.go
+         0    15.56MB (flat, cum)  2.32% of Total
+         .          .    182:		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
+         .    15.56MB    183:			return r.listWatch(requestCtx, w, options)
+         .          .    184:		},
+         .          .    185:		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+         .          .    186:			return r.watchResource(requestCtx, w, options)
+         .          .    187:		},
+         .          .    188:	}
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func3 in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/pkg/controller/sources.go
+         0    16.82MB (flat, cum)  2.51% of Total
+         .          .    190:	go func() {
+         .          .    191:		defer r.wg.Done()
+         .    16.82MB    192:		cache.NewReflectorWithOptions(lw, &unstructured.Unstructured{}, &reflectorStore{runtime: r, source: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(child)
+         .          .    193:	}()
+         .          .    194:	return key, nil
+         .          .    195:}
+         .          .    196:func (r *Runtime) isSourceLocked(w *resourceWatch) bool {
+         .          .    197:	return r.watches[w.key] == w || r.replacements[w.key] == w

@@ -1,0 +1,28 @@
+Total: 416.89MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch in /private/tmp/karta-simple-baseline-ee7d2ac6/karta-metrics-exporter/pkg/controller/sources.go
+         0        1MB (flat, cum)  0.24% of Total
+         .          .    395:func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, discover bool) (watchKey, error) {
+         .          .    396:	requestedNamespace := namespace
+         .        1MB    397:	mapping, err := r.reader.mapping(gvk)
+         .          .    398:	if err != nil {
+         .          .    399:		r.mu.Lock()
+         .          .    400:		r.watchFailures[discovery.WatchRequest{GVK: gvk, Namespace: namespace}] = err
+         .          .    401:		r.publishHealthLocked()
+         .          .    402:		r.mu.Unlock()
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func1 in /private/tmp/karta-simple-baseline-ee7d2ac6/karta-metrics-exporter/pkg/controller/sources.go
+         0     8.10MB (flat, cum)  1.94% of Total
+         .          .    424:		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
+         .     8.10MB    425:			return r.listWatch(requestCtx, w, options)
+         .          .    426:		},
+         .          .    427:		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+         .          .    428:			return r.watchResource(requestCtx, w, options)
+         .          .    429:		},
+         .          .    430:	}
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func3.1 in /private/tmp/karta-simple-baseline-ee7d2ac6/karta-metrics-exporter/pkg/controller/sources.go
+         0     9.12MB (flat, cum)  2.19% of Total
+         .     9.12MB    445:			go func() { defer close(done); reflector.RunWithContext(round) }()
+         .          .    446:			select {
+         .          .    447:			case <-child.Done():
+         .          .    448:			case <-w.restart:
+         .          .    449:			}
+         .          .    450:			stop()

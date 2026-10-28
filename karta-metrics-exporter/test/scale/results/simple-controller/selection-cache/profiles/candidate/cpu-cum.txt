@@ -1,0 +1,88 @@
+File: candidate-profile-exporter
+Type: cpu
+Time: 2026-10-28 19:19:50 IST
+Duration: 11.53s, Total samples = 2.39s (20.73%)
+Showing nodes accounting for 1.85s, 77.41% of 2.39s total
+Dropped 211 nodes (cum <= 0.01s)
+Showing top 80 nodes out of 176
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      0.93s 38.91%  runtime.systemstack
+         0     0%     0%      0.81s 33.89%  runtime.mcall
+         0     0%     0%      0.80s 33.47%  runtime.schedule
+         0     0%     0%      0.79s 33.05%  runtime.park_m
+         0     0%     0%      0.78s 32.64%  runtime.findRunnable
+         0     0%     0%      0.46s 19.25%  runtime.notewakeup
+     0.46s 19.25% 19.25%      0.46s 19.25%  runtime.pthread_cond_signal
+         0     0% 19.25%      0.46s 19.25%  runtime.semawakeup
+         0     0% 19.25%      0.46s 19.25%  runtime.startm
+         0     0% 19.25%      0.46s 19.25%  runtime.wakep
+         0     0% 19.25%      0.45s 18.83%  runtime.semasleep
+         0     0% 19.25%      0.44s 18.41%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func1
+         0     0% 19.25%      0.44s 18.41%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.runWorker[go.shape.struct { Object github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.objectKey; UID k8s.io/apimachinery/pkg/types.UID; Sweep bool }]
+         0     0% 19.25%      0.43s 17.99%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveInput
+         0     0% 19.25%      0.43s 17.99%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveLeaf
+         0     0% 19.25%      0.43s 17.99%  runtime.mPark (inline)
+         0     0% 19.25%      0.43s 17.99%  runtime.notesleep
+     0.43s 17.99% 37.24%      0.43s 17.99%  runtime.pthread_cond_wait
+         0     0% 37.24%      0.43s 17.99%  runtime.stopm
+         0     0% 37.24%      0.38s 15.90%  _.goready.func1
+         0     0% 37.24%      0.38s 15.90%  runtime.ready
+     0.28s 11.72% 48.95%      0.28s 11.72%  runtime.usleep
+         0     0% 48.95%      0.27s 11.30%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.mapPod
+         0     0% 48.95%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructured (inline)
+         0     0% 48.95%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructuredWithValidation
+         0     0% 48.95%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.fromUnstructured
+     0.01s  0.42% 49.37%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.structFromUnstructured
+         0     0% 49.37%      0.26s 10.88%  runtime.runqgrab
+         0     0% 49.37%      0.26s 10.88%  runtime.runqsteal
+         0     0% 49.37%      0.26s 10.88%  runtime.stealWork
+     0.21s  8.79% 58.16%      0.21s  8.79%  runtime.madvise
+         0     0% 58.16%      0.20s  8.37%  runtime.(*mheap).alloc.func1
+         0     0% 58.16%      0.20s  8.37%  runtime.(*mheap).allocSpan
+         0     0% 58.16%      0.19s  7.95%  runtime.gcBgMarkWorker.func2
+         0     0% 58.16%      0.19s  7.95%  runtime.gcDrain
+         0     0% 58.16%      0.19s  7.95%  runtime.sysUsed (inline)
+         0     0% 58.16%      0.19s  7.95%  runtime.sysUsedOS (inline)
+     0.15s  6.28% 64.44%      0.15s  6.28%  runtime.kevent
+         0     0% 64.44%      0.14s  5.86%  runtime.netpoll
+         0     0% 64.44%      0.12s  5.02%  k8s.io/apimachinery/pkg/runtime.sliceFromUnstructured
+     0.01s  0.42% 64.85%      0.11s  4.60%  runtime.mapaccess2
+         0     0% 64.85%      0.10s  4.18%  main.diagnostic.handler.func3
+         0     0% 64.85%      0.10s  4.18%  net/http.(*ServeMux).ServeHTTP
+         0     0% 64.85%      0.10s  4.18%  net/http.(*conn).serve
+         0     0% 64.85%      0.10s  4.18%  net/http.HandlerFunc.ServeHTTP
+         0     0% 64.85%      0.10s  4.18%  net/http.serverHandler.ServeHTTP
+         0     0% 64.85%      0.10s  4.18%  runtime.gcBgMarkWorker
+         0     0% 64.85%      0.10s  4.18%  runtime.gcDrainMarkWorkerIdle (inline)
+         0     0% 64.85%      0.09s  3.77%  runtime.gcDrainMarkWorkerDedicated (inline)
+     0.09s  3.77% 68.62%      0.09s  3.77%  syscall.rawsyscalln
+         0     0% 68.62%      0.09s  3.77%  syscall.syscall
+         0     0% 68.62%      0.09s  3.77%  syscall.syscalln
+     0.01s  0.42% 69.04%      0.08s  3.35%  k8s.io/apimachinery/pkg/runtime.fieldInfoFromField
+         0     0% 69.04%      0.08s  3.35%  runtime.preemptM
+     0.08s  3.35% 72.38%      0.08s  3.35%  runtime.pthread_kill
+         0     0% 72.38%      0.08s  3.35%  runtime.signalM (inline)
+         0     0% 72.38%      0.07s  2.93%  encoding/json.(*Encoder).Encode
+         0     0% 72.38%      0.07s  2.93%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 72.38%      0.07s  2.93%  main.writeJSON
+         0     0% 72.38%      0.07s  2.93%  runtime.preemptone
+         0     0% 72.38%      0.06s  2.51%  bufio.(*Writer).Write
+         0     0% 72.38%      0.06s  2.51%  internal/poll.(*FD).Write
+     0.01s  0.42% 72.80%      0.06s  2.51%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+         0     0% 72.80%      0.06s  2.51%  net.(*conn).Write
+         0     0% 72.80%      0.06s  2.51%  net.(*netFD).Write
+         0     0% 72.80%      0.06s  2.51%  net/http.(*chunkWriter).Write
+         0     0% 72.80%      0.06s  2.51%  net/http.(*response).Write
+         0     0% 72.80%      0.06s  2.51%  net/http.(*response).write
+         0     0% 72.80%      0.06s  2.51%  net/http.checkConnErrorWriter.Write
+         0     0% 72.80%      0.06s  2.51%  runtime.(*gcControllerState).enlistWorker
+         0     0% 72.80%      0.06s  2.51%  runtime.forEachP.func1
+         0     0% 72.80%      0.06s  2.51%  runtime.forEachPInternal
+         0     0% 72.80%      0.06s  2.51%  runtime.mapaccess2_faststr
+     0.06s  2.51% 75.31%      0.06s  2.51%  runtime.memequal
+     0.01s  0.42% 75.73%      0.06s  2.51%  runtime.scanObjectsSmall
+         0     0% 75.73%      0.06s  2.51%  runtime.scanSpan
+     0.04s  1.67% 77.41%      0.06s  2.51%  runtime.tryDeferToSpanScan
+         0     0% 77.41%      0.06s  2.51%  syscall.Write (inline)
+         0     0% 77.41%      0.06s  2.51%  syscall.write
+         0     0% 77.41%      0.05s  2.09%  bufio.(*Writer).Flush

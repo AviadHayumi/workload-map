@@ -1,0 +1,87 @@
+File: baseline-profile-exporter
+Type: alloc_space
+Time: 2026-10-28 19:19:48 IST
+Showing nodes accounting for 364.45MB, 87.42% of 416.89MB total
+Dropped 224 nodes (cum <= 2.08MB)
+Showing top 80 nodes out of 219
+      flat  flat%   sum%        cum   cum%
+   57.53MB 13.80% 13.80%    57.53MB 13.80%  reflect.unsafe_New
+   30.04MB  7.20% 21.00%   109.56MB 26.28%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.mapPod
+      25MB  6.00% 27.00%       25MB  6.00%  github.com/prometheus/client_golang/prometheus.MakeLabelPairs
+   22.68MB  5.44% 32.44%   211.17MB 50.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).reconcile
+   20.51MB  4.92% 37.36%    20.51MB  4.92%  reflect.mapassign_faststr0
+      19MB  4.56% 41.92%       19MB  4.56%  github.com/prometheus/client_golang/prometheus.v2.NewDesc
+   18.51MB  4.44% 46.36%    39.27MB  9.42%  main.diagnostic.handler.func3
+   16.51MB  3.96% 50.32%    16.51MB  3.96%  reflect.unsafe_NewArray
+   16.02MB  3.84% 54.16%    49.54MB 11.88%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.gauge.observe
+   15.84MB  3.80% 57.96%    15.84MB  3.80%  slices.Clone[go.shape.[]github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store.PublishedPod,go.shape.struct { Record github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store.PodRecord; Mapping github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store.Evidence }] (inline)
+      11MB  2.64% 60.60%       11MB  2.64%  go.opentelemetry.io/otel/exporters/prometheus.getAttrs
+      10MB  2.40% 63.00%       32MB  7.68%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver.(*Resolver).ForWorkload.func1
+    7.50MB  1.80% 64.80%       22MB  5.28%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelevaluator.(*Evaluator).Evaluate
+    7.50MB  1.80% 66.60%     7.50MB  1.80%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.mergeEvidence
+    6.50MB  1.56% 68.16%       10MB  2.40%  sigs.k8s.io/json/internal/golang/encoding/json.(*decodeState).objectInterface
+    6.50MB  1.56% 69.72%     6.50MB  1.56%  k8s.io/apimachinery/pkg/runtime.DeepCopyJSONValue
+    6.50MB  1.56% 71.28%     6.50MB  1.56%  github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource.(*ComponentFactory).GetComponent
+    5.59MB  1.34% 72.62%    12.18MB  2.92%  encoding/json/v2.makeStructArshaler.func2
+    4.55MB  1.09% 73.71%     4.55MB  1.09%  maps.clone
+    4.55MB  1.09% 74.80%     4.55MB  1.09%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+    4.50MB  1.08% 75.88%       31MB  7.44%  github.com/prometheus/client_golang/prometheus.NewConstMetric
+    4.50MB  1.08% 76.96%     4.50MB  1.08%  reflect.makemap
+       4MB  0.96% 77.92%        4MB  0.96%  github.com/google/cel-go/interpreter.(*refValStack).push (inline)
+    3.76MB   0.9% 78.82%     3.76MB   0.9%  io.ReadAll
+    3.55MB  0.85% 79.68%     3.55MB  0.85%  encoding/json/jsontext.stateMachine.MayAppendDelim (partial-inline)
+    3.51MB  0.84% 80.52%     3.51MB  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store.newPodPage (inline)
+       3MB  0.72% 81.24%        3MB  0.72%  github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq/execution.NewDefaultRunner (inline)
+       3MB  0.72% 81.96%     3.50MB  0.84%  reflect.Value.MapKeys
+    2.50MB   0.6% 82.56%     2.50MB   0.6%  context.withCancel (inline)
+    2.50MB   0.6% 83.16%     2.50MB   0.6%  go.opentelemetry.io/otel/sdk/metric/internal/aggregate.(*deltaLastValue[go.shape.float64]).measure.func1
+    2.50MB   0.6% 83.76%     4.50MB  1.08%  github.com/google/cel-go/common/types.NewStringInterfaceMap (inline)
+    2.21MB  0.53% 84.29%     2.21MB  0.53%  go.opentelemetry.io/otel/sdk/metric/internal/aggregate.reset[go.shape.struct { Attributes go.opentelemetry.io/otel/attribute.Set; StartTime time.Time "json:\",omitempty\""; Time time.Time "json:\",omitempty\""; Value go.shape.float64; Exemplars []go.opentelemetry.io/otel/sdk/metric/metricdata.Exemplar[go.shape.float64] "json:\",omitempty\"" }]
+    1.56MB  0.37% 84.66%     4.07MB  0.98%  encoding/json/jsontext.(*encoderState).WriteToken
+    1.50MB  0.36% 85.02%        4MB  0.96%  github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1.(*Karta).DeepCopy (inline)
+    1.50MB  0.36% 85.38%     2.52MB   0.6%  github.com/prometheus/client_golang/prometheus.processMetric
+    1.50MB  0.36% 85.74%    18.01MB  4.32%  reflect.MakeSlice
+       1MB  0.24% 85.98%     2.12MB  0.51%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).acceptObjectLocked
+       1MB  0.24% 86.22%    13.04MB  3.13%  sigs.k8s.io/json/internal/golang/encoding/json.(*decodeState).object
+       1MB  0.24% 86.46%     3.50MB  0.84%  context.WithCancel
+    0.51MB  0.12% 86.58%     3.03MB  0.73%  github.com/prometheus/client_golang/prometheus.(*Registry).Gather
+    0.50MB  0.12% 86.70%     3.50MB  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery.(*discovery).Get
+    0.50MB  0.12% 86.82%    14.04MB  3.37%  sigs.k8s.io/json/internal/golang/encoding/json.Unmarshal
+    0.50MB  0.12% 86.94%        7MB  1.68%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*sourceObject).DeepCopyObject (inline)
+    0.50MB  0.12% 87.06%     8.10MB  1.94%  k8s.io/client-go/dynamic.(*dynamicResourceClient).List
+    0.50MB  0.12% 87.18%       10MB  2.40%  github.com/google/cel-go/cel.(*prog).Eval
+    0.50MB  0.12% 87.30%        9MB  2.16%  sigs.k8s.io/json/internal/golang/encoding/json.(*decodeState).valueInterface
+    0.50MB  0.12% 87.42%     4.50MB  1.08%  go.opentelemetry.io/otel/sdk/metric/internal/aggregate.(*limitedSyncMap[go.shape.*uint8]).LoadOrStoreAttr
+         0     0% 87.42%    21.26MB  5.10%  encoding/json.(*Encoder).Encode
+         0     0% 87.42%        4MB  0.96%  encoding/json.Marshal (inline)
+         0     0% 87.42%     2.50MB   0.6%  encoding/json.Unmarshal (inline)
+         0     0% 87.42%     4.55MB  1.09%  encoding/json/internal/jsonwire.AppendQuote
+         0     0% 87.42%     4.07MB  0.98%  encoding/json/jsontext.(*Encoder).WriteToken (inline)
+         0     0% 87.42%        4MB  0.96%  encoding/json/v2.Marshal
+         0     0% 87.42%    20.76MB  4.98%  encoding/json/v2.MarshalEncode
+         0     0% 87.42%     2.50MB   0.6%  encoding/json/v2.Unmarshal
+         0     0% 87.42%    20.76MB  4.98%  encoding/json/v2.makeInterfaceArshaler.func1
+         0     0% 87.42%     2.50MB   0.6%  encoding/json/v2.makeInterfaceArshaler.func2
+         0     0% 87.42%    20.76MB  4.98%  encoding/json/v2.makeMapArshaler.func2
+         0     0% 87.42%     2.50MB   0.6%  encoding/json/v2.makeMapArshaler.func3
+         0     0% 87.42%     5.59MB  1.34%  encoding/json/v2.makeStringArshaler.func1
+         0     0% 87.42%    23.26MB  5.58%  encoding/json/v2.marshalEncode
+         0     0% 87.42%    20.76MB  4.98%  encoding/json/v2.marshalObjectAny
+         0     0% 87.42%    20.76MB  4.98%  encoding/json/v2.marshalValueAny
+         0     0% 87.42%     5.50MB  1.32%  encoding/json/v2.newAddressableValue
+         0     0% 87.42%     2.50MB   0.6%  encoding/json/v2.unmarshalDecode
+         0     0% 87.42%    49.54MB 11.88%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.(*collector).collect
+         0     0% 87.42%     2.50MB   0.6%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).GetMetadata
+         0     0% 87.42%     4.71MB  1.13%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).listMetadata
+         0     0% 87.42%     5.75MB  1.38%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).readMetadataList
+         0     0% 87.42%     8.51MB  2.04%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func1
+         0     0% 87.42%   211.17MB 50.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func2
+         0     0% 87.42%   211.17MB 50.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func2.1
+         0     0% 87.42%     7.25MB  1.74%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func3
+         0     0% 87.42%     7.50MB  1.80%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).discoverPath
+         0     0% 87.42%     8.10MB  1.94%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func1
+         0     0% 87.42%     9.12MB  2.19%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch.func3.1
+         0     0% 87.42%     8.10MB  1.94%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).listWatch
+         0     0% 87.42%        3MB  0.72%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).lookupDefinition
+         0     0% 87.42%        4MB  0.96%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).lookupDefinitionLocked
+         0     0% 87.42%     7.25MB  1.74%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).maintainSource

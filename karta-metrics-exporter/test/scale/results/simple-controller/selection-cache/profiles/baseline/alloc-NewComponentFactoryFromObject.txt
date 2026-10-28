@@ -1,0 +1,4 @@
+Total: 416.89MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource.NewComponentFactoryFromObject in /private/tmp/karta-simple-baseline-ee7d2ac6/karta/sdk/pkg/resource/component_factory.go
+         0        1MB (flat, cum)  0.24% of Total
+ Error: could not find file sdk/pkg/resource/component_factory.go on path /Users/ahayumi/.codex/worktrees/exporter-simple/karta

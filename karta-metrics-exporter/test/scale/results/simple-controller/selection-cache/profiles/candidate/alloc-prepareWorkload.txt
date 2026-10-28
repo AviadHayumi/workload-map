@@ -1,0 +1,14 @@
+Total: 671.01MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.prepareWorkload in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta-metrics-exporter/pkg/controller/root.go
+         0    73.03MB (flat, cum) 10.88% of Total
+         .          .    293:func prepareWorkload(selection inventory.Selection, object *unstructured.Unstructured) (*resource.ComponentFactory, *instructions.StructureSummary, error) {
+         .    42.51MB    294:	summary, err := instructions.NewStructureSummary(selection.Definition)
+         .          .    295:	if err != nil {
+         .          .    296:		return nil, nil, fmt.Errorf("%w: %w", discovery.ErrInvalidDefinition, err)
+         .          .    297:	}
+         .    30.52MB    298:	return resource.NewComponentFactoryFromObject(selection.Definition, object), summary, nil
+         .          .    299:}
+         .          .    300:
+         .          .    301:func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *instructions.StructureSummary, object *unstructured.Unstructured) (string, string, string, error) {
+         .          .    302:	pod := &corev1.Pod{}
+         .          .    303:	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, pod); err != nil {

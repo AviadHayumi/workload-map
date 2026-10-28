@@ -1,0 +1,88 @@
+File: candidate-profile-exporter
+Type: cpu
+Time: 2026-10-28 19:19:50 IST
+Duration: 11.53s, Total samples = 2.39s (20.73%)
+Showing nodes accounting for 2.09s, 87.45% of 2.39s total
+Dropped 211 nodes (cum <= 0.01s)
+Showing top 80 nodes out of 176
+      flat  flat%   sum%        cum   cum%
+     0.46s 19.25% 19.25%      0.46s 19.25%  runtime.pthread_cond_signal
+     0.43s 17.99% 37.24%      0.43s 17.99%  runtime.pthread_cond_wait
+     0.28s 11.72% 48.95%      0.28s 11.72%  runtime.usleep
+     0.21s  8.79% 57.74%      0.21s  8.79%  runtime.madvise
+     0.15s  6.28% 64.02%      0.15s  6.28%  runtime.kevent
+     0.09s  3.77% 67.78%      0.09s  3.77%  syscall.rawsyscalln
+     0.08s  3.35% 71.13%      0.08s  3.35%  runtime.pthread_kill
+     0.06s  2.51% 73.64%      0.06s  2.51%  runtime.memequal
+     0.04s  1.67% 75.31%      0.06s  2.51%  runtime.tryDeferToSpanScan
+     0.04s  1.67% 76.99%      0.05s  2.09%  type:.eq.IM8
+     0.03s  1.26% 78.24%      0.03s  1.26%  internal/runtime/maps.memHashAES
+     0.03s  1.26% 79.50%      0.04s  1.67%  runtime.scanObject
+     0.02s  0.84% 80.33%      0.04s  1.67%  k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.getNestedString
+     0.02s  0.84% 81.17%      0.02s  0.84%  runtime.procPin (inline)
+     0.02s  0.84% 82.01%      0.02s  0.84%  runtime.pthread_cond_timedwait_relative_np
+     0.01s  0.42% 82.43%      0.03s  1.26%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).read
+     0.01s  0.42% 82.85%      0.06s  2.51%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+     0.01s  0.42% 83.26%      0.08s  3.35%  k8s.io/apimachinery/pkg/runtime.fieldInfoFromField
+     0.01s  0.42% 83.68%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.structFromUnstructured
+     0.01s  0.42% 84.10%      0.05s  2.09%  reflect.Value.MapIndex
+     0.01s  0.42% 84.52%      0.04s  1.67%  reflect.Value.Set
+     0.01s  0.42% 84.94%      0.02s  0.84%  runtime.bulkBarrierPreWrite
+     0.01s  0.42% 85.36%      0.02s  0.84%  runtime.growslice
+     0.01s  0.42% 85.77%      0.11s  4.60%  runtime.mapaccess2
+     0.01s  0.42% 86.19%      0.06s  2.51%  runtime.scanObjectsSmall
+     0.01s  0.42% 86.61%      0.02s  0.84%  runtime.wbBufFlush1
+     0.01s  0.42% 87.03%      0.02s  0.84%  slices.insertionSortCmpFunc[go.shape.struct { Key go.opentelemetry.io/otel/attribute.Key; Value go.opentelemetry.io/otel/attribute.Value }] (inline)
+     0.01s  0.42% 87.45%      0.03s  1.26%  sync.(*Pool).Get
+         0     0% 87.45%      0.38s 15.90%  _.goready.func1
+         0     0% 87.45%      0.05s  2.09%  bufio.(*Writer).Flush
+         0     0% 87.45%      0.06s  2.51%  bufio.(*Writer).Write
+         0     0% 87.45%      0.07s  2.93%  encoding/json.(*Encoder).Encode
+         0     0% 87.45%      0.04s  1.67%  encoding/json.Marshal (inline)
+         0     0% 87.45%      0.02s  0.84%  encoding/json/jsontext.(*decoderState).consumeObject
+         0     0% 87.45%      0.02s  0.84%  encoding/json/jsontext.(*decoderState).consumeValue
+         0     0% 87.45%      0.02s  0.84%  encoding/json/jsontext.export.GetBufferedEncoder (inline)
+         0     0% 87.45%      0.02s  0.84%  encoding/json/jsontext.getBufferedEncoder
+         0     0% 87.45%      0.04s  1.67%  encoding/json/v2.Marshal
+         0     0% 87.45%      0.03s  1.26%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.(*collector).collect
+         0     0% 87.45%      0.03s  1.26%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.gauge.observe
+         0     0% 87.45%      0.02s  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).Cached (partial-inline)
+         0     0% 87.45%      0.02s  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).mapping
+         0     0% 87.45%      0.44s 18.41%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).Run.func1
+         0     0% 87.45%      0.02s  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).ensureWatch
+         0     0% 87.45%      0.43s 17.99%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveInput
+         0     0% 87.45%      0.43s 17.99%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveLeaf
+         0     0% 87.45%      0.27s 11.30%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.mapPod
+         0     0% 87.45%      0.02s  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.refOf
+         0     0% 87.45%      0.44s 18.41%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.runWorker[go.shape.struct { Object github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.objectKey; UID k8s.io/apimachinery/pkg/types.UID; Sweep bool }]
+         0     0% 87.45%      0.03s  1.26%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery.(*discovery).Get
+         0     0% 87.45%      0.02s  0.84%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/labelresolver.(*Resolver).ForWorkload.func1
+         0     0% 87.45%      0.03s  1.26%  github.com/prometheus/client_golang/prometheus.(*Registry).Gather.func1
+         0     0% 87.45%      0.03s  1.26%  github.com/prometheus/client_golang/prometheus.safeCollect
+         0     0% 87.45%      0.02s  0.84%  go.opentelemetry.io/otel/attribute.NewSet (inline)
+         0     0% 87.45%      0.02s  0.84%  go.opentelemetry.io/otel/attribute.NewSetWithFiltered
+         0     0% 87.45%      0.03s  1.26%  go.opentelemetry.io/otel/exporters/prometheus.(*collector).Collect
+         0     0% 87.45%      0.03s  1.26%  go.opentelemetry.io/otel/sdk/metric.(*ManualReader).Collect
+         0     0% 87.45%      0.03s  1.26%  go.opentelemetry.io/otel/sdk/metric.(*meter).RegisterCallback.func1
+         0     0% 87.45%      0.03s  1.26%  go.opentelemetry.io/otel/sdk/metric.(*pipeline).produce
+         0     0% 87.45%      0.02s  0.84%  internal/poll.(*FD).Accept
+         0     0% 87.45%      0.06s  2.51%  internal/poll.(*FD).Write
+         0     0% 87.45%      0.02s  0.84%  internal/poll.accept
+         0     0% 87.45%      0.07s  2.93%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 87.45%      0.02s  0.84%  internal/runtime/maps.MemHash
+         0     0% 87.45%      0.02s  0.84%  internal/runtime/maps.StrHash (inline)
+         0     0% 87.45%      0.02s  0.84%  k8s.io/apimachinery/pkg/api/meta.PriorityRESTMapperWithContext.RESTMappingWithContext
+         0     0% 87.45%      0.03s  1.26%  k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.(*Unstructured).GetResourceVersion (partial-inline)
+         0     0% 87.45%      0.02s  0.84%  k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.NestedFieldNoCopy
+         0     0% 87.45%      0.02s  0.84%  k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.NestedString
+         0     0% 87.45%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructured (inline)
+         0     0% 87.45%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.(*unstructuredConverter).FromUnstructuredWithValidation
+         0     0% 87.45%      0.26s 10.88%  k8s.io/apimachinery/pkg/runtime.fromUnstructured
+         0     0% 87.45%      0.03s  1.26%  k8s.io/apimachinery/pkg/runtime.mapFromUnstructured
+         0     0% 87.45%      0.12s  5.02%  k8s.io/apimachinery/pkg/runtime.sliceFromUnstructured
+         0     0% 87.45%      0.02s  0.84%  k8s.io/apimachinery/pkg/runtime/serializer/json.(*Serializer).Decode
+         0     0% 87.45%      0.02s  0.84%  k8s.io/apimachinery/pkg/watch.(*StreamWatcher).receive
+         0     0% 87.45%      0.02s  0.84%  k8s.io/client-go/rest/watch.(*Decoder).Decode
+         0     0% 87.45%      0.02s  0.84%  k8s.io/client-go/restmapper.(*DeferredDiscoveryRESTMapper).RESTMapping
+         0     0% 87.45%      0.02s  0.84%  k8s.io/client-go/restmapper.(*DeferredDiscoveryRESTMapper).RESTMappingWithContext
+         0     0% 87.45%      0.10s  4.18%  main.diagnostic.handler.func3

@@ -1,0 +1,87 @@
+File: baseline-profile-exporter
+Type: cpu
+Time: 2026-10-28 19:19:37 IST
+Duration: 11.72s, Total samples = 1.58s (13.48%)
+Showing nodes accounting for 1.58s, 100% of 1.58s total
+Showing top 80 nodes out of 306
+      flat  flat%   sum%        cum   cum%
+     0.40s 25.32% 25.32%      0.40s 25.32%  runtime.pthread_cond_signal
+     0.14s  8.86% 34.18%      0.14s  8.86%  syscall.rawsyscalln
+     0.13s  8.23% 42.41%      0.13s  8.23%  runtime.pthread_cond_wait
+     0.09s  5.70% 48.10%      0.09s  5.70%  runtime.madvise
+     0.06s  3.80% 51.90%      0.06s  3.80%  runtime.usleep
+     0.05s  3.16% 55.06%      0.10s  6.33%  internal/runtime/maps.(*Map).getWithoutKeySmallFastStr
+     0.04s  2.53% 57.59%      0.04s  2.53%  runtime.extractHeapBitsSmall
+     0.03s  1.90% 59.49%      0.40s 25.32%  k8s.io/apimachinery/pkg/runtime.structFromUnstructured
+     0.03s  1.90% 61.39%      0.14s  8.86%  runtime.mapaccess2
+     0.03s  1.90% 63.29%      0.03s  1.90%  runtime.memequal
+     0.03s  1.90% 65.19%      0.09s  5.70%  runtime.scanObjectsSmall
+     0.03s  1.90% 67.09%      0.04s  2.53%  type:.eq.IM8
+     0.02s  1.27% 68.35%      0.50s 31.65%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).reconcile
+     0.02s  1.27% 69.62%      0.02s  1.27%  internal/runtime/atomic.(*UnsafePointer).Load (inline)
+     0.02s  1.27% 70.89%      0.03s  1.90%  internal/runtime/maps.MemHash64
+     0.02s  1.27% 72.15%      0.02s  1.27%  internal/runtime/maps.memHashAES
+     0.02s  1.27% 73.42%      0.02s  1.27%  reflect.Value.assignTo
+     0.02s  1.27% 74.68%      0.02s  1.27%  runtime.kevent
+     0.02s  1.27% 75.95%      0.02s  1.27%  runtime.memclrNoHeapPointers
+     0.02s  1.27% 77.22%      0.02s  1.27%  runtime.pthread_kill
+     0.02s  1.27% 78.48%      0.02s  1.27%  runtime.wbBufFlush1
+     0.01s  0.63% 79.11%      0.01s  0.63%  encoding/json/jsontext.stateMachine.MayAppendDelim
+     0.01s  0.63% 79.75%      0.01s  0.63%  github.com/cespare/xxhash/v2.(*Digest).Write
+     0.01s  0.63% 80.38%      0.01s  0.63%  github.com/google/cel-go/interpreter.NewExecutionFrame
+     0.01s  0.63% 81.01%      0.06s  3.80%  go.opentelemetry.io/otel/attribute.NewSetWithFiltered
+     0.01s  0.63% 81.65%      0.01s  0.63%  go.opentelemetry.io/otel/sdk/metric/internal/attrnorm.SetDedup
+     0.01s  0.63% 82.28%      0.01s  0.63%  internal/abi.(*Type).IsDirectIface (inline)
+     0.01s  0.63% 82.91%      0.01s  0.63%  internal/runtime/atomic.(*Bool).Load (inline)
+     0.01s  0.63% 83.54%      0.01s  0.63%  internal/runtime/maps.(*Map).Used (inline)
+     0.01s  0.63% 84.18%      0.01s  0.63%  internal/runtime/maps.h2 (inline)
+     0.01s  0.63% 84.81%      0.01s  0.63%  internal/runtime/maps.memHash64AES
+     0.01s  0.63% 85.44%      0.12s  7.59%  k8s.io/apimachinery/pkg/runtime.fieldInfoFromField
+     0.01s  0.63% 86.08%      0.17s 10.76%  k8s.io/apimachinery/pkg/runtime.sliceFromUnstructured
+     0.01s  0.63% 86.71%      0.01s  0.63%  reflect.(*rtype).ConvertibleTo
+     0.01s  0.63% 87.34%      0.01s  0.63%  reflect.(*rtype).NumMethod
+     0.01s  0.63% 87.97%      0.07s  4.43%  reflect.Value.Set
+     0.01s  0.63% 88.61%      0.01s  0.63%  reflect.convertOp
+     0.01s  0.63% 89.24%      0.01s  0.63%  reflect.flag.mustBeAssignable (inline)
+     0.01s  0.63% 89.87%      0.02s  1.27%  reflect.packIfaceValueIntoEmptyIface (inline)
+     0.01s  0.63% 90.51%      0.02s  1.27%  runtime.(*mcentral).cacheSpan
+     0.01s  0.63% 91.14%      0.01s  0.63%  runtime.(*spanScanOwnership).or (inline)
+     0.01s  0.63% 91.77%      0.01s  0.63%  runtime.(*sweepLocked).sweep
+     0.01s  0.63% 92.41%      0.02s  1.27%  runtime.ifaceeq
+     0.01s  0.63% 93.04%      0.12s  7.59%  runtime.mapaccess2_faststr
+     0.01s  0.63% 93.67%      0.01s  0.63%  runtime.readUnaligned64 (inline)
+     0.01s  0.63% 94.30%      0.02s  1.27%  runtime.scanObject
+     0.01s  0.63% 94.94%      0.10s  6.33%  runtime.scanSpan
+     0.01s  0.63% 95.57%      0.01s  0.63%  runtime.step
+     0.01s  0.63% 96.20%      0.02s  1.27%  runtime.tryDeferToSpanScan
+     0.01s  0.63% 96.84%      0.01s  0.63%  runtime.typePointers.nextFast (inline)
+     0.01s  0.63% 97.47%      0.03s  1.90%  runtime.typedmemclr
+     0.01s  0.63% 98.10%      0.01s  0.63%  sigs.k8s.io/json/internal/golang/encoding/json.stateInString
+     0.01s  0.63% 98.73%      0.01s  0.63%  slices.Index[go.shape.[]string,go.shape.string] (inline)
+     0.01s  0.63% 99.37%      0.03s  1.90%  slices.insertionSortCmpFunc[go.shape.struct { Key go.opentelemetry.io/otel/attribute.Key; Value go.opentelemetry.io/otel/attribute.Value }] (inline)
+     0.01s  0.63%   100%      0.04s  2.53%  type:.hash.IM8
+         0     0%   100%      0.37s 23.42%  _.goready.func1
+         0     0%   100%      0.01s  0.63%  bufio.(*Reader).Read
+         0     0%   100%      0.01s  0.63%  bufio.(*Reader).ReadLine
+         0     0%   100%      0.01s  0.63%  bufio.(*Reader).ReadSlice
+         0     0%   100%      0.01s  0.63%  bufio.(*Reader).fill
+         0     0%   100%      0.09s  5.70%  bufio.(*Writer).Flush
+         0     0%   100%      0.11s  6.96%  bufio.(*Writer).Write
+         0     0%   100%      0.01s  0.63%  bufio.(*Writer).WriteByte
+         0     0%   100%      0.02s  1.27%  bufio.(*Writer).WriteString
+         0     0%   100%      0.01s  0.63%  encoding/json.(*Decoder).Decode
+         0     0%   100%      0.08s  5.06%  encoding/json.(*Encoder).Encode
+         0     0%   100%      0.01s  0.63%  encoding/json.Marshal (inline)
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*Decoder).ReadValue (inline)
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*decoderState).ReadValue
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*decoderState).consumeObject
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*decoderState).consumeValue
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*decoderState).consumeWhitespace
+         0     0%   100%      0.01s  0.63%  encoding/json/jsontext.(*decoderState).fetch
+         0     0%   100%      0.01s  0.63%  encoding/json/v2.Marshal
+         0     0%   100%      0.01s  0.63%  encoding/json/v2.makeStringArshaler.func1
+         0     0%   100%      0.01s  0.63%  encoding/json/v2.marshalEncode
+         0     0%   100%      0.01s  0.63%  github.com/cespare/xxhash/v2.(*Digest).WriteString (inline)
+         0     0%   100%      0.07s  4.43%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.(*collector).collect
+         0     0%   100%      0.07s  4.43%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/adapters/otel.gauge.observe
+         0     0%   100%      0.02s  1.27%  github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Reader).Cached

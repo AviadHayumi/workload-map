@@ -1,0 +1,51 @@
+Total: 416.89MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/controller.(*Runtime).resolveLeaf in /private/tmp/karta-simple-baseline-ee7d2ac6/karta-metrics-exporter/pkg/controller/leaf.go
+         0     7.51MB (flat, cum)  1.80% of Total
+         .          .     51:func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
+         .          .     52:	ref := discovery.ObjectRef{GVK: podGVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
+         .          .     53:	object, ok := r.reader.Cached(ref)
+         .          .     54:	if !ok {
+         .          .     55:		return nil
+         .          .     56:	}
+         .          .     57:	ref = refOf(object)
+         .   512.14kB     58:	if !r.podSelector.Matches(labelsFor(object)) {
+         .          .     59:		r.mu.Lock()
+         .          .     60:		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
+         .          .     61:			r.invalidatePodLocked(root, ref.UID, store.ReasonUnresolvedOwner)
+         .          .     62:			r.removePodPathLocked(root, ref.UID)
+         .          .     63:			delete(r.podRoots, ref.UID)
+         .          .     64:		}
+         .          .     65:		r.mu.Unlock()
+         .          .     66:		return nil
+         .          .     67:	}
+         .     6.50MB     68:	workload, watch, err := r.discoverPath(ctx, ref)
+         .          .     69:	if err != nil || workload == nil {
+         .          .     70:		return err
+         .          .     71:	}
+         .          .     72:	r.mu.Lock()
+         .          .     73:	defer r.mu.Unlock()
+         .          .     74:	root, err := r.acceptPathLocked(ref, workload, watch)
+         .          .     75:	if err != nil {
+         .          .     76:		return err
+         .          .     77:	}
+         .          .     78:	if previous := r.podRoots[ref.UID]; previous != "" && previous != workload.Root.UID {
+         .          .     79:		if old := r.roots[previous]; old != nil {
+         .          .     80:			r.invalidatePodLocked(old, ref.UID, store.ReasonUnresolvedOwner)
+         .          .     81:			r.removePodPathLocked(old, ref.UID)
+         .          .     82:		}
+         .          .     83:	}
+         .          .     84:	if root.pods[ref.UID].resolveError != nil {
+         .          .     85:		r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
+         .          .     86:	}
+         .          .     87:	pod := root.pods[ref.UID]
+         .          .     88:	pod.resolveError = nil
+         .          .     89:	if pod.proofKey == "" {
+         .          .     90:		r.sequence++
+         .          .     91:		pod.proofKey = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
+         .          .     92:	}
+         .          .     93:	root.pods[ref.UID] = pod
+         .   516.64kB     94:	r.setPodPathLocked(root, ref.UID, workload.Path)
+         .          .     95:	r.dirtyPod(root, ref.UID)
+         .          .     96:	r.podRoots[ref.UID] = workload.Root.UID
+         .          .     97:	return nil
+         .          .     98:}

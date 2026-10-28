@@ -1,0 +1,23 @@
+Total: 671.01MB
+ROUTINE ======================== github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/instructions.NewStructureSummary in /Users/ahayumi/.codex/worktrees/exporter-simple/karta/karta/sdk/pkg/instructions/summary.go
+       4MB    42.51MB (flat, cum)  6.33% of Total
+         .          .     40:func NewStructureSummary(karta *v1alpha1.Karta) (*StructureSummary, error) {
+         .          .     41:	if karta == nil {
+         .          .     42:		return nil, fmt.Errorf("karta cannot be nil")
+         .          .     43:	}
+         .          .     44:
+    2.50MB     2.50MB     45:	summary := &StructureSummary{
+         .          .     46:		karta:                      karta,
+         .          .     47:		parentMap:                  make(map[string]string),
+       1MB        1MB     48:		childrenMap:                make(map[string][]string),
+  512.02kB   512.02kB     49:		componentDefinitionsByName: make(map[string]*v1alpha1.ComponentDefinition),
+         .          .     50:		leafComponents:             make([]string, 0),
+         .          .     51:		hasScaleDefinition:         false,
+         .          .     52:	}
+         .          .     53:
+         .    38.51MB     54:	if err := summary.build(); err != nil {
+         .          .     55:		return nil, fmt.Errorf("failed to build structure summary: %w", err)
+         .          .     56:	}
+         .          .     57:
+         .          .     58:	return summary, nil
+         .          .     59:}
