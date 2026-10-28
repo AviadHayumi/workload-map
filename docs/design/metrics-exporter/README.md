@@ -3,6 +3,12 @@
 
 # Karta metrics exporter: implementation design
 
+Historical baseline: this walkthrough describes `ee7d2ac6` before independent
+Pod and workload publication. The [current consistency contract](consistency.md) and
+[controller guide](../../../karta-metrics-exporter/pkg/controller/README.md)
+describe the simplified implementation. The original walkthrough and diagrams
+remain here to preserve the earlier design and review context.
+
 [KEP-0001](../../keps/0001-metrics-exporter/README.md) defines the metrics.
 This design describes the implemented components and their contracts.
 [Verification and publication](consistency.md) explains freshness, concurrent

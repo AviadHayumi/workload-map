@@ -156,26 +156,29 @@ func (d diagnostic) handler() http.Handler {
 		}
 		view := d.application.Store.Capture()
 		result := map[string]any{}
-		for _, p := range view.Records {
-			if !requested[p.Workload.UID] {
+		for _, workload := range view.Workloads {
+			if !requested[workload.Record.UID] {
 				continue
 			}
-			creationValid, _ := view.Valid(p.Creation)
-			statusValid := true
-			if p.Workload.HasStatus {
-				statusValid, _ = view.Valid(p.Status)
+			creationValid, _ := view.Valid(workload.CreationSources, workload.Error)
+			statusValid, _ := view.Valid(workload.Sources, workload.StatusError)
+			inputValid, _ := view.Valid(workload.Sources, workload.Error)
+			statusValid = statusValid && inputValid
+			valid := workload.HasValue && creationValid && statusValid
+			result[string(workload.Record.UID)] = map[string]any{"resource_version": workload.Record.Ref.ResourceVersion, "valid": valid, "creation_valid": creationValid, "status_valid": statusValid, "workload": workload.Record, "pods": map[string]any{}}
+		}
+		for _, pod := range view.Pods {
+			if !pod.HasValue || !requested[pod.Record.Workload.UID] {
+				continue
 			}
-			valid := creationValid && statusValid && len(p.FailureReasons) == 0
-			pods := map[string]any{}
-			for _, page := range p.PodPages {
-				for _, pod := range page.Rows() {
-					mappingValid, reason := view.Valid(pod.Mapping)
-					_, duplicate := pods[string(pod.Record.UID)]
-					valid = valid && mappingValid && !duplicate
-					pods[string(pod.Record.UID)] = map[string]any{"valid": mappingValid, "reason": reason, "record": pod.Record}
-				}
+			uid := string(pod.Record.Workload.UID)
+			if result[uid] == nil {
+				result[uid] = map[string]any{"valid": false, "pods": map[string]any{}}
 			}
-			result[string(p.Workload.UID)] = map[string]any{"resource_version": p.Workload.Ref.ResourceVersion, "valid": valid, "creation_valid": creationValid, "status_valid": statusValid, "workload": p.Workload, "pods": pods, "captured_at": view.At}
+			row := result[uid].(map[string]any)
+			mappingValid, reason := view.Valid(pod.Sources, pod.Error)
+			row["valid"] = row["valid"].(bool) && mappingValid
+			row["pods"].(map[string]any)[string(pod.Record.UID)] = map[string]any{"valid": mappingValid, "reason": reason, "record": pod.Record}
 		}
 		writeJSON(w, result)
 	})
@@ -198,6 +201,21 @@ func run() error {
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
 	}
+	if filename := os.Getenv("SCALE_CPU_PROFILE"); filename != "" {
+		profile, err := os.Create(filename)
+		if err != nil {
+			return fmt.Errorf("create CPU profile: %w", err)
+		}
+		if err := pprof.StartCPUProfile(profile); err != nil {
+			_ = profile.Close()
+			return fmt.Errorf("start CPU profile: %w", err)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			_ = profile.Close()
+		}()
+	}
+
 	host, _, err := net.SplitHostPort(*diagnostics)
 	if err != nil {
 		return err

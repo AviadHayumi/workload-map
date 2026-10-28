@@ -10,8 +10,9 @@ GPU activity. Low activity alone does not prove idleness.
 
 ## Current observations and workload age
 
-Filter Pod attribution and status by `observation_valid="true"` for verified
-observations. A workload can have verified status even when its phase is Failed.
+Filter Pod attribution and status by `observation_valid="true"` for results with
+healthy synchronized sources and no evaluation error. This does not imply a
+transaction across resources. A valid status can have phase Failed.
 
 ```promql
 karta_workload_status{phase="Running",observation_valid="true"} == 1
@@ -23,7 +24,11 @@ karta_pod_workload_info{observation_valid="true"}
 
 No health join is needed for these queries. Use
 `karta_exporter_observation_valid` for collection health and workload failure
-reasons. Scrape freshness remains a separate requirement.
+reasons. `scope="discovery"` reports input failures before a root is known, with
+empty workload identity. `scope="resource_type"` reports source collection health.
+`scope="workload"` aggregates failures attributed to a known root.
+Scrape freshness remains a separate requirement. Healthy quiet objects do not
+expire; a silent watch stall retains values until observed recovery or failure.
 
 Workload age in seconds comes from the root's creation timestamp:
 
@@ -35,7 +40,7 @@ time() - max by (namespace, workload_name, workload_uid) (
 
 This metric has only `namespace`, `workload_name` and `workload_uid` as exporter
 defined labels. It has no `observation_valid` label. Missing timestamps or failed
-or expired root verification omit the sample. Status evaluation failure alone does
+root collection or discovery omit the sample. Status evaluation failure alone does
 not invalidate verified creation metadata. The aggregation merges replicas that
 report the same creation time; it does not detect disagreement between replicas.
 

@@ -17,13 +17,13 @@ even when it has no Pods.
 | [discovery](pkg/discovery/) | Resolve the controller-owner path and workload root |
 | [labelevaluator](pkg/labelevaluator/) | Compile and evaluate one CEL expression against a full object |
 | [labelresolver](pkg/labelresolver/) | Resolve configured labels with ordered source fallback |
-| [controller](pkg/controller/) | Watch inputs, reconcile roots and publish verified results |
-| [store](pkg/store/) | Own immutable publications, evidence validity and captured views |
+| [controller](pkg/controller/) | Watch inputs and publish Pod and workload results independently |
+| [store](pkg/store/) | Own immutable UID-keyed results, source health and captured views |
 | [adapters/otel](pkg/adapters/otel/) | Emit saved observations from one captured view per scrape |
 
 Runtime evaluates labels when inputs change. Collection reads saved values and
-does not call Kubernetes or CEL. Store owns synchronization; Runtime orders
-input verification and publication. The application registers collection before
+does not call Kubernetes or CEL. Store owns synchronization. Pod and workload workers replace their own results;
+a scrape can see different revisions across the two domains. The application registers collection before
 workers start. Shutdown stops workers before unregistering collection and
 closing the metric provider.
 

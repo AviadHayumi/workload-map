@@ -38,9 +38,11 @@ import (
 )
 
 type requests struct {
-	mu      sync.Mutex
-	watches map[string]int
-	deny    string
+	mu              sync.Mutex
+	watches         map[string]int
+	metadataWatches map[string]int
+	streams         map[string][]io.ReadCloser
+	deny            string
 }
 type transport struct {
 	next http.RoundTripper
@@ -51,13 +53,45 @@ func (t transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	t.seen.mu.Lock()
 	if request.URL.Query().Get("watch") == "true" && request.URL.Query().Get("sendInitialEvents") != "true" {
 		t.seen.watches[request.URL.Path]++
+		if strings.Contains(request.Header.Get("Accept"), "PartialObjectMetadata") {
+			t.seen.metadataWatches[request.URL.Path]++
+		}
 	}
 	denied := t.seen.deny != "" && strings.Contains(request.URL.Path, t.seen.deny)
 	t.seen.mu.Unlock()
 	if denied {
 		return &http.Response{StatusCode: http.StatusForbidden, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Forbidden","message":"test denial","code":403}`)), Request: request}, nil
 	}
-	return t.next.RoundTrip(request)
+	response, err := t.next.RoundTrip(request)
+	if err == nil && request.URL.Query().Get("watch") == "true" && response.StatusCode == http.StatusOK {
+		t.seen.mu.Lock()
+		t.seen.streams[request.URL.Path] = append(t.seen.streams[request.URL.Path], response.Body)
+		denied = t.seen.deny != "" && strings.Contains(request.URL.Path, t.seen.deny)
+		t.seen.mu.Unlock()
+		if denied {
+			_ = response.Body.Close()
+		}
+	}
+	return response, err
+}
+
+// Interrupt the live stream so the reflector observes the changed permission on
+// reconnect. A transport rule alone cannot revoke an already accepted WATCH.
+func (r *requests) denyRequests(path string) {
+	r.mu.Lock()
+	r.deny = path
+	var streams []io.ReadCloser
+	if path != "" {
+		for name, bodies := range r.streams {
+			if strings.Contains(name, path) {
+				streams = append(streams, bodies...)
+			}
+		}
+	}
+	r.mu.Unlock()
+	for _, stream := range streams {
+		_ = stream.Close()
+	}
 }
 
 var environment *envtest.Environment
@@ -115,7 +149,7 @@ func pod(ctx context.Context, rs *appsv1.ReplicaSet, name string) *corev1.Pod {
 	return p
 }
 func start(cfg config.Config, initialDeny ...string) (*app.Application, string, *requests) {
-	seen := &requests{watches: map[string]int{}}
+	seen := &requests{watches: map[string]int{}, metadataWatches: map[string]int{}, streams: map[string][]io.ReadCloser{}}
 	if len(initialDeny) > 0 {
 		seen.deny = initialDeny[0]
 	}
@@ -137,8 +171,6 @@ func defaults(ns string) config.Config {
 	cfg.KartaDefinitionSource.Catalog.Enabled = true
 	cfg.KartaDefinitionSource.Catalog.Include = []string{"apps-deployment-v1"}
 	cfg.KartaDefinitionSource.Cluster.Enabled = false
-	cfg.RefreshInterval = "300ms"
-	cfg.MaxAge = "2s"
 	cfg.RequestTimeout = "1s"
 	return cfg
 }
@@ -194,9 +226,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		seen.mu.Lock()
 		defer seen.mu.Unlock()
 		Expect(seen.watches["/apis/apps/v1/namespaces/"+ns+"/deployments"]).To(Equal(1))
-		for path := range seen.watches {
-			Expect(path).NotTo(ContainSubstring("replicasets"))
-		}
+		Expect(seen.metadataWatches["/apis/apps/v1/namespaces/"+ns+"/replicasets"]).To(Equal(1))
 	})
 	It("publishes zero-Pod roots", func(ctx SpecContext) {
 		ns := namespace(ctx)
@@ -205,6 +235,35 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		_, url, _ := start(cfg)
 		Eventually(func() string { return scrape(url) }).Should(ContainSubstring(`workload_uid="` + string(root.UID) + `"`))
 		Expect(infoFor(scrape(url), "empty")).To(BeEmpty())
+	})
+	It("evaluates full Pod fields and refreshes Pod labels after a root-only change", func(ctx SpecContext) {
+		ns := namespace(ctx)
+		root := deployment(ctx, ns, "full-input")
+		p := pod(ctx, replicaSet(ctx, root, "full-middle"), "full-pod")
+		cfg := defaults(ns)
+		cfg.LabelRules = []labelresolver.LabelRule{
+			{Name: "scheduler", Metrics: []string{"karta_pod_workload_info"}, Sources: []labelresolver.Source{labelresolver.SourcePod}, Expression: `object.spec.schedulerName`},
+			{Name: "pod_phase", Metrics: []string{"karta_pod_workload_info"}, Sources: []labelresolver.Source{labelresolver.SourcePod}, Expression: `object.status.phase`},
+			{Name: "desired", Metrics: []string{"karta_pod_workload_info"}, Sources: []labelresolver.Source{labelresolver.SourceWorkload}, Expression: `string(object.spec.replicas)`},
+		}
+		Expect(api.Get(ctx, client.ObjectKeyFromObject(p), p)).To(Succeed())
+		p.Status.Phase = corev1.PodPending
+		Expect(api.Status().Update(ctx, p)).To(Succeed())
+		_, url, _ := start(cfg)
+		Eventually(func() string { return infoFor(scrape(url), p.Name, ns) }).Should(And(
+			ContainSubstring(`scheduler="default-scheduler"`), ContainSubstring(`pod_phase="Pending"`),
+			ContainSubstring(`desired="1"`), ContainSubstring(`observation_valid="true"`)))
+		before := p.ResourceVersion
+		Expect(api.Get(ctx, client.ObjectKeyFromObject(root), root)).To(Succeed())
+		root.Spec.Replicas = ptr.To(int32(2))
+		Expect(api.Update(ctx, root)).To(Succeed())
+		Eventually(func() string { return infoFor(scrape(url), p.Name, ns) }).Should(ContainSubstring(`desired="2"`))
+		Expect(api.Get(ctx, client.ObjectKeyFromObject(p), p)).To(Succeed())
+		Expect(p.ResourceVersion).To(Equal(before), "envtest has no controller to update this Pod")
+		p.Status.Phase = corev1.PodRunning
+		Expect(api.Status().Update(ctx, p)).To(Succeed())
+		Eventually(func() string { return infoFor(scrape(url), p.Name, ns) }).Should(And(
+			ContainSubstring(`pod_phase="Running"`), ContainSubstring(`desired="2"`), ContainSubstring(`observation_valid="true"`)))
 	})
 	It("refreshes intermediate reparenting and handles same-name UID replacement without stale metadata", func(ctx SpecContext) {
 		ns := namespace(ctx)
@@ -252,21 +311,17 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		Expect(api.Delete(ctx, definition)).To(Succeed())
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`component="<unknown>"`))
 	})
-	It("invalidates denied intermediate lookups then recovers with new evidence", func(ctx SpecContext) {
+	It("invalidates an interrupted intermediate watch and recovers after permission returns", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "root")
 		rs := replicaSet(ctx, root, "middle")
 		p := pod(ctx, rs, "pod")
 		_, url, seen := start(defaults(ns))
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`observation_valid="true"`))
-		seen.mu.Lock()
-		seen.deny = "/replicasets"
-		seen.mu.Unlock()
-		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`observation_valid="false"`), ContainSubstring(`owner_resolution="unknown"`)))
+		seen.denyRequests("/replicasets")
+		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`observation_valid="false"`), ContainSubstring(`owner_resolution="resolved"`)))
 		Eventually(func() string { return scrape(url) }).Should(ContainSubstring(`reason="permission_denied"`))
-		seen.mu.Lock()
-		seen.deny = ""
-		seen.mu.Unlock()
+		seen.denyRequests("")
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(ContainSubstring(`observation_valid="true"`))
 	})
 	It("keeps unrelated roots available when a required API is absent", func(ctx SpecContext) {
@@ -281,7 +336,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		defer response.Body.Close()
 		Expect(response.StatusCode).To(Equal(http.StatusServiceUnavailable))
 	})
-	It("treats empty namespace selectors as cluster-wide watches", func(ctx SpecContext) {
+	It("uses one cluster-wide Pod watch for empty namespace selectors", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		deployment(ctx, ns, "root")
 		cfg := defaults(ns)
@@ -291,9 +346,10 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		seen.mu.Lock()
 		defer seen.mu.Unlock()
 		Expect(seen.watches["/api/v1/pods"]).To(Equal(1))
-		Expect(seen.watches["/api/v1/namespaces"]).To(BeZero())
+		// Other fixtures can reference a Namespace as a generic workload root.
+		// Traversal may legitimately watch it even without namespace selection.
 	})
-	It("keeps quiet paths valid across several metadata refreshes", func(ctx SpecContext) {
+	It("keeps quiet paths valid without periodic metadata refresh", func(ctx SpecContext) {
 		ns := namespace(ctx)
 		root := deployment(ctx, ns, "quiet")
 		p := pod(ctx, replicaSet(ctx, root, "quiet-middle"), "quiet-pod")
@@ -359,9 +415,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		_, url, seen := start(cfg, "/replicasets")
 		Eventually(func() string { return scrape(url) }).Should(ContainSubstring(`reason="permission_denied",resource_group="apps",resource_kind="ReplicaSet"`))
 		Expect(infoFor(scrape(url), p.Name, p.Namespace)).To(BeEmpty())
-		seen.mu.Lock()
-		seen.deny = ""
-		seen.mu.Unlock()
+		seen.denyRequests("")
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`workload_uid="`+string(root.UID)+`"`), ContainSubstring(`component="<unknown>"`), ContainSubstring(`component_instance="<unknown>"`), ContainSubstring(`observation_valid="true"`)))
 	})
 	It("keeps verified creation while a selected definition source fails", func(ctx SpecContext) {
@@ -389,9 +443,7 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 			return ""
 		}
 		Eventually(status).Should(ContainSubstring(`observation_valid="true"`))
-		seen.mu.Lock()
-		seen.deny = "/kartas"
-		seen.mu.Unlock()
+		seen.denyRequests("/kartas")
 		Eventually(status).Should(And(ContainSubstring(`observation_valid="false"`), ContainSubstring(`owner_resolution="resolved"`)))
 		Consistently(func() bool {
 			for _, line := range strings.Split(scrape(url), "\n") {
@@ -401,10 +453,42 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 			}
 			return false
 		}, time.Second).Should(BeTrue())
-		seen.mu.Lock()
-		seen.deny = ""
-		seen.mu.Unlock()
+		seen.denyRequests("")
 		Eventually(status).Should(ContainSubstring(`observation_valid="true"`))
+	})
+	It("discovers a new root and its creation time while the initial Karta list is denied", func(ctx SpecContext) {
+		ns := namespace(ctx)
+		root := deployment(ctx, ns, "initial-karta-denial")
+		p := pod(ctx, replicaSet(ctx, root, "initial-karta-middle"), "initial-karta-pod")
+		definition, err := catalog.Get(deployGVK)
+		Expect(err).NotTo(HaveOccurred())
+		definition.Name = "initial-karta-" + ns
+		definition.Labels = map[string]string{"test": ns}
+		Expect(api.Create(ctx, definition)).To(Succeed())
+		DeferCleanup(func() { _ = api.Delete(context.Background(), definition) })
+		cfg := defaults(ns)
+		cfg.KartaDefinitionSource.Catalog.Enabled = false
+		cfg.KartaDefinitionSource.Cluster.Enabled = true
+		cfg.KartaDefinitionSource.Cluster.LabelSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"test": ns}}
+		_, url, seen := start(cfg, "/kartas")
+		Eventually(func(g Gomega) {
+			text := scrape(url)
+			found := false
+			for _, line := range strings.Split(text, "\n") {
+				if strings.HasPrefix(line, "karta_workload_created_timestamp_seconds{") && strings.Contains(line, `workload_uid="`+string(root.UID)+`"`) {
+					found = true
+				}
+			}
+			g.Expect(found).To(BeTrue(), "ownership and creation do not require Karta status evaluation")
+			g.Expect(text).To(ContainSubstring(`reason="permission_denied"`))
+			g.Expect(infoFor(text, p.Name, ns)).NotTo(ContainSubstring(`observation_valid="true"`))
+		}).Should(Succeed())
+		seen.denyRequests("")
+		Eventually(func(g Gomega) {
+			text := scrape(url)
+			g.Expect(infoFor(text, p.Name, ns)).To(And(ContainSubstring(`workload_uid="`+string(root.UID)+`"`), ContainSubstring(`observation_valid="true"`)))
+			g.Expect(text).To(ContainSubstring(`karta="` + definition.Name + `"`))
+		}).Should(Succeed())
 	})
 	It("removes only exiting-namespace Pods below a shared cluster-scoped root", func(ctx SpecContext) {
 		owner := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "cluster-root-"}}

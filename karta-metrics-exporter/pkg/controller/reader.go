@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
 
@@ -26,273 +25,112 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
 
-// Reader shares accepted watch objects with discovery and caches metadata GETs.
+// Reader exposes the accepted shared collection caches to ownership discovery.
+// Runtime always takes its lock before Reader's lock; readers never call Runtime
+// while holding this lock.
 type Reader struct {
-	watchNow        func() time.Time
-	watchMaxAge     time.Duration
-	watchReads      map[watchReadScope]*watchReadState
-	ignoredOwners   []schema.GroupVersionKind
-	versions        versionCounts
-	mapperMu        sync.Mutex
-	lastMapperReset time.Time
-	failures        map[objectKey]metadataFailure
-	activeKeys      map[string]bool
-	sequence        uint64
-	publications    store.Writer
 	mu              sync.RWMutex
 	clients         Clients
 	options         ReaderOptions
 	objects         map[objectKey]observation
-	metadata        map[objectKey]metadataEntry
-	metadataReads   map[objectKey]*metadataReadState
+	sources         map[watchKey]readSource
+	ensure          func(context.Context, schema.GroupVersionKind, string, bool) (watchKey, error)
+	mapperMu        sync.Mutex
+	lastMapperReset time.Time
 }
-
-type versionCounts map[schema.GroupKind]map[schema.GroupVersionKind]int
-
-type watchReadScope struct {
-	gvk       schema.GroupVersionKind
-	namespace string
-}
-
-// Contradicted names stay fenced through informer delivery until every older
-// callback has expired. Watch retirement also releases the remaining scope state.
-type watchReadState struct {
-	readers     int
-	retired     bool
-	invalidated map[objectKey]ownershipInvalidation
-}
-
-type ownershipInvalidation struct {
-	expiresAt time.Time
-	sequence  uint64
-}
-
-// Metadata read state exists only while a GET or priming LIST is active.
-// Accepted observations and invalidations advance its revision.
-type metadataReadState struct {
-	revision uint64
-	pending  chan struct{}
-	priming  bool
-}
-
-type metadataRead struct {
-	state    *metadataReadState
-	revision uint64
-}
-
-type metadataFailure struct {
-	cause   error
-	expires time.Time
-}
-
 type Clients struct {
 	Dynamic  dynamic.Interface
 	Metadata metadata.Interface
 	Mapper   meta.RESTMapper
 }
-
-type ReaderOptions struct {
-	TTL            time.Duration
-	RequestTimeout time.Duration
-	Now            func() time.Time
-}
-
+type ReaderOptions struct{ RequestTimeout time.Duration }
 type objectKey struct {
 	GVK             schema.GroupVersionKind
 	Namespace, Name string
 }
 type observation struct {
-	proofKey    string
-	invalidated uint64
-	sequence    uint64
-	object      *unstructured.Unstructured
-	stream      watchKey
-	evidence    store.Evidence
+	object *unstructured.Unstructured
+	source watchKey
 }
-type metadataEntry struct {
-	sequence   uint64
-	failureKey string
-	object     *metav1.PartialObjectMetadata
-	expires    time.Time
+type readSource struct {
+	gvk          schema.GroupVersionKind
+	full, synced bool
+	err          error
 }
 
 func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if clients.Dynamic == nil || clients.Metadata == nil || clients.Mapper == nil {
 		return nil, errors.New("dynamic client, metadata client and REST mapper are required")
 	}
-	if options.TTL == 0 {
-		options.TTL = 45 * time.Second
-	}
 	if options.RequestTimeout == 0 {
 		options.RequestTimeout = 30 * time.Second
 	}
-	if options.Now == nil {
-		options.Now = time.Now
+	if options.RequestTimeout < 0 {
+		return nil, errors.New("request timeout must be positive")
 	}
-	if options.TTL < 0 || options.RequestTimeout < 0 {
-		return nil, errors.New("reader durations must be positive")
-	}
-	return &Reader{watchNow: options.Now, watchMaxAge: options.TTL, clients: clients, options: options, objects: map[objectKey]observation{}, metadata: map[objectKey]metadataEntry{}, metadataReads: map[objectKey]*metadataReadState{}, failures: map[objectKey]metadataFailure{}, activeKeys: map[string]bool{}}, nil
+	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, sources: map[watchKey]readSource{}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
+	object, _, err := r.read(ref, false)
+	return object, err == nil
+}
+
+func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	value, ok := r.objects[keyOf(ref)]
-	if !ok && ref.Namespace != "" {
-		clusterRef := ref
-		clusterRef.Namespace = ""
-		value, ok = r.objects[keyOf(clusterRef)]
+	key := keyOf(ref)
+	entry, ok := r.objects[key]
+	if !ok && key.Namespace != "" {
+		key.Namespace = ""
+		entry, ok = r.objects[key]
 	}
-	if !ok || value.object.GetUID() != ref.UID || (ref.ResourceVersion != "" && value.object.GetResourceVersion() != ref.ResourceVersion) {
-		return nil, false
+	if ok {
+		source := r.sources[entry.source]
+		if source.err != nil {
+			return nil, entry.source, source.err
+		}
+		if !source.synced || (full && !source.full) {
+			return nil, entry.source, discovery.ErrPending
+		}
+		object := entry.object
+		if ref.UID != "" && object.GetUID() != ref.UID {
+			return nil, entry.source, apierrors.NewNotFound(entry.source.Resource.GroupResource(), ref.Name)
+		}
+		if ref.ResourceVersion != "" && object.GetResourceVersion() != ref.ResourceVersion {
+			return nil, entry.source, discovery.ErrStale
+		}
+		return object, entry.source, nil
 	}
-	return value.object, true
+	for sourceKey, source := range r.sources {
+		if source.gvk != ref.GVK || (sourceKey.Namespace != "" && sourceKey.Namespace != ref.Namespace) {
+			continue
+		}
+		if source.err != nil {
+			return nil, sourceKey, source.err
+		}
+		if !source.synced || (full && !source.full) {
+			return nil, sourceKey, discovery.ErrPending
+		}
+		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)
+	}
+	return nil, watchKey{}, discovery.ErrPending
 }
 
 func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	mapping, err := r.mapping(ref.GVK)
-	if err != nil {
-		r.mu.Lock()
-		key := keyOf(ref)
-		cluster := key
-		cluster.Namespace = ""
-		if _, found := r.metadata[cluster]; found || r.metadataReads[cluster] != nil {
-			key = cluster
-		}
-		r.recordMetadataFailureLocked(key, ref.UID, nil, err)
-		r.removeMetadataLocked(key, failureReason(err))
-		r.mu.Unlock()
+	if r.ensure == nil {
+		return nil, discovery.ErrPending
+	}
+	if _, err := r.ensure(ctx, ref.GVK, ref.Namespace, false); err != nil {
 		return nil, err
 	}
-	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
-		ref.Namespace = ""
-	}
-	key := keyOf(ref)
-	r.mu.RLock()
-	entry := r.metadata[key]
-	_, failed := r.failures[key]
-	if !failed && entry.matches(ref, r.options.Now()) {
-		r.mu.RUnlock()
-		return entry.object.DeepCopy(), nil
-	}
-	r.mu.RUnlock()
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		r.mu.Lock()
-		if entry := r.metadata[key]; entry.matches(ref, r.options.Now()) {
-			delete(r.failures, key)
-			r.mu.Unlock()
-			return entry.object.DeepCopy(), nil
-		}
-		read := r.metadataReadLocked(key)
-		if pending := read.pending; pending != nil {
-			r.mu.Unlock()
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-pending:
-				continue
-			}
-		}
-		pending := make(chan struct{})
-		read.pending = pending
-		revision := read.revision
-		r.mu.Unlock()
-		started := r.options.Now()
-		object, err := r.fetchMetadata(ctx, ref)
-		if err == nil && !r.options.Now().Before(started.Add(r.options.TTL)) {
-			err = discovery.ErrStale
-		}
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		defer func() {
-			read.pending = nil
-			close(pending)
-			r.releaseMetadataReadLocked(key, read)
-		}()
-		if r.metadataReads[key] != read || read.revision != revision {
-			if current, ok := r.metadata[key]; ok && r.options.Now().Before(current.expires) && (ref.UID == "" || current.object.GetUID() == ref.UID) {
-				return current.object.DeepCopy(), nil
-			}
-			return nil, discovery.ErrStale
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if errors.Is(err, context.Canceled) {
-			return nil, err
-		}
-		r.acceptMetadataLocked(key, ref.UID, object.DeepCopy(), started, err)
-		return object, err
-	}
-}
-
-func (entry metadataEntry) matches(ref discovery.ObjectRef, now time.Time) bool {
-	return entry.object != nil && now.Before(entry.expires) &&
-		(ref.UID == "" || entry.object.GetUID() == ref.UID) &&
-		(ref.ResourceVersion == "" || entry.object.GetResourceVersion() == ref.ResourceVersion)
-}
-
-func (r *Reader) fetchMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
-	mapping, err := r.mapping(ref.GVK)
-	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", ref.GVK, err)
-	}
-	namespace := ref.Namespace
-	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
-		namespace = ""
-	} else if namespace == "" {
-		return nil, fmt.Errorf("%w: namespaced owner lacks a namespace", discovery.ErrUnresolvedOwner)
-	}
-	requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
-	defer cancel()
-	object, err := r.getMetadata(requestCtx, mapping.Resource, namespace, ref.Name)
+	object, _, err := r.read(ref, false)
 	if err != nil {
 		return nil, err
 	}
-	object.SetGroupVersionKind(ref.GVK)
-	return object, nil
-}
-
-func (r *Reader) getMetadata(ctx context.Context, resource schema.GroupVersionResource, namespace, name string) (*metav1.PartialObjectMetadata, error) {
-	object, err := r.clients.Metadata.Resource(resource).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if !apierrors.IsNotAcceptable(err) && !apierrors.IsUnsupportedMediaType(err) {
-		return object, err
-	}
-	full, err := r.clients.Dynamic.Resource(resource).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return objectMetadata(full)
-}
-
-func (r *Reader) listMetadata(ctx context.Context, resource schema.GroupVersionResource, namespace string, options metav1.ListOptions) (*metav1.PartialObjectMetadataList, error) {
-	objects, err := r.clients.Metadata.Resource(resource).Namespace(namespace).List(ctx, options)
-	if !apierrors.IsNotAcceptable(err) && !apierrors.IsUnsupportedMediaType(err) {
-		return objects, err
-	}
-	full, err := r.clients.Dynamic.Resource(resource).Namespace(namespace).List(ctx, options)
-	if err != nil {
-		return nil, err
-	}
-	result := &metav1.PartialObjectMetadataList{ListMeta: metav1.ListMeta{ResourceVersion: full.GetResourceVersion(), Continue: full.GetContinue(), RemainingItemCount: full.GetRemainingItemCount()}, Items: make([]metav1.PartialObjectMetadata, 0, len(full.Items))}
-	for i := range full.Items {
-		metadata, err := objectMetadata(&full.Items[i])
-		if err != nil {
-			return nil, err
-		}
-		result.Items = append(result.Items, *metadata)
-	}
-	return result, nil
-}
-
-func objectMetadata(object *unstructured.Unstructured) (*metav1.PartialObjectMetadata, error) {
 	result := &metav1.PartialObjectMetadata{}
 	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, result); err != nil {
 		return nil, err
@@ -300,149 +138,22 @@ func objectMetadata(object *unstructured.Unstructured) (*metav1.PartialObjectMet
 	return result, nil
 }
 
-func (r *Reader) evidence(ref discovery.ObjectRef) (store.Evidence, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if entry, ok := r.objects[keyOf(ref)]; ok {
-		if entry.object.GetUID() != ref.UID || entry.object.GetResourceVersion() != ref.ResourceVersion {
-			return store.Evidence{}, discovery.ErrStale
-		}
-		if entry.evidence.ExpiresAt.IsZero() {
-			return store.Evidence{}, discovery.ErrPending
-		}
-		return entry.evidence, nil
-	}
-	if entry, ok := r.metadata[keyOf(ref)]; ok && entry.object.GetUID() == ref.UID && entry.object.GetResourceVersion() == ref.ResourceVersion && r.options.Now().Before(entry.expires) {
-		return store.Evidence{ExpiresAt: entry.expires, Dependencies: []string{entry.failureKey}}, nil
-	}
-	return store.Evidence{}, discovery.ErrPending
-}
-
-func (r *Reader) expireMetadata() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	now := r.options.Now()
-	if r.watchNow != nil {
-		for _, read := range r.watchReads {
-			for key, fence := range read.invalidated {
-				if !r.watchNow().Before(fence.expiresAt) {
-					delete(read.invalidated, key)
-				}
-			}
-		}
-	}
-	for key, failure := range r.failures {
-		if !now.Before(failure.expires) {
-			delete(r.failures, key)
-		}
-	}
-	for key, entry := range r.metadata {
-		if !now.Before(entry.expires) {
-			r.removeMetadataLocked(key, store.ReasonAPIUnavailable)
-		}
-	}
-}
-
-func (r *Reader) recordMetadataFailureLocked(key objectKey, expected types.UID, object *metav1.PartialObjectMetadata, cause error) {
-	if cause == nil && object != nil && expected != "" && expected != object.GetUID() {
-		cause = discovery.ErrUnresolvedOwner
-	}
-	if cause == nil {
-		delete(r.failures, key)
-	} else {
-		r.failures[key] = metadataFailure{cause: cause, expires: r.options.Now().Add(r.options.TTL)}
-	}
-}
-
-func (r *Reader) failureHealth() map[discovery.WatchRequest]error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result := map[discovery.WatchRequest]error{}
-	for key, failure := range r.failures {
-		if r.options.Now().Before(failure.expires) {
-			request := discovery.WatchRequest{GVK: key.GVK, Namespace: key.Namespace}
-			if result[request] == nil || failureReason(failure.cause) == store.ReasonPermissionDenied {
-				result[request] = failure.cause
-			}
-		}
-	}
-	return result
-}
-
-func (r *Reader) metadataReadLocked(key objectKey) *metadataReadState {
-	state := r.metadataReads[key]
-	if state == nil {
-		state = &metadataReadState{}
-		r.metadataReads[key] = state
-		trackVersion(&r.versions, key.GVK, 1)
-	}
-	return state
-}
-
-func (r *Reader) releaseMetadataReadLocked(key objectKey, state *metadataReadState) {
-	if state.pending == nil && !state.priming && r.metadataReads[key] == state {
-		delete(r.metadataReads, key)
-		trackVersion(&r.versions, key.GVK, -1)
-	}
-}
-
-func (r *Reader) invalidateMetadataReadLocked(key objectKey) {
-	if state := r.metadataReads[key]; state != nil {
-		state.revision++
-	}
-}
-
-// All successful metadata reads reuse unchanged proof; changed or failed reads
-// retire the previous proof before replacing the accepted observation.
-func (r *Reader) acceptMetadataLocked(key objectKey, expected types.UID, object *metav1.PartialObjectMetadata, started time.Time, err error) {
-	r.recordMetadataFailureLocked(key, expected, object, err)
-	if err != nil {
-		r.removeMetadataLocked(key, failureReason(err))
-		return
-	}
-	previous := r.metadata[key]
-	proofKey := previous.failureKey
-	if previous.object == nil || previous.object.GetUID() != object.GetUID() || previous.object.GetResourceVersion() != object.GetResourceVersion() {
-		if previous.object != nil {
-			r.retireProofLocked(previous.failureKey, objectChangeReason(previous.object, object))
-		}
-		r.sequence++
-		proofKey = fmt.Sprintf("metadata:%s:%d", key, r.sequence)
-	}
-	r.activeKeys[proofKey] = true
-	r.saveMetadataLocked(key, metadataEntry{object: object, expires: started.Add(r.options.TTL), failureKey: proofKey})
-}
-
-func (r *Reader) removeMetadataLocked(key objectKey, reason string) {
-	r.retireProofLocked(r.metadata[key].failureKey, reason)
-	r.deleteMetadataLocked(key)
-	r.invalidateMetadataReadLocked(key)
-}
-
-func (r *Reader) retireProofLocked(key, reason string) {
-	if key == "" {
-		return
-	}
-	delete(r.activeKeys, key)
-	if r.publications != nil {
-		r.publications.SetPublicationFailure(key, reason)
-		r.publications.RetirePublicationFailure(key)
-	}
-}
-
 func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
 	mapping, err := r.clients.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if meta.IsNoMatchError(err) {
 		r.mapperMu.Lock()
-		if r.options.Now().Sub(r.lastMapperReset) >= 45*time.Second {
+		if time.Since(r.lastMapperReset) >= 45*time.Second {
 			if mapper, ok := r.clients.Mapper.(meta.ResettableRESTMapper); ok {
 				mapper.Reset()
-				r.lastMapperReset = r.options.Now()
+				r.lastMapperReset = time.Now()
 			}
 		}
 		r.mapperMu.Unlock()
 	}
-	return mapping, err
+	if err != nil {
+		return nil, fmt.Errorf("map %s: %w", gvk, err)
+	}
+	return mapping, nil
 }
 
 func keyOf(ref discovery.ObjectRef) objectKey {
@@ -451,8 +162,13 @@ func keyOf(ref discovery.ObjectRef) objectKey {
 func refOf(object *unstructured.Unstructured) discovery.ObjectRef {
 	return discovery.ObjectRef{GVK: object.GroupVersionKind(), Namespace: object.GetNamespace(), Name: object.GetName(), UID: object.GetUID(), ResourceVersion: object.GetResourceVersion()}
 }
+func storedRef(ref discovery.ObjectRef) store.ObjectRef {
+	return store.ObjectRef{GVK: ref.GVK, Namespace: ref.Namespace, Name: ref.Name, UID: ref.UID, ResourceVersion: ref.ResourceVersion}
+}
 func failureReason(err error) string {
 	switch {
+	case err == nil:
+		return ""
 	case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err), errors.Is(err, discovery.ErrPermissionDenied):
 		return store.ReasonPermissionDenied
 	case errors.Is(err, discovery.ErrUnresolvedOwner), apierrors.IsNotFound(err):
@@ -466,149 +182,29 @@ func failureReason(err error) string {
 	}
 }
 
-func (r *Reader) saveMetadataLocked(key objectKey, entry metadataEntry) {
-	previous := r.metadata[key]
-	if _, watched := r.objects[key]; !watched && !r.terminalOwnerBoundary(entry.object) && (previous.object == nil || previous.object.GetUID() != entry.object.GetUID() || previous.object.GetResourceVersion() != entry.object.GetResourceVersion()) {
-		r.invalidateAliasesLocked(key, entry.object.GetUID())
+// An observed API alias must not let a demoted object publish as a root.
+func (r *Runtime) isRootLocked(ref discovery.ObjectRef) bool {
+	r.reader.mu.RLock()
+	defer r.reader.mu.RUnlock()
+	selected := r.selections[ref.GVK.GroupKind()]
+	if selected.Definition != nil && selected.err == nil {
+		entry := r.reader.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
+		source := r.reader.sources[entry.source]
+		if entry.object != nil && entry.object.GetUID() == ref.UID && source.full && source.synced && source.err == nil {
+			owner, valid := discovery.ControllerOwner(entry.object)
+			return valid && (owner.UID == "" || slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK))
+		}
 	}
-	if _, found := r.metadata[key]; !found {
-		trackVersion(&r.versions, key.GVK, 1)
-	}
-	r.sequence++
-	entry.sequence = r.sequence
-	r.metadata[key] = entry
-	r.invalidateMetadataReadLocked(key)
-}
-
-func (r *Reader) deleteMetadataLocked(key objectKey) {
-	entry, found := r.metadata[key]
-	if !found {
-		return
-	}
-	// An alias cannot become affirmative root proof merely because a conflicting
-	// metadata observation expires or its last dependent input disappears.
-	if _, watched := r.objects[key]; !watched && !r.terminalOwnerBoundary(entry.object) {
-		r.invalidateAliasesLocked(key, entry.object.GetUID())
-	}
-	delete(r.metadata, key)
-	trackVersion(&r.versions, key.GVK, -1)
-}
-
-// Retiring a contradictory representation requires a fresh observation of its aliases.
-func (r *Reader) invalidateAliasesLocked(key objectKey, uid types.UID) {
-	for gvk := range r.versions[key.GVK.GroupKind()] {
-		aliasKey := objectKey{GVK: gvk, Namespace: key.Namespace, Name: key.Name}
-		if aliasKey == key {
+	for _, source := range r.reader.sources {
+		if !source.synced || source.err != nil || source.gvk.GroupKind() != ref.GVK.GroupKind() {
 			continue
 		}
-		for _, namespace := range []string{key.Namespace, ""} {
-			if read := r.watchReads[watchReadScope{gvk: gvk, namespace: namespace}]; read != nil {
-				r.sequence++
-				read.invalidated[aliasKey] = ownershipInvalidation{sequence: r.sequence, expiresAt: r.watchNow().Add(r.watchMaxAge)}
-			}
-		}
-		r.invalidateMetadataReadLocked(aliasKey)
-		if alias, exists := r.objects[aliasKey]; exists && alias.object.GetUID() == uid {
-			r.sequence++
-			alias.invalidated = r.sequence
-			r.retireProofLocked(alias.proofKey, store.ReasonUnresolvedOwner)
-			alias.evidence = store.Evidence{}
-			r.objects[aliasKey] = alias
-		}
-		if alias, exists := r.metadata[aliasKey]; exists && alias.object.GetUID() == uid {
-			r.retireProofLocked(alias.failureKey, store.ReasonUnresolvedOwner)
-			delete(r.metadata, aliasKey)
-			trackVersion(&r.versions, gvk, -1)
-		}
-	}
-}
-
-// Object proof is allocated only for a root or intermediate publication input. Its key
-// survives unchanged refreshes, but is retired before changed ownership can
-// invalidate a captured or in-flight publication. Fresh reads mint a new key.
-func (r *Reader) objectEvidence(ref discovery.ObjectRef) (store.Evidence, error) {
-	r.mu.Lock()
-	key := keyOf(ref)
-	entry, found := r.objects[key]
-	if found && entry.object.GetUID() == ref.UID && entry.object.GetResourceVersion() == ref.ResourceVersion && !entry.evidence.ExpiresAt.IsZero() && entry.proofKey == "" {
-		r.sequence++
-		entry.proofKey = fmt.Sprintf("ownership:%s:%d", ref.UID, r.sequence)
-		r.activeKeys[entry.proofKey] = true
-		entry.evidence.Dependencies = append(entry.evidence.Dependencies, entry.proofKey)
-		r.objects[key] = entry
-	}
-	r.mu.Unlock()
-	return r.evidence(ref)
-}
-
-func (r *Reader) watchStateLocked(scope watchReadScope) *watchReadState {
-	if r.watchReads == nil {
-		r.watchReads = map[watchReadScope]*watchReadState{}
-	}
-	read := r.watchReads[scope]
-	if read == nil || read.retired {
-		read = &watchReadState{invalidated: map[objectKey]ownershipInvalidation{}}
-		r.watchReads[scope] = read
-	}
-	return read
-}
-
-// Counts cover watch scopes and metadata entries, not a second object cache.
-func trackVersion(index *versionCounts, gvk schema.GroupVersionKind, delta int) {
-	if *index == nil {
-		*index = versionCounts{}
-	}
-	versions := (*index)[gvk.GroupKind()]
-	if versions == nil {
-		versions = map[schema.GroupVersionKind]int{}
-		(*index)[gvk.GroupKind()] = versions
-	}
-	versions[gvk] += delta
-	if versions[gvk] <= 0 {
-		delete(versions, gvk)
-	}
-	if len(versions) == 0 {
-		delete(*index, gvk.GroupKind())
-	}
-}
-
-func (r *Runtime) terminalOwnerBoundary(object metav1.Object) bool {
-	return terminalOwnerBoundary(object, r.config.IgnoredOwnerKinds)
-}
-
-func (r *Reader) terminalOwnerBoundary(object metav1.Object) bool {
-	return terminalOwnerBoundary(object, r.ignoredOwners)
-}
-
-func terminalOwnerBoundary(object metav1.Object, ignored []schema.GroupVersionKind) bool {
-	owner, valid := discovery.ControllerOwner(object)
-	return valid && (owner.UID == "" || slices.Contains(ignored, owner.GVK))
-}
-
-// A newer object version supersedes verification, but does not by itself mean
-// its controller owner disappeared. Non-controller references are not traversed.
-func objectChangeReason(previous, current metav1.Object) string {
-	before, beforeValid := discovery.ControllerOwner(previous)
-	after, afterValid := discovery.ControllerOwner(current)
-	if previous.GetUID() != current.GetUID() || !beforeValid || !afterValid || before != after {
-		return store.ReasonUnresolvedOwner
-	}
-	return store.ReasonAPIUnavailable
-}
-
-// Runtime and Reader are locked by the caller. A publication's removal must not
-// erase accepted evidence that its former root still has a controller owner.
-func (r *Runtime) rootBoundaryLocked(ref discovery.ObjectRef) bool {
-	for gvk := range r.reader.versions[ref.GVK.GroupKind()] {
-		key := objectKey{GVK: gvk, Namespace: ref.Namespace, Name: ref.Name}
-		if entry, found := r.reader.objects[key]; found {
-			if entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
-				return false
-			}
+		entry := r.reader.objects[objectKey{GVK: source.gvk, Namespace: ref.Namespace, Name: ref.Name}]
+		if entry.object == nil || entry.object.GetUID() != ref.UID {
 			continue
 		}
-		// Expired contradictions remain barriers until retirement also withdraws alias proof.
-		if entry, found := r.reader.metadata[key]; found && entry.object.GetUID() == ref.UID && !r.terminalOwnerBoundary(entry.object) {
+		owner, valid := discovery.ControllerOwner(entry.object)
+		if !valid || (owner.UID != "" && !slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK)) {
 			return false
 		}
 	}

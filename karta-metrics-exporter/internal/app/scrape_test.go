@@ -47,17 +47,16 @@ var _ = Describe("Production HTTP scrape concurrency", func() {
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() { Expect(application.provider.Shutdown(context.Background())).To(Succeed()) })
 		now := time.Now()
-		evidence := store.Evidence{ExpiresAt: now.Add(time.Hour)}
 		expected := map[string]string{}
 		for root := 0; root < 2; root++ {
 			uid := types.UID(fmt.Sprintf("root-%d", root))
-			rows := make([]store.PublishedPod, 2501)
-			for i := range rows {
+			ref := store.ObjectRef{UID: uid, Namespace: "ns", Name: "same-name", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}
+			for i := range 2501 {
 				podUID := fmt.Sprintf("pod-%d-%d", root, i)
 				expected[podUID] = string(uid)
-				rows[i] = store.PublishedPod{Record: store.PodRecord{UID: types.UID(podUID), Name: fmt.Sprintf("worker-%d", i), Namespace: "ns", OwnerResolution: store.Resolved}, Mapping: evidence}
+				application.Store.UpsertPod(&store.PodResult{HasValue: true, Record: store.PodRecord{UID: types.UID(podUID), Name: fmt.Sprintf("worker-%d", i), Namespace: "ns", OwnerResolution: store.Resolved, Workload: ref, WorkloadGVK: ref.GVK}})
 			}
-			application.Store.Publish(&store.Publication{Workload: store.WorkloadRecord{UID: uid, Ref: store.ObjectRef{Namespace: "ns", Name: "same-name", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running"}, CreatedTimestamp: now.Unix()}, Status: evidence, Creation: evidence, PodPages: store.BuildPodPages(rows, nil)})
+			application.Store.UpsertWorkload(&store.WorkloadResult{HasValue: true, Record: store.WorkloadRecord{UID: uid, Ref: ref, OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running"}, CreatedTimestamp: now.Unix()}})
 		}
 		source := &blockedCapturer{Capturer: application.Store, entered: make(chan struct{}), release: make(chan struct{})}
 		registration, err := collector.Register(application.provider.Meter("scrape-test"), source)

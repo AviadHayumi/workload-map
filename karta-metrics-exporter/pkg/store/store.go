@@ -4,6 +4,9 @@
 package store
 
 import (
+	"maps"
+	"slices"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -12,33 +15,51 @@ import (
 
 // Writer owns synchronization. Each method is atomic and safe for concurrent use.
 type Writer interface {
-	Publish(*Publication)
-	Published(types.UID) *Publication
-	RemovePublication(types.UID)
-	SetPublicationFailure(key, reason string)
-	// RetirePublicationFailure drops an abandoned key only when no current publication or health record refers to it.
-	RetirePublicationFailure(key string)
-	SetPublicationHealth([]HealthRecord)
+	UpsertPod(*PodResult)
+	Pod(types.UID) *PodResult
+	RemovePod(types.UID)
+	UpsertWorkload(*WorkloadResult)
+	Workload(types.UID) *WorkloadResult
+	RemoveWorkload(types.UID)
+	SetSourceHealth(SourceKey, SourceHealth)
+	RemoveSourceHealth(SourceKey)
+	SetDiscoveryFailure(ObjectRef, string)
+	RemoveDiscoveryFailure(types.UID)
 }
 
-// Capturer returns an immutable view under Store's own lock.
+// Capturer returns immutable results and a copy of source health under one lock.
 type Capturer interface {
 	Capture() CapturedView
 }
 
-// Interface combines publication updates with snapshot collection.
 type Interface interface {
 	Writer
 	Capturer
 }
 
-// Publication contains the observations for one workload and its Pods.
-type Publication struct {
-	Workload       WorkloadRecord
-	Status         Evidence
-	Creation       Evidence
-	PodPages       []*PodPage
-	FailureReasons []string
+type Store struct {
+	mu        sync.RWMutex
+	pods      map[types.UID]*PodResult
+	workloads map[types.UID]*WorkloadResult
+	sources   map[SourceKey]SourceHealth
+	failures  map[types.UID]DiscoveryFailure
+}
+
+type PodResult struct {
+	Record   PodRecord
+	Input    ObjectRef
+	HasValue bool
+	Error    string
+	Sources  []SourceKey
+}
+
+type WorkloadResult struct {
+	Record          WorkloadRecord
+	HasValue        bool
+	Error           string
+	StatusError     string
+	Sources         []SourceKey
+	CreationSources []SourceKey
 }
 
 type WorkloadRecord struct {
@@ -70,7 +91,10 @@ const (
 )
 
 type PodRecord struct {
+	Workload        ObjectRef
 	WorkloadGVK     schema.GroupVersionKind
+	Karta           string
+	KartaSource     string
 	Namespace       string
 	UID             types.UID
 	Name            string
@@ -81,38 +105,161 @@ type PodRecord struct {
 	Labels          map[string]string
 }
 
-type PublishedPod struct {
-	Record  PodRecord
-	Mapping Evidence
-}
-
-// PodPage is an immutable chunk constructed by BuildPodPages or WithPod.
-type PodPage struct {
-	rows         []PublishedPod
-	dependencies map[string]int
-}
-
-type Evidence struct {
-	ExpiresAt    time.Time
-	Reason       string
-	Dependencies []string
-}
-
-// CapturedView is an immutable snapshot evaluated at At.
-type CapturedView struct {
-	At       time.Time
-	Records  []*Publication
-	Health   []HealthRecord
-	failures map[string]string
-}
-
-type HealthRecord struct {
-	GVK       schema.GroupVersionKind
+// SourceKey identifies the actual collection, including an all-namespace scope.
+type SourceKey struct {
+	Resource  schema.GroupVersionResource
 	Namespace string
-	Evidence  Evidence
 }
 
-// Options supplies the Store clock. Nil uses time.Now.
+type SourceHealth struct {
+	GVK    schema.GroupVersionKind
+	Synced bool
+	Error  string
+}
+
+type DiscoveryFailure struct {
+	Input ObjectRef
+	Error string
+}
+
+// CapturedView shares immutable results. Later writes cannot change this view.
+type CapturedView struct {
+	Pods      []*PodResult
+	Workloads []*WorkloadResult
+	Sources   map[SourceKey]SourceHealth
+	Failures  []DiscoveryFailure
+}
+
+// Options retains construction compatibility. Validity does not depend on time.
 type Options struct {
 	Now func() time.Time
+}
+
+const (
+	ReasonNone              = "none"
+	ReasonPermissionDenied  = "permission_denied"
+	ReasonAPIUnavailable    = "api_unavailable"
+	ReasonInvalidDefinition = "invalid_definition"
+	ReasonUnresolvedOwner   = "unresolved_owner"
+	ReasonEvaluationFailed  = "evaluation_failed"
+)
+
+func New(_ Options) Interface {
+	return &Store{
+		pods:      make(map[types.UID]*PodResult),
+		workloads: make(map[types.UID]*WorkloadResult),
+		sources:   make(map[SourceKey]SourceHealth),
+		failures:  make(map[types.UID]DiscoveryFailure),
+	}
+}
+
+// UpsertPod copies the result and its nested data before replacing one Pod UID.
+func (s *Store) UpsertPod(result *PodResult) {
+	next := *result
+	next.Record.Labels = maps.Clone(result.Record.Labels)
+	next.Sources = slices.Clone(result.Sources)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pods[next.Record.UID] = &next
+}
+
+// Pod returns an immutable result, or nil. Copy it before preparing an update.
+func (s *Store) Pod(uid types.UID) *PodResult {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pods[uid]
+}
+
+func (s *Store) RemovePod(uid types.UID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.pods, uid)
+}
+
+// UpsertWorkload copies the result and its nested data before replacing one root UID.
+func (s *Store) UpsertWorkload(result *WorkloadResult) {
+	next := *result
+	next.CreationSources = slices.Clone(result.CreationSources)
+	next.Record.Phases = slices.Clone(result.Record.Phases)
+	next.Record.StatusLabels = maps.Clone(result.Record.StatusLabels)
+	next.Sources = slices.Clone(result.Sources)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.workloads[next.Record.UID] = &next
+}
+
+// Workload returns an immutable result, or nil. Copy it before preparing an update.
+func (s *Store) Workload(uid types.UID) *WorkloadResult {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.workloads[uid]
+}
+
+func (s *Store) RemoveWorkload(uid types.UID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.workloads, uid)
+}
+
+func (s *Store) SetSourceHealth(key SourceKey, health SourceHealth) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sources[key] = health
+}
+
+func (s *Store) RemoveSourceHealth(key SourceKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.sources, key)
+}
+
+func (s *Store) SetDiscoveryFailure(input ObjectRef, reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures[input.UID] = DiscoveryFailure{Input: input, Error: reason}
+}
+
+func (s *Store) RemoveDiscoveryFailure(uid types.UID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.failures, uid)
+}
+
+func (s *Store) Capture() CapturedView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	view := CapturedView{
+		Pods:      make([]*PodResult, 0, len(s.pods)),
+		Workloads: make([]*WorkloadResult, 0, len(s.workloads)),
+		Sources:   maps.Clone(s.sources),
+		Failures:  make([]DiscoveryFailure, 0, len(s.failures)),
+	}
+	for _, result := range s.pods {
+		view.Pods = append(view.Pods, result)
+	}
+	for _, result := range s.workloads {
+		view.Workloads = append(view.Workloads, result)
+	}
+	for _, failure := range s.failures {
+		view.Failures = append(view.Failures, failure)
+	}
+	return view
+}
+
+// Valid checks the saved operation outcome and every collection it depended on.
+func (v CapturedView) Valid(sources []SourceKey, reason string) (bool, string) {
+	if reason != "" && reason != ReasonNone {
+		return false, reason
+	}
+	reason = ReasonNone
+	for _, key := range sources {
+		health, exists := v.Sources[key]
+		switch {
+		case health.Error == ReasonPermissionDenied:
+			return false, ReasonPermissionDenied
+		case !exists || !health.Synced || health.Error != "" && health.Error != ReasonNone:
+			reason = ReasonAPIUnavailable
+		}
+	}
+	return reason == ReasonNone, reason
 }

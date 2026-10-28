@@ -9,328 +9,172 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func TestStore(t *testing.T) { RegisterFailHandler(Fail); RunSpecs(t, "Publication Store") }
+func TestUpsertsCopyInputsAndPreserveCapturedViews(t *testing.T) {
+	g := NewWithT(t)
+	s := New(Options{})
+	key := SourceKey{Resource: schema.GroupVersionResource{Version: "v1", Resource: "pods"}, Namespace: "ns"}
+	root := ObjectRef{UID: "root", Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}
+	pod := &PodResult{Record: PodRecord{UID: "pod", Workload: root, Karta: "original", KartaSource: "cluster", Labels: map[string]string{"team": "old"}}, HasValue: true, Sources: []SourceKey{key}}
+	workload := &WorkloadResult{Record: WorkloadRecord{UID: root.UID, Ref: root, Phases: []string{"Running"}, StatusLabels: map[string]string{"team": "old"}}, HasValue: true, Sources: []SourceKey{key}, CreationSources: []SourceKey{key}}
+	s.UpsertPod(pod)
+	s.UpsertWorkload(workload)
+	s.SetSourceHealth(key, SourceHealth{Synced: true})
+	s.SetDiscoveryFailure(ObjectRef{UID: "candidate", Name: "original"}, ReasonUnresolvedOwner)
+	old := s.Capture()
+	pod.Record.Karta = "changed"
+	pod.Record.Labels["team"] = "changed"
+	pod.Sources[0].Namespace = "changed"
+	workload.Record.Phases[0] = "Failed"
+	workload.Record.StatusLabels["team"] = "changed"
+	workload.Sources[0].Namespace = "changed"
+	workload.CreationSources[0].Namespace = "changed"
+	g.Expect(s.Pod("pod").Record.Karta).To(Equal("original"))
+	g.Expect(s.Pod("pod").Record.Labels).To(HaveKeyWithValue("team", "old"))
+	g.Expect(s.Pod("pod").Sources).To(Equal([]SourceKey{key}))
+	g.Expect(s.Workload(root.UID).Record.Phases).To(Equal([]string{"Running"}))
+	g.Expect(s.Workload(root.UID).Record.StatusLabels).To(HaveKeyWithValue("team", "old"))
+	g.Expect(s.Workload(root.UID).Sources).To(Equal([]SourceKey{key}))
+	g.Expect(s.Workload(root.UID).CreationSources).To(Equal([]SourceKey{key}))
+	s.UpsertPod(pod)
+	s.UpsertWorkload(workload)
+	s.SetSourceHealth(key, SourceHealth{Error: ReasonPermissionDenied})
+	s.SetDiscoveryFailure(ObjectRef{UID: "candidate", Name: "changed"}, ReasonAPIUnavailable)
+	g.Expect(old.Pods[0].Record.Labels).To(HaveKeyWithValue("team", "old"))
+	g.Expect(old.Workloads[0].Record.Phases).To(Equal([]string{"Running"}))
+	g.Expect(old.Sources[key].Synced).To(BeTrue())
+	g.Expect(old.Failures[0].Input.Name).To(Equal("original"))
+	s.RemovePod("pod")
+	s.RemoveWorkload(root.UID)
+	s.RemoveSourceHealth(key)
+	s.RemoveDiscoveryFailure("candidate")
+	g.Expect(old.Pods).To(HaveLen(1))
+	g.Expect(old.Workloads).To(HaveLen(1))
+	g.Expect(old.Sources).To(HaveLen(1))
+	g.Expect(old.Failures).To(HaveLen(1))
+	g.Expect(s.Capture().Pods).To(BeEmpty())
+	g.Expect(s.Capture().Workloads).To(BeEmpty())
+	g.Expect(s.Capture().Sources).To(BeEmpty())
+	g.Expect(s.Capture().Failures).To(BeEmpty())
+}
 
-var _ = Describe("Store", func() {
-	var now time.Time
-	var s Interface
-	var evidence Evidence
-	BeforeEach(func() {
-		now = time.Unix(100, 0)
-		s = New(Options{Now: func() time.Time { return now }})
-		evidence = Evidence{ExpiresAt: now.Add(time.Minute), Dependencies: []string{"root"}}
-	})
-	It("captures time, explicit failures and dependencies independently of later writes", func() {
-		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		p := &Publication{Workload: WorkloadRecord{UID: "root"}, Status: evidence}
-		s.Publish(p)
-		old := s.Capture()
-		valid, reason := old.Valid(p.Status)
-		Expect(valid).To(BeFalse())
-		Expect(reason).To(Equal(ReasonPermissionDenied))
-		s.SetPublicationFailure("root", "")
-		valid, reason = s.Capture().Valid(evidence)
-		Expect(valid).To(BeTrue())
-		Expect(reason).To(Equal(ReasonNone))
-		valid, _ = old.Valid(evidence)
-		Expect(valid).To(BeFalse())
-		fresh := s.Capture()
-		now = evidence.ExpiresAt
-		valid, _ = fresh.Valid(evidence)
-		Expect(valid).To(BeTrue())
-		valid, reason = s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		Expect(reason).To(Equal(ReasonAPIUnavailable))
-		explicit := evidence
-		explicit.Reason = ReasonEvaluationFailed
-		valid, reason = s.Capture().Valid(explicit)
-		Expect(valid).To(BeFalse())
-		Expect(reason).To(Equal(ReasonEvaluationFailed))
-		valid, _ = fresh.Valid(Evidence{})
-		Expect(valid).To(BeFalse())
-	})
-	It("retains old publications on replacement and removal and copies health inputs", func() {
-		p := &Publication{Workload: WorkloadRecord{UID: "root", StatusLabels: map[string]string{"team": "old"}}}
-		s.Publish(p)
-		old := s.Capture()
-		next := *p
-		next.Workload.StatusLabels = map[string]string{"team": "new"}
-		s.Publish(&next)
-		Expect(s.Published("root")).To(BeIdenticalTo(&next))
-		Expect(old.Records[0]).To(BeIdenticalTo(p))
-		Expect(old.Records[0].Workload.StatusLabels).To(HaveKeyWithValue("team", "old"))
-		health := []HealthRecord{{Namespace: "original", Evidence: evidence}}
-		s.SetPublicationHealth(health)
-		health[0].Namespace = "mutated"
-		health[0].Evidence.Dependencies[0] = "mutated"
-		h := s.Capture()
-		Expect(h.Health[0].Namespace).To(Equal("original"))
-		Expect(h.Health[0].Evidence.Dependencies).To(Equal([]string{"root"}))
-		s.SetPublicationHealth(nil)
-		Expect(h.Health).To(HaveLen(1))
-		s.RemovePublication("root")
-		s.RemovePublication("absent")
-		Expect(s.Capture().Records).To(BeEmpty())
-		Expect(old.Records).To(HaveLen(1))
-		Expect(s.Published("root")).To(BeNil())
-	})
-	It("retires failure keys only after all publication and health references disappear", func() {
-		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		one := &Publication{Workload: WorkloadRecord{UID: "one"}, Status: evidence}
-		two := &Publication{Workload: WorkloadRecord{UID: "two"}, PodPages: BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "pod"}, Mapping: evidence}}, nil)}
-		s.Publish(one)
-		s.Publish(two)
-		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
-		captured := s.Capture()
-		next := *one
-		s.Publish(&next)
-		valid, _ := s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.RemovePublication("one")
-		s.RemovePublication("two")
-		valid, _ = s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.SetPublicationHealth(nil)
-		concrete := s.(*Store)
-		Expect(concrete.failures).To(BeEmpty())
-		Expect(concrete.failureRefs).To(BeEmpty())
-		valid, reason := captured.Valid(evidence)
-		Expect(valid).To(BeFalse())
-		Expect(reason).To(Equal(ReasonPermissionDenied))
-	})
-	It("retains references on shared Pod pages across single-Pod replacement", func() {
-		rows := make([]PublishedPod, PodPageSize+1)
-		for i := range rows {
-			rows[i] = PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprintf("pod-%04d", i))}, Mapping: evidence}
-		}
-		p := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: BuildPodPages(rows, nil)}
-		s.Publish(p)
-		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		row := rows[0]
-		row.Record.Labels = map[string]string{"team": "new"}
-		next := p.WithPod(row.Record.UID, &row)
-		Expect(next.PodPages[1]).To(BeIdenticalTo(p.PodPages[1]))
-		s.Publish(next)
-		concrete := s.(*Store)
-		Expect(concrete.failureRefs["root"]).To(Equal(len(rows)))
-		valid, _ := s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.RemovePublication("root")
-		Expect(concrete.failureRefs).To(BeEmpty())
-		Expect(concrete.failures).To(BeEmpty())
-	})
+func TestIndependentDomainsKeepEachOthersResultsAndErrors(t *testing.T) {
+	g := NewWithT(t)
+	s := New(Options{})
+	root := ObjectRef{UID: "same-uid", Name: "standalone"}
+	s.UpsertPod(&PodResult{Record: PodRecord{UID: root.UID, Workload: root}, HasValue: true, Error: ReasonEvaluationFailed})
+	s.UpsertWorkload(&WorkloadResult{Record: WorkloadRecord{UID: root.UID, Ref: root, Phases: []string{"Running"}}, HasValue: true})
+	delayedPod := *s.Pod(root.UID)
+	s.UpsertWorkload(&WorkloadResult{Record: WorkloadRecord{UID: root.UID, Ref: root, Phases: []string{"Failed"}}, HasValue: true, StatusError: ReasonInvalidDefinition})
+	s.UpsertPod(&delayedPod)
+	g.Expect(s.Workload(root.UID).Record.Phases).To(Equal([]string{"Failed"}))
+	g.Expect(s.Workload(root.UID).StatusError).To(Equal(ReasonInvalidDefinition))
+	g.Expect(s.Pod(root.UID).Error).To(Equal(ReasonEvaluationFailed))
+	s.SetDiscoveryFailure(root, ReasonUnresolvedOwner)
+	s.RemoveDiscoveryFailure(root.UID)
+	g.Expect(s.Workload(root.UID).HasValue).To(BeTrue())
+	s.RemoveWorkload(root.UID)
+	g.Expect(s.Pod(root.UID)).NotTo(BeNil())
+	s.RemovePod(root.UID)
+	g.Expect(s.Pod(root.UID)).To(BeNil())
+	s.RemovePod("absent")
+	s.RemoveWorkload("absent")
+}
 
-	It("keeps a failing stream invalid across removal and republication while health holds it", func() {
-		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
-		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		p := &Publication{Workload: WorkloadRecord{UID: "one"}, Status: evidence}
-		s.Publish(p)
-		s.RemovePublication("one")
-		next := *p
-		next.Status.ExpiresAt = now.Add(time.Hour)
-		s.Publish(&next)
-		valid, reason := s.Capture().Valid(next.Status)
-		Expect(valid).To(BeFalse())
-		Expect(reason).To(Equal(ReasonPermissionDenied))
-		s.SetPublicationFailure("root", ReasonNone)
-		Expect(s.(*Store).failures).To(BeEmpty())
-	})
-
-	It("retires abandoned keys without clearing referenced publication or health failures", func() {
-		concrete := s.(*Store)
-		s.SetPublicationFailure("abandoned", ReasonAPIUnavailable)
-		concrete.RetirePublicationFailure("abandoned")
-		Expect(concrete.failures).NotTo(HaveKey("abandoned"))
-		s.SetPublicationFailure("root", ReasonPermissionDenied)
-		s.Publish(&Publication{Workload: WorkloadRecord{UID: "root"}, Status: evidence})
-		concrete.RetirePublicationFailure("root")
-		valid, _ := s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
-		s.RemovePublication("root")
-		concrete.RetirePublicationFailure("root")
-		valid, _ = s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.SetPublicationHealth(nil)
-		concrete.RetirePublicationFailure("root")
-		Expect(concrete.failures).To(BeEmpty())
-	})
-
-	It("keeps a health-only failure through replacement then retires it", func() {
-		s.SetPublicationFailure("root", ReasonAPIUnavailable)
-		s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
-		s.SetPublicationHealth([]HealthRecord{{Namespace: "new", Evidence: evidence}})
-		valid, _ := s.Capture().Valid(evidence)
-		Expect(valid).To(BeFalse())
-		s.SetPublicationHealth(nil)
-		Expect(s.(*Store).failures).To(BeEmpty())
-	})
-
-	It("supports concurrent publication, capture, failure and health updates", func() {
-		pages := BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "pod"}, Mapping: evidence}}, nil)
-		var wg sync.WaitGroup
-		for i := 0; i < 8; i++ {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				uid := types.UID(fmt.Sprint(i))
-				for j := 0; j < 100; j++ {
-					publication := &Publication{Workload: WorkloadRecord{UID: uid}, Status: evidence, PodPages: pages}
-					s.Publish(publication)
-					row, _ := publication.Pod("pod")
-					row.Record.Name = string(uid)
-					s.Publish(publication.WithPod("pod", &row))
-					s.SetPublicationFailure(string(uid), ReasonAPIUnavailable)
-					s.SetPublicationHealth([]HealthRecord{{Evidence: evidence}})
-					s.Published(uid)
-					view := s.Capture()
-					for _, p := range view.Records {
-						view.Valid(p.Status)
-						row, _ := p.Pod("pod")
-						view.Valid(row.Mapping)
-					}
-					s.RemovePublication(uid)
-					s.SetPublicationFailure(string(uid), "")
-				}
-			}(i)
-		}
-		wg.Wait()
-		Expect(s.Capture().Records).To(BeEmpty())
-		Expect(pages[0].Rows()[0].Record.Name).To(BeEmpty())
-		s.SetPublicationHealth(nil)
-		Expect(s.(*Store).failureRefs).To(BeEmpty())
-	})
-})
-
-var _ = Describe("Pod pages", func() {
-	It("keeps sorted pages bounded through inserts, replacements and deletion", func() {
-		rows := make([]PublishedPod, PodPageSize*2)
-		for i := range rows {
-			rows[i].Record.UID = types.UID(fmt.Sprintf("%04d", i*2))
-		}
-		p := &Publication{PodPages: BuildPodPages(rows, nil)}
-		original := p
-		for i := 0; i < 40; i++ {
-			row := PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprintf("%04d", i*2+1))}}
-			p = p.WithPod(row.Record.UID, &row)
-		}
-		for i := 0; i < 40; i++ {
-			uid := types.UID(fmt.Sprintf("%04d", i*2+1))
-			row, ok := p.Pod(uid)
-			Expect(ok).To(BeTrue())
-			Expect(row.Record.UID).To(Equal(uid))
-			p = p.WithPod(uid, nil)
-		}
-		previous := types.UID("")
-		count := 0
-		for _, page := range p.PodPages {
-			Expect(len(page.Rows())).To(BeNumerically("<=", PodPageSize))
-			for _, row := range page.Rows() {
-				Expect(row.Record.UID > previous).To(BeTrue())
-				previous = row.Record.UID
-				count++
-			}
-		}
-		Expect(count).To(Equal(len(rows)))
-		Expect(original.PodPages).To(HaveLen(2))
-		_, ok := original.Pod("0001")
-		Expect(ok).To(BeFalse())
-	})
-	It("builds searchable immutable pages from unsorted rows", func() {
-		p := &Publication{PodPages: BuildPodPages([]PublishedPod{{Record: PodRecord{UID: "z"}}, {Record: PodRecord{UID: "a"}}}, nil)}
-		row, ok := p.Pod("a")
-		Expect(ok).To(BeTrue())
-		row.Record.Name = "new"
-		next := p.WithPod("a", &row)
-		result, ok := next.Pod("a")
-		Expect(ok).To(BeTrue())
-		Expect(result.Record.Name).To(Equal("new"))
-		original, _ := p.Pod("a")
-		Expect(original.Record.Name).To(BeEmpty())
-	})
-	It("reuses equal evidence instants regardless of time representation", func() {
-		instant := time.Now()
-		rows := []PublishedPod{{Record: PodRecord{UID: "one"}, Mapping: Evidence{ExpiresAt: instant}}}
-		p := &Publication{PodPages: BuildPodPages(rows, nil)}
-		rows[0].Mapping.ExpiresAt = instant.Round(0).UTC()
-		Expect(BuildPodPages(rows, p)[0]).To(BeIdenticalTo(p.PodPages[0]))
-	})
-
-	It("does not reuse a page when a Pod namespace changes", func() {
-		rows := []PublishedPod{{Record: PodRecord{UID: "one", Namespace: "team-a"}}}
-		p := &Publication{PodPages: BuildPodPages(rows, nil)}
-		rows[0].Record.Namespace = "team-b"
-		pages := BuildPodPages(rows, p)
-		Expect(pages[0]).NotTo(BeIdenticalTo(p.PodPages[0]))
-		Expect(pages[0].Rows()[0].Record.Namespace).To(Equal("team-b"))
-		Expect(p.PodPages[0].Rows()[0].Record.Namespace).To(Equal("team-a"))
-	})
-
-	It("copies only changed pages and never reorders the input", func() {
-		rows := make([]PublishedPod, PodPageSize+1)
-		for i := range rows {
-			rows[i] = PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprintf("%04d", len(rows)-i))}}
-		}
-		first := rows[0].Record.UID
-		p := &Publication{PodPages: BuildPodPages(rows, nil)}
-		Expect(rows[0].Record.UID).To(Equal(first))
-		Expect(p.PodPages).To(HaveLen(2))
-		unchanged := BuildPodPages(rows, p)
-		Expect(unchanged[0]).To(BeIdenticalTo(p.PodPages[0]))
-		Expect(unchanged[1]).To(BeIdenticalTo(p.PodPages[1]))
-		pod := p.PodPages[0].Rows()[0]
-		pod.Record.Labels = map[string]string{"team": "new"}
-		next := p.WithPod(pod.Record.UID, &pod)
-		Expect(next.PodPages[0]).NotTo(BeIdenticalTo(p.PodPages[0]))
-		Expect(next.PodPages[1]).To(BeIdenticalTo(p.PodPages[1]))
-		Expect(p.PodPages[0].Rows()[0].Record.Labels).To(BeNil())
-		found, ok := next.Pod(pod.Record.UID)
-		Expect(ok).To(BeTrue())
-		Expect(found.Record.Labels).To(HaveKeyWithValue("team", "new"))
-		removed := next.WithPod(pod.Record.UID, nil)
-		_, ok = removed.Pod(pod.Record.UID)
-		Expect(ok).To(BeFalse())
-		Expect(next.PodPages[0].Rows()).To(HaveLen(PodPageSize))
-		last := p.PodPages[1].Rows()[0]
-		empty := p.WithPod(last.Record.UID, nil)
-		Expect(empty.PodPages).To(HaveLen(1))
-		added := p.WithPod("new", &PublishedPod{Record: PodRecord{UID: "new"}})
-		Expect(added.PodPages[0]).To(BeIdenticalTo(p.PodPages[0]))
-		Expect(added.PodPages[1].Rows()).To(HaveLen(2))
-		full := &Publication{PodPages: p.PodPages[:1]}
-		Expect(full.WithPod("new", &PublishedPod{Record: PodRecord{UID: "new"}}).PodPages).To(HaveLen(2))
-		Expect(p.WithPod("absent", nil).PodPages[0]).To(BeIdenticalTo(p.PodPages[0]))
-	})
-})
-
-func BenchmarkPublishOnePodChange(b *testing.B) {
-	for _, count := range []int{1000, 100000} {
-		b.Run(fmt.Sprint(count), func(b *testing.B) {
-			s := New(Options{})
-			rows := make([]PublishedPod, count)
-			evidence := Evidence{Dependencies: []string{"stream"}, ExpiresAt: time.Now().Add(time.Hour)}
-			for i := range rows {
-				rows[i] = PublishedPod{Record: PodRecord{UID: types.UID(fmt.Sprint(i))}, Mapping: evidence}
-			}
-			original := &Publication{Workload: WorkloadRecord{UID: "root"}, PodPages: BuildPodPages(rows, nil)}
-			replacement := rows[0]
-			replacement.Record.Labels = map[string]string{"team": "new"}
-			changed := original.WithPod(replacement.Record.UID, &replacement)
-			s.Publish(original)
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if i%2 == 0 {
-					s.Publish(changed)
-				} else {
-					s.Publish(original)
-				}
-			}
-		})
+func TestValidityRequiresExactSourceAndPreservesObjectErrors(t *testing.T) {
+	g := NewWithT(t)
+	s := New(Options{Now: func() time.Time { panic("validity must not read the clock") }})
+	key := SourceKey{Resource: schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}, Namespace: "ns"}
+	sources := []SourceKey{key}
+	valid, reason := s.Capture().Valid(sources, "")
+	g.Expect(valid).To(BeFalse())
+	g.Expect(reason).To(Equal(ReasonAPIUnavailable))
+	s.SetSourceHealth(key, SourceHealth{})
+	valid, _ = s.Capture().Valid(sources, "")
+	g.Expect(valid).To(BeFalse())
+	s.SetSourceHealth(key, SourceHealth{Synced: true, Error: ReasonPermissionDenied})
+	valid, reason = s.Capture().Valid(sources, "")
+	g.Expect(valid).To(BeFalse())
+	g.Expect(reason).To(Equal(ReasonPermissionDenied))
+	s.SetSourceHealth(key, SourceHealth{Synced: true})
+	valid, reason = s.Capture().Valid(sources, ReasonEvaluationFailed)
+	g.Expect(valid).To(BeFalse())
+	g.Expect(reason).To(Equal(ReasonEvaluationFailed))
+	valid, reason = s.Capture().Valid(sources, ReasonNone)
+	g.Expect(valid).To(BeTrue())
+	g.Expect(reason).To(Equal(ReasonNone))
+	for _, different := range []SourceKey{
+		{Resource: key.Resource},
+		{Resource: key.Resource, Namespace: "other"},
+		{Resource: schema.GroupVersionResource{Group: "batch", Version: "v2", Resource: "jobs"}, Namespace: "ns"},
+		{Resource: schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "cronjobs"}, Namespace: "ns"},
+	} {
+		valid, reason = s.Capture().Valid([]SourceKey{different}, "")
+		g.Expect(valid).To(BeFalse())
+		g.Expect(reason).To(Equal(ReasonAPIUnavailable))
 	}
+	s.RemoveSourceHealth(key)
+	valid, _ = s.Capture().Valid(sources, "")
+	g.Expect(valid).To(BeFalse())
+}
+
+func TestSourceErrorsHaveDeterministicPrecedence(t *testing.T) {
+	g := NewWithT(t)
+	denied := SourceKey{Namespace: "denied"}
+	missing := SourceKey{Namespace: "missing"}
+	view := CapturedView{Sources: map[SourceKey]SourceHealth{denied: {Error: ReasonPermissionDenied}}}
+	for _, sources := range [][]SourceKey{{denied, missing}, {missing, denied}} {
+		valid, reason := view.Valid(sources, "")
+		g.Expect(valid).To(BeFalse())
+		g.Expect(reason).To(Equal(ReasonPermissionDenied))
+	}
+}
+
+func TestConcurrentUpsertsAndCapturesKeepDomainOwnership(t *testing.T) {
+	s := New(Options{})
+	var wg sync.WaitGroup
+	for writer := 0; writer < 8; writer++ {
+		wg.Add(1)
+		go func(writer int) {
+			defer wg.Done()
+			uid := types.UID(fmt.Sprint(writer))
+			key := SourceKey{Namespace: string(uid)}
+			for revision := 0; revision < 200; revision++ {
+				value := fmt.Sprint(revision)
+				if writer%2 == 0 {
+					s.UpsertPod(&PodResult{Record: PodRecord{UID: uid, Name: value, Labels: map[string]string{"revision": value}}, Error: ReasonEvaluationFailed, Sources: []SourceKey{key}})
+					s.Pod(uid)
+				} else {
+					s.UpsertWorkload(&WorkloadResult{Record: WorkloadRecord{UID: uid, Ref: ObjectRef{Name: value}, Phases: []string{value}}, Sources: []SourceKey{key}})
+					s.Workload(uid)
+				}
+				s.SetSourceHealth(key, SourceHealth{Synced: true})
+				s.SetDiscoveryFailure(ObjectRef{UID: uid}, ReasonUnresolvedOwner)
+				view := s.Capture()
+				for _, result := range view.Pods {
+					if result.Record.Name != result.Record.Labels["revision"] || result.Error != ReasonEvaluationFailed {
+						t.Error("capture observed a partial Pod update")
+					}
+					view.Valid(result.Sources, result.Error)
+				}
+				for _, result := range view.Workloads {
+					if result.Record.Ref.Name != result.Record.Phases[0] {
+						t.Error("capture observed a partial workload update")
+					}
+				}
+				s.RemoveSourceHealth(key)
+				s.RemoveDiscoveryFailure(uid)
+			}
+		}(writer)
+	}
+	wg.Wait()
+	g := NewWithT(t)
+	g.Expect(s.Capture().Pods).To(HaveLen(4))
+	g.Expect(s.Capture().Workloads).To(HaveLen(4))
+	g.Expect(s.Capture().Sources).To(BeEmpty())
+	g.Expect(s.Capture().Failures).To(BeEmpty())
 }

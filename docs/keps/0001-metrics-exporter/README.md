@@ -88,11 +88,11 @@ karta_exporter_observation_valid{scope="resource_type",namespace="team-a",resour
 | `component_instance` | Pod info | Named entry within the component; empty when there are no named instances, or `<unknown>` if unresolved. | `worker` |
 | `replica_group_id` | Pod info | Definition-selected key for a repeated group of Pods within the workload/component/instance. Empty when no group applies. It is neither a Pod index nor a replica count. | `0` |
 | `phase` | Status | Evaluated workload phase; its series value is `1` when matched and `0` otherwise. | `Running` |
-| `owner_resolution` | Pod info, Status | `resolved` after verifying the chain; `ignored_owner` at an intentional boundary; `unknown` when owner resolution fails, including denied reads. Failure reasons are reported by Health. | `unknown` after a denied owner read. |
-| `observation_valid` | Pod info, Status | `"true"` while the verification required for this observation is valid; `"false"` for a retained cached observation after failure or expiry. | `true` |
+| `owner_resolution` | Pod info, Status | `resolved` after verifying the chain; `ignored_owner` at an intentional boundary. A retained failed result keeps its original resolution and identity. Failure reasons are reported by Health. | `resolved` |
+| `observation_valid` | Pod info, Status | `"true"` while the verification required for this observation is valid; `"false"` for a retained cached observation after a source or evaluation failure. | `true` |
 | `karta` | Status | Name of the selected Karta definition. | `jobset-x-k8s-io-jobset-v1alpha2` |
 | `karta_source` | Status | Origin of that definition: `catalog` for a built-in definition or `cluster` for a Karta custom resource. | `catalog` |
-| `scope` | Health | `resource_type` reports collection health per namespace + GVK, including before object names are known; it does not certify each workload evaluation. `workload` reports failures affecting a known workload; no healthy workload row is emitted. | `workload` |
+| `scope` | Health | `resource_type` reports collection health per namespace + GVK, including before object names are known; it does not certify each workload evaluation. `workload` reports failures affecting a known workload; no healthy workload row is emitted. `discovery` reports input failures before a root is known, with empty workload identity. | `workload` |
 | `resource_group` | Health | API group being verified. For workload scope, identifies the affected root workload, even when a dependency failed. Empty for the core API. | `jobset.x-k8s.io` |
 | `resource_version` | Health | API version being verified, not Kubernetes `metadata.resourceVersion`, using the same scope as `resource_group`. | `v1alpha2` |
 | `resource_kind` | Health | API kind being verified, using the same scope as `resource_group`. | `JobSet` |
@@ -100,16 +100,23 @@ karta_exporter_observation_valid{scope="resource_type",namespace="team-a",resour
 
 ### Reading observation validity
 
-`observation_valid="true"` means the observation is verified, even if the workload
-failed. `false` marks retained Pod info or status that could not be verified or has
-expired. Fresh verification restores `true`; a scrape alone does not. Each
-observation has only one validity value in a snapshot. Deletion or scope exit
-removes current series; previously collected history remains.
+`observation_valid="true"` means the required sources are synchronized and healthy
+and the last evaluation has no error, even if the workload phase is Failed.
+`false` marks a retained result after a source, discovery or evaluation failure.
+Recovery and successful evaluation restore `true`; a scrape alone does not.
+Each observation has one validity value in a captured view. Deletion or scope
+exit removes current series; previously collected history remains.
+
+Pod and workload results are published independently. They can reflect different
+revisions. Healthy quiet objects do not expire. A silent watch stall may retain
+values until timeout or observed recovery/failure. This replaces the previous
+per-object expiry contract. Source health is shared by the actual collection
+scope, including a single all-namespace watch when configured.
 
 | `reason` | Meaning |
 | --- | --- |
 | `permission_denied` | A required Kubernetes read was denied. |
-| `api_unavailable` | The API could not be reached or verification expired. |
+| `api_unavailable` | A required source is unavailable, missing or not synchronized. |
 | `invalid_definition` | The selected Karta definition is invalid. |
 | `evaluation_failed` | Karta could not evaluate attribution or status. |
 | `unresolved_owner` | A required owner is missing or its UID does not match. |
@@ -157,4 +164,5 @@ See [label configuration](../../karta-metrics-exporter/configuration.md#configur
 
 ## History
 
+- 2026-10-28: Separate Pod/workload publication; replace proof expiry with observed source health and evaluation errors; add discovery failure scope.
 - 2026-10-12 to 2026-10-19: Defined workload metrics, selection and submitter attribution; separated configuration and query examples into linked guides.

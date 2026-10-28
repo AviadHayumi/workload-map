@@ -3,8 +3,9 @@
 
 # Exporter verification
 
-Component, repository and deployed tests passed. Scale tests found the limits
-listed below. Million-Pod capacity is not established by these results.
+The results below describe earlier exporter revisions. Current simplification
+validation is recorded in [the controller report](../design/metrics-exporter/simple-controller-validation.md).
+Million-Pod capacity is not established by the earlier results.
 
 ## Tested code
 

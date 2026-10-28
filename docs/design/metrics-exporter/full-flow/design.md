@@ -3,6 +3,12 @@
 
 # Inside the metrics exporter
 
+Historical baseline: this walkthrough describes `ee7d2ac6` before independent
+Pod and workload publication. The [current consistency contract](../consistency.md) and
+[controller guide](../../../../karta-metrics-exporter/pkg/controller/README.md)
+describe the simplified implementation. The original walkthrough and diagrams
+remain here to preserve the earlier design and review context.
+
 A Pod belongs to a Job, and that Job belongs to a JobSet. Prometheus needs the JobSet identity, the Pod's component and replica group, and the JobSet's normalized status. A Pod name or a single owner reference cannot supply all of that. The exporter follows the complete controller-owner chain, evaluates the selected Karta against the full root object, and publishes an immutable result for scraping.
 
 This document describes the simplified implementation on the branch containing this file. The concrete example uses the built-in JobSet definition. Its objects and event order are illustrative. This is not a captured cluster trace.

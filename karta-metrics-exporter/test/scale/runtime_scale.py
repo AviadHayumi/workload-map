@@ -12,6 +12,7 @@ import argparse
 import base64
 import collections
 import contextlib
+import copy
 from fractions import Fraction
 import hashlib
 import http.server
@@ -54,6 +55,9 @@ class LoopbackAPI:
         self.root_versions = {}
         self.intermediate_versions = {}
         self.generations = {}
+        self.owner_mismatches = set()
+        self.absent_pods = set()
+        self.pod_generations = {}
         self.revision = 1
         self.condition = threading.Condition()
         self.events = collections.deque(maxlen=20000)
@@ -61,6 +65,9 @@ class LoopbackAPI:
         self.counts = collections.Counter()
         self.max_page = 0
         self.active_watches = 0
+        self.active_watch_sources = collections.Counter()
+        self.peak_watch_sources = collections.Counter()
+        self.request_seconds = {}
         self.completed_metadata_lists = {}
         self.delivered_watch_versions = {}
         self.server = None
@@ -82,13 +89,13 @@ class LoopbackAPI:
         return "", ""
 
     def object(self, resource, index, metadata=False, state=None):
-        deleted, failed, root_versions, changed_pods, generations, intermediate_versions = state if state is not None else (self.deleted, self.failed, self.root_versions, self.changed_pods, self.generations, self.intermediate_versions)
+        deleted, failed, root_versions, changed_pods, generations, intermediate_versions, owner_mismatches, absent_pods, pod_generations = state if state is not None else (self.deleted, self.failed, self.root_versions, self.changed_pods, self.generations, self.intermediate_versions, self.owner_mismatches, self.absent_pods, self.pod_generations)
         if resource == "namespaces":
             obj = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": "scale", "uid": "scale-namespace", "resourceVersion": "1", "creationTimestamp": CREATED_TEXT, "labels": {"kubernetes.io/metadata.name": "scale"}}}
         else:
             root = index if resource in ("jobs", "replicasets") else index // self.pods
             generation = generations.get(root, 0)
-            if deleted[root]:
+            if deleted[root] or (resource == "pods" and index in absent_pods):
                 return None
             if resource == "jobs":
                 obj = {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": f"job-{root}", "namespace": "scale", "uid": f"job-{root}-g{generation}", "resourceVersion": str(root_versions.get(root, 1)), "creationTimestamp": CREATED_TEXT, "labels": {"app": "worker"}}, "spec": {"parallelism": max(1, self.pods), "completions": max(1, self.pods), "template": {"metadata": {"labels": {"app": "worker"}}, "spec": {"restartPolicy": "Never", "containers": [{"name": "worker", "image": "registry.k8s.io/pause:3.10", "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}}}]}}}, "status": {"active": 0 if failed[root] else max(1, self.pods), "ready": 0 if failed[root] else max(1, self.pods), "conditions": [{"type": "Failed", "status": "True"}] if failed[root] else []}}
@@ -97,6 +104,10 @@ class LoopbackAPI:
             else:
                 pod = index % self.pods
                 obj = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": f"pod-{root}-{pod}", "namespace": "scale", "uid": f"pod-{root}-{pod}-g{generation}", "resourceVersion": str(changed_pods.get(index, 1)), "creationTimestamp": CREATED_TEXT, "labels": {"app": "worker", "batch.kubernetes.io/job-name": f"job-{root}", "batch.kubernetes.io/controller-uid": f"job-{root}-g{generation}"}, "ownerReferences": [{"apiVersion": "batch/v1", "kind": "Job", "name": f"job-{root}", "uid": f"job-{root}-g{generation}", "controller": True, "blockOwnerDeletion": True}]}, "spec": {"nodeName": "synthetic-node", "restartPolicy": "Never", "containers": [{"name": "worker", "image": "registry.k8s.io/pause:3.10", "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}}}]}, "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}], "containerStatuses": [{"name": "worker", "ready": True, "restartCount": 0, "image": "registry.k8s.io/pause:3.10", "imageID": "synthetic", "state": {"running": {"startedAt": CREATED_TEXT}}}]}}
+        if resource == "pods":
+            obj["metadata"]["uid"] = f"pod-{root}-{pod}-g{pod_generations.get(index, generation)}"
+        if resource == "replicasets" and root in owner_mismatches:
+            obj["metadata"]["ownerReferences"][0]["uid"] += "-stale"
         if resource != "namespaces":
             obj["metadata"].setdefault("labels", {})["team"] = f"updated-team-{changed_pods[index]}" if resource == "pods" and index in changed_pods else TEAM
         if resource == "pods" and self.intermediate:
@@ -110,7 +121,7 @@ class LoopbackAPI:
 
     def snapshot(self):
         with self.condition:
-            return {"requests": dict(self.counts), "max_page_objects": self.max_page, "active_watches": self.active_watches, "revision": self.revision, "completed_metadata_lists": dict(self.completed_metadata_lists), "delivered_watch_versions": dict(self.delivered_watch_versions)}
+            return {"requests": dict(self.counts), "max_page_objects": self.max_page, "active_watches": self.active_watches, "active_watch_sources": dict(self.active_watch_sources), "peak_watch_sources": dict(self.peak_watch_sources), "request_seconds": {key: dict(value) for key, value in self.request_seconds.items()}, "revision": self.revision, "completed_metadata_lists": dict(self.completed_metadata_lists), "delivered_watch_versions": dict(self.delivered_watch_versions)}
 
     def change(self, root, delete=False, change_pods=True):
         with self.condition:
@@ -119,6 +130,8 @@ class LoopbackAPI:
             if delete:
                 for resource, index in [("pods", root * self.pods + pod) for pod in range(self.pods)] + [("replicasets", root), ("jobs", root)]:
                     obj = self.object(resource, index)
+                    if obj is None:
+                        continue
                     self.revision += 1
                     obj["metadata"]["resourceVersion"] = str(self.revision)
                     self.events.append((self.revision, resource, "DELETED", obj))
@@ -144,6 +157,38 @@ class LoopbackAPI:
             self.events.append((self.revision, "pods", "MODIFIED", self.object("pods", index)))
             self.condition.notify_all()
 
+    def pod_uid(self, root, pod):
+        return f"pod-{root}-{pod}-g{self.pod_generations.get(root * self.pods + pod, self.generations.get(root, 0))}"
+
+    def change_pod_presence(self, root, pod, present):
+        with self.condition:
+            index = root * self.pods + pod
+            if present == (index not in self.absent_pods):
+                raise ValueError("Pod presence change must be a transition")
+            self.revision += 1
+            if present:
+                self.absent_pods.remove(index)
+                self.pod_generations[index] = self.pod_generations.get(index, self.generations.get(root, 0)) + 1
+                self.changed_pods[index] = self.revision
+                obj = self.object("pods", index)
+            else:
+                obj = self.object("pods", index)
+                self.absent_pods.add(index)
+            obj["metadata"]["resourceVersion"] = str(self.revision)
+            self.events.append((self.revision, "pods", "ADDED" if present else "DELETED", obj))
+            self.condition.notify_all()
+
+    def change_owner(self, root, mismatched):
+        with self.condition:
+            if mismatched:
+                self.owner_mismatches.add(root)
+            else:
+                self.owner_mismatches.discard(root)
+            self.revision += 1
+            self.intermediate_versions[root] = self.revision
+            self.events.append((self.revision, "replicasets", "MODIFIED", self.object("replicasets", root)))
+            self.condition.notify_all()
+
     def interrupt_watch(self, resource, expired=False):
         with self.condition:
             generation,_ = self.watch_faults.get(resource,(0,False))
@@ -159,6 +204,8 @@ class LoopbackAPI:
             for resource, index in [("jobs", root), ("replicasets", root)] + [("pods",root*self.pods+pod) for pod in range(self.pods)]:
                 self.revision += 1
                 if resource == "pods":
+                    self.absent_pods.discard(index)
+                    self.pod_generations[index] = self.pod_generations.get(index, self.generations[root] - 1) + 1
                     self.changed_pods[index] = self.revision
                 elif resource == "jobs":
                     self.root_versions[root] = self.revision
@@ -198,6 +245,25 @@ class LoopbackAPI:
                 self.send_json({"apiVersion": "v1", "kind": "Status", "status": "Failure", "reason": reason, "code": code, "message": reason}, code)
 
             def do_GET(self):
+                started = time.monotonic()
+                url = urllib.parse.urlparse(self.path)
+                query = urllib.parse.parse_qs(url.query)
+                try:
+                    self.serve_get()
+                finally:
+                    # Watch connection duration is not a request latency sample.
+                    if query.get("watch") != ["true"]:
+                        resource, name = fixture.resource(url.path)
+                        representation = "metadata" if "as=PartialObjectMetadata" in self.headers.get("Accept", "") else "full"
+                        key = f"{resource}.{'get' if name else 'list'}.{representation}" if resource else "discovery"
+                        elapsed = time.monotonic() - started
+                        with fixture.condition:
+                            measurement = fixture.request_seconds.setdefault(key, {"count": 0, "sum": 0, "max": 0})
+                            measurement["count"] += 1
+                            measurement["sum"] += elapsed
+                            measurement["max"] = max(measurement["max"], elapsed)
+
+            def serve_get(self):
                 url = urllib.parse.urlparse(self.path)
                 query = urllib.parse.parse_qs(url.query)
                 value = lambda key, default="": query.get(key, [default])[0]
@@ -273,7 +339,7 @@ class LoopbackAPI:
                 with fixture.condition:
                     fixture.max_page = max(fixture.max_page, len(items))
                     fixture.counts[f"{resource}.objects.{encoding}"] += len(items)
-                    if resource == "pods" and metadata and not value("continue") and fixture.change_during_list:
+                    if resource == "pods" and not value("continue") and fixture.change_during_list:
                         fixture.change_during_list = False
                         fixture.change_pod(fixture.roots-1,fixture.pods-1)
                 continuation = base64.urlsafe_b64encode(json.dumps([resource, revision, offset]).encode()).decode() if offset < fixture.total(resource) else ""
@@ -299,7 +365,7 @@ class LoopbackAPI:
                             return None, (410, "ResourceExpired")
                     snapshot_key = (resource, revision)
                     if snapshot_key not in fixture.snapshots:
-                        fixture.snapshots[snapshot_key] = (bytes(fixture.deleted), bytes(fixture.failed), dict(fixture.root_versions), dict(fixture.changed_pods), dict(fixture.generations), dict(fixture.intermediate_versions))
+                        fixture.snapshots[snapshot_key] = (bytes(fixture.deleted), bytes(fixture.failed), dict(fixture.root_versions), dict(fixture.changed_pods), dict(fixture.generations), dict(fixture.intermediate_versions), frozenset(fixture.owner_mismatches), frozenset(fixture.absent_pods), dict(fixture.pod_generations))
                         while len(fixture.snapshots) > 16:
                             fixture.snapshots.popitem(last=False)
                     fixture.snapshots.move_to_end(snapshot_key)
@@ -309,17 +375,21 @@ class LoopbackAPI:
                 if urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("sendInitialEvents") == ["true"]:
                     self.status(400, "BadRequest")
                     return
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.flush()
                 with fixture.condition:
                     fault_generation = fixture.watch_faults.get(resource,(0,False))[0]
                     fixture.active_watches += 1
+                    source = f"{resource}.{'metadata' if metadata else 'full'}"
+                    fixture.active_watch_sources[source] += 1
+                    fixture.peak_watch_sources[source] = max(fixture.peak_watch_sources[source], fixture.active_watch_sources[source])
                     fixture.counts[f"{resource}.watch"] += 1
+                    fixture.counts[f"{resource}.watch.{'metadata' if metadata else 'full'}"] += 1
                 started = time.monotonic()
                 try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.flush()
                     while time.monotonic() - started < 240:
                         with fixture.condition:
                             current_fault,expired = fixture.watch_faults.get(resource,(0,False))
@@ -361,6 +431,7 @@ class LoopbackAPI:
                 finally:
                     with fixture.condition:
                         fixture.active_watches -= 1
+                        fixture.active_watch_sources[source] -= 1
                     self.close_connection = True
 
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -431,24 +502,36 @@ class ChurnIntervals:
         self.lock = threading.Lock()
         self.pending = {}
         self.completed = collections.deque()
+        self.pod_teams = {}
 
-    def begin(self, root, at):
+    def begin(self, root, at, pod_teams=None):
         with self.lock:
             if root in self.pending:
                 raise AssertionError("change before previous publication acknowledgment")
             self.pending[root] = at
+            self.pod_teams[root] = pod_teams or {}
 
     def acknowledge(self, root, at):
         with self.lock:
             sent = self.pending.pop(root)
-            self.completed.append((root,sent,at))
+            self.completed.append((root,sent,at,self.pod_teams.pop(root)))
 
     def overlapping(self, start, end):
         # One continuity reader calls this in increasing scrape-start order.
         with self.lock:
             while self.completed and self.completed[0][2] < start:
                 self.completed.popleft()
-            return {root for root,sent,ack in self.completed if sent <= end and ack >= start} | {root for root,sent in self.pending.items() if sent <= end}
+            return {root for root,sent,ack,_ in self.completed if sent <= end and ack >= start} | {root for root,sent in self.pending.items() if sent <= end}
+
+    def overlapping_pod_teams(self, start, end):
+        with self.lock:
+            result = collections.defaultdict(set)
+            entries = [teams for _, sent, ack, teams in self.completed if sent <= end and ack >= start]
+            entries.extend(self.pod_teams[root] for root, sent in self.pending.items() if sent <= end)
+            for teams in entries:
+                for index, values in teams.items():
+                    result[index].update(values)
+            return dict(result)
 
     def overdue(self, now, limit):
         with self.lock:
@@ -470,11 +553,13 @@ def verified_publication(publication, fixture, root, version):
     if workload.get("Phases") != ["Failed" if fixture.failed[root] else "Running"]:
         return False
     pods = publication.get("pods", {})
-    if len(pods) != fixture.pods:
+    if len(pods) != sum(root * fixture.pods + pod not in fixture.absent_pods for pod in range(fixture.pods)):
         return False
     for pod in range(fixture.pods):
         index = root*fixture.pods+pod
-        uid = f"pod-{root}-{pod}-g{fixture.generations.get(root,0)}"
+        if index in fixture.absent_pods:
+            continue
+        uid = fixture.pod_uid(root, pod)
         observed = pods.get(uid,{})
         record = observed.get("record",{})
         expected = {"WorkloadGVK":expected_gvk,"UID":uid,"Name":f"pod-{root}-{pod}","Namespace":"scale","Component":"job","Instance":"","Group":"","OwnerResolution":"resolved"}
@@ -486,7 +571,7 @@ def verified_publication(publication, fixture, root, version):
     return True
 
 
-def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
+def read_metrics(response, fixture, deadline=None, changing_roots=frozenset(), changing_pod_teams=None, required_invalid_roots=frozenset(), failure_reasons=frozenset({"api_unavailable"})):
     seen_created = bytearray(fixture.roots)
     seen_status = [0] * fixture.roots
     seen_pods = bytearray(fixture.roots * fixture.pods)
@@ -495,8 +580,9 @@ def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
     errors = []
     health_resources = set()
     invalid_status_roots = set()
+    invalid_result_roots = set()
+    status_validity = {}
     invalid_health_roots = set()
-    validity = {}
     for number, raw in enumerate(response):
         if deadline is not None and number % 1024 == 0 and time.monotonic() > deadline:
             raise TimeoutError("independent oracle deadline exceeded")
@@ -525,7 +611,7 @@ def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
                 errors.append(line[:1000])
         if name == "karta_exporter_observation_valid":
             counts["health_rows"] += 1
-            if changing and labels.get("scope") == "workload" and value == 0 and labels.get("reason") == "api_unavailable" and labels.get("workload_name") == f"job-{int(identity[1])}" and all(labels.get(key)==value for key,value in {"namespace":"scale","resource_group":"batch","resource_version":"v1","resource_kind":"Job"}.items()):
+            if changing and labels.get("scope") == "workload" and value == 0 and labels.get("reason") in failure_reasons and labels.get("workload_name") == f"job-{int(identity[1])}" and all(labels.get(key)==value for key,value in {"namespace":"scale","resource_group":"batch","resource_version":"v1","resource_kind":"Job"}.items()):
                 if int(identity[1]) in invalid_health_roots:
                     counts["health_failures"] += 1
                 invalid_health_roots.add(int(identity[1]))
@@ -547,11 +633,14 @@ def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
             continue
         root = int(match[1])
         if name in ("karta_workload_status", "karta_pod_workload_info"):
-            if root in validity and validity[root] != invalid:
-                counts["wrong_coordinates"] += 1
-            validity[root] = invalid
-            if name == "karta_workload_status" and invalid and changing:
-                invalid_status_roots.add(root)
+            if invalid and changing:
+                invalid_result_roots.add(root)
+            if name == "karta_workload_status":
+                if root in status_validity and status_validity[root] != invalid:
+                    counts["wrong_coordinates"] += 1
+                status_validity[root] = invalid
+                if invalid and changing:
+                    invalid_status_roots.add(root)
         if labels.get("namespace") != "scale" or labels.get("workload_name") != f"job-{root}":
             counts["wrong_coordinates"] += 1
         if name in ("karta_workload_status", "karta_pod_workload_info"):
@@ -582,29 +671,37 @@ def read_metrics(response, fixture, deadline=None, changing_roots=frozenset()):
                 counts["wrong_phase"] += 1
         elif name == "karta_pod_workload_info":
             counts["pods"] += 1
+            if root in required_invalid_roots and not invalid:
+                counts["wrong_pod"] += 1
             match = re.fullmatch(r"pod-(\d+)-(\d+)-g(\d+)", labels.get("pod_uid", ""))
-            if not match or int(match[1]) != root or int(match[2]) >= fixture.pods or int(match[3]) != fixture.generations.get(root,0):
+            if not match or int(match[1]) != root or int(match[2]) >= fixture.pods or int(match[3]) != fixture.pod_generations.get(root * fixture.pods + int(match[2]), fixture.generations.get(root,0)):
                 counts["wrong_pod"] += 1
                 continue
             expected_labels = {"pod_name": f"pod-{root}-{int(match[2])}", "component": "job", "component_instance": "", "replica_group_id": ""}
             if any(labels.get(key) != expected for key, expected in expected_labels.items()):
                 counts["wrong_pod"] += 1
             index = root * fixture.pods + int(match[2])
-            if labels.get("team") != (f"updated-team-{fixture.changed_pods[index]}" if index in fixture.changed_pods else TEAM):
+            expected_team = f"updated-team-{fixture.changed_pods[index]}" if index in fixture.changed_pods else TEAM
+            allowed = (changing_pod_teams or {}).get(index, set()) if changing else set()
+            if labels.get("team") != expected_team and labels.get("team") not in allowed:
                 counts["wrong_team"] += 1
-            if seen_pods[index] or value != 1:
+            if seen_pods[index] or value != 1 or index in fixture.absent_pods:
                 counts["wrong_pod"] += 1
             seen_pods[index] = 1
         else:
             counts["unexpected_family"] += 1
-    counts["health_failures"] += len(invalid_status_roots ^ invalid_health_roots)
+    counts["health_failures"] += len(invalid_result_roots ^ invalid_health_roots)
     live = fixture.roots - sum(fixture.deleted)
     counts["missing_created"] = sum(not seen_created[root] and root not in invalid_status_roots for root in range(fixture.roots) if not fixture.deleted[root])
-    counts["missing_pods"] = live * fixture.pods - sum(seen_pods)
+    counts["missing_pods"] = sum(not fixture.deleted[root] and root * fixture.pods + pod not in fixture.absent_pods for root in range(fixture.roots) for pod in range(fixture.pods)) - sum(seen_pods)
     counts["missing_status_roots"] = sum(mask != 511 for index, mask in enumerate(seen_status) if not fixture.deleted[index])
     counts["missing_health"] = len({("scale", "", "v1", "Pod"), ("scale", "batch", "v1", "Job")} - health_resources)
     failures = ("wrong_labels", "wrong_team", "wrong_definition", "missing_health", "missing_created", "missing_pods", "missing_status_roots", "invalid_rows", "health_failures", "unexpected_identity", "wrong_coordinates", "wrong_created", "wrong_phase", "duplicate_status", "wrong_pod", "unexpected_family")
     return {"complete": all(counts[key] == 0 for key in failures), "counts": dict(counts), "process_metrics": samples, "examples": errors}
+
+
+def read_owner_failures(response, fixture, roots):
+    return read_metrics(response, fixture, changing_roots=roots, required_invalid_roots=roots, failure_reasons={"unresolved_owner"})
 
 
 def process_rss(pid):
@@ -630,13 +727,16 @@ def run(args):
     with open(binary, "rb") as binary_file:
         binary_hash = hashlib.file_digest(binary_file, "sha256").hexdigest()
     report = {"model": "loopback HTTP API fixture; actual exporter binary/informers/workqueue/SDK/publication/OTel", "custom_label": "team", "expected_team": TEAM, "harness_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(), "roots": args.roots, "pods_per_root": args.pods, "page_size": args.page_size, "poll_seconds": args.poll_seconds, "settle_seconds": args.settle_seconds, "delete_percent": args.delete_percent, "scrape_timing": "HTTP response transfer to disk; oracle timed separately", "gomaxprocs": args.gomaxprocs, "memory_limit_bytes": args.max_rss_mib * 1024 ** 2, "max_seconds": args.max_seconds, "stage_seconds": args.stage_seconds, "scrape_seconds": args.scrape_seconds, "oracle_seconds": args.oracle_seconds, "binary_sha256": binary_hash, "unavailable_measurements": ["per-event publication latency", "queue backlog", "queue drain time", "live heap if no diagnostic metrics"], "stages": []}
-    report["measurement_protocol"] = "3: latency-budgeted hot set; bounded full-round ACK batches; protocol-2 heap/drain sampling"
+    report["measurement_protocol"] = "4: independent Pod/workload records; metadata watches; protocol-3 pacing and exact final oracle"
     report["heap_profiles_enabled"] = args.heap_profiles
     report["source_revision"] = args.source_revision
     report["publication_latency_limit_seconds"] = args.publication_latency_seconds
     report["queue_drain_limit_seconds"] = args.queue_drain_seconds
     report["binary_build_info"] = subprocess.run(["go", "version", "-m", str(binary)], capture_output=True, text=True, check=False).stdout
     fixture = LoopbackAPI(args.roots, args.pods, args.page_size, intermediate=not args.direct_owner)
+    report["churn_target"] = args.churn_target
+    report["ancestor_burst"] = args.ancestor_burst
+    report["pod_lifecycle_burst"] = args.pod_lifecycle_burst
     report["topology"] = "Job->Pod" if args.direct_owner else "Job->ReplicaSet->Pod"
     endpoint = fixture.start()
     config = {"kartaDefinitionSource": {"catalog": {"enabled": True, "include": ["batch-job-v1"], "exclude": []}, "cluster": {"enabled": False}}, "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "scale"}}, "requiredKinds": ["batch/v1/Job"], "labelRules":[{"name":"team", "metrics":["karta_workload_status"], "sources":["workload"], "expression":'object.metadata.labels["team"]'}, {"name":"team", "metrics":["karta_pod_workload_info"], "sources":["pod", "workload"], "expression":'object.metadata.labels["team"]'}]}
@@ -648,10 +748,11 @@ def run(args):
         config["apiBurst"] = args.api_burst
     if args.workers is not None:
         config["workers"] = args.workers
-    config["maxAge"] = "120s"
+    if args.legacy_proof_config:
+        config["maxAge"] = "120s"
     report["exporter_config"] = config
     report["client_budget"] = {"qps":args.api_qps,"burst":args.api_burst,"workers":args.workers,"source":"explicit config values when supplied; null means executable defaults, verify its source"}
-    report["refresh_seconds"] = args.refresh_seconds or 45
+    report["refresh_seconds"] = (args.refresh_seconds or 45) if args.legacy_proof_config else None
     report["quiet_seconds"] = args.quiet_seconds
     (output / "config.json").write_text(json.dumps(config))
     # Loopback HTTP needs no authentication material; this file contains no credentials.
@@ -730,7 +831,7 @@ def run(args):
 
     churn_intervals = ChurnIntervals()
 
-    def converge(name):
+    def converge(name, owner_failures=frozenset()):
         stage_started = time.monotonic()
         stage = {"name": name, "scrapes": [], "api_before": fixture.snapshot()}
         report["stages"].append(stage)
@@ -753,8 +854,13 @@ def run(args):
                     http_seconds=http_timing["completed_at"]-scrape_started
                     body.seek(0)
                     oracle_started = time.monotonic()
-                    changing = churn_intervals.overlapping(scrape_started, http_timing["completed_at"]) if name == "churn_continuity" else frozenset()
-                    last = read_metrics(body, fixture, oracle_started + args.oracle_seconds, changing)
+                    with fixture.condition:
+                        oracle_fixture = copy.copy(fixture)
+                        oracle_fixture.changed_pods = dict(fixture.changed_pods)
+                        oracle_at = time.monotonic()
+                    changing = churn_intervals.overlapping(scrape_started, oracle_at) if name == "churn_continuity" else frozenset()
+                    changing_teams = churn_intervals.overlapping_pod_teams(scrape_started, oracle_at) if name == "churn_continuity" else {}
+                    last = read_owner_failures(body, oracle_fixture, owner_failures) if owner_failures else read_metrics(body, oracle_fixture, oracle_started + args.oracle_seconds, changing, changing_teams)
                     last["changing_roots"] = sorted(changing)
                     last["oracle_seconds"] = round(time.monotonic()-oracle_started,4)
                     last["http_seconds"] = round(http_seconds,4)
@@ -854,10 +960,21 @@ def run(args):
                                 emission_condition.wait(timeout=delay)
                                 continue
                             scheduled,lateness=schedule.record(sent-churn_started)
-                            churn_intervals.begin(root,sent)
-                            fixture.change(root,change_pods=False)
+                            with fixture.condition:
+                                if args.churn_target == "pod":
+                                    pod = (schedule.emitted // pool) % fixture.pods
+                                    index = root * fixture.pods + pod
+                                    old_team = f"updated-team-{fixture.changed_pods[index]}" if index in fixture.changed_pods else TEAM
+                                    new_team = f"updated-team-{fixture.revision + 1}"
+                                    churn_intervals.begin(root, sent, {index: {old_team, new_team}})
+                                    fixture.change_pod(root, pod)
+                                    event_version = str(fixture.changed_pods[index])
+                                else:
+                                    churn_intervals.begin(root,sent)
+                                    fixture.change(root,change_pods=False)
+                                    event_version = str(fixture.root_versions[root])
                             pending[root]=(str(fixture.root_versions[root]),sent)
-                            report["sustained_churn"]["emissions"].append({"root":root,"resource_version":str(fixture.root_versions[root]),"seconds":round(sent-started,6),"scheduled_seconds":scheduled,"lateness_seconds":lateness})
+                            report["sustained_churn"]["emissions"].append({"root":root,"event_resource":args.churn_target,"resource_version":event_version,"seconds":round(sent-started,6),"scheduled_seconds":scheduled,"lateness_seconds":lateness})
                             report["sustained_churn"]["emitted"]=schedule.emitted
                             report["sustained_churn"]["last_emission_seconds"]=sent-churn_started
                             report["sustained_churn"]["max_scheduling_lateness_seconds"]=max(report["sustained_churn"]["max_scheduling_lateness_seconds"],lateness)
@@ -911,7 +1028,7 @@ def run(args):
                                 elif not publication:
                                     rejections["absent"]+=1
                                 elif publication.get("valid") is not True:
-                                    rejections["invalid_proof"]+=1
+                                    rejections["invalid_result"]+=1
                                 elif publication.get("resource_version") != version:
                                     rejections["different_resource_version"]+=1
                                 else:
@@ -958,6 +1075,22 @@ def run(args):
             latencies.sort()
             report["sustained_churn"].update({"requested_seconds":args.churn_seconds,"target_events_per_second":args.churn_rate,"emitted":emitted,"observed":len(latencies),"achieved_events_per_second":emitted/args.churn_seconds,"publication_upper_bound_p99_seconds":latencies[min(len(latencies)-1,int(len(latencies)*0.99))] if latencies else None,"publication_upper_bound_max_seconds":max(latencies,default=None),"drain_seconds":drain_completed-drain_started,"gc_samples":gc_samples,"gc_sample_seconds":args.gc_sample_seconds,"final_window_heap_growth_fraction":heap_growth,"poll_seconds":args.diagnostic_poll_seconds,"measurement":"event emission to first captured valid creation/status and current Pod mapping at exact root RV; polling upper bound","all_queues_drained":queue_idle_samples>=2,"queue_drain_snapshot":queue_stats})
             converge("after_sustained_churn")
+        if args.pod_lifecycle_burst:
+            affected_pods = [divmod(index, fixture.pods) for index in range(args.pod_lifecycle_burst)]
+            for root, pod in affected_pods:
+                fixture.change_pod_presence(root, pod, False)
+            converge("pod_deletion_burst")
+            for root, pod in affected_pods:
+                fixture.change_pod_presence(root, pod, True)
+            converge("pod_recreation_burst")
+        if args.ancestor_burst:
+            affected = set(range(args.ancestor_burst))
+            for root in affected:
+                fixture.change_owner(root, True)
+            converge("ancestor_uid_mismatch", affected)
+            for root in affected:
+                fixture.change_owner(root, False)
+            converge("ancestor_burst_recovery")
         churn_count = max(1, min(args.churn_roots, args.roots))
         if args.pods:
             fixture.change_pod(0, args.pods - 1)
@@ -965,12 +1098,16 @@ def run(args):
             report["stages"][-1]["limitation"] = "Convergence includes polling and full HTTP/oracle time; not per-event publication latency"
         if args.watch_faults:
             before=fixture.snapshot()["requests"]
+            watched = ["pods", "jobs"]
             fixture.interrupt_watch("pods")
             fixture.interrupt_watch("jobs",expired=True)
+            if before.get("replicasets.watch.metadata", 0):
+                watched.append("replicasets")
+                fixture.interrupt_watch("replicasets", expired=True)
             reconnect_started=time.monotonic()
             while time.monotonic()-reconnect_started < args.stage_seconds:
                 counts=fixture.snapshot()["requests"]
-                if all(counts.get(resource+".watch",0)>before.get(resource+".watch",0) for resource in ("pods","jobs")):
+                if all(counts.get(resource+".watch",0)>before.get(resource+".watch",0) for resource in watched):
                     break
                 time.sleep(0.05)
             else:
@@ -981,12 +1118,13 @@ def run(args):
             if args.pods:
                 with fixture.condition:
                     fixture.change_during_list = True
+                fixture.interrupt_watch("pods", expired=True)
                 list_started=time.monotonic()
                 while fixture.change_during_list:
                     if time.monotonic()-list_started > args.stage_seconds:
-                        raise RuntimeError("metadata LIST mutation was not exercised")
+                        raise RuntimeError("recovery LIST mutation was not exercised")
                     time.sleep(0.05)
-                converge("watch_update_during_metadata_list")
+                converge("watch_update_during_recovery_list")
         for root in range(churn_count):
             fixture.change(root)
         converge("status_and_pod_churn")
@@ -1007,8 +1145,11 @@ def run(args):
             converge("settled_after_cleanup")
         intermediate_streams={key:value for key,value in fixture.snapshot()["requests"].items() if value and key=="replicasets.watch"}
         report["intermediate_streams"] = intermediate_streams
-        if intermediate_streams:
-            raise RuntimeError(f"intermediate owner WATCH is forbidden: {intermediate_streams}")
+        report["watch_representation_peaks"] = fixture.snapshot()["peak_watch_sources"]
+        if report["watch_representation_peaks"].get("replicasets.full", 0):
+            raise RuntimeError("traversal-only ReplicaSets must use metadata watches")
+        if not args.legacy_proof_config and args.pods and not args.direct_owner and not intermediate_streams:
+            raise RuntimeError("traversal-only ReplicaSet metadata watch was not exercised")
         report["completed_all_stages"] = True
         gaps = [scrape for stage in report["stages"] if stage["name"] in ("steady_scrape","quiet_continuity","churn_continuity") for scrape in stage["scrapes"] if not scrape.get("complete")]
         report["steady_validity_gaps"] = len(gaps)
@@ -1086,10 +1227,14 @@ def main():
     parser.add_argument("--direct-owner", action="store_true", help="Use Job->Pod for a matched no-intermediate control")
     parser.add_argument("--quiet-seconds", type=float, default=0)
     parser.add_argument("--continuity-seconds", type=float, default=5)
+    parser.add_argument("--legacy-proof-config", action="store_true", help="Baseline comparison only: send retired maxAge and optional refreshInterval settings")
     parser.add_argument("--refresh-seconds", type=float, default=0)
     parser.add_argument("--watch-faults", action="store_true")
     parser.add_argument("--heap-profiles", action="store_true", help="Diagnostic-only: save sampled heap profiles after existing GC requests; adds profile serialization overhead")
     parser.add_argument("--diagnostics", action="store_true", help="Binary is the test/scale/cmd wrapper")
+    parser.add_argument("--churn-target", choices=("root", "pod"), default="root")
+    parser.add_argument("--pod-lifecycle-burst", type=int, default=0, help="Delete and recreate this many Pods while their roots stay present")
+    parser.add_argument("--ancestor-burst", type=int, default=0, help="Change this many ReplicaSet owner UIDs, verify invalid retained mappings, then restore them")
     parser.add_argument("--churn-seconds", type=float, default=0)
     parser.add_argument("--churn-rate", type=float, default=100, help="Positive events/s; fractional rates are preserved")
     parser.add_argument("--publication-latency-seconds", type=float, help="Predeclared verified-publication bound; default 5s, or 10s for >=10 Pods/root")
@@ -1113,6 +1258,14 @@ def main():
     parser.add_argument("--delete-percent", type=int, default=10)
     parser.add_argument("--settle-seconds", type=int, default=30)
     args = parser.parse_args()
+    if args.pod_lifecycle_burst < 0 or args.pod_lifecycle_burst > min(args.roots * args.pods, 10000):
+        parser.error("Pod lifecycle burst must be within the population and at most 10000")
+    if args.churn_target == "pod" and not args.pods:
+        parser.error("Pod churn requires at least one Pod per root")
+    if args.ancestor_burst < 0 or args.ancestor_burst > min(args.roots, 1000) or (args.ancestor_burst and (args.direct_owner or not args.pods)):
+        parser.error("ancestor burst requires intermediate owners and Pods, with at most min(roots, 1000) changes")
+    if args.refresh_seconds and not args.legacy_proof_config:
+        parser.error("refresh-seconds requires legacy-proof-config for baseline comparison")
     if args.heap_profiles and not args.diagnostics:
         parser.error("heap profiles require the test diagnostics wrapper")
     if args.publication_latency_seconds is None:

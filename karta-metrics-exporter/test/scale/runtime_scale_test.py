@@ -173,6 +173,24 @@ class APIFixtureTests(unittest.TestCase):
         page = self.get("/api/v1/namespaces/scale/pods")
         self.assertTrue(all(item["metadata"]["ownerReferences"][0]["uid"] != "job-1-g0" for item in page["items"]))
 
+    def test_intermediate_metadata_watch_delivers_delete_and_recreation(self):
+        request = urllib.request.Request(self.endpoint + "/apis/apps/v1/namespaces/scale/replicasets?watch=true&resourceVersion=1")
+        request.add_header("Accept", "application/json;as=PartialObjectMetadata;g=meta.k8s.io;v=v1")
+        with urllib.request.urlopen(request, timeout=2) as response:
+            self.fixture.change(0, delete=True)
+            deleted = json.loads(response.readline())
+            self.fixture.recreate(0)
+            created = json.loads(response.readline())
+        self.assertEqual(deleted["type"], "DELETED")
+        self.assertEqual(created["type"], "ADDED")
+        self.assertEqual(deleted["object"]["metadata"]["uid"], "rs-0-g0")
+        self.assertEqual(created["object"]["metadata"]["uid"], "rs-0-g1")
+        self.assertEqual(created["object"]["kind"], "PartialObjectMetadata")
+        self.assertNotIn("spec", created["object"])
+        snapshot = self.fixture.snapshot()
+        self.assertEqual(snapshot["requests"]["replicasets.watch.metadata"], 1)
+        self.assertEqual(snapshot["peak_watch_sources"]["replicasets.metadata"], 1)
+
     def test_intermediate_chain_and_recreation_have_new_uids(self):
         pod = self.get("/api/v1/namespaces/scale/pods/pod-0-0")
         rs = self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0")
@@ -218,6 +236,45 @@ class APIFixtureTests(unittest.TestCase):
         self.assertEqual(last["items"][-1]["metadata"]["labels"]["team"],"scale-team")
         current=self.get("/api/v1/namespaces/scale/pods/pod-2-1",metadata=True)
         self.assertEqual(current["metadata"]["labels"]["team"],"updated-team-2")
+
+    def test_full_pod_recovery_list_keeps_snapshot_and_exposes_later_update(self):
+        self.fixture.change_during_list = True
+        first = self.get("/api/v1/namespaces/scale/pods")
+        token = first["metadata"]["continue"]
+        while token:
+            last = self.get("/api/v1/namespaces/scale/pods?continue=" + urllib.parse.quote(token))
+            token = last["metadata"]["continue"]
+        self.assertEqual(last["items"][-1]["metadata"]["labels"]["team"], "scale-team")
+        current = self.get("/api/v1/namespaces/scale/pods/pod-2-1")
+        self.assertEqual(current["metadata"]["labels"]["team"], "updated-team-2")
+        self.assertFalse(self.fixture.change_during_list)
+
+    def test_pod_recreation_changes_uid_without_changing_root_or_owner(self):
+        before = self.get("/api/v1/namespaces/scale/pods/pod-0-0")
+        root = self.get("/apis/batch/v1/namespaces/scale/jobs/job-0")
+        self.fixture.change_pod_presence(0, 0, False)
+        with self.assertRaises(urllib.error.HTTPError) as failure:
+            self.get("/api/v1/namespaces/scale/pods/pod-0-0")
+        failure.exception.close()
+        self.fixture.change_pod_presence(0, 0, True)
+        after = self.get("/api/v1/namespaces/scale/pods/pod-0-0")
+        self.assertNotEqual(before["metadata"]["uid"], after["metadata"]["uid"])
+        self.assertEqual(before["metadata"]["ownerReferences"], after["metadata"]["ownerReferences"])
+        self.assertEqual(root, self.get("/apis/batch/v1/namespaces/scale/jobs/job-0"))
+        self.fixture.change(0, delete=True)
+        self.fixture.recreate(0)
+        latest = self.get("/api/v1/namespaces/scale/pods/pod-0-0")
+        self.assertNotEqual(latest["metadata"]["uid"], after["metadata"]["uid"])
+
+    def test_intermediate_uid_mismatch_is_a_metadata_only_owner_change(self):
+        pod = self.get("/api/v1/namespaces/scale/pods/pod-0-0")
+        self.fixture.change_owner(0, True)
+        owner = self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0", metadata=True)
+        self.assertEqual(owner["metadata"]["ownerReferences"][0]["uid"], "job-0-g0-stale")
+        self.assertEqual(pod, self.get("/api/v1/namespaces/scale/pods/pod-0-0"))
+        self.fixture.change_owner(0, False)
+        owner = self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0", metadata=True)
+        self.assertEqual(owner["metadata"]["ownerReferences"][0]["uid"], "job-0-g0")
 
     def test_resource_versions_change_only_for_mutated_objects(self):
         before=self.get("/apis/apps/v1/namespaces/scale/replicasets/rs-0")
@@ -328,7 +385,7 @@ class OracleTests(unittest.TestCase):
         result=self.check(self.exposition.replace('reason="none"','reason="unresolved_owner"'))
         self.assertIn("unresolved_owner",result["examples"][0])
 
-    def test_only_inflight_roots_may_be_coherently_invalid(self):
+    def test_only_inflight_roots_may_have_independent_invalid_rows(self):
         invalid="\n".join(line.replace('observation_valid="true"','observation_valid="false"') for line in self.exposition.splitlines() if not line.startswith("karta_workload_created_timestamp_seconds"))
         invalid+='\nkarta_exporter_observation_valid{scope="workload",namespace="scale",resource_group="batch",resource_version="v1",resource_kind="Job",workload_name="job-0",workload_uid="job-0-g0",reason="api_unavailable"} 0\n'
         read=lambda text, changing:read_metrics(io.BytesIO(text.encode()),self.fixture,changing_roots=changing)
@@ -339,6 +396,10 @@ class OracleTests(unittest.TestCase):
         self.assertFalse(read(invalid.replace('phase="Running"} 1','phase="Running"} 0'),{0})["complete"])
         mixed=invalid.replace('observation_valid="false"','observation_valid="true"',1)
         self.assertFalse(read(mixed,{0})["complete"])
+        independent = "\n".join(line.replace('observation_valid="true"', 'observation_valid="false"') if line.startswith("karta_pod_workload_info") else line for line in self.exposition.splitlines())
+        independent += '\nkarta_exporter_observation_valid{scope="workload",namespace="scale",resource_group="batch",resource_version="v1",resource_kind="Job",workload_name="job-0",workload_uid="job-0-g0",reason="api_unavailable"} 0\n'
+        self.assertTrue(read(independent, {0})["complete"])
+        self.assertFalse(read(independent, set())["complete"])
         self.assertTrue(read(self.exposition,set())["complete"])
 
     def test_inflight_intervals_end_only_after_ack_and_detect_never_recovery(self):
@@ -353,7 +414,41 @@ class OracleTests(unittest.TestCase):
         intervals.begin(1,20)
         self.assertEqual(intervals.overlapping(20,21),{1})
 
-    def test_ack_rejects_stale_version_invalid_proof_and_wrong_pod(self):
+    def test_owner_failure_oracle_requires_invalid_mapping_and_exact_identity(self):
+        invalid = "\n".join(line.replace('observation_valid="true"', 'observation_valid="false"') if line.startswith("karta_pod_workload_info") else line for line in self.exposition.splitlines())
+        invalid += '\nkarta_exporter_observation_valid{scope="workload",namespace="scale",resource_group="batch",resource_version="v1",resource_kind="Job",workload_name="job-0",workload_uid="job-0-g0",reason="unresolved_owner"} 0\n'
+        check = lambda text: runtime_scale.read_owner_failures(io.BytesIO(text.encode()), self.fixture, {0})
+        self.assertTrue(check(invalid)["complete"])
+        self.assertFalse(check(self.exposition)["complete"])
+        self.assertFalse(check(invalid.replace("pod-0-0-g0", "pod-0-0-g1"))["complete"])
+        self.assertFalse(check(invalid.replace('reason="unresolved_owner"', 'reason="api_unavailable"'))["complete"])
+        self.assertFalse(check(invalid.replace('workload_name="job-0"', 'workload_name="wrong"'))["complete"])
+
+    def test_pod_lifecycle_oracle_retains_root_and_rejects_old_pod_uid(self):
+        self.fixture.change_pod_presence(0, 0, False)
+        without_pod = "\n".join(line for line in self.exposition.splitlines() if not line.startswith("karta_pod_workload_info"))
+        self.assertTrue(self.check(without_pod)["complete"])
+        self.assertFalse(self.check(self.exposition)["complete"])
+        self.fixture.change_pod_presence(0, 0, True)
+        self.assertFalse(self.check(self.exposition)["complete"])
+        current = "\n".join(line.replace("pod-0-0-g0", "pod-0-0-g1").replace('team="scale-team"', 'team="updated-team-3"') if line.startswith("karta_pod_workload_info") else line for line in self.exposition.splitlines())
+        self.assertTrue(self.check(current)["complete"])
+
+    def test_pod_churn_only_allows_labels_from_overlapping_updates(self):
+        self.fixture.change_pod(0)
+        intervals = ChurnIntervals()
+        intervals.begin(0, 1, {0: {"scale-team", "updated-team-2"}})
+        intervals.acknowledge(0, 2)
+        allowed = intervals.overlapping_pod_teams(1.5, 2.5)
+        self.assertEqual(allowed, {0: {"scale-team", "updated-team-2"}})
+        result = read_metrics(io.BytesIO(self.exposition.encode()), self.fixture, changing_roots={0}, changing_pod_teams=allowed)
+        self.assertTrue(result["complete"])
+        bad = self.exposition.replace('team="scale-team",pod_name', 'team="unrelated",pod_name')
+        self.assertFalse(read_metrics(io.BytesIO(bad.encode()), self.fixture, changing_roots={0}, changing_pod_teams=allowed)["complete"])
+        self.assertFalse(self.check(self.exposition)["complete"])
+        self.assertEqual(intervals.overlapping_pod_teams(3, 4), {})
+
+    def test_ack_rejects_stale_version_invalid_result_and_wrong_pod(self):
         p={"resource_version":"new","valid":True,"workload":{"UID":"job-0-g0","HasStatus":True,"CreatedTimestamp":CREATED,"Phases":["Running"]},"pods":{"pod-0-0-g0":{"valid":True,"record":{"UID":"pod-0-0-g0","Name":"pod-0-0","Namespace":"scale","Component":"job","Instance":"","Group":"","OwnerResolution":"resolved","Labels":{"team":"scale-team"}}}}}
         gvk={"Group":"batch","Version":"v1","Kind":"Job"}
         p["workload"].update({"Ref":{"GVK":gvk,"Namespace":"scale","Name":"job-0"},"OwnerResolution":"resolved","Karta":"batch-job-v1","KartaSource":"catalog","StatusLabels":{"team":"scale-team"}})
@@ -492,7 +587,7 @@ class ConvergeWiringTests(unittest.TestCase):
             if not release_oracle.wait(2): raise TimeoutError("oracle barrier")
             return {"complete":True,"counts":{}}
         namespace=dict(vars(runtime_scale),args=SimpleNamespace(stage_seconds=5,scrape_seconds=2,oracle_seconds=2,poll_seconds=0.001),
-                       fixture=SimpleNamespace(snapshot=lambda:{"requests":{}}),report={"stages":[]},
+                       fixture=SimpleNamespace(snapshot=lambda:{"requests":{}},condition=threading.Condition(),changed_pods={}),report={"stages":[]},
                        process=SimpleNamespace(poll=lambda:None,pid=0),limit=[],metrics_port=1,
                        diagnostics_port=None,started=time.monotonic(),collection_gate=gate,
                        churn_intervals=ChurnIntervals(),read_metrics=oracle,

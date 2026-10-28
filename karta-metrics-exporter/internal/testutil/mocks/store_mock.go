@@ -93,77 +93,37 @@ func (_c *Store_Capture_Call) RunAndReturn(run func() store.CapturedView) *Store
 	return _c
 }
 
-// Publish provides a mock function for the type Store
-func (_mock *Store) Publish(publication *store.Publication) {
-	_mock.Called(publication)
-	return
-}
-
-// Store_Publish_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Publish'
-type Store_Publish_Call struct {
-	*mock.Call
-}
-
-// Publish is a helper method to define mock.On call
-//   - publication *store.Publication
-func (_e *Store_Expecter) Publish(publication any) *Store_Publish_Call {
-	return &Store_Publish_Call{Call: _e.mock.On("Publish", publication)}
-}
-
-func (_c *Store_Publish_Call) Run(run func(publication *store.Publication)) *Store_Publish_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *store.Publication
-		if args[0] != nil {
-			arg0 = args[0].(*store.Publication)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *Store_Publish_Call) Return() *Store_Publish_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *Store_Publish_Call) RunAndReturn(run func(publication *store.Publication)) *Store_Publish_Call {
-	_c.Run(run)
-	return _c
-}
-
-// Published provides a mock function for the type Store
-func (_mock *Store) Published(uID types.UID) *store.Publication {
+// Pod provides a mock function for the type Store
+func (_mock *Store) Pod(uID types.UID) *store.PodResult {
 	ret := _mock.Called(uID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Published")
+		panic("no return value specified for Pod")
 	}
 
-	var r0 *store.Publication
-	if returnFunc, ok := ret.Get(0).(func(types.UID) *store.Publication); ok {
+	var r0 *store.PodResult
+	if returnFunc, ok := ret.Get(0).(func(types.UID) *store.PodResult); ok {
 		r0 = returnFunc(uID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.Publication)
+			r0 = ret.Get(0).(*store.PodResult)
 		}
 	}
 	return r0
 }
 
-// Store_Published_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Published'
-type Store_Published_Call struct {
+// Store_Pod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Pod'
+type Store_Pod_Call struct {
 	*mock.Call
 }
 
-// Published is a helper method to define mock.On call
+// Pod is a helper method to define mock.On call
 //   - uID types.UID
-func (_e *Store_Expecter) Published(uID any) *Store_Published_Call {
-	return &Store_Published_Call{Call: _e.mock.On("Published", uID)}
+func (_e *Store_Expecter) Pod(uID any) *Store_Pod_Call {
+	return &Store_Pod_Call{Call: _e.mock.On("Pod", uID)}
 }
 
-func (_c *Store_Published_Call) Run(run func(uID types.UID)) *Store_Published_Call {
+func (_c *Store_Pod_Call) Run(run func(uID types.UID)) *Store_Pod_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 types.UID
 		if args[0] != nil {
@@ -176,34 +136,34 @@ func (_c *Store_Published_Call) Run(run func(uID types.UID)) *Store_Published_Ca
 	return _c
 }
 
-func (_c *Store_Published_Call) Return(publication *store.Publication) *Store_Published_Call {
-	_c.Call.Return(publication)
+func (_c *Store_Pod_Call) Return(podResult *store.PodResult) *Store_Pod_Call {
+	_c.Call.Return(podResult)
 	return _c
 }
 
-func (_c *Store_Published_Call) RunAndReturn(run func(uID types.UID) *store.Publication) *Store_Published_Call {
+func (_c *Store_Pod_Call) RunAndReturn(run func(uID types.UID) *store.PodResult) *Store_Pod_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// RemovePublication provides a mock function for the type Store
-func (_mock *Store) RemovePublication(uID types.UID) {
+// RemoveDiscoveryFailure provides a mock function for the type Store
+func (_mock *Store) RemoveDiscoveryFailure(uID types.UID) {
 	_mock.Called(uID)
 	return
 }
 
-// Store_RemovePublication_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemovePublication'
-type Store_RemovePublication_Call struct {
+// Store_RemoveDiscoveryFailure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveDiscoveryFailure'
+type Store_RemoveDiscoveryFailure_Call struct {
 	*mock.Call
 }
 
-// RemovePublication is a helper method to define mock.On call
+// RemoveDiscoveryFailure is a helper method to define mock.On call
 //   - uID types.UID
-func (_e *Store_Expecter) RemovePublication(uID any) *Store_RemovePublication_Call {
-	return &Store_RemovePublication_Call{Call: _e.mock.On("RemovePublication", uID)}
+func (_e *Store_Expecter) RemoveDiscoveryFailure(uID any) *Store_RemoveDiscoveryFailure_Call {
+	return &Store_RemoveDiscoveryFailure_Call{Call: _e.mock.On("RemoveDiscoveryFailure", uID)}
 }
 
-func (_c *Store_RemovePublication_Call) Run(run func(uID types.UID)) *Store_RemovePublication_Call {
+func (_c *Store_RemoveDiscoveryFailure_Call) Run(run func(uID types.UID)) *Store_RemoveDiscoveryFailure_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 types.UID
 		if args[0] != nil {
@@ -216,38 +176,38 @@ func (_c *Store_RemovePublication_Call) Run(run func(uID types.UID)) *Store_Remo
 	return _c
 }
 
-func (_c *Store_RemovePublication_Call) Return() *Store_RemovePublication_Call {
+func (_c *Store_RemoveDiscoveryFailure_Call) Return() *Store_RemoveDiscoveryFailure_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *Store_RemovePublication_Call) RunAndReturn(run func(uID types.UID)) *Store_RemovePublication_Call {
+func (_c *Store_RemoveDiscoveryFailure_Call) RunAndReturn(run func(uID types.UID)) *Store_RemoveDiscoveryFailure_Call {
 	_c.Run(run)
 	return _c
 }
 
-// RetirePublicationFailure provides a mock function for the type Store
-func (_mock *Store) RetirePublicationFailure(key string) {
-	_mock.Called(key)
+// RemovePod provides a mock function for the type Store
+func (_mock *Store) RemovePod(uID types.UID) {
+	_mock.Called(uID)
 	return
 }
 
-// Store_RetirePublicationFailure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RetirePublicationFailure'
-type Store_RetirePublicationFailure_Call struct {
+// Store_RemovePod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemovePod'
+type Store_RemovePod_Call struct {
 	*mock.Call
 }
 
-// RetirePublicationFailure is a helper method to define mock.On call
-//   - key string
-func (_e *Store_Expecter) RetirePublicationFailure(key any) *Store_RetirePublicationFailure_Call {
-	return &Store_RetirePublicationFailure_Call{Call: _e.mock.On("RetirePublicationFailure", key)}
+// RemovePod is a helper method to define mock.On call
+//   - uID types.UID
+func (_e *Store_Expecter) RemovePod(uID any) *Store_RemovePod_Call {
+	return &Store_RemovePod_Call{Call: _e.mock.On("RemovePod", uID)}
 }
 
-func (_c *Store_RetirePublicationFailure_Call) Run(run func(key string)) *Store_RetirePublicationFailure_Call {
+func (_c *Store_RemovePod_Call) Run(run func(uID types.UID)) *Store_RemovePod_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 types.UID
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(types.UID)
 		}
 		run(
 			arg0,
@@ -256,39 +216,119 @@ func (_c *Store_RetirePublicationFailure_Call) Run(run func(key string)) *Store_
 	return _c
 }
 
-func (_c *Store_RetirePublicationFailure_Call) Return() *Store_RetirePublicationFailure_Call {
+func (_c *Store_RemovePod_Call) Return() *Store_RemovePod_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *Store_RetirePublicationFailure_Call) RunAndReturn(run func(key string)) *Store_RetirePublicationFailure_Call {
+func (_c *Store_RemovePod_Call) RunAndReturn(run func(uID types.UID)) *Store_RemovePod_Call {
 	_c.Run(run)
 	return _c
 }
 
-// SetPublicationFailure provides a mock function for the type Store
-func (_mock *Store) SetPublicationFailure(key string, reason string) {
-	_mock.Called(key, reason)
+// RemoveSourceHealth provides a mock function for the type Store
+func (_mock *Store) RemoveSourceHealth(sourceKey store.SourceKey) {
+	_mock.Called(sourceKey)
 	return
 }
 
-// Store_SetPublicationFailure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPublicationFailure'
-type Store_SetPublicationFailure_Call struct {
+// Store_RemoveSourceHealth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveSourceHealth'
+type Store_RemoveSourceHealth_Call struct {
 	*mock.Call
 }
 
-// SetPublicationFailure is a helper method to define mock.On call
-//   - key string
-//   - reason string
-func (_e *Store_Expecter) SetPublicationFailure(key any, reason any) *Store_SetPublicationFailure_Call {
-	return &Store_SetPublicationFailure_Call{Call: _e.mock.On("SetPublicationFailure", key, reason)}
+// RemoveSourceHealth is a helper method to define mock.On call
+//   - sourceKey store.SourceKey
+func (_e *Store_Expecter) RemoveSourceHealth(sourceKey any) *Store_RemoveSourceHealth_Call {
+	return &Store_RemoveSourceHealth_Call{Call: _e.mock.On("RemoveSourceHealth", sourceKey)}
 }
 
-func (_c *Store_SetPublicationFailure_Call) Run(run func(key string, reason string)) *Store_SetPublicationFailure_Call {
+func (_c *Store_RemoveSourceHealth_Call) Run(run func(sourceKey store.SourceKey)) *Store_RemoveSourceHealth_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 store.SourceKey
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(store.SourceKey)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_RemoveSourceHealth_Call) Return() *Store_RemoveSourceHealth_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Store_RemoveSourceHealth_Call) RunAndReturn(run func(sourceKey store.SourceKey)) *Store_RemoveSourceHealth_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RemoveWorkload provides a mock function for the type Store
+func (_mock *Store) RemoveWorkload(uID types.UID) {
+	_mock.Called(uID)
+	return
+}
+
+// Store_RemoveWorkload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveWorkload'
+type Store_RemoveWorkload_Call struct {
+	*mock.Call
+}
+
+// RemoveWorkload is a helper method to define mock.On call
+//   - uID types.UID
+func (_e *Store_Expecter) RemoveWorkload(uID any) *Store_RemoveWorkload_Call {
+	return &Store_RemoveWorkload_Call{Call: _e.mock.On("RemoveWorkload", uID)}
+}
+
+func (_c *Store_RemoveWorkload_Call) Run(run func(uID types.UID)) *Store_RemoveWorkload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 types.UID
+		if args[0] != nil {
+			arg0 = args[0].(types.UID)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_RemoveWorkload_Call) Return() *Store_RemoveWorkload_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Store_RemoveWorkload_Call) RunAndReturn(run func(uID types.UID)) *Store_RemoveWorkload_Call {
+	_c.Run(run)
+	return _c
+}
+
+// SetDiscoveryFailure provides a mock function for the type Store
+func (_mock *Store) SetDiscoveryFailure(objectRef store.ObjectRef, s string) {
+	_mock.Called(objectRef, s)
+	return
+}
+
+// Store_SetDiscoveryFailure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetDiscoveryFailure'
+type Store_SetDiscoveryFailure_Call struct {
+	*mock.Call
+}
+
+// SetDiscoveryFailure is a helper method to define mock.On call
+//   - objectRef store.ObjectRef
+//   - s string
+func (_e *Store_Expecter) SetDiscoveryFailure(objectRef any, s any) *Store_SetDiscoveryFailure_Call {
+	return &Store_SetDiscoveryFailure_Call{Call: _e.mock.On("SetDiscoveryFailure", objectRef, s)}
+}
+
+func (_c *Store_SetDiscoveryFailure_Call) Run(run func(objectRef store.ObjectRef, s string)) *Store_SetDiscoveryFailure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 store.ObjectRef
+		if args[0] != nil {
+			arg0 = args[0].(store.ObjectRef)
 		}
 		var arg1 string
 		if args[1] != nil {
@@ -302,38 +342,84 @@ func (_c *Store_SetPublicationFailure_Call) Run(run func(key string, reason stri
 	return _c
 }
 
-func (_c *Store_SetPublicationFailure_Call) Return() *Store_SetPublicationFailure_Call {
+func (_c *Store_SetDiscoveryFailure_Call) Return() *Store_SetDiscoveryFailure_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *Store_SetPublicationFailure_Call) RunAndReturn(run func(key string, reason string)) *Store_SetPublicationFailure_Call {
+func (_c *Store_SetDiscoveryFailure_Call) RunAndReturn(run func(objectRef store.ObjectRef, s string)) *Store_SetDiscoveryFailure_Call {
 	_c.Run(run)
 	return _c
 }
 
-// SetPublicationHealth provides a mock function for the type Store
-func (_mock *Store) SetPublicationHealth(healthRecords []store.HealthRecord) {
-	_mock.Called(healthRecords)
+// SetSourceHealth provides a mock function for the type Store
+func (_mock *Store) SetSourceHealth(sourceKey store.SourceKey, sourceHealth store.SourceHealth) {
+	_mock.Called(sourceKey, sourceHealth)
 	return
 }
 
-// Store_SetPublicationHealth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPublicationHealth'
-type Store_SetPublicationHealth_Call struct {
+// Store_SetSourceHealth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetSourceHealth'
+type Store_SetSourceHealth_Call struct {
 	*mock.Call
 }
 
-// SetPublicationHealth is a helper method to define mock.On call
-//   - healthRecords []store.HealthRecord
-func (_e *Store_Expecter) SetPublicationHealth(healthRecords any) *Store_SetPublicationHealth_Call {
-	return &Store_SetPublicationHealth_Call{Call: _e.mock.On("SetPublicationHealth", healthRecords)}
+// SetSourceHealth is a helper method to define mock.On call
+//   - sourceKey store.SourceKey
+//   - sourceHealth store.SourceHealth
+func (_e *Store_Expecter) SetSourceHealth(sourceKey any, sourceHealth any) *Store_SetSourceHealth_Call {
+	return &Store_SetSourceHealth_Call{Call: _e.mock.On("SetSourceHealth", sourceKey, sourceHealth)}
 }
 
-func (_c *Store_SetPublicationHealth_Call) Run(run func(healthRecords []store.HealthRecord)) *Store_SetPublicationHealth_Call {
+func (_c *Store_SetSourceHealth_Call) Run(run func(sourceKey store.SourceKey, sourceHealth store.SourceHealth)) *Store_SetSourceHealth_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []store.HealthRecord
+		var arg0 store.SourceKey
 		if args[0] != nil {
-			arg0 = args[0].([]store.HealthRecord)
+			arg0 = args[0].(store.SourceKey)
+		}
+		var arg1 store.SourceHealth
+		if args[1] != nil {
+			arg1 = args[1].(store.SourceHealth)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_SetSourceHealth_Call) Return() *Store_SetSourceHealth_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Store_SetSourceHealth_Call) RunAndReturn(run func(sourceKey store.SourceKey, sourceHealth store.SourceHealth)) *Store_SetSourceHealth_Call {
+	_c.Run(run)
+	return _c
+}
+
+// UpsertPod provides a mock function for the type Store
+func (_mock *Store) UpsertPod(podResult *store.PodResult) {
+	_mock.Called(podResult)
+	return
+}
+
+// Store_UpsertPod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertPod'
+type Store_UpsertPod_Call struct {
+	*mock.Call
+}
+
+// UpsertPod is a helper method to define mock.On call
+//   - podResult *store.PodResult
+func (_e *Store_Expecter) UpsertPod(podResult any) *Store_UpsertPod_Call {
+	return &Store_UpsertPod_Call{Call: _e.mock.On("UpsertPod", podResult)}
+}
+
+func (_c *Store_UpsertPod_Call) Run(run func(podResult *store.PodResult)) *Store_UpsertPod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *store.PodResult
+		if args[0] != nil {
+			arg0 = args[0].(*store.PodResult)
 		}
 		run(
 			arg0,
@@ -342,12 +428,105 @@ func (_c *Store_SetPublicationHealth_Call) Run(run func(healthRecords []store.He
 	return _c
 }
 
-func (_c *Store_SetPublicationHealth_Call) Return() *Store_SetPublicationHealth_Call {
+func (_c *Store_UpsertPod_Call) Return() *Store_UpsertPod_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *Store_SetPublicationHealth_Call) RunAndReturn(run func(healthRecords []store.HealthRecord)) *Store_SetPublicationHealth_Call {
+func (_c *Store_UpsertPod_Call) RunAndReturn(run func(podResult *store.PodResult)) *Store_UpsertPod_Call {
 	_c.Run(run)
+	return _c
+}
+
+// UpsertWorkload provides a mock function for the type Store
+func (_mock *Store) UpsertWorkload(workloadResult *store.WorkloadResult) {
+	_mock.Called(workloadResult)
+	return
+}
+
+// Store_UpsertWorkload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertWorkload'
+type Store_UpsertWorkload_Call struct {
+	*mock.Call
+}
+
+// UpsertWorkload is a helper method to define mock.On call
+//   - workloadResult *store.WorkloadResult
+func (_e *Store_Expecter) UpsertWorkload(workloadResult any) *Store_UpsertWorkload_Call {
+	return &Store_UpsertWorkload_Call{Call: _e.mock.On("UpsertWorkload", workloadResult)}
+}
+
+func (_c *Store_UpsertWorkload_Call) Run(run func(workloadResult *store.WorkloadResult)) *Store_UpsertWorkload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *store.WorkloadResult
+		if args[0] != nil {
+			arg0 = args[0].(*store.WorkloadResult)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_UpsertWorkload_Call) Return() *Store_UpsertWorkload_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Store_UpsertWorkload_Call) RunAndReturn(run func(workloadResult *store.WorkloadResult)) *Store_UpsertWorkload_Call {
+	_c.Run(run)
+	return _c
+}
+
+// Workload provides a mock function for the type Store
+func (_mock *Store) Workload(uID types.UID) *store.WorkloadResult {
+	ret := _mock.Called(uID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Workload")
+	}
+
+	var r0 *store.WorkloadResult
+	if returnFunc, ok := ret.Get(0).(func(types.UID) *store.WorkloadResult); ok {
+		r0 = returnFunc(uID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*store.WorkloadResult)
+		}
+	}
+	return r0
+}
+
+// Store_Workload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Workload'
+type Store_Workload_Call struct {
+	*mock.Call
+}
+
+// Workload is a helper method to define mock.On call
+//   - uID types.UID
+func (_e *Store_Expecter) Workload(uID any) *Store_Workload_Call {
+	return &Store_Workload_Call{Call: _e.mock.On("Workload", uID)}
+}
+
+func (_c *Store_Workload_Call) Run(run func(uID types.UID)) *Store_Workload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 types.UID
+		if args[0] != nil {
+			arg0 = args[0].(types.UID)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Store_Workload_Call) Return(workloadResult *store.WorkloadResult) *Store_Workload_Call {
+	_c.Call.Return(workloadResult)
+	return _c
+}
+
+func (_c *Store_Workload_Call) RunAndReturn(run func(uID types.UID) *store.WorkloadResult) *Store_Workload_Call {
+	_c.Call.Return(run)
 	return _c
 }

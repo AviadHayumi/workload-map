@@ -39,24 +39,24 @@ type Loader struct {
 // Config is the exporter configuration. It is read from the YAML file named by
 // --config. A flag, or its environment variable, overrides the file when set.
 type Config struct {
-	ResourceRules         []controller.ResourceRule `json:"resourceRules"`
-	ExcludeResourceRules  []controller.ResourceRule `json:"excludeResourceRules"`
-	NamespaceSelector     *metav1.LabelSelector     `json:"namespaceSelector"`
-	ObjectSelector        *metav1.LabelSelector     `json:"objectSelector"`
-	PodSelector           *metav1.LabelSelector     `json:"podSelector"`
-	KartaDefinitionSource inventory.Config          `json:"kartaDefinitionSource"`
-	IgnoredOwnerKinds     Kinds                     `json:"ignoredOwnerKinds"`
-	RequiredKinds         Kinds                     `json:"requiredKinds"`
-	RefreshInterval       string                    `json:"refreshInterval"`
-	MaxAge                string                    `json:"maxAge"`
-	RequestTimeout        string                    `json:"requestTimeout"`
-	APIQPS                float32                   `json:"apiQPS"`
-	APIBurst              int                       `json:"apiBurst"`
-	Workers               int                       `json:"workers"`
-	LeafWorkers           int                       `json:"leafWorkers"`
-	RootWorkers           int                       `json:"rootWorkers"`
-	LabelRules            []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
-	LabelLimits           labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
+	ResourceRules          []controller.ResourceRule `json:"resourceRules"`
+	ExcludeResourceRules   []controller.ResourceRule `json:"excludeResourceRules"`
+	NamespaceSelector      *metav1.LabelSelector     `json:"namespaceSelector"`
+	ObjectSelector         *metav1.LabelSelector     `json:"objectSelector"`
+	PodSelector            *metav1.LabelSelector     `json:"podSelector"`
+	KartaDefinitionSource  inventory.Config          `json:"kartaDefinitionSource"`
+	IgnoredOwnerKinds      Kinds                     `json:"ignoredOwnerKinds"`
+	RequiredKinds          Kinds                     `json:"requiredKinds"`
+	RetiredRefreshInterval json.RawMessage           `json:"refreshInterval,omitempty"`
+	RetiredMaxAge          json.RawMessage           `json:"maxAge,omitempty"`
+	RequestTimeout         string                    `json:"requestTimeout"`
+	APIQPS                 float32                   `json:"apiQPS"`
+	APIBurst               int                       `json:"apiBurst"`
+	Workers                int                       `json:"workers"`
+	LeafWorkers            int                       `json:"leafWorkers"`
+	RootWorkers            int                       `json:"rootWorkers"`
+	LabelRules             []labelresolver.LabelRule `yaml:"labelRules" json:"labelRules"`
+	LabelLimits            labelevaluator.Limits     `yaml:"labelLimits" json:"labelLimits"`
 }
 
 // setting is one configuration value with its flag and environment variable.
@@ -76,6 +76,8 @@ const (
 // errZeroInterruptCheckFrequency rejects a setting that would stop CEL from
 // checking for cancellation during evaluation.
 var errZeroInterruptCheckFrequency = errors.New("labelLimits.interruptCheckFrequency must be greater than 0")
+
+var errRetiredFreshness = errors.New("refreshInterval and maxAge were removed; delete these settings; validity now follows observed source health and evaluation errors")
 
 var errMultipleDocuments = errors.New("must contain a single YAML document")
 
@@ -152,7 +154,7 @@ var settings = []setting{
 	{
 		flag:  "workers",
 		env:   "KARTA_EXPORTER_WORKERS",
-		usage: "Default workers per ownership and publication queue (default 2).",
+		usage: "Default workers per Pod and workload queue (default 2).",
 		apply: func(c *Config, v string) (err error) {
 			c.Workers, err = strconv.Atoi(v)
 			return err
@@ -161,7 +163,7 @@ var settings = []setting{
 	{
 		flag:  "leaf-workers",
 		env:   "KARTA_EXPORTER_LEAF_WORKERS",
-		usage: "Ownership discovery workers for Pods and selected objects; zero inherits workers (default 0).",
+		usage: "Pod discovery and publication workers; zero inherits workers (default 0).",
 		apply: func(c *Config, v string) (err error) {
 			c.LeafWorkers, err = strconv.Atoi(v)
 			return err
@@ -170,7 +172,7 @@ var settings = []setting{
 	{
 		flag:  "root-workers",
 		env:   "KARTA_EXPORTER_ROOT_WORKERS",
-		usage: "Root publication workers; zero inherits workers (default 0).",
+		usage: "Candidate discovery and workload publication workers; zero inherits workers (default 0).",
 		apply: func(c *Config, v string) (err error) {
 			c.RootWorkers, err = strconv.Atoi(v)
 			return err
@@ -179,20 +181,14 @@ var settings = []setting{
 	{
 		flag:  "refresh-interval",
 		env:   "KARTA_EXPORTER_REFRESH_INTERVAL",
-		usage: "Interval between source and ownership proof refreshes (default 45s).",
-		apply: func(c *Config, v string) error {
-			c.RefreshInterval = v
-			return nil
-		},
+		usage: "Removed. Delete this setting; source health now follows LIST/WATCH results.",
+		apply: func(*Config, string) error { return errRetiredFreshness },
 	},
 	{
 		flag:  "max-age",
 		env:   "KARTA_EXPORTER_MAX_AGE",
-		usage: "Maximum source and ownership proof age (default 2m).",
-		apply: func(c *Config, v string) error {
-			c.MaxAge = v
-			return nil
-		},
+		usage: "Removed. Delete this setting; healthy quiet objects no longer expire.",
+		apply: func(*Config, string) error { return errRetiredFreshness },
 	},
 	{
 		flag:  "request-timeout",
@@ -288,9 +284,9 @@ func (l *Loader) value(s setting) (string, bool) {
 	return l.lookupEnv(s.env)
 }
 
-// DefaultConfig selects cluster definitions and bounds evidence age and worker concurrency.
+// DefaultConfig selects cluster definitions and bounds API requests and worker concurrency.
 func DefaultConfig() Config {
-	return Config{LabelLimits: defaultLabelLimits, KartaDefinitionSource: inventory.Config{Catalog: inventory.CatalogConfig{Exclude: []string{"core-pod-v1"}}, Cluster: inventory.ClusterConfig{Enabled: true}}, RefreshInterval: "45s", MaxAge: "2m", RequestTimeout: "30s", Workers: 2, APIQPS: 20, APIBurst: 40}
+	return Config{LabelLimits: defaultLabelLimits, KartaDefinitionSource: inventory.Config{Catalog: inventory.CatalogConfig{Exclude: []string{"core-pod-v1"}}, Cluster: inventory.ClusterConfig{Enabled: true}}, RequestTimeout: "30s", Workers: 2, APIQPS: 20, APIBurst: 40}
 }
 
 // Validate rejects runtime settings before any clients start.
@@ -323,13 +319,8 @@ func (cfg Config) Validate() error {
 			seen[kind] = true
 		}
 	}
-	refresh, err := time.ParseDuration(cfg.RefreshInterval)
-	if err != nil || refresh <= 0 {
-		return errors.New("refreshInterval must be a positive duration")
-	}
-	maxAge, err := time.ParseDuration(cfg.MaxAge)
-	if err != nil || maxAge <= refresh {
-		return errors.New("maxAge must exceed refreshInterval")
+	if cfg.RetiredRefreshInterval != nil || cfg.RetiredMaxAge != nil {
+		return errRetiredFreshness
 	}
 	timeout, err := time.ParseDuration(cfg.RequestTimeout)
 	if err != nil || timeout <= 0 {

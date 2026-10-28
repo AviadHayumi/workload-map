@@ -10,8 +10,9 @@ resolution, publication and OTel collection. No Store records are injected.
 This models API responses. It does not measure etcd or production API capacity.
 
 Each root is a Job. Each Job owns a ReplicaSet that owns its Pods. Intermediate
-ReplicaSets are available through metadata GET and paginated metadata LIST;
-only root and Pod watches are expected.
+ReplicaSets are available through metadata GET, paginated metadata LIST and
+streaming metadata WATCH. Traversal-only ReplicaSets must not receive a full
+watch. The report records active and peak watches per resource/representation.
 The bundled Job definition supplies the single `job` component. The independent
 oracle checks every root and Pod UID, component coordinates, creation timestamp,
 all nine phase values, custom `team` labels and observation health. Root phases
@@ -26,15 +27,18 @@ after recovery. `--quiet-seconds` and `--continuity-seconds` check every periodi
 quiet scrape. Sustained churn first primes stable public phase values, then
 changes root resource versions while an independent periodic oracle checks all
 rows. Only a root whose emitted-to-verified-acknowledgment interval overlaps the
-scrape may temporarily report coherent invalid rows. Its UID, coordinates,
-labels and phase values must still match. Invalid status requires matching
-workload health with reason `api_unavailable`; status and Pod validity must agree.
-Creation may be omitted while that root is invalid. Quiet roots remain fully
-valid, and the final scrape after churn requires all exact rows and valid proofs.
+scrape may temporarily report invalid rows. Its UID, coordinates, labels and
+phase values must still match. Pod mapping and workload status validity are
+independent. Invalid status requires matching workload health with reason
+`api_unavailable`. Creation may be omitted while status is invalid. Quiet roots
+remain fully valid. The final scrape requires all exact rows and healthy results.
 A changed root that fails to recover within 5 seconds (10 seconds for dense
-cases) fails the run. `--refresh-seconds` sets an explicit refresh interval for bounded TTL
-regression runs. `--watch-faults` injects Pod WATCH EOF and Job WATCH 410 before
-checking reconnection and a fresh visible Pod update.
+cases) fails the run. Candidate runs send no proof-expiry settings.
+`--legacy-proof-config` enables `maxAge: 120s` and optional `--refresh-seconds`
+only when comparing an older baseline that implements those settings. `--watch-faults` injects Pod WATCH EOF, Job WATCH 410 and, when present,
+ReplicaSet metadata WATCH 410. It checks reconnection and a fresh visible Pod
+update. A second Pod WATCH 410 forces a recovery LIST. The fixture mutates a Pod
+during that paginated LIST and checks convergence to the later watch event.
 
 ```sh
 (cd karta-metrics-exporter && go build -o /tmp/karta-exporter ./cmd)
@@ -54,11 +58,40 @@ explicit `--max-rss-mib 16384`; its predeclared cold-start target is 300 seconds
 The monitor samples once per second and kills the child on RSS or wall limits.
 This is a sampled limit, not an operating-system memory limit.
 
+## Bounded change scenarios
+
+The default sustained load changes root resource versions after establishing
+stable status values. `--churn-target pod` instead changes a visible Pod label
+on one Pod per hot root. Success still requires the exact current label in the
+independent diagnostic ACK. A continuity scrape may contain the old or new label
+only when that exact Pod update overlaps its observation interval. Quiet rows and
+the final scrape require current values. Root version checks remain enabled.
+
+`--pod-lifecycle-burst N` deletes N Pods while leaving their roots present, checks
+that their mappings disappear, then recreates them with new UIDs. The oracle
+requires every root to remain and rejects each obsolete Pod UID.
+
+`--ancestor-burst N` changes N intermediate ReplicaSet owner-reference UIDs to
+mismatched values. The oracle requires retained Pod mappings to become invalid
+with `unresolved_owner`, preserving exact identities and values. It then restores
+the references and requires healthy output. This exercises intermediate event
+routing and recovery. It does not measure successful reparenting between roots.
+Use the same scenario for baseline and candidate. An older polling implementation
+may require its normal refresh interval; record that latency without shortening
+its refresh setting. The burst limits are 10,000 Pods and 1,000 ancestors.
+
+These options add bounded cases, not a new claim about full-scale throughput.
+Keep measured pairs serial and preserve failed runs. Background operators and
+other host activity must be recorded beside results.
+
 ## Measurements and gates
 
 `result.json` includes binary/harness hashes, configuration, request counts by
 resource/operation/representation, WATCH delivery, response sizes, sampled RSS
-and CPU time, and per-stage convergence. Pure HTTP request/transfer time appears
+and CPU time, and per-stage convergence. Fixture `request_seconds` records count,
+sum and maximum server-side duration per non-watch API request category. These
+durations include fixture encoding and socket writes, not client round-trip time
+or production API latency. Long-lived watch durations are excluded. Pure HTTP request/transfer time appears
 as `http_seconds`. The offline streaming oracle appears as `oracle_seconds`.
 `scrape_seconds` includes both. Temporary response files avoid retaining a full
 large exposition in Python memory.
@@ -116,37 +149,29 @@ runtime guarantee.
 ## Dense default and tuned API profiles
 
 The 100k-root/10-Pod fixture contains 100,000 Jobs, 100,000 intermediate
-ReplicaSets and 1,000,000 Pods in one Namespace. Each 500-item verification
-round needs 2,000 Pod pages, 200 Job pages, 200 retained ReplicaSet metadata
-pages and one Namespace page: 2,401 LIST requests. ReplicaSets have no WATCH.
-At a 45-second refresh interval, the minimum average is 53.36 requests/s.
-The default 20 QPS supplies only 900 requests per interval. Its burst of 40
-cannot cover the sustained deficit. These counts exclude discovery, WATCH
-connections, retries and cold GET races. They establish an API request floor,
-not a prediction of processing time or production API-server capacity.
+ReplicaSets and 1,000,000 Pods in one namespace. The candidate uses full Job/Pod
+sources and a metadata ReplicaSet source. There is no periodic proof-verification
+LIST floor. Count actual LIST pages, watch reconnects, GETs and metadata/full
+representations from the report.
 
-Run the default dense profile first at `--api-qps 20 --api-burst 40` and retain
-its measured result, including any failure under the existing bounds. Then run
-a separately named tuned profile at `--api-qps 100 --api-burst 200`.
-The tuned profile changes API configuration, not the algorithm. It does not
-turn a failed default profile into a pass. At 100 QPS, one round consumes at
-least 24.01 seconds of sustained request capacity before other work.
+Run the default dense profile at `--api-qps 20 --api-burst 40` first. Retain its
+outcome, including failures. A separately named tuned profile may use
+`--api-qps 100 --api-burst 200`; it does not reclassify the default profile.
+Keep the same API budget, worker count, toolchain and harness in each baseline /
+candidate pair. Only the baseline receives `--legacy-proof-config`.
 
-Both dense profiles retain two workers, 45-second refresh, explicit
-`maxAge: 120s`, RSS <=16 GiB and GOMEMLIMIT=12 GiB. Cold start stays <=300
-seconds, HTTP <=25 seconds and oracle <=120 seconds. Each still requires
-30,000 verified events over 300 seconds at 100 events/s, publication p99 <=10
-seconds, drain <=60 seconds, the one-second scheduler lateness bound and the
-existing heap/deletion gates. Record separate source hashes, configuration and
-results. The 100k-root/0-Pod, 100k-root/1-Pod and giant-root profiles remain at
-20 QPS with burst 40. The harness writes `maxAge: 120s` explicitly for every
-profile so the source freshness bound appears in each result's configuration.
+Both dense profiles retain RSS <=16 GiB and GOMEMLIMIT=12 GiB. Cold start stays
+<=300 seconds, HTTP <=25 seconds and oracle <=120 seconds. Each requires 30,000
+verified events over 300 seconds at 100 events/s, publication p99 <=10 seconds,
+drain <=60 seconds, the one-second scheduler lateness bound and existing heap
+and deletion gates. Other profiles retain their declared budgets and limits.
+Historical reports retain their original proof-expiry configuration and semantics.
 
 ## Giant-root workload
 
 The giant-root case is one Job with 100,000 Pods. It emits 0.05 root updates/s,
 one every 20 seconds, for 300 seconds and exactly 15 verified acknowledgments.
-This measures whole-root invalidation and rebuilding of 100,000 Pod mappings.
+This measures root status evaluation and fanout to 100,000 independent Pod mappings.
 It does not establish throughput equivalent to 100 independently changing roots/s.
 
 Use `--roots 1 --pods 100000 --churn-seconds 300 --churn-rate 0.05`
@@ -191,15 +216,17 @@ those joins in a conservative upper bound; their raw values remain unchanged. Ac
 maintenance queue fails the drain gate even if current metric rows are correct.
 The harness records that failure and continues the lifecycle correctness stages.
 Publication polls take one `Store.Capture` and select at most 100 requested
-roots. They check creation, status and every Pod mapping against that same
-captured failure state and clock. The response includes the selected root and
-Pod records. The independent harness verifies the exact root version, UID,
+roots. They read independent workload and Pod results plus source health from
+one Capture. A Pod result may exist before its workload result. An ACK requires
+the current workload and every expected Pod mapping to be valid at that capture;
+it does not require one atomic workload/Pod revision. The response includes the
+selected root and Pod records. The independent harness verifies the exact root version, UID,
 phase and current Pod identities, coordinates and labels before acknowledging.
-These polls do not format metrics, but Capture scans the publication set and
+These polls do not format metrics, but Capture scans the result maps and
 selected Pod records add diagnostic CPU and response size, especially for the
 giant-root case. That overhead is included in reported latency.
 
-Protocol 3 uses an independent paced emitter and sizes its hot-root set as
+Protocol 4 retains protocol 3's independent paced emitter and sizes its hot-root set as
 `min(roots, max(100, ceil(rate * (publication_limit + 2 * lateness_limit + 2 * poll_seconds))))`.
 At 100 events/s, 250 ms polling and one-second scheduling lateness, this is 750
 roots for the five-second publication limit and 1,250 for the ten-second limit.
@@ -322,20 +349,21 @@ isolated Store benchmark is not a matched full-runtime performance comparison.
 The separate k8s-workload-discovery project is suitable for an ownership-walk
 comparison only; its full command has different publication semantics.
 
-## Churn oracle correction
+## Churn oracle versions
 
-The earlier oracle required every churn scrape to remain valid even after an
-accepted root resourceVersion update. The runtime deliberately invalidates the
-old proof until it publishes the new verified result. The documented consistency
-contract permits that interval. The corrected oracle models those intervals
-explicitly; it does not allow invalid quiet roots or waive UID, phase or mapping
-checks. Root-version-only churn leaves public phase and label values unchanged,
-so the metric scrape alone cannot distinguish old and new versions. The exact
-version and evidence checks in the diagnostic acknowledgment provide that proof.
+Earlier runtimes invalidated whole-workload proofs after accepted root updates.
+Their oracle allowed that interval only for roots with unacknowledged events.
+Protocol 4 retains the bounded interval for matched baseline runs, but permits
+independent Pod and workload validity. All nine phase rows from one workload
+result must agree on validity. An invalid Pod mapping need not invalidate status.
+Health rows must account for invalid results. Quiet roots must remain valid.
 
-Historical reports remain unchanged, including the earlier intermediate smoke
-failure and its unsampled reason. Those reports used the older oracle and
-version-only acknowledgment. Their latency values are not measurements of the
-new verified acknowledgment. Deterministic adversarial tests cover quiet-root
-invalidity, mixed validity, wrong UID, stale version, invalid proof and missing
-recovery. No historical failure was rewritten into a pass.
+Root-version-only churn leaves public phase and label values unchanged. Metric
+scrapes alone cannot identify the accepted version. Diagnostic ACKs require the
+exact workload version, current identities, values and healthy results. Independent
+Pod rows may come from another reconciliation; they need not share that version.
+
+Historical reports retain their original oracle and configuration, including
+failed runs. Tests reject quiet-root invalidity, inconsistent workload phase
+validity, stale UIDs, stale workload versions, invalid results and missing recovery.
+Small matched comparisons do not reclassify earlier full-scale outcomes.

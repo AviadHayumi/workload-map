@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,9 +33,6 @@ type countingStore struct {
 func (s *countingStore) Capture() store.CapturedView {
 	s.captures.Add(1)
 	return s.Interface.Capture()
-}
-func (s *countingStore) Published(types.UID) *store.Publication {
-	panic("diagnostics must use the captured view")
 }
 
 func TestDiagnostics(t *testing.T) { RegisterFailHandler(Fail); RunSpecs(t, "Scale diagnostics") }
@@ -92,19 +89,20 @@ var _ = Describe("test diagnostics", func() {
 			Expect(profile).NotTo(BeEmpty())
 		}
 	})
-	It("acknowledges only a coherent valid captured publication over HTTP", func() {
+	It("checks independent results and source health without expiring quiet rows", func() {
 		now := time.Now()
-		publications := &countingStore{Interface: store.New(store.Options{Now: func() time.Time { return now }})}
-		proof := store.Evidence{ExpiresAt: now.Add(time.Minute), Dependencies: []string{"proof"}}
-		publication := &store.Publication{Workload: store.WorkloadRecord{UID: "root", HasStatus: true, CreatedTimestamp: 1, Ref: store.ObjectRef{ResourceVersion: "opaque-version"}}, Creation: proof, Status: proof, PodPages: store.BuildPodPages([]store.PublishedPod{{Record: store.PodRecord{UID: "pod", Labels: map[string]string{"team": "team-v2"}}, Mapping: proof}}, nil)}
-		publications.Publish(publication)
-		server := httptest.NewServer(diagnostic{application: &app.Application{Store: publications}, queues: &queueProvider{metrics: map[string]*queueMetric{}}}.handler())
+		results := &countingStore{Interface: store.New(store.Options{Now: func() time.Time { return now }})}
+		source := store.SourceKey{Resource: schema.GroupVersionResource{Version: "v1", Resource: "pods"}, Namespace: "scale"}
+		results.SetSourceHealth(source, store.SourceHealth{Synced: true})
+		pod := &store.PodResult{HasValue: true, Record: store.PodRecord{UID: "pod", Workload: store.ObjectRef{UID: "root"}, Labels: map[string]string{"team": "team-v2"}}, Sources: []store.SourceKey{source}}
+		workload := &store.WorkloadResult{HasValue: true, Record: store.WorkloadRecord{UID: "root", HasStatus: true, CreatedTimestamp: 1, Ref: store.ObjectRef{ResourceVersion: "opaque-version"}}, Sources: []store.SourceKey{source}, CreationSources: []store.SourceKey{source}}
+		results.UpsertPod(pod)
+		server := httptest.NewServer(diagnostic{application: &app.Application{Store: results}, queues: &queueProvider{metrics: map[string]*queueMetric{}}}.handler())
 		defer server.Close()
 		tooMany, err := http.Get(server.URL + "/publications?" + strings.Repeat("uid=root&", 101))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(tooMany.StatusCode).To(Equal(http.StatusBadRequest))
 		tooMany.Body.Close()
-
 		read := func() map[string]any {
 			response, err := http.Get(server.URL + "/publications?uid=root")
 			Expect(err).NotTo(HaveOccurred())
@@ -113,30 +111,29 @@ var _ = Describe("test diagnostics", func() {
 			Expect(json.NewDecoder(response.Body).Decode(&result)).To(Succeed())
 			return result["root"]
 		}
+		first := read()
+		Expect(first["valid"]).To(BeFalse())
+		Expect(first["pods"].(map[string]any)).To(HaveKey("pod"))
+		Expect(results.captures.Load()).To(Equal(int32(1)))
+		results.UpsertWorkload(workload)
 		Expect(read()["valid"]).To(BeTrue())
-		Expect(publications.captures.Load()).To(Equal(int32(1)))
-		publications.SetPublicationFailure("proof", store.ReasonAPIUnavailable)
+		now = now.Add(24 * time.Hour)
+		Expect(read()["valid"]).To(BeTrue())
+		results.SetSourceHealth(source, store.SourceHealth{Synced: true, Error: store.ReasonAPIUnavailable})
 		Expect(read()["resource_version"]).To(Equal("opaque-version"))
 		Expect(read()["valid"]).To(BeFalse())
-		publications.SetPublicationFailure("proof", store.ReasonNone)
-		now = now.Add(2 * time.Minute)
+		results.SetSourceHealth(source, store.SourceHealth{Synced: true})
+		pod.Error = store.ReasonUnresolvedOwner
+		results.UpsertPod(pod)
 		Expect(read()["valid"]).To(BeFalse())
-		now = now.Add(-2 * time.Minute)
-		copy := *publication
-		copy.PodPages = store.BuildPodPages([]store.PublishedPod{{Record: store.PodRecord{UID: "pod"}, Mapping: store.Evidence{Reason: store.ReasonUnresolvedOwner}}}, nil)
-		publications.Publish(&copy)
+		Expect(read()["status_valid"]).To(BeTrue())
+		pod.Error = ""
+		results.UpsertPod(pod)
+		workload.StatusError = store.ReasonEvaluationFailed
+		results.UpsertWorkload(workload)
 		Expect(read()["valid"]).To(BeFalse())
-		copy = *publication
-		copy.Creation = store.Evidence{Reason: store.ReasonAPIUnavailable}
-		publications.Publish(&copy)
-		Expect(read()["valid"]).To(BeFalse())
-		copy = *publication
-		copy.FailureReasons = []string{"label_evaluation_failed"}
-		publications.Publish(&copy)
-		Expect(read()["valid"]).To(BeFalse())
-		copy = *publication
-		copy.Status = store.Evidence{Reason: store.ReasonEvaluationFailed}
-		publications.Publish(&copy)
+		Expect(read()["creation_valid"]).To(BeTrue())
+		results.RemoveSourceHealth(source)
 		Expect(read()["valid"]).To(BeFalse())
 	})
 })

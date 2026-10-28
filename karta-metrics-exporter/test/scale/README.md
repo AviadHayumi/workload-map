@@ -7,10 +7,17 @@ The current exporter is tested through a modeled Kubernetes HTTP API and an
 independent metric oracle. Start with the [executable harness guide](runtime-scale.md)
 for commands, topology, diagnostic overhead and acceptance gates.
 
-## Current evidence
+## Independent-controller evidence
 
-- [Current 100k-root outcomes](results/full-scale/README.md): `f868589a` with
-  harness `b234bfc8` passed every one-Pod gate. The current zero-Pod run passed
+- [Initial matched comparison](results/simple-controller/README.md): two short
+  repeats at 1,000 roots/one Pod and 10 roots/100 Pods passed lifecycle and 200
+  status updates each. Many-Pod allocation increased; no speedup is established.
+  Final-source and large-topology checks remain outstanding.
+
+## Evidence before the independent-controller change
+
+- [Prior 100k-root outcomes](results/full-scale/README.md): `f868589a` with
+  harness `b234bfc8` passed every one-Pod gate. That zero-Pod run passed
   correctness but failed heap growth (5.651% versus 5%). Default dense failed
   cold convergence; separately tuned dense exceeded 16 GiB RSS. The separately
   declared giant-root profile passed at 0.05 updates/s. Earlier source/protocol

@@ -94,7 +94,7 @@ use their `kubernetes.io/metadata.name` label.
 
 Namespace selection controls watch scope. All Pods in selected namespaces remain
 observed, even when `podSelector` hides some Pod rows. The
-[watch plan](../design/metrics-exporter/README.md#watches-and-queues) describes root
+[collection contract](../design/metrics-exporter/consistency.md#shared-reads) describes root
 coverage and intermediate-owner reads.
 
 Root selection happens after owner resolution. Excluding a JobSet also excludes
@@ -106,7 +106,7 @@ Namespace withdrawal removes affected Pod rows even beneath a cluster-scoped roo
 
 Include and exclude names apply separately within each source. Empty includes
 allow all names; exclusions win. Cluster definitions must also
-match their label selector. The [inventory contract](../design/metrics-exporter/README.md#select-the-definition)
+match their label selector. The [inventory contract](../../karta-metrics-exporter/pkg/kartadefinitioninventory/README.md)
 defines source choice, ties and failures.
 
 To enable bare-Pod catalog attribution, enable the catalog, include `core-pod-v1`
@@ -197,8 +197,6 @@ The chart uses the defaults for the other runtime settings:
 | YAML key | Flag | Environment variable | Default |
 | --- | --- | --- | --- |
 | Config path | `--config` | `KARTA_EXPORTER_CONFIG` | Empty |
-| `refreshInterval` | `--refresh-interval` | `KARTA_EXPORTER_REFRESH_INTERVAL` | `45s` |
-| `maxAge` | `--max-age` | `KARTA_EXPORTER_MAX_AGE` | `2m` |
 | `requestTimeout` | `--request-timeout` | `KARTA_EXPORTER_REQUEST_TIMEOUT` | `30s` |
 | `workers` | `--workers` | `KARTA_EXPORTER_WORKERS` | `2` |
 | `leafWorkers` | `--leaf-workers` | `KARTA_EXPORTER_LEAF_WORKERS` | `0` |
@@ -206,17 +204,22 @@ The chart uses the defaults for the other runtime settings:
 | `apiQPS` | `--api-qps` | `KARTA_EXPORTER_API_QPS` | `20` |
 | `apiBurst` | `--api-burst` | `KARTA_EXPORTER_API_BURST` | `40` |
 
-`leafWorkers` controls ownership discovery for Pods and selected non-Pod
-candidates. `rootWorkers` controls root evaluation and publication. Slow candidate
-owner reads use discovery workers, leaving publication workers available for
-already admitted roots. Each value inherits `workers` when zero or unset.
-For example, `workers: 2`, `leafWorkers: 4` and `rootWorkers: 1` starts four
-ownership-discovery workers and one publication worker. Existing configurations using only `workers` keep
-that count for both queues. Queue overrides must not be negative.
+`leafWorkers` controls Pod discovery, mapping and publication. `rootWorkers`
+controls selected candidate discovery and canonical workload publication. Each
+value inherits `workers` when zero or unset. For example, `workers: 2`,
+`leafWorkers: 4` and `rootWorkers: 1` starts four Pod workers and one workload
+worker. Existing configurations using only `workers` keep that count for both
+queues. Queue overrides must not be negative.
 
-Source verification uses two workers. Kubernetes clients share the API rate
-limit. Durations, `workers` and API rate limits must be positive, and maximum age
-must exceed the refresh interval. A delayed refresh does not extend expired evidence.
+Kubernetes clients share the API rate limit. The request timeout, `workers` and
+API rate limits must be positive. Shared sources use ordinary LIST/WATCH recovery.
+
+`refreshInterval` and `maxAge` have been removed, along with their flags and
+environment-variable behavior. Supplying them now returns a migration error.
+Delete these settings from existing configurations. Observations reflect source
+synchronization, observed transport failures and the last evaluation outcome.
+Healthy quiet objects no longer expire after two minutes. A silent connection
+stall can retain values until the watch detects a failure or reconnects.
 
 `--kubeconfig` selects local credentials. In-cluster startup uses the mounted
 ServiceAccount. `--metrics-bind-address` defaults to `:8080`; a local run can use
@@ -226,7 +229,7 @@ YAML key. Helm sets it from `exporter.http.port`. `--version` prints the binary 
 ## Metric delivery
 
 The implemented delivery path is Prometheus pull through OTel instruments.
-Status phase output follows the [Collector contract](../design/metrics-exporter/README.md#publish-and-collect).
+Status phase output follows the [collector contract](../../karta-metrics-exporter/pkg/adapters/otel/README.md).
 Native OTLP delivery is deferred.
 
 An external OTel Collector can scrape `/metrics` and forward samples to a backend.

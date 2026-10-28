@@ -34,7 +34,7 @@ var _ = Describe("Zero-Pod candidate admission through the API", func() {
 			g.Expect(text).NotTo(ContainSubstring(`workload_uid="` + string(child.UID) + `"`))
 		}
 		Eventually(check).Should(Succeed())
-		// Keep the quiet path valid beyond MaxAge without any Pod events.
+		// Keep the quiet path valid without requiring Pod events.
 		Consistently(check, 3*time.Second).Should(Succeed())
 		pods := &corev1.PodList{}
 		Expect(api.List(ctx, pods, client.InNamespace(ns))).To(Succeed())

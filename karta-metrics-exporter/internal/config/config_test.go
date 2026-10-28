@@ -134,6 +134,21 @@ func loadConfig(content string, env map[string]string, args ...string) (Config, 
 }
 
 var _ = Describe("runtime configuration", func() {
+	DescribeTable("rejects retired freshness settings from every input", func(key, flagName, envName string) {
+		for _, value := range []string{"2m", "''", "null", "0"} {
+			_, err := loadConfig(key+": "+value, nil)
+			Expect(err).To(MatchError(errRetiredFreshness))
+		}
+		for _, value := range []string{"2m", ""} {
+			_, err := loadConfig("", nil, "--"+flagName+"="+value)
+			Expect(err).To(MatchError(ContainSubstring(errRetiredFreshness.Error())))
+			_, err = loadConfig("", map[string]string{envName: value})
+			Expect(err).To(MatchError(ContainSubstring(errRetiredFreshness.Error())))
+		}
+	},
+		Entry("refresh interval", "refreshInterval", "refresh-interval", "KARTA_EXPORTER_REFRESH_INTERVAL"),
+		Entry("max age", "maxAge", "max-age", "KARTA_EXPORTER_MAX_AGE"),
+	)
 	It("keeps the shared worker default when queue overrides are unset or zero", func() {
 		cfg, err := loadConfig("", nil)
 		Expect(err).To(Succeed())

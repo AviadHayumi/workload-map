@@ -49,14 +49,6 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 	if kubeConfig == nil {
 		return nil, errors.New("kubernetes configuration is required")
 	}
-	refresh, err := time.ParseDuration(cfg.RefreshInterval)
-	if err != nil {
-		return nil, fmt.Errorf("refreshInterval: %w", err)
-	}
-	maxAge, err := time.ParseDuration(cfg.MaxAge)
-	if err != nil {
-		return nil, fmt.Errorf("maxAge: %w", err)
-	}
 	timeout, err := time.ParseDuration(cfg.RequestTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("requestTimeout: %w", err)
@@ -78,7 +70,7 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 		return nil, err
 	}
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
-	reader, err := controller.NewReader(controller.Clients{Dynamic: dynamicClient, Metadata: metadataClient, Mapper: mapper}, controller.ReaderOptions{TTL: maxAge, RequestTimeout: timeout})
+	reader, err := controller.NewReader(controller.Clients{Dynamic: dynamicClient, Metadata: metadataClient, Mapper: mapper}, controller.ReaderOptions{RequestTimeout: timeout})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +87,7 @@ func New(cfg config.Config, kubeConfig *rest.Config) (*Application, error) {
 		return nil, err
 	}
 	publications := store.New(store.Options{})
-	runtime, err := controller.New(controller.Config{IgnoredOwnerKinds: cfg.IgnoredOwnerKinds, ResourceRules: cfg.ResourceRules, ExcludeResourceRules: cfg.ExcludeResourceRules, NamespaceSelector: cfg.NamespaceSelector, ObjectSelector: cfg.ObjectSelector, PodSelector: cfg.PodSelector, Definitions: cfg.KartaDefinitionSource, RequiredKinds: cfg.RequiredKinds, RefreshInterval: refresh, MaxAge: maxAge, Workers: cfg.Workers, LeafWorkers: cfg.LeafWorkers, RootWorkers: cfg.RootWorkers}, controller.Dependencies{Discovery: ownership, Inventory: definitions, Labels: labels, Publications: publications}, reader)
+	runtime, err := controller.New(controller.Config{IgnoredOwnerKinds: cfg.IgnoredOwnerKinds, ResourceRules: cfg.ResourceRules, ExcludeResourceRules: cfg.ExcludeResourceRules, NamespaceSelector: cfg.NamespaceSelector, ObjectSelector: cfg.ObjectSelector, PodSelector: cfg.PodSelector, Definitions: cfg.KartaDefinitionSource, RequiredKinds: cfg.RequiredKinds, Workers: cfg.Workers, LeafWorkers: cfg.LeafWorkers, RootWorkers: cfg.RootWorkers}, controller.Dependencies{Discovery: ownership, Inventory: definitions, Labels: labels, Publications: publications}, reader)
 	if err != nil {
 		return nil, err
 	}

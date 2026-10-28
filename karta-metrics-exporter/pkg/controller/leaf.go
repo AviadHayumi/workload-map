@@ -5,94 +5,236 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
+	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-// Pods and selected objects share ownership discovery capacity. Root publication
-// has its own workers so an unavailable owner cannot delay unrelated roots.
 func (r *Runtime) resolveInput(ctx context.Context, key inputKey) error {
-	if key.Object.GVK == podGVK {
+	if !key.Sweep {
 		return r.resolveLeaf(ctx, key)
 	}
 	r.mu.Lock()
-	candidate := r.candidates[key.UID][key.Object]
-	if candidate == nil || !candidate.dirty {
+	defer r.mu.Unlock()
+	r.reader.mu.RLock()
+	defer r.reader.mu.RUnlock()
+	for _, entry := range r.reader.objects {
+		if key.Object.Namespace == "" || entry.object.GetNamespace() == key.Object.Namespace {
+			r.enqueueObjectLocked(refOf(entry.object))
+		}
+	}
+	// Include previous memberships so a removed definition can withdraw its roots.
+	for candidate := range r.candidates {
+		if key.Object.Namespace == "" || candidate.Object.Namespace == key.Object.Namespace {
+			r.rootQueue.Add(rootKey{Candidate: candidate})
+		}
+	}
+	return nil
+}
+
+func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
+	ref := key.ref()
+	if !r.namespaceAdmitted(ref.Namespace) {
+		r.mu.Lock()
+		r.removePodLocked(key)
 		r.mu.Unlock()
 		return nil
 	}
-	ref := candidate.ref
-	r.mu.Unlock()
-	return r.admitRoot(ctx, ref)
-}
-
-func (r *Runtime) enqueueObjectLocked(ref discovery.ObjectRef) {
-	switch ref.GVK {
-	case kartaGVK, namespaceGVK:
-		return
-	case podGVK:
-	default:
-		if r.candidates[ref.UID] == nil {
-			r.candidates[ref.UID] = map[objectKey]*rootCandidate{}
-		}
-		candidate := r.candidates[ref.UID][keyOf(ref)]
-		if candidate == nil {
-			candidate = &rootCandidate{}
-			r.candidates[ref.UID][keyOf(ref)] = candidate
-		}
-		candidate.ref, candidate.dirty = ref, true
+	object, _, err := r.reader.read(ref, true)
+	if apierrors.IsNotFound(err) {
+		r.mu.Lock()
+		r.removePodLocked(key)
+		r.mu.Unlock()
+		return nil
 	}
-	r.inputQueue.Add(inputKey{Object: keyOf(ref), UID: ref.UID})
-}
-
-// A leaf changes attribution. Publication belongs to the root queue.
-func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
-	ref := discovery.ObjectRef{GVK: podGVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
-	object, ok := r.reader.Cached(ref)
-	if !ok {
+	if err != nil {
+		return r.failPod(key, nil, err)
+	}
+	if !r.podSelector.Empty() && !r.podSelector.Matches(labelsFor(object)) {
+		r.mu.Lock()
+		r.removePodLocked(key)
+		r.mu.Unlock()
 		return nil
 	}
 	ref = refOf(object)
-	if !r.podSelector.Matches(labelsFor(object)) {
+	result, err := r.deps.Discovery.Get(ctx, ref)
+	if err != nil {
+		return r.failPod(key, []discovery.ObjectRef{ref}, err)
+	}
+	if result.Workload == nil {
+		return r.failPod(key, []discovery.ObjectRef{ref}, discovery.ErrUnresolvedOwner)
+	}
+	workload := result.Workload
+	selection, selectionErr := r.lookupDefinition(workload.Root.GVK)
+	if workload.Root.GVK == podGVK && selectionErr != nil {
+		return r.failPod(key, workload.Path, selectionErr)
+	}
+	if workload.Root.GVK == podGVK && selection.Definition == nil {
 		r.mu.Lock()
-		if root := r.roots[r.podRoots[ref.UID]]; root != nil {
-			r.invalidatePodLocked(root, ref.UID, store.ReasonUnresolvedOwner)
-			r.removePodPathLocked(root, ref.UID)
-			delete(r.podRoots, ref.UID)
-		}
+		r.removePodLocked(key)
 		r.mu.Unlock()
 		return nil
 	}
-	workload, watch, err := r.discoverPath(ctx, ref)
-	if err != nil || workload == nil {
-		return err
+
+	rootRef := workload.Root
+	if selection.Definition != nil {
+		rootRef.GVK = selection.GVK
+	}
+	allowed, scopeErr := r.selectedResource(rootRef.GVK)
+	if scopeErr != nil {
+		return r.failPod(key, workload.Path, scopeErr, rootRef)
+	}
+	if !allowed {
+		r.mu.Lock()
+		r.removePodLocked(key)
+		r.mu.Unlock()
+		return nil
+	}
+	r.mu.Lock()
+	if !r.currentPathLocked(workload.Path) {
+		r.mu.Unlock()
+		return discovery.ErrStale
+	}
+	if !r.isRootLocked(workload.Root) {
+		r.mu.Unlock()
+		return r.failPod(key, workload.Path, discovery.ErrUnresolvedOwner, workload.Root)
+	}
+	// Register before reading the root body. Root-event fanout takes this same lock.
+	previous := r.podRoots[key.UID]
+	root := r.rootLocked(workload)
+	if previous != root.ref.UID {
+		if old := r.roots[previous]; old != nil {
+			delete(old.pods, key.UID)
+			r.rootQueue.Add(rootKey{UID: previous})
+		}
+		r.podRoots[key.UID] = root.ref.UID
+		root.pods[key.UID] = key
+		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+	}
+	rootRef.ResourceVersion = ""
+	rootObject, rootSource, err := r.reader.read(rootRef, true)
+	_, watchFailed := r.watchFailures[discovery.WatchRequest{GVK: rootRef.GVK, Namespace: rootRef.Namespace}]
+	r.mu.Unlock()
+	if err != nil || watchFailed {
+		if _, err = r.ensureWatch(ctx, rootRef.GVK, rootRef.Namespace, true); err != nil {
+			return r.failPod(key, workload.Path, err, workload.Root)
+		}
+		rootObject, rootSource, err = r.reader.read(rootRef, true)
+	}
+	if err != nil {
+		return r.failPod(key, workload.Path, err, workload.Root)
+	}
+	selected, err := r.selectedRoot(rootObject)
+	if err != nil {
+		return r.failPod(key, workload.Path, err, workload.Root)
+	}
+	if !selected {
+		r.mu.Lock()
+		r.removePodLocked(key)
+		r.mu.Unlock()
+		return nil
+	}
+	rootRef = refOf(rootObject)
+	if selectionErr != nil {
+		return r.failPod(key, workload.Path, selectionErr, rootRef)
+	}
+	record := store.PodRecord{
+		UID:             key.UID,
+		Name:            ref.Name,
+		Namespace:       ref.Namespace,
+		Component:       "<unknown>",
+		Instance:        "<unknown>",
+		Workload:        storedRef(rootRef),
+		WorkloadGVK:     rootRef.GVK,
+		OwnerResolution: store.OwnerResolution(workload.Resolution),
+	}
+	if selection.Definition != nil {
+		record.Karta = selection.Origin.Name
+		record.KartaSource = string(selection.Origin.Source)
+		factory := resource.NewComponentFactoryFromObject(selection.Definition, rootObject)
+		record.Component, record.Instance, record.Group, err = mapPod(ctx, factory, selection.summary, object)
+		if err != nil {
+			return r.failPod(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), workload.Root)
+		}
+	}
+	labelResult, err := r.deps.Labels.ForWorkload(rootObject)(ctx, "karta_pod_workload_info", object)
+	if err != nil {
+		return r.failPod(key, workload.Path, err, workload.Root)
+	}
+	record.Labels = labelResult.Labels
+	sources := r.sourcesFor(workload.Path)
+	if !slices.Contains(sources, rootSource) {
+		sources = append(sources, rootSource)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	root, err := r.acceptPathLocked(ref, workload, watch)
-	if err != nil {
-		return err
+	if !r.currentPathLocked(workload.Path) || !r.isRootLocked(rootRef) || !r.currentSelectionLocked(rootRef, selection) {
+		return discovery.ErrStale
 	}
-	if previous := r.podRoots[ref.UID]; previous != "" && previous != workload.Root.UID {
-		if old := r.roots[previous]; old != nil {
-			r.invalidatePodLocked(old, ref.UID, store.ReasonUnresolvedOwner)
-			r.removePodPathLocked(old, ref.UID)
+	if current, ok := r.reader.Cached(rootRef); !ok || current.GetResourceVersion() != rootRef.ResourceVersion {
+		return discovery.ErrStale
+	}
+	next := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources}
+	if len(labelResult.Errors) > 0 {
+		next.Error = store.ReasonEvaluationFailed
+		if previous := r.deps.Publications.Pod(key.UID); previous != nil && previous.HasValue {
+			next.Record = previous.Record
+			next.Sources = appendSources(previous.Sources, sources)
 		}
 	}
-	if root.pods[ref.UID].resolveError != nil {
-		r.invalidatePodLocked(root, ref.UID, store.ReasonAPIUnavailable)
-	}
-	pod := root.pods[ref.UID]
-	pod.resolveError = nil
-	if pod.proofKey == "" {
-		r.sequence++
-		pod.proofKey = fmt.Sprintf("pod:%s:%d", ref.UID, r.sequence)
-	}
-	root.pods[ref.UID] = pod
-	r.setPodPathLocked(root, ref.UID, workload.Path)
-	r.dirtyPod(root, ref.UID)
-	r.podRoots[ref.UID] = workload.Root.UID
+	r.deps.Publications.UpsertPod(&next)
 	return nil
 }
+
+func (r *Runtime) failPod(key inputKey, path []discovery.ObjectRef, cause error, root ...discovery.ObjectRef) error {
+	if errors.Is(cause, context.Canceled) {
+		return cause
+	}
+	sources := r.sourcesFor(path)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	next := store.PodResult{Record: store.PodRecord{UID: key.UID}, Input: storedRef(key.ref())}
+	if len(root) > 0 {
+		next.Record.Workload = storedRef(root[0])
+		next.Record.WorkloadGVK = root[0].GVK
+	}
+
+	if previous := r.deps.Publications.Pod(key.UID); previous != nil {
+		if previous.HasValue || len(root) == 0 {
+			next = *previous
+		}
+		sources = appendSources(previous.Sources, sources)
+	}
+	next.Error = failureReason(cause)
+	next.Sources = sources
+	r.deps.Publications.UpsertPod(&next)
+	if errors.Is(cause, discovery.ErrEvaluation) || errors.Is(cause, inventory.ErrInvalidDefinition) || errors.Is(cause, discovery.ErrInvalidDefinition) {
+		return nil
+	}
+	return cause
+}
+func (r *Runtime) currentPathLocked(path []discovery.ObjectRef) bool {
+	for _, ref := range path {
+		if _, ok := r.reader.Cached(ref); !ok {
+			return false
+		}
+	}
+	return true
+}
+func (r *Runtime) currentSelectionLocked(ref discovery.ObjectRef, selection selectedDefinition) bool {
+	if r.definitionError != nil {
+		return false
+	}
+	current := r.selections[ref.GVK.GroupKind()]
+	return current.err == nil && current.GVK == selection.GVK && current.Origin == selection.Origin
+}
+func labelsFor(object *unstructured.Unstructured) labels.Set { return labels.Set(object.GetLabels()) }
