@@ -23,6 +23,25 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
+func ValidateResourceRules(rules []ResourceRule) error {
+	for index, rule := range rules {
+		if len(rule.APIGroups) == 0 || len(rule.APIVersions) == 0 || len(rule.Resources) == 0 {
+			return fmt.Errorf("resource rule %d requires apiGroups, apiVersions and resources", index)
+		}
+		for _, version := range rule.APIVersions {
+			if version == "" || strings.ContainsAny(version, "/ \t\n") {
+				return errors.New("resource rule API versions must name a version or *")
+			}
+		}
+		for _, resource := range rule.Resources {
+			if resource == "" || strings.ContainsAny(resource, "/ \t\n") {
+				return errors.New("resource rules must name whole resources or *")
+			}
+		}
+	}
+	return nil
+}
+
 func (r *Runtime) resolveWorkload(ctx context.Context, key rootKey) error {
 	if key.Candidate.UID != "" {
 		return r.admitRoot(ctx, key.Candidate)
@@ -130,18 +149,6 @@ func (r *Runtime) admitRoot(ctx context.Context, key inputKey) error {
 	}
 	r.failCandidate(key, err)
 	return err
-}
-
-func (r *Runtime) failCandidate(key inputKey, err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if root := r.roots[r.candidates[key]]; root != nil {
-		candidate := root.candidates[key]
-		candidate.err = err
-		root.candidates[key] = candidate
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
-	}
-	r.deps.Publications.SetDiscoveryFailure(storedRef(key.ref()), failureReason(err))
 }
 
 // Only canonical UID keys publish workload results. Candidate keys only admit
@@ -265,6 +272,18 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	r.deps.Publications.UpsertWorkload(&next)
 	return nil
 }
+func (r *Runtime) failCandidate(key inputKey, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if root := r.roots[r.candidates[key]]; root != nil {
+		candidate := root.candidates[key]
+		candidate.err = err
+		root.candidates[key] = candidate
+		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+	}
+	r.deps.Publications.SetDiscoveryFailure(storedRef(key.ref()), failureReason(err))
+}
+
 func (r *Runtime) failWorkload(uid types.UID, ref discovery.ObjectRef, cause error) error {
 	if errors.Is(cause, context.Canceled) {
 		return cause
@@ -327,25 +346,6 @@ func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *in
 		}
 	}
 	return name, instance, group, nil
-}
-
-func ValidateResourceRules(rules []ResourceRule) error {
-	for index, rule := range rules {
-		if len(rule.APIGroups) == 0 || len(rule.APIVersions) == 0 || len(rule.Resources) == 0 {
-			return fmt.Errorf("resource rule %d requires apiGroups, apiVersions and resources", index)
-		}
-		for _, version := range rule.APIVersions {
-			if version == "" || strings.ContainsAny(version, "/ \t\n") {
-				return errors.New("resource rule API versions must name a version or *")
-			}
-		}
-		for _, resource := range rule.Resources {
-			if resource == "" || strings.ContainsAny(resource, "/ \t\n") {
-				return errors.New("resource rules must name whole resources or *")
-			}
-		}
-	}
-	return nil
 }
 
 func matchesResource(rule ResourceRule, gvr schema.GroupVersionResource) bool {

@@ -178,15 +178,6 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	reader.ensure = r.ensureWatch
 	return r, nil
 }
-func newQueue[T comparable](name string) workqueue.TypedRateLimitingInterface[T] {
-	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[T](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[T]{Name: name})
-}
-func selector(value *metav1.LabelSelector) (labels.Selector, error) {
-	if value == nil {
-		return labels.Everything(), nil
-	}
-	return metav1.LabelSelectorAsSelector(value)
-}
 func (r *Runtime) Run(ctx context.Context) error {
 	r.mu.Lock()
 	if r.started {
@@ -238,20 +229,6 @@ running:
 	r.wg.Wait()
 	return nil
 }
-func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimitingInterface[T], reconcile func(context.Context, T) error) {
-	for {
-		key, shutdown := queue.Get()
-		if shutdown {
-			return
-		}
-		if err := reconcile(ctx, key); err != nil && ctx.Err() == nil {
-			queue.AddRateLimited(key)
-		} else {
-			queue.Forget(key)
-		}
-		queue.Done(key)
-	}
-}
 func (r *Runtime) Ready() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -269,6 +246,29 @@ func (r *Runtime) Ready() bool {
 		}
 	}
 	return true
+}
+func newQueue[T comparable](name string) workqueue.TypedRateLimitingInterface[T] {
+	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[T](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[T]{Name: name})
+}
+func selector(value *metav1.LabelSelector) (labels.Selector, error) {
+	if value == nil {
+		return labels.Everything(), nil
+	}
+	return metav1.LabelSelectorAsSelector(value)
+}
+func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimitingInterface[T], reconcile func(context.Context, T) error) {
+	for {
+		key, shutdown := queue.Get()
+		if shutdown {
+			return
+		}
+		if err := reconcile(ctx, key); err != nil && ctx.Err() == nil {
+			queue.AddRateLimited(key)
+		} else {
+			queue.Forget(key)
+		}
+		queue.Done(key)
+	}
 }
 func (r *Runtime) requiredWatch(gvk schema.GroupVersionKind) bool {
 	return gvk == podGVK || (gvk == namespaceGVK && r.config.NamespaceSelector != nil) || slices.Contains(r.config.RequiredKinds, gvk)

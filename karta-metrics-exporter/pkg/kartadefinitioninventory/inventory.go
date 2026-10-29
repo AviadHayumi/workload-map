@@ -260,6 +260,56 @@ func (i *Inventory) WaitLoaded(ctx context.Context) error {
 	}
 }
 
+// Lookup ignores the requested version and never falls back while a source fails.
+// A nil Definition with no error means neither source has a matching definition.
+func (i *Inventory) Lookup(gvk schema.GroupVersionKind) (Selection, error) {
+	winner, source, err := i.elect(gvk)
+	if err != nil {
+		return Selection{}, err
+	}
+	if winner.err != nil {
+		return Selection{}, winner.err
+	}
+	return selection(winner.definition, source), nil
+}
+
+// List returns one elected definition per group and kind in GVK order.
+// Invalid winners retain their identity and validation error. A source error
+// returns no snapshot and must not be treated as confirmed absence.
+func (i *Inventory) List() ([]SelectionResult, error) {
+	i.mu.RLock()
+	if err := i.ready(); err != nil {
+		i.mu.RUnlock()
+		return nil, err
+	}
+	kinds := sets.New[schema.GroupKind]()
+	for gk := range i.catalog {
+		kinds.Insert(gk)
+	}
+	for _, entry := range i.cluster {
+		gvk := catalog.RootKey(entry.definition)
+		if gvk.Version != "" && gvk.Kind != "" {
+			kinds.Insert(gvk.GroupKind())
+		}
+	}
+	results := make([]SelectionResult, 0, kinds.Len())
+	for gk := range kinds {
+		winner, source := i.electLocked(gk.WithVersion(""))
+		results = append(results, SelectionResult{Selection: Selection{Definition: winner.definition, Origin: Origin{Source: source}}, Err: winner.err})
+	}
+	i.mu.RUnlock()
+	for n := range results {
+		results[n].Selection = selection(results[n].Definition, results[n].Origin.Source)
+	}
+	slices.SortFunc(results, func(a, b SelectionResult) int { return strings.Compare(a.GVK.String(), b.GVK.String()) })
+	return results, nil
+}
+
+// Changes is a coalesced signal for a single observer to read List again.
+// Consumers read the initial snapshot themselves and stop on their context.
+// The channel remains open after Run stops so its final health can be read.
+func (i *Inventory) Changes() <-chan struct{} { return i.changes }
+
 // listWatch records every failure; the reflector retries some without reporting them.
 func (i *Inventory) listWatch(resource dynamic.ResourceInterface) *cache.ListWatch {
 	return &cache.ListWatch{
@@ -536,56 +586,6 @@ func (i *Inventory) ready() error {
 	}
 	return nil
 }
-
-// Lookup ignores the requested version and never falls back while a source fails.
-// A nil Definition with no error means neither source has a matching definition.
-func (i *Inventory) Lookup(gvk schema.GroupVersionKind) (Selection, error) {
-	winner, source, err := i.elect(gvk)
-	if err != nil {
-		return Selection{}, err
-	}
-	if winner.err != nil {
-		return Selection{}, winner.err
-	}
-	return selection(winner.definition, source), nil
-}
-
-// List returns one elected definition per group and kind in GVK order.
-// Invalid winners retain their identity and validation error. A source error
-// returns no snapshot and must not be treated as confirmed absence.
-func (i *Inventory) List() ([]SelectionResult, error) {
-	i.mu.RLock()
-	if err := i.ready(); err != nil {
-		i.mu.RUnlock()
-		return nil, err
-	}
-	kinds := sets.New[schema.GroupKind]()
-	for gk := range i.catalog {
-		kinds.Insert(gk)
-	}
-	for _, entry := range i.cluster {
-		gvk := catalog.RootKey(entry.definition)
-		if gvk.Version != "" && gvk.Kind != "" {
-			kinds.Insert(gvk.GroupKind())
-		}
-	}
-	results := make([]SelectionResult, 0, kinds.Len())
-	for gk := range kinds {
-		winner, source := i.electLocked(gk.WithVersion(""))
-		results = append(results, SelectionResult{Selection: Selection{Definition: winner.definition, Origin: Origin{Source: source}}, Err: winner.err})
-	}
-	i.mu.RUnlock()
-	for n := range results {
-		results[n].Selection = selection(results[n].Definition, results[n].Origin.Source)
-	}
-	slices.SortFunc(results, func(a, b SelectionResult) int { return strings.Compare(a.GVK.String(), b.GVK.String()) })
-	return results, nil
-}
-
-// Changes is a coalesced signal for a single observer to read List again.
-// Consumers read the initial snapshot themselves and stop on their context.
-// The channel remains open after Run stops so its final health can be read.
-func (i *Inventory) Changes() <-chan struct{} { return i.changes }
 
 func (i *Inventory) notify() {
 	select {

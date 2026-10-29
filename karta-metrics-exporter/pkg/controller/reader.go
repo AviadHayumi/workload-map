@@ -76,6 +76,27 @@ func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bo
 	return object, err == nil
 }
 
+func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if r.ensure == nil {
+		return nil, discovery.ErrPending
+	}
+	if _, err := r.ensure(ctx, ref.GVK, ref.Namespace, false); err != nil {
+		return nil, err
+	}
+	object, _, err := r.read(ref, false)
+	if err != nil {
+		return nil, err
+	}
+	result := &metav1.PartialObjectMetadata{}
+	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -115,27 +136,6 @@ func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstruc
 		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)
 	}
 	return nil, watchKey{}, discovery.ErrPending
-}
-
-func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if r.ensure == nil {
-		return nil, discovery.ErrPending
-	}
-	if _, err := r.ensure(ctx, ref.GVK, ref.Namespace, false); err != nil {
-		return nil, err
-	}
-	object, _, err := r.read(ref, false)
-	if err != nil {
-		return nil, err
-	}
-	result := &metav1.PartialObjectMetadata{}
-	if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, result); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {

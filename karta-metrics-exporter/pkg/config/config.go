@@ -264,20 +264,6 @@ func (l *Loader) Load() (Config, error) {
 	return cfg, nil
 }
 
-// value distinguishes an explicit empty flag from an unset one.
-func (l *Loader) value(s setting) (string, bool) {
-	set := false
-	l.flagSet.Visit(func(f *flag.Flag) {
-		if f.Name == s.flag {
-			set = true
-		}
-	})
-	if set {
-		return *l.flags[s.flag], true
-	}
-	return l.lookupEnv(s.env)
-}
-
 // DefaultConfig selects cluster definitions and bounds API requests and worker concurrency.
 func DefaultConfig() Config {
 	return Config{Config: labelresolver.Config{Limits: defaultLabelEvaluationLimits}, KartaDefinitionSource: KartaDefinitionSourceConfig{Cluster: DefinitionSourceConfig{Enabled: true}}, RequestTimeout: "30s", Workers: 2, APIQPS: 20, APIBurst: 40}
@@ -338,4 +324,18 @@ func (c KartaDefinitionSourceConfig) InventoryConfig() inventory.Config {
 		return inventory.SourceConfig{Enabled: s.Enabled, Include: s.Include, Exclude: s.Exclude, LabelSelector: s.LabelSelector}
 	}
 	return inventory.Config{Catalog: convert(c.Catalog), Cluster: convert(c.Cluster)}
+}
+
+// value distinguishes an explicit empty flag from an unset one.
+func (l *Loader) value(s setting) (string, bool) {
+	set := false
+	l.flagSet.Visit(func(f *flag.Flag) {
+		if f.Name == s.flag {
+			set = true
+		}
+	})
+	if set {
+		return *l.flags[s.flag], true
+	}
+	return l.lookupEnv(s.env)
 }
