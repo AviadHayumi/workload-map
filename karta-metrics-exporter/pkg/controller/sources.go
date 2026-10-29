@@ -34,10 +34,6 @@ type reflectorStore struct {
 	runtime *Runtime
 	source  *resourceWatch
 }
-type watchedStream struct {
-	events chan watch.Event
-	cancel context.CancelFunc
-}
 
 func (r *Runtime) syncWatches(ctx context.Context) error {
 	if r.config.NamespaceSelector != nil {
@@ -290,20 +286,22 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 	if err != nil {
 		return nil, err
 	}
-	child, cancel := context.WithCancel(ctx)
-	monitored := &watchedStream{events: make(chan watch.Event), cancel: cancel}
+	events := make(chan watch.Event)
+	monitored := watch.NewProxyWatcher(events)
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		defer close(monitored.events)
+		defer close(events)
 		defer stream.Stop()
 		for {
 			select {
-			case <-child.Done():
+			case <-ctx.Done():
+				return
+			case <-monitored.StopChan():
 				return
 			case event, ok := <-stream.ResultChan():
 				if !ok {
-					if child.Err() == nil {
+					if ctx.Err() == nil && !monitored.Stopping() {
 						r.mu.Lock()
 						r.setHealthLocked(w, errors.New("watch closed"))
 						r.mu.Unlock()
@@ -325,17 +323,17 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 					event.Object = object
 				}
 				select {
-				case <-child.Done():
+				case <-ctx.Done():
 					return
-				case monitored.events <- event:
+				case <-monitored.StopChan():
+					return
+				case events <- event:
 				}
 			}
 		}
 	}()
 	return monitored, nil
 }
-func (w *watchedStream) Stop()                          { w.cancel() }
-func (w *watchedStream) ResultChan() <-chan watch.Event { return w.events }
 
 func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
 	if tombstone, ok := value.(cache.DeletedFinalStateUnknown); ok {

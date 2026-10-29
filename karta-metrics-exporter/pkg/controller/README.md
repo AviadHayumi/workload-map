@@ -94,6 +94,11 @@ A collection's group, version and resource form its GVR, such as `apps/v1/deploy
   and queues work. It does not calculate metrics.
 - The Reflector reconnects and relists when needed.
 
+A `watch.ProxyWatcher` exposes the forwarded event channel to the Reflector.
+The forwarding goroutine converts source objects and records watch failures
+before forwarding events. It owns stopping the upstream watch and closing the
+channel. Both Reflector stop requests and context cancellation unblock it.
+
 ### Full objects or metadata?
 
 | Object | What is cached | Why |

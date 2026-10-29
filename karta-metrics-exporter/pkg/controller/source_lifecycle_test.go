@@ -194,12 +194,35 @@ func TestWatchFailureAndEOFRemainVisibleUntilReconnect(t *testing.T) {
 	require.Empty(t, values.Capture().Sources[source.key].Error)
 }
 
+func TestMalformedWatchEventRejectsSourceAndClosesStream(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r, values := simpleRuntime(t, nil)
+		source := seedSource(t, r, deploymentKind, true)
+		stream := watch.NewRaceFreeFake()
+		counted := &countingStream{Interface: stream}
+		r.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient).PrependWatchReactor("deployments", func(clienttesting.Action) (bool, watch.Interface, error) {
+			return true, counted, nil
+		})
+		monitored, err := r.watchResource(context.Background(), source, metav1.ListOptions{})
+		require.NoError(t, err)
+		defer monitored.Stop()
+		stream.Add(&metav1.Status{})
+		synctest.Wait()
+		r.wg.Wait()
+		_, open := <-monitored.ResultChan()
+		require.False(t, open, "malformed events must not reach the reflector")
+		require.Equal(t, int32(1), counted.stops.Load())
+		require.EqualError(t, source.err, "unexpected source object *v1.Status")
+		require.Equal(t, store.ReasonAPIUnavailable, values.Capture().Sources[source.key].Error)
+	})
+}
+
 func TestWatchShutdownStopsSourceOnce(t *testing.T) {
 	for _, blockedOn := range []string{"input", "output"} {
-		for _, shutdown := range []string{"stop", "cancel", "concurrent stop and cancel"} {
+		for _, shutdown := range []string{"stop", "cancel", "stop then EOF", "cancel then EOF", "concurrent stop and cancel"} {
 			t.Run(blockedOn+"/"+shutdown, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
-					r, _ := simpleRuntime(t, nil)
+					r, values := simpleRuntime(t, nil)
 					source := seedSource(t, r, deploymentKind, true)
 					stream := watch.NewRaceFreeFake()
 					counted := &countingStream{Interface: stream}
@@ -222,6 +245,12 @@ func TestWatchShutdownStopsSourceOnce(t *testing.T) {
 						monitored.Stop()
 					case "cancel":
 						cancel()
+					case "stop then EOF":
+						monitored.Stop()
+						stream.Stop()
+					case "cancel then EOF":
+						cancel()
+						stream.Stop()
 					case "concurrent stop and cancel":
 						for range 10 {
 							go monitored.Stop()
@@ -233,6 +262,7 @@ func TestWatchShutdownStopsSourceOnce(t *testing.T) {
 					_, open := <-monitored.ResultChan()
 					require.False(t, open)
 					require.Equal(t, int32(1), counted.stops.Load())
+					require.Empty(t, values.Capture().Sources[source.key].Error)
 					monitored.Stop()
 					cancel()
 					require.Equal(t, int32(1), counted.stops.Load())
