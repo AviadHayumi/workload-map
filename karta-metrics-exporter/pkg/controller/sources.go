@@ -31,8 +31,8 @@ type resourceWatch struct {
 	cancel      context.CancelFunc
 }
 type reflectorStore struct {
-	runtime *controllerState
-	source  *resourceWatch
+	controller *controllerState
+	watch      *resourceWatch
 }
 
 func (r *controllerState) syncWatches(ctx context.Context) error {
@@ -44,27 +44,27 @@ func (r *controllerState) syncWatches(ctx context.Context) error {
 	r.mu.Lock()
 	definitionErr := r.refreshDefinitionsLocked()
 	if r.config.NamespaceSelector != nil {
-		ready := false
-		next := map[string]bool{}
+		namespaceWatchReady := false
+		admittedNamespaces := map[string]bool{}
 		for _, w := range r.watches {
 			if w.gvk != namespaceGVK {
 				continue
 			}
 			if w.ready && w.err == nil {
-				ready = true
+				namespaceWatchReady = true
 				for key := range w.objects {
 					object := r.objects[key].object
 					if r.namespaceSelector.Matches(labelsFor(object)) {
-						next[object.GetName()] = true
+						admittedNamespaces[object.GetName()] = true
 					}
 				}
 			}
 		}
-		if !ready {
+		if !namespaceWatchReady {
 			r.mu.Unlock()
 			return discovery.ErrPending
 		}
-		r.scopes = next
+		r.scopes = admittedNamespaces
 	}
 	scopes := make([]string, 0, len(r.scopes))
 	for namespace := range r.scopes {
@@ -142,7 +142,7 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 	if err := ctx.Err(); err != nil {
 		return key, err
 	}
-	child, cancel := context.WithCancel(ctx)
+	watchCtx, cancel := context.WithCancel(ctx)
 	w := &resourceWatch{key: key, gvk: gvk, full: full, objects: map[objectKey]struct{}{}, cancel: cancel}
 	if r.watches[key] != nil {
 		r.replacements[key] = w
@@ -151,9 +151,9 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		r.sources[key] = cacheSource{gvk: gvk, hasFullObject: full}
 	}
 	r.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk})
-	lw := &cache.ListWatch{
+	listWatch := &cache.ListWatch{
 		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
-			return r.listWatch(requestCtx, w, options)
+			return r.listResource(requestCtx, w, options)
 		},
 		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return r.watchResource(requestCtx, w, options)
@@ -162,15 +162,15 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		cache.NewReflectorWithOptions(lw, &unstructured.Unstructured{}, &reflectorStore{runtime: r, source: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(child)
+		cache.NewReflectorWithOptions(listWatch, &unstructured.Unstructured{}, &reflectorStore{controller: r, watch: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(watchCtx)
 	}()
 	return key, nil
 }
-func (r *controllerState) isSourceLocked(w *resourceWatch) bool {
+func (r *controllerState) isTrackedWatchLocked(w *resourceWatch) bool {
 	return r.watches[w.key] == w || r.replacements[w.key] == w
 }
-func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
-	if !r.isSourceLocked(w) {
+func (r *controllerState) setWatchHealthLocked(w *resourceWatch, err error) {
+	if !r.isTrackedWatchLocked(w) {
 		return
 	}
 	recovered := w.err != nil && err == nil
@@ -205,7 +205,7 @@ func (r *controllerState) retireWatchLocked(w *resourceWatch) {
 	r.deps.Publications.RemoveSourceHealth(w.key)
 }
 
-func (r *controllerState) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
+func (r *controllerState) listResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
 	defer cancel()
 	var result *unstructured.UnstructuredList
@@ -222,7 +222,7 @@ func (r *controllerState) listWatch(ctx context.Context, w *resourceWatch, optio
 			result.SetRemainingItemCount(list.RemainingItemCount)
 			for i := range list.Items {
 				var object *unstructured.Unstructured
-				object, err = sourceObject(&list.Items[i], w.gvk, false)
+				object, err = prepareWatchObject(&list.Items[i], w.gvk, false)
 				if err != nil {
 					break
 				}
@@ -235,7 +235,7 @@ func (r *controllerState) listWatch(ctx context.Context, w *resourceWatch, optio
 	if err == nil {
 		for i := range result.Items {
 			var object *unstructured.Unstructured
-			object, err = sourceObject(&result.Items[i], w.gvk, w.full)
+			object, err = prepareWatchObject(&result.Items[i], w.gvk, w.full)
 			if err != nil {
 				break
 			}
@@ -243,7 +243,7 @@ func (r *controllerState) listWatch(ctx context.Context, w *resourceWatch, optio
 		}
 	}
 	if err != nil && ctx.Err() == nil {
-		r.setHealth(w, err)
+		r.setWatchHealth(w, err)
 	}
 	return result, err
 }
@@ -260,9 +260,9 @@ func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, o
 	}
 	r.mu.Lock()
 	if err == nil {
-		r.setHealthLocked(w, nil)
+		r.setWatchHealthLocked(w, nil)
 	} else if ctx.Err() == nil && (options.SendInitialEvents == nil || !*options.SendInitialEvents || !apierrors.IsBadRequest(err)) {
-		r.setHealthLocked(w, err)
+		r.setWatchHealthLocked(w, err)
 	}
 	r.mu.Unlock()
 	if err != nil {
@@ -284,16 +284,16 @@ func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, o
 			case event, ok := <-stream.ResultChan():
 				if !ok {
 					if ctx.Err() == nil && !monitored.Stopping() {
-						r.setHealth(w, errors.New("watch closed"))
+						r.setWatchHealth(w, errors.New("watch closed"))
 					}
 					return
 				}
 				if event.Type == watch.Error {
-					r.setHealth(w, apierrors.FromObject(event.Object))
+					r.setWatchHealth(w, apierrors.FromObject(event.Object))
 				} else {
-					object, conversionErr := sourceObject(event.Object, w.gvk, w.full)
+					object, conversionErr := prepareWatchObject(event.Object, w.gvk, w.full)
 					if conversionErr != nil {
-						r.setHealth(w, conversionErr)
+						r.setWatchHealth(w, conversionErr)
 						return
 					}
 					event.Object = object
@@ -311,7 +311,7 @@ func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, o
 	return monitored, nil
 }
 
-func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
+func prepareWatchObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
 	if tombstone, ok := value.(cache.DeletedFinalStateUnknown); ok {
 		value = tombstone.Obj
 	}
@@ -335,31 +335,37 @@ func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructu
 	object.SetGroupVersionKind(gvk)
 	return object, nil
 }
-func (s *reflectorStore) Add(object any) error    { return s.runtime.accept(s.source, object, false) }
-func (s *reflectorStore) Update(object any) error { return s.runtime.accept(s.source, object, false) }
-func (s *reflectorStore) Delete(object any) error { return s.runtime.accept(s.source, object, true) }
-func (s *reflectorStore) Resync() error           { return nil }
+func (s *reflectorStore) Add(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, false)
+}
+func (s *reflectorStore) Update(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, false)
+}
+func (s *reflectorStore) Delete(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, true)
+}
+func (s *reflectorStore) Resync() error { return nil }
 func (s *reflectorStore) Replace(values []any, _ string) error {
 	// Validate the complete snapshot before making absence authoritative.
 	objects := make(map[objectKey]*unstructured.Unstructured, len(values))
 	for _, value := range values {
-		object, err := sourceObject(value, s.source.gvk, s.source.full)
+		object, err := prepareWatchObject(value, s.watch.gvk, s.watch.full)
 		if err != nil {
-			return s.runtime.rejectSource(s.source, err)
+			return s.controller.rejectWatchObject(s.watch, err)
 		}
 		if object.GetUID() == "" || object.GetName() == "" {
-			return s.runtime.rejectSource(s.source, errors.New("LIST object has no identity"))
+			return s.controller.rejectWatchObject(s.watch, errors.New("LIST object has no identity"))
 		}
 		key := keyOf(refOf(object))
 		if _, duplicate := objects[key]; duplicate {
-			return s.runtime.rejectSource(s.source, errors.New("LIST contains duplicate object names"))
+			return s.controller.rejectWatchObject(s.watch, errors.New("LIST contains duplicate object names"))
 		}
 		objects[key] = object
 	}
-	r, w := s.runtime, s.source
+	r, w := s.controller, s.watch
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.isSourceLocked(w) {
+	if !r.isTrackedWatchLocked(w) {
 		return nil
 	}
 	if previous := r.watches[w.key]; previous != w {
@@ -385,17 +391,17 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 		r.routeObjectLocked(old, object)
 	}
 	w.ready = true
-	r.setHealthLocked(w, nil)
+	r.setWatchHealthLocked(w, nil)
 	r.enqueueScopeRefreshLocked(w.key.Namespace)
 	return nil
 }
-func (r *controllerState) accept(w *resourceWatch, value any, deleted bool) error {
-	object, err := sourceObject(value, w.gvk, w.full)
+func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted bool) error {
+	object, err := prepareWatchObject(value, w.gvk, w.full)
 	if err != nil {
-		return r.rejectSource(w, err)
+		return r.rejectWatchObject(w, err)
 	}
 	if object.GetUID() == "" || object.GetName() == "" {
-		return r.rejectSource(w, errors.New("watch object has no identity"))
+		return r.rejectWatchObject(w, errors.New("watch object has no identity"))
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -469,15 +475,15 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	}
 }
 
-func (r *controllerState) rejectSource(w *resourceWatch, err error) error {
-	r.setHealth(w, err)
+func (r *controllerState) rejectWatchObject(w *resourceWatch, err error) error {
+	r.setWatchHealth(w, err)
 	return err
 }
 
-func (r *controllerState) setHealth(w *resourceWatch, err error) {
+func (r *controllerState) setWatchHealth(w *resourceWatch, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.setHealthLocked(w, err)
+	r.setWatchHealthLocked(w, err)
 }
 
 func (r *controllerState) recordWatchFailure(request discovery.WatchRequest, ref store.ObjectRef, err error) error {
