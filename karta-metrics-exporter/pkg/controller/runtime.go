@@ -120,7 +120,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if deps.Discovery == nil || deps.Inventory == nil || deps.Labels == nil || deps.Publications == nil || reader == nil {
 		return nil, errors.New("runtime dependencies are required")
 	}
-	if err := ValidateResourceRules(append(append([]ResourceRule{}, config.ResourceRules...), config.ExcludeResourceRules...)); err != nil {
+	if err := ValidateResourceRules(slices.Concat(config.ResourceRules, config.ExcludeResourceRules)); err != nil {
 		return nil, err
 	}
 	if config.Workers == 0 {

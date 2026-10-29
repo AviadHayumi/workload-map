@@ -117,6 +117,13 @@ var _ = Describe("runtime configuration", func() {
 		Expect(cfg.Workers).To(Equal(3))
 		Expect(cfg.ResourceRules).To(HaveLen(1))
 	})
+	It("validates included rules before excluded rules with combined indices", func() {
+		_, err := loadConfig("resourceRules: [{apiGroups: [batch], apiVersions: [v1], resources: [jobs]}]\nexcludeResourceRules: [{}]", nil)
+		Expect(err).To(MatchError("resource rule 1 requires apiGroups, apiVersions and resources"))
+
+		_, err = loadConfig("resourceRules: [{apiGroups: [batch], apiVersions: [v1], resources: [jobs/status]}]\nexcludeResourceRules: [{}]", nil)
+		Expect(err).To(MatchError("resource rules must name whole resources or *"))
+	})
 	It("loads Kubernetes selectors through their JSON field names", func() {
 		cfg, err := loadConfig("namespaceSelector:\n  matchLabels: {team: blue}\npodSelector:\n  matchExpressions:\n  - key: app\n    operator: In\n    values: [worker]", nil)
 		Expect(err).NotTo(HaveOccurred())

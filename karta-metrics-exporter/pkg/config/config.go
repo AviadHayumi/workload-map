@@ -14,6 +14,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -284,7 +285,7 @@ func (cfg Config) Validate() error {
 			}
 		}
 	}
-	if err := controller.ValidateResourceRules(append(append([]controller.ResourceRule{}, cfg.ResourceRules...), cfg.ExcludeResourceRules...)); err != nil {
+	if err := controller.ValidateResourceRules(slices.Concat(cfg.ResourceRules, cfg.ExcludeResourceRules)); err != nil {
 		return err
 	}
 	for _, kinds := range [][]schema.GroupVersionKind{cfg.IgnoredOwnerKinds, cfg.RequiredKinds} {
