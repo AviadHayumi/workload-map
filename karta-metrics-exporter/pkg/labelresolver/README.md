@@ -3,28 +3,59 @@
 
 # Label resolver
 
-`Config.Rules` is the `labelRules` list. Each rule names a label, its metrics,
-ordered sources and expression. `Dependencies.Compiler` supplies the compiler.
-`Config.Limits` supplies its evaluation bounds. The resolver will compile rules
-at construction.
+The label resolver adds labels from `labelRules` to exporter metrics. Each rule
+names a label, the metrics that get it, the objects it reads and a CEL
+expression. The options, defaults and limits are described in
+[Configured labels](../../../docs/karta-metrics-exporter/configuration.md#configured-labels)
+and in the [evaluator configuration](../labelevaluator/README.md#configuration).
 
-`Resolve` receives metric names, an unstructured workload and an optional
-`*corev1.Pod`. Workloads can have any kind; Pods use the known Kubernetes type.
-It returns one `ResolvedMetricLabels` per metric, with values and per-label errors.
-Empty or failed values try the next source. Errors remain visible even when a
-fallback succeeds. A top-level error reports cancellation or invalid input.
-The resolver neither fetches objects nor owns a Kubernetes cache.
+```yaml
+labelRules:
+  - name: team
+    metrics: [karta_workload_status, karta_pod_workload_info]
+    sources: [workload]
+    expression: |
+      has(object.metadata.labels) && "example.com/team" in object.metadata.labels
+        ? object.metadata.labels["example.com/team"] : ""
+  - name: owner
+    metrics: [karta_pod_workload_info]
+    sources: [workload, pod]
+    expression: |
+      has(object.metadata.labels) && "example.com/owner" in object.metadata.labels
+        ? object.metadata.labels["example.com/owner"] : ""
+```
 
-For a Pod metric, sources may be `workload`, `pod`, or both in that order.
-A workload-only metric must reject a rule containing `pod`: there is no single
-Pod to choose for the workload. Empty and failed values must not reuse old labels.
+For a workload labeled `example.com/team=research`, both metrics get
+`team="research"`. The Pod metric also gets `owner` from the workload. If the
+workload has no owner label, it gets `owner` from the Pod.
 
-Runtime calls the resolver for relevant changes and saves the results in Store.
-Collector reads those saved labels. Evaluation modes are not part of this
-configuration.
+## Behavior
 
-`ValidateConfig` checks the rules at startup. Helm and the command accept the
-configuration. Source selection, fallback and caching are not implemented yet.
-The resolver implementation will convert the typed Pod to an unstructured object
-for the evaluator. The evaluator will continue to expose the selected source as
-`object` in CEL expressions.
+- A rule adds a new label. It cannot replace a built-in or reserved label.
+- A rule reads its sources in the configured order. The first nonempty value
+  becomes the label value.
+- If every source returns an empty value or fails, the metric does not get the
+  label.
+- If a source fails, the next source is read. The failure is reported, also
+  when a later source gives the value. A failed label does not change the other
+  labels.
+- A workload metric cannot read the Pod. A workload has zero or more Pods, so
+  there is no single value to use.
+- The resolver reads only the objects it receives. It does not call Kubernetes
+  and does not change the objects.
+- An invalid rule or expression stops the exporter at startup.
+
+Runtime decides when to resolve labels and saves the results.
+
+## Input objects
+
+`Input.Workload` is the full root workload. For a rule that reads the Pod, pass
+either `Input.Pod` as a typed Pod or `Input.PodObject` as the full unstructured
+Pod from the API. Setting both returns `ErrConflictingPodInputs`.
+
+The controller passes its cached Pod through `PodObject`. The resolver reads
+that object directly, preserving its actual fields, including absent fields.
+The typed `Pod` path still converts lazily when a rule reaches the Pod source
+and supplies `apiVersion: v1` and `kind: Pod`. Typed serialization can differ in
+field presence from the original API object. Callers must keep all source
+objects unchanged during resolution. The resolver does not modify them.

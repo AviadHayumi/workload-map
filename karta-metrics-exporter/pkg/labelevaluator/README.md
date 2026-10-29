@@ -45,11 +45,11 @@ exporter:
 
 `labelRules` defaults to `[]`. Rules target Pod info or workload status. A Pod
 source is allowed only for Pod info. Sources run in listed order until a nonempty
-value is found. The resolver will retain per-source evaluation errors, including
+value is found. The resolver retains per-source evaluation errors, including
 when a fallback succeeds. Built-in labels cannot be replaced.
 
-The evaluator and startup rule validation work today. Resolver execution,
-Runtime evaluation and metric delivery are not implemented yet.
+The [label resolver](../labelresolver/README.md) applies these rules during
+controller reconciliation. The collector reads the saved results.
 
 Helm mounts these two sections as a config file. Outside Helm, use the same file
 without the `exporter:` wrapper and pass `--config path.yaml`.
@@ -64,3 +64,6 @@ without the `exporter:` wrapper and pass `--config path.yaml`.
 Explicit flags override environment variables, then YAML, then defaults. An empty
 numeric override is an error. `--config=""` skips a path set through the environment.
 Zero limits use compiler defaults. Negative limits are rejected. Rules stay in YAML.
+
+`genericLabelEvaluationLimits.maxResultBytes` configures the evaluator's
+`Limits.MaxResultBytes` field directly. Cancellation checks are always enabled.
