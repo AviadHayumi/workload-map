@@ -124,11 +124,34 @@ and retry instead of evaluating metadata as if it were a full object.
 
 Queues hold identities, not copies of Kubernetes objects. Repeated adds of the
 same pending key are merged. One queue does not give the same key to two workers at
-once. Different keys can run concurrently, so shared caches still need locks.
-For example, two Pod workers can update the same Deployment's membership.
-Runtime protects that membership with its lock. Reader and the Metric Store
-protect their own shared data. A wait group lets shutdown wait until workers
-and watches have stopped.
+once. Different keys can run concurrently. For example, two Pod workers can
+update the same Deployment's membership.
+
+`controllerState` and Reader share one read/write lock. It protects the object
+cache, source health, selected definitions and Pod/root membership.
+State methods take the lock when they read or change shared state. The handlers
+in `leaf.go` and `root.go` call those methods instead of managing locks themselves.
+The Metric Store has its own lock. Reader uses a separate mutex for mapper resets.
+
+Workers follow three steps:
+
+1. Read cached objects and take the state snapshots needed for this evaluation.
+   A root snapshot contains its reference, owner resolution, candidate sources and errors.
+2. Run discovery, mapping, status and label evaluation after the state methods
+   have released the lock.
+3. Call a publication method, which locks state to recheck inputs and save the result. If the inputs
+   changed, reject the result and retry with current data.
+
+For example, a worker starts evaluating Pod version `10`. A watch event replaces
+it in the cache with version `11` while evaluation runs. The publication check
+sees the changed version and rejects the old result. The next attempt reads
+version `11`.
+
+A root snapshot also carries a generation number. It prevents an old evaluation
+from saving into a root entry that was removed and recreated. Workers do not
+keep pointers to mutable membership maps or copy the whole object cache.
+
+A wait group lets shutdown wait until workers and watches have stopped.
 
 `runWorker` takes a key with `Get`, calls its handler, then calls `Done`.
 A returned error schedules a retry with backoff. When the handler returns no
@@ -168,7 +191,8 @@ detailed result and source-health rules.
 
 | File | Responsibility |
 | --- | --- |
-| [runtime.go](runtime.go) | Start workers, track Pod/root membership, observe definitions and shut down |
+| [runtime.go](runtime.go) | Start workers, handle definition notifications and shut down |
+| [state.go](state.go) | Manage Pod/root membership, return snapshots and guard publication |
 | [sources.go](sources.go) | Start Reflectors, accept LIST/WATCH results and route changes to queues |
 | [reader.go](reader.go) | Read cached objects and check their identities and source health |
 | [leaf.go](leaf.go) | Discover a Pod's root and save its mapping; handle scope rescans |

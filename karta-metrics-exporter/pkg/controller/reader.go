@@ -25,14 +25,11 @@ import (
 )
 
 // Reader exposes the accepted shared collection caches to ownership discovery.
-// controllerState takes its lock before Reader's lock; readers never call it
-// while holding this lock.
+// Cache reads share the controller state lock; mapper reset is independent.
 type Reader struct {
-	mu              sync.RWMutex
+	*objectCache
 	clients         Clients
 	options         ReaderOptions
-	objects         map[objectKey]observation
-	sources         map[watchKey]readSource
 	ensure          func(context.Context, schema.GroupVersionKind, string, bool) (watchKey, error)
 	mapperMu        sync.Mutex
 	lastMapperReset time.Time
@@ -67,7 +64,7 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.RequestTimeout < 0 {
 		return nil, errors.New("request timeout must be positive")
 	}
-	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, sources: map[watchKey]readSource{}}, nil
+	return &Reader{clients: clients, options: options, objectCache: &objectCache{objects: map[objectKey]observation{}, sources: map[watchKey]readSource{}}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
@@ -99,42 +96,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	key := keyOf(ref)
-	entry, ok := r.objects[key]
-	if !ok && key.Namespace != "" {
-		key.Namespace = ""
-		entry, ok = r.objects[key]
-	}
-	if ok {
-		source := r.sources[entry.source]
-		if source.err != nil {
-			return nil, entry.source, source.err
-		}
-		if !source.synced || (full && !source.full) {
-			return nil, entry.source, discovery.ErrPending
-		}
-		object := entry.object
-		if ref.UID != "" && object.GetUID() != ref.UID {
-			return nil, entry.source, apierrors.NewNotFound(entry.source.Resource.GroupResource(), ref.Name)
-		}
-		if ref.ResourceVersion != "" && object.GetResourceVersion() != ref.ResourceVersion {
-			return nil, entry.source, discovery.ErrStale
-		}
-		return object, entry.source, nil
-	}
-	for sourceKey, source := range r.sources {
-		if source.gvk != ref.GVK || (sourceKey.Namespace != "" && sourceKey.Namespace != ref.Namespace) {
-			continue
-		}
-		if source.err != nil {
-			return nil, sourceKey, source.err
-		}
-		if !source.synced || (full && !source.full) {
-			return nil, sourceKey, discovery.ErrPending
-		}
-		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)
-	}
-	return nil, watchKey{}, discovery.ErrPending
+	return r.readLocked(ref, full)
 }
 
 func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {

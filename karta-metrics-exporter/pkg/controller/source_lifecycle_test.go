@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	metadatafake "k8s.io/client-go/metadata/fake"
@@ -314,6 +316,41 @@ func TestEmptyNamespaceSelectorUsesAllNamespacePodSource(t *testing.T) {
 	require.Nil(t, other.state.config.NamespaceSelector)
 	require.True(t, other.state.scopes[""])
 	require.False(t, other.state.requiredWatch(namespaceGVK))
+}
+
+func TestNewRuntimeDoesNotOverwriteExistingRuntime(t *testing.T) {
+	for _, invalid := range []bool{false, true} {
+		t.Run(fmt.Sprintf("invalid_selector=%t", invalid), func(t *testing.T) {
+			r, _ := simpleRuntime(t, nil)
+			original := r.state.config
+			inputs, roots, controls := r.state.inputQueue, r.state.rootQueue, r.state.controlQueue
+			r.state.started = true
+			r.state.podRoots["pod"] = "root"
+			config := Config{Workers: 4}
+			if invalid {
+				config.PodSelector = &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "app", Operator: "invalid"}}}
+			}
+			other, err := New(config, r.state.deps, r.state.reader)
+			if other != nil {
+				defer other.state.inputQueue.ShutDown()
+				defer other.state.rootQueue.ShutDown()
+				defer other.state.controlQueue.ShutDown()
+			}
+			if invalid {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.False(t, other.state.started)
+				require.Empty(t, other.state.podRoots)
+			}
+			require.Equal(t, original, r.state.config)
+			require.Same(t, inputs, r.state.inputQueue)
+			require.Same(t, roots, r.state.rootQueue)
+			require.Same(t, controls, r.state.controlQueue)
+			require.True(t, r.state.started)
+			require.Equal(t, types.UID("root"), r.state.podRoots["pod"])
+		})
+	}
 }
 
 func TestConflictingAPIAliasCannotRestoreDemotedRoot(t *testing.T) {
@@ -653,4 +690,55 @@ func TestLateMappingFailureCannotReviveRemovedNamespace(t *testing.T) {
 	require.ErrorIs(t, <-done, discovery.ErrPending)
 	require.Empty(t, r.state.watchFailures)
 	require.Empty(t, values.Capture().Failures)
+}
+
+// Readers, rescans and reflector updates contend on the same state boundary.
+func TestConcurrentCacheReadsAndSourceUpdates(t *testing.T) {
+	r, _ := simpleRuntime(t, nil)
+	pod := simpleObject(podGVK, "pod")
+	pod.SetLabels(map[string]string{"version": "1"})
+	w := seedSource(t, r, podGVK, true, pod)
+	ref := refOf(pod)
+	ref.ResourceVersion = ""
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for range 4 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			for range 100 {
+				object, _, err := r.state.reader.read(ref, true)
+				if err != nil {
+					t.Errorf("read: %v", err)
+					return
+				}
+				if object.GetResourceVersion() != object.GetLabels()["version"] {
+					t.Error("cached object changed after publication")
+					return
+				}
+				if err := r.resolveInput(context.Background(), inputKey{Rescan: true}); err != nil {
+					t.Errorf("rescan: %v", err)
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	for version := 2; version <= 100; version++ {
+		next := pod.DeepCopy()
+		value := fmt.Sprint(version)
+		next.SetResourceVersion(value)
+		next.SetLabels(map[string]string{"version": value})
+		if version%2 == 0 {
+			require.NoError(t, r.state.accept(w, next, false))
+		} else {
+			require.NoError(t, (&reflectorStore{runtime: r.state, source: w}).Replace([]any{next}, value))
+		}
+	}
+	workers.Wait()
+	current, ok := r.state.reader.Cached(ref)
+	require.True(t, ok)
+	require.Equal(t, "100", current.GetResourceVersion())
+	require.Equal(t, "1", pod.GetResourceVersion())
 }
