@@ -11,7 +11,7 @@ metadata:
   labels:
     {{- include "karta.exporter.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.exporter.replicaCount }}
   selector:
     matchLabels:
       {{- include "karta.exporter.selectorLabels" . | nindent 6 }}
@@ -20,10 +20,13 @@ spec:
       labels:
         {{- include "karta.exporter.selectorLabels" . | nindent 8 }}
       annotations:
+        {{- with .Values.exporter.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         # Roll the Pod when the config changes; the file is read once at startup.
         checksum/config: {{ include (print $.Template.BasePath "/exporter-configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "karta.exporter.fullname" . }}
+      serviceAccountName: {{ include "karta.exporter.serviceAccountName" . }}
       automountServiceAccountToken: true
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -41,6 +44,26 @@ spec:
           imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
           args:
             - --config=/etc/karta-metrics-exporter/config.yaml
+            - --metrics-bind-address=:{{ .Values.exporter.http.port }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.exporter.http.port }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+          resources:
+            {{- toYaml .Values.exporter.resources | nindent 12 }}
           {{- if ne $fipsMode "off" }}
           env:
             - name: GODEBUG
@@ -56,6 +79,18 @@ spec:
             capabilities:
               drop:
                 - ALL
+      {{- with .Values.exporter.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.exporter.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.exporter.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: config
           configMap:

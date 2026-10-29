@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{{- if and .Values.exporter.enabled .Values.exporter.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "karta.exporter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "karta.exporter.labels" . | nindent 4 }}
+    {{- with .Values.exporter.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "karta.exporter.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      # The identity series carry namespace and pod labels of the attributed
+      # pods; without honor_labels Prometheus would overwrite them with the
+      # exporter's own target labels and every join would silently miss.
+      honorLabels: true
+      # The exposition grows with pod count; the default 10s scrape timeout
+      # is too tight on large clusters.
+      interval: {{ .Values.exporter.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.exporter.serviceMonitor.scrapeTimeout }}
+{{- end }}

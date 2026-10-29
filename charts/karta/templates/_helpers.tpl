@@ -106,6 +106,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{ printf "%s-%s" (include "karta.exporter.fullname" .) .Release.Namespace }}
 {{- end -}}
 
+{{- define "karta.exporter.serviceAccountName" -}}
+{{- if .Values.exporter.serviceAccount.create -}}
+{{- include "karta.exporter.fullname" . -}}
+{{- else -}}
+{{- required "exporter.serviceAccount.name is required when exporter.serviceAccount.create is false" .Values.exporter.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "karta.exporter.labels" -}}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{ include "karta.exporter.selectorLabels" . }}

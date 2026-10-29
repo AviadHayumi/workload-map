@@ -1,4 +1,7 @@
-{{- if and .Values.exporter.enabled .Values.exporter.kartaDefinitionSource.cluster.enabled }}
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{{- if .Values.exporter.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -11,6 +14,6 @@ roleRef:
   name: {{ include "karta.exporter.clusterScopedName" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "karta.exporter.fullname" . }}
+    name: {{ include "karta.exporter.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

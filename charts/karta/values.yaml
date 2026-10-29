@@ -9,7 +9,7 @@ global:
 operator:
   enabled: true
 
-# Process scaffold only; no metrics endpoint is implemented yet.
+# Read-only workload metrics. Can run with operator.enabled=false.
 exporter:
   enabled: false
   image:
@@ -17,14 +17,21 @@ exporter:
     # When empty, falls back to .Chart.AppVersion.
     tag: ""
     pullPolicy: IfNotPresent
-  # Extra labels for Pod info and workload status. Expressions read object.
-  # See karta-metrics-exporter/pkg/labelevaluator/README.md.
-  labelRules: []
-  # Shared generic label evaluation limits. Zero selects the default.
-  genericLabelEvaluationLimits:
-    costLimit: 10000
-    maxExpressionBytes: 4096
-    maxResultBytes: 1024
+  replicaCount: 1
+  http:
+    port: 8080
+  namespaceSelector: {}
+  objectSelector: {}
+  podSelector: {}
+  resourceRules: []
+  excludeResourceRules: []
+  ignoredOwnerKinds: []
+  requiredKinds: []
+  # Default concurrency for each leaf and root queue.
+  workers: 2
+  # Zero inherits workers. Positive values configure each queue independently.
+  leafWorkers: 0
+  rootWorkers: 0
   # Copied as is into the exporter's config file (ConfigMap). Each source
   # picks definitions by name: include lists the names to use (empty means
   # all) and exclude removes names; exclude wins. For each workload kind, a
@@ -35,18 +42,77 @@ exporter:
   # the catalog's batch-job-v1; also excluding batch-job-v1 leaves Jobs with
   # no definition. With the catalog off (the default), Jobs get no definition.
   kartaDefinitionSource:
-    # Definitions built into the exporter, named as in docs/catalog, for
-    # example batch-job-v1. Unknown names fail startup.
     catalog:
       enabled: false
       include: []
-      exclude: []
-    # Karta objects in the cluster, named by metadata.name. Grants read
-    # access to Kartas.
+      exclude: [core-pod-v1]
     cluster:
       enabled: true
       include: []
       exclude: []
+      labelSelector: {}
+  serviceAccount:
+    create: true
+    name: ""
+  rbac:
+    # Workload and child kinds the exporter may read, rendered into the base
+    # ClusterRole (no wildcards). Each release uses only its own base role.
+    # Defaults cover common built-in catalog kinds. Extend this list for
+    # release-specific access. A ClusterRole labeled
+    # karta.run.ai/exporter-rbac: "true" grants shared access to every exporter
+    # release through aggregation.
+    workloadRules:
+      - apiGroups: [""]
+        resources: ["replicationcontrollers"]
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+      - apiGroups: ["jobset.x-k8s.io"]
+        resources: ["jobsets"]
+      - apiGroups: ["kubeflow.org"]
+        resources: ["pytorchjobs", "mpijobs"]
+      - apiGroups: ["ray.io"]
+        resources: ["rayclusters", "rayjobs", "rayservices"]
+      - apiGroups: ["leaderworkerset.x-k8s.io"]
+        resources: ["leaderworkersets"]
+      - apiGroups: ["serving.knative.dev"]
+        resources: ["services", "configurations", "revisions"]
+      - apiGroups: ["serving.kserve.io"]
+        resources: ["inferenceservices"]
+      - apiGroups: ["milvus.io"]
+        resources: ["milvuses"]
+      - apiGroups: ["apps.nvidia.com"]
+        resources: ["nimservices", "nimcaches"]
+      - apiGroups: ["nvidia.com"]
+        resources: ["dynamographdeployments", "dynamocomponentdeployments"]
+      - apiGroups: ["grove.io", "scheduler.grove.io"]
+        resources: ["podcliquesets", "podcliques", "podcliquescalinggroups", "podgangs"]
+
+  serviceMonitor:
+    # Requires Prometheus Operator ServiceMonitor CRDs.
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 25s
+    labels: {}
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Extra labels for Pod info and workload status. Expressions read object.
+  # See karta-metrics-exporter/pkg/labelevaluator/README.md.
+  labelRules: []
+  # Shared generic label evaluation limits. Zero selects the default.
+  genericLabelEvaluationLimits:
+    costLimit: 10000
+    maxExpressionBytes: 4096
+    maxResultBytes: 1024
 
 # Overrides for resource names. Rarely needed.
 fullnameOverride: ""

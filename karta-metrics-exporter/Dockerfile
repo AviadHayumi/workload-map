@@ -12,7 +12,8 @@ ARG GO_LDFLAGS=""
 ENV GOTOOLCHAIN=local
 
 WORKDIR /src
-COPY . .
+COPY karta/sdk ./karta/sdk
+COPY karta-metrics-exporter ./karta-metrics-exporter
 WORKDIR /src/karta-metrics-exporter
 RUN CGO_ENABLED=0 GO111MODULE=on GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOFIPS140=v1.0.0 \
     go build -trimpath -ldflags "${GO_LDFLAGS}" -o /karta-metrics-exporter ./cmd

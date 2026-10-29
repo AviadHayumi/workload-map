@@ -1,13 +1,73 @@
-{{- if and .Values.exporter.enabled .Values.exporter.kartaDefinitionSource.cluster.enabled }}
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+
+{{- if .Values.exporter.enabled }}
+{{/*
+The bound ClusterRole aggregates its own base permissions and explicit shared
+extensions labeled karta.run.ai/exporter-rbac: "true". Base roles from another
+release must not add permissions to this release.
+*/}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "karta.exporter.clusterScopedName" . }}
   labels:
     {{- include "karta.exporter.labels" . | nindent 4 }}
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        karta.run.ai/exporter-base: {{ include "karta.exporter.clusterScopedName" . | sha256sum | trunc 63 | quote }}
+    - matchLabels:
+        karta.run.ai/exporter-rbac: "true"
+{{/*
+No rules field here: the RBAC aggregation controller owns .rules on an
+aggregated ClusterRole, and rendering it makes every helm upgrade conflict
+with that controller.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "karta.exporter.clusterScopedName" . }}-base
+  labels:
+    {{- include "karta.exporter.labels" . | nindent 4 }}
+    {{/* Hash the existing release identity to fit the 63-character label value limit. */}}
+    karta.run.ai/exporter-base: {{ include "karta.exporter.clusterScopedName" . | sha256sum | trunc 63 | quote }}
 rules:
-  # Read the cluster's Karta definitions; the inventory only lists and watches.
+  {{- if .Values.exporter.kartaDefinitionSource.cluster.enabled }}
+  # Read enabled cluster definitions.
   - apiGroups: ["run.ai"]
     resources: ["kartas"]
-    verbs: ["list", "watch"]
+    verbs: ["get", "list", "watch"]
+
+  {{- end }}
+
+  # Namespace labels select observation scope.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+
+  # Pods are the attribution subject
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # Kind-to-resource discovery for the dynamic workload watchers
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+
+  # Workload and child kinds, enumerated (no wildcards). Extend via values
+  # or with an extra ClusterRole labeled karta.run.ai/exporter-rbac: "true".
+  {{- range .Values.exporter.rbac.workloadRules }}
+  - apiGroups:
+      {{- range .apiGroups }}
+      - {{ . | quote }}
+      {{- end }}
+    resources:
+      {{- range .resources }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get", "list", "watch"]
+  {{- end }}
 {{- end }}
