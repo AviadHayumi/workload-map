@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+package discovery
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"sync"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+
+	inventory "github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/kartadefinitioninventory"
+)
+
+type scaleInventory struct{}
+
+func (scaleInventory) Lookup(schema.GroupVersionKind) (inventory.Selection, error) {
+	return inventory.Selection{}, nil
+}
+
+type scaleReader struct {
+	mu       sync.RWMutex
+	full     map[types.UID]*unstructured.Unstructured
+	metadata map[types.UID]*metav1.PartialObjectMetadata
+}
+
+func (r *scaleReader) Cached(ref ObjectRef) (*unstructured.Unstructured, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	o, ok := r.full[ref.UID]
+	return o, ok
+}
+func (r *scaleReader) GetMetadata(_ context.Context, ref ObjectRef) (*metav1.PartialObjectMetadata, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if o := r.metadata[ref.UID]; o != nil {
+		return o.DeepCopy(), nil
+	}
+	return nil, fmt.Errorf("unexpected metadata miss")
+}
+
+func BenchmarkScaleOwnerWalk(b *testing.B) {
+	for _, intermediate := range []bool{false, true} {
+		b.Run(fmt.Sprintf("intermediate=%t", intermediate), func(b *testing.B) {
+			b.StopTimer()
+			pods, objects := scaleFixture(b, intermediate)
+			reader := &scaleReader{full: map[types.UID]*unstructured.Unstructured{}, metadata: map[types.UID]*metav1.PartialObjectMetadata{}}
+			for _, o := range objects {
+				if o.Kind == "ReplicaSet" {
+					reader.metadata[o.UID] = o
+					continue
+				}
+				u := &unstructured.Unstructured{}
+				u.SetGroupVersionKind(o.GroupVersionKind())
+				u.SetName(o.Name)
+				u.SetNamespace(o.Namespace)
+				u.SetUID(o.UID)
+				u.SetResourceVersion(o.ResourceVersion)
+				u.SetOwnerReferences(o.OwnerReferences)
+				reader.full[o.UID] = u
+			}
+			d, err := New(Dependencies{Reader: reader, Inventory: scaleInventory{}}, Config{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			refs := make([]ObjectRef, len(pods))
+			expected := make([]types.UID, len(pods))
+			for i, pod := range pods {
+				refs[i] = ObjectRef{GVK: schema.GroupVersionKind{Version: "v1", Kind: "Pod"}, Namespace: pod.Namespace, Name: pod.Name, UID: pod.UID, ResourceVersion: "1"}
+				expected[i] = types.UID(fmt.Sprintf("root-%d", i))
+			}
+			ctx := context.Background()
+			b.ReportAllocs()
+			b.StartTimer()
+			for i := 0; i < b.N; i++ {
+				index := i % len(refs)
+				result, err := d.Get(ctx, refs[index])
+				if err != nil || result.Workload.Root.UID != expected[index] || len(result.Workload.Path) != 2+boolInt(intermediate) {
+					b.Fatalf("wrong root/path: %+v %v", result, err)
+				}
+			}
+		})
+	}
+}
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}

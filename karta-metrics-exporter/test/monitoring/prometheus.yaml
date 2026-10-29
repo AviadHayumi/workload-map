@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: exporter-monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: exporter-monitoring-prometheus
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: exporter-monitoring-prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: exporter-monitoring-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: exporter-monitoring
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: acceptance
+  namespace: exporter-monitoring
+spec:
+  version: v3.7.1
+  image: quay.io/prometheus/prometheus:v3.7.1
+  replicas: 1
+  serviceAccountName: prometheus
+  serviceMonitorSelector:
+    matchLabels:
+      monitoring-test: selected
+  serviceMonitorNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: exporter-monitoring
+  resources:
+    requests:
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: exporter-monitoring
+spec:
+  selector:
+    prometheus: acceptance
+  ports:
+    - name: web
+      port: 9090
+      targetPort: 9090

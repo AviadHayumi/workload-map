@@ -3,20 +3,16 @@
 
 # Karta metrics exporter queries
 
-These examples use the proposed metric contract in the
+These examples use the metric contract in the
 [Karta metrics exporter proposal](../keps/0001-metrics-exporter/README.md).
 They show Pod attribution, workload age, component resource usage and low observed
 GPU activity. Low activity alone does not prove idleness.
 
-See the [exporter README](../../karta-metrics-exporter/README.md) for its purpose,
-build and run commands, and current implementation limits. The
-[configuration reference](configuration.md) covers deployment settings and links
-to the supported label configuration.
-
 ## Current observations and workload age
 
-Filter Pod attribution and status by `observation_valid="true"` for verified
-observations. A workload can have verified status even when its phase is Failed.
+Filter Pod attribution and status by `observation_valid="true"` for results with
+healthy synchronized sources and no evaluation error. This does not imply a
+transaction across resources. A valid status can have phase Failed.
 
 ```promql
 karta_workload_status{phase="Running",observation_valid="true"} == 1
@@ -28,7 +24,11 @@ karta_pod_workload_info{observation_valid="true"}
 
 No health join is needed for these queries. Use
 `karta_exporter_observation_valid` for collection health and workload failure
-reasons. Scrape freshness remains a separate requirement.
+reasons. `scope="discovery"` reports input failures before a root is known, with
+empty workload identity. `scope="resource_type"` reports source collection health.
+`scope="workload"` aggregates failures attributed to a known root.
+Scrape freshness remains a separate requirement. Healthy quiet objects do not
+expire; a silent watch stall retains values until observed recovery or failure.
 
 Workload age in seconds comes from the root's creation timestamp:
 
@@ -40,7 +40,7 @@ time() - max by (namespace, workload_name, workload_uid) (
 
 This metric has only `namespace`, `workload_name` and `workload_uid` as exporter
 defined labels. It has no `observation_valid` label. Missing timestamps or failed
-or expired root verification omit the sample. Status evaluation failure alone does
+root collection or discovery omit the sample. Status evaluation failure alone does
 not invalidate verified creation metadata. The aggregation merges replicas that
 report the same creation time; it does not detect disagreement between replicas.
 
@@ -104,11 +104,6 @@ Merge identical mappings and reject differences in identity, configured labels o
 observation validity. Check conflicts before filtering for valid mappings so that
 one valid replica cannot hide a failing replica.
 
-Here, `team` is the custom label from the
-[label rule example](../../karta-metrics-exporter/pkg/labelevaluator/README.md#configuration).
-That rule reads the workload root's `metadata.labels["example.com/team"]`.
-For `example.com/team: research`, the expected metric label is `team="research"`.
-
 ```yaml
 groups:
   - name: karta-attribution
@@ -131,9 +126,10 @@ groups:
           ) == 1)
 ```
 
-For other `labelRules`, add those label names to both lists above and to the
-`group_left` and `sum by` lists in the following queries. Otherwise aggregation
-drops them and the conflict check cannot detect disagreements in those values.
+This example preserves a configured `team` label. For other `labelRules`, add
+those label names to both lists above and to the `group_left` and `sum by` lists
+in the following queries. Otherwise aggregation drops them and the conflict check
+cannot detect disagreements in those values.
 
 An absent `team` label also works. The rule rejects conflicting Pod UIDs for the
 same name while both are visible. The following queries use this rule; its

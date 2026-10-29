@@ -1,0 +1,169 @@
+{
+  "license": "SPDX-License-Identifier: Apache-2.0",
+  "copyright": "Copyright (c) 2026 NVIDIA Corporation",
+  "tested_commit": "28ad1db7bba05f1ac940818f7c7518bd091cf217",
+  "image": "karta-metrics-exporter:simple-controller-profiled",
+  "image_manifest_sha256": "0d8f1abbd1cd443d9e79baaf224cc9b55fcf38eae35536d435bf54e76398b446",
+  "production_source_matches_committed_candidate": true,
+  "runs": [
+    {
+      "name": "default-with-bare-pods",
+      "passed": 24,
+      "failed": 0,
+      "report_sha256": "7a81f2a635b925bb5027dde868abccd41001658b405eb4c663b375c694d51685",
+      "cases": [
+        {
+          "name": "native owner adoption / reattributes an unchanged Pod when a replacement Deployment adopts its ReplicaSet",
+          "state": "passed",
+          "seconds": 6.03
+        },
+        {
+          "name": "operator workloads / cronjob",
+          "state": "passed",
+          "seconds": 74.925
+        },
+        {
+          "name": "operator workloads / deployment",
+          "state": "passed",
+          "seconds": 37.268
+        },
+        {
+          "name": "operator workloads / dynamo",
+          "state": "passed",
+          "seconds": 43.165
+        },
+        {
+          "name": "operator workloads / grove",
+          "state": "passed",
+          "seconds": 37.315
+        },
+        {
+          "name": "operator workloads / job-zero-completed",
+          "state": "passed",
+          "seconds": 25.183
+        },
+        {
+          "name": "operator workloads / job-zero-failed",
+          "state": "passed",
+          "seconds": 11.155
+        },
+        {
+          "name": "operator workloads / job-zero-suspended",
+          "state": "passed",
+          "seconds": 3.143
+        },
+        {
+          "name": "operator workloads / jobset",
+          "state": "passed",
+          "seconds": 41.326
+        },
+        {
+          "name": "operator workloads / knative",
+          "state": "passed",
+          "seconds": 37.983
+        },
+        {
+          "name": "operator workloads / kserve",
+          "state": "passed",
+          "seconds": 200.722
+        },
+        {
+          "name": "operator workloads / llmisvc",
+          "state": "passed",
+          "seconds": 89.993
+        },
+        {
+          "name": "operator workloads / lws",
+          "state": "passed",
+          "seconds": 36.435
+        },
+        {
+          "name": "operator workloads / milvus",
+          "state": "passed",
+          "seconds": 113.835
+        },
+        {
+          "name": "operator workloads / mpi",
+          "state": "passed",
+          "seconds": 36.32
+        },
+        {
+          "name": "operator workloads / nim",
+          "state": "passed",
+          "seconds": 41.711
+        },
+        {
+          "name": "operator workloads / nimcache",
+          "state": "passed",
+          "seconds": 3.139
+        },
+        {
+          "name": "operator workloads / pod",
+          "state": "passed",
+          "seconds": 45.213
+        },
+        {
+          "name": "operator workloads / pytorch",
+          "state": "passed",
+          "seconds": 37.351
+        },
+        {
+          "name": "operator workloads / raycluster",
+          "state": "passed",
+          "seconds": 14.18
+        },
+        {
+          "name": "operator workloads / rayjob",
+          "state": "passed",
+          "seconds": 29.69
+        },
+        {
+          "name": "operator workloads / rayservice",
+          "state": "passed",
+          "seconds": 25.257
+        },
+        {
+          "name": "operator workloads / sandbox",
+          "state": "passed",
+          "seconds": 35.269
+        },
+        {
+          "name": "operator workloads / statefulset",
+          "state": "passed",
+          "seconds": 36.275
+        }
+      ]
+    },
+    {
+      "name": "alternate-apis",
+      "passed": 2,
+      "failed": 0,
+      "report_sha256": "815297bd88bfef6206bfa9dfc2c28c0681de5f3fa7eeeebbc15d1784e12e88b5",
+      "cases": [
+        {
+          "name": "operator workloads / dynamo-v1beta1",
+          "state": "passed",
+          "seconds": 32.157
+        },
+        {
+          "name": "operator workloads / llmisvc-v1alpha1",
+          "state": "passed",
+          "seconds": 81.134
+        }
+      ]
+    },
+    {
+      "name": "bare-pod-default-exclusion",
+      "passed": 1,
+      "failed": 0,
+      "report_sha256": "67ff00edc92bca48e2d5f8ab61be8ec915a44e358fe42df1b50849d5c7c4d071",
+      "cases": [
+        {
+          "name": "operator workloads / pod",
+          "state": "passed",
+          "seconds": 22.052
+        }
+      ]
+    }
+  ]
+}

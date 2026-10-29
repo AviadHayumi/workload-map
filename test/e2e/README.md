@@ -12,6 +12,18 @@ can be checked against real data.
 - recorded_data/: the saved fixtures, one YAML per flow, filed under
   operator/version/kartaName/flow.yaml.
 
+## Exporter acceptance
+
+The [exporter matrix](../../karta-metrics-exporter/test/e2e/README.md) installs the
+exporter through Helm and checks live metrics, label updates and deletion for
+real operator workloads. Run `make test-exporter-e2e` with an explicit kubeconfig
+and an exporter image loaded into the prepared kind cluster.
+
+The [monitoring suite](../../karta-metrics-exporter/test/monitoring/README.md)
+checks Prometheus discovery, RBAC recovery, Helm and NetworkPolicy.
+`make check` compiles both suites. Their live runs are separate from envtest and
+from the recording and replay commands below.
+
 ## Record
 
 ```sh

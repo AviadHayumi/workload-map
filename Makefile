@@ -420,31 +420,30 @@ operator-image-buildx-push: ## Build and push a multi-arch operator image via Bu
 
 ##@ Metrics exporter
 
-# The envtest suite is its own module, so envtest's dependencies stay out of
-# the exporter's go.mod and license inventory.
+# Keep the inventory and controller envtest suites in their own module.
 EXPORTER_ENVTEST_DIR := karta-metrics-exporter/test/integration
 
 .PHONY: fmt-exporter
 fmt-exporter: ## Format the exporter and its envtest modules
-	cd karta-metrics-exporter && go fmt ./...
-	cd $(EXPORTER_ENVTEST_DIR) && go fmt ./...
+	cd karta-metrics-exporter && go fmt -tags=integration,e2e,monitoring ./...
+	cd $(EXPORTER_ENVTEST_DIR) && go fmt -tags=integration ./...
 
 .PHONY: fmt-check-exporter
 fmt-check-exporter: ## Check exporter formatting without modifying files
 	@set -e; \
-	dirs="$$(go -C karta-metrics-exporter list -f '{{.Dir}}' ./...) $$(go -C $(EXPORTER_ENVTEST_DIR) list -f '{{.Dir}}' ./...)"; \
+	dirs="$$(go -C karta-metrics-exporter list -tags=integration,e2e,monitoring -f '{{.Dir}}' ./...) $$(go -C $(EXPORTER_ENVTEST_DIR) list -tags=integration -f '{{.Dir}}' ./...)"; \
 	unformatted="$$(gofmt -l $$dirs)"; \
 	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
 
 .PHONY: vet-exporter
 vet-exporter: ## go vet the exporter and its envtest modules
-	cd karta-metrics-exporter && go vet ./...
-	cd $(EXPORTER_ENVTEST_DIR) && go vet ./...
+	cd karta-metrics-exporter && go vet -tags=integration,e2e,monitoring ./...
+	cd $(EXPORTER_ENVTEST_DIR) && go vet -tags=integration ./...
 
 .PHONY: lint-exporter
 lint-exporter: golangci-lint ## Lint the exporter and its envtest modules
-	cd karta-metrics-exporter && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
-	cd $(EXPORTER_ENVTEST_DIR) && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+	cd karta-metrics-exporter && $(GOLANGCI_LINT) run --build-tags=integration,e2e,monitoring $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
+	cd $(EXPORTER_ENVTEST_DIR) && $(GOLANGCI_LINT) run --build-tags=integration $(GOLANGCI_LINT_FLAGS) -c $(PROJECT_DIR)/.golangci.yml
 
 .PHONY: modules-check-exporter
 modules-check-exporter: ## Verify the exporter and envtest module requirements are tidy
@@ -453,16 +452,48 @@ modules-check-exporter: ## Verify the exporter and envtest module requirements a
 
 .PHONY: test-exporter-unit
 test-exporter-unit: ## Run the exporter unit tests with the race detector (no envtest binaries required)
-	cd karta-metrics-exporter && go test -race ./cmd/... ./pkg/...
+	cd karta-metrics-exporter && go test -race ./...
 
 .PHONY: test-exporter-integration
-test-exporter-integration: envtest ## Run the exporter envtest suite (downloads control-plane binaries)
+test-exporter-integration: envtest ## Run the exporter discovery, inventory and controller envtest suites
+	cd karta-metrics-exporter && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -race -tags=integration ./pkg/discovery
 	cd $(EXPORTER_ENVTEST_DIR) && KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		go test -race ./...
+		go test -race -tags=integration ./...
 
 .PHONY: exporter-generate-mocks
 exporter-generate-mocks: ## Regenerate exporter interface mocks with pinned Mockery
 	cd karta-metrics-exporter && go run github.com/vektra/mockery/v3@v3.8.1 --config .mockery.yaml
+
+EXPORTER_E2E_CONTEXT ?= kind-exporter-e2e
+EXPORTER_E2E_API_PROFILE ?= default
+EXPORTER_E2E_OUTPUT ?= /tmp/exporter-e2e-results
+EXPORTER_E2E_TIMEOUT ?= 90m
+EXPORTER_E2E_FOCUS ?=
+
+.PHONY: build-exporter-e2e
+build-exporter-e2e: ## Compile the deployed exporter suites without running them (no cluster needed)
+	cd karta-metrics-exporter && go test -tags=e2e -run '^$$' ./test/e2e/...
+	cd karta-metrics-exporter && go test -tags=monitoring -run '^$$' ./test/monitoring/...
+
+# Live acceptance is deliberately separate from check-exporter.
+.PHONY: test-exporter-e2e
+test-exporter-e2e: ## Run the deployed exporter matrix (explicit KUBECONFIG and EXPORTER_E2E_IMAGE required)
+	@set -e; \
+	export KUBECONFIG="$(KUBECONFIG)" EXPORTER_E2E_IMAGE="$(EXPORTER_E2E_IMAGE)"; \
+	: "$${KUBECONFIG:?set KUBECONFIG to the isolated kind kubeconfig}"; \
+	: "$${EXPORTER_E2E_IMAGE:?build and load an image, then set EXPORTER_E2E_IMAGE=repository:tag}"; \
+	export EXPORTER_E2E_CONTEXT="$(EXPORTER_E2E_CONTEXT)" EXPORTER_E2E_API_PROFILE="$(EXPORTER_E2E_API_PROFILE)"; \
+	export EXPORTER_E2E_OUTPUT="$(EXPORTER_E2E_OUTPUT)" EXPORTER_E2E_INCLUDE_BARE_PODS="$(EXPORTER_E2E_INCLUDE_BARE_PODS)"; \
+	case "$$KUBECONFIG" in /*) ;; *) KUBECONFIG="$(PROJECT_DIR)/$$KUBECONFIG" ;; esac; \
+	case "$$EXPORTER_E2E_OUTPUT" in /*) ;; *) EXPORTER_E2E_OUTPUT="$(PROJECT_DIR)/$$EXPORTER_E2E_OUTPUT" ;; esac; \
+	mkdir -p "$$EXPORTER_E2E_OUTPUT"; \
+	set --; \
+	if [ -n "$(EXPORTER_E2E_FOCUS)" ]; then set -- "$$@" "-ginkgo.focus=$(EXPORTER_E2E_FOCUS)"; fi; \
+	cd karta-metrics-exporter; \
+	go test -count=1 -v -tags=e2e ./test/e2e -timeout "$(EXPORTER_E2E_TIMEOUT)" -ginkgo.v \
+		"-ginkgo.json-report=$$EXPORTER_E2E_OUTPUT/report.json" \
+		"-ginkgo.junit-report=$$EXPORTER_E2E_OUTPUT/junit.xml" "$$@"
 
 .PHONY: test-exporter
 test-exporter: test-exporter-unit test-exporter-integration ## Run the exporter unit and envtest suites
@@ -480,7 +511,7 @@ exporter-version-smoke: build-exporter ## Verify the exporter reports the stampe
 		echo "version mismatch: got '$$out', want '$(VERSION)'" >&2; exit 1; }
 
 .PHONY: check-exporter
-check-exporter: fmt-check-exporter vet-exporter lint-exporter modules-check-exporter test-exporter exporter-version-smoke ## Full exporter presubmit
+check-exporter: fmt-check-exporter vet-exporter lint-exporter modules-check-exporter build-exporter-e2e test-exporter exporter-version-smoke ## Full exporter presubmit
 
 EXPORTER_GO_VERSION := $(shell awk '/^go /{print $$2; exit}' karta-metrics-exporter/go.mod)
 EXPORTER_IMAGE_REPOSITORY ?= $(IMAGE_REGISTRY)/karta-metrics-exporter
@@ -635,6 +666,12 @@ helm-validate: ## Validate the chart renders and the CRD ConfigMap fits in etcd
 	helm template $(KARTA_CHART_DIR) --set admissionPolicies.submitter.enabled=true \
 		--set admissionPolicies.submitter.apiVersion=v1 --set-json 'admissionPolicies.submitter.resources=[{"apiGroups":["batch"],"apiVersions":["v1"],"resources":["jobs"]}]'
 	@set -e; tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; helm template $(KARTA_CHART_DIR) -s templates/hooks/pre/crd-upgrader-configmap.yaml > "$$tmp"; s=$$(wc -c < "$$tmp"); echo "crd-upgrader ConfigMap: $$s bytes (max $(CRD_CONFIGMAP_MAX_BYTES))"; test $$s -le $(CRD_CONFIGMAP_MAX_BYTES) || { echo "error: CRD ConfigMap is $$s bytes, over the $(CRD_CONFIGMAP_MAX_BYTES) limit; it must fit in a single ~1 MiB etcd object"; exit 1; }
+
+.PHONY: exporter-rules-test
+exporter-rules-test: ## Validate platform-owned KEP query examples with promtool
+	@command -v promtool >/dev/null 2>&1 || { echo "promtool is required for exporter query tests"; exit 1; }
+	promtool check rules karta-metrics-exporter/test/rules/kep-rules.yaml
+	cd karta-metrics-exporter/test/rules && promtool test rules tests.yaml duration-tests.yaml identity-tests.yaml uid-tests.yaml replica-tests.yaml kep-tests.yaml
 
 ##@ Air-gap
 
