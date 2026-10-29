@@ -47,25 +47,19 @@ func (r *Runtime) resolveInput(ctx context.Context, key inputKey) error {
 func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
 	ref := key.ref()
 	if !r.namespaceAdmitted(ref.Namespace) {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 	object, _, err := r.reader.read(ref, true)
 	if apierrors.IsNotFound(err) {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 	if err != nil {
 		return r.failPod(key, nil, err)
 	}
 	if !r.podSelector.Empty() && !r.podSelector.Matches(labelsFor(object)) {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 	ref = refOf(object)
@@ -82,9 +76,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
 		return r.failPod(key, workload.Path, selectionErr)
 	}
 	if workload.Root.GVK == podGVK && selection.Definition == nil {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 
@@ -97,9 +89,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
 		return r.failPod(key, workload.Path, scopeErr, rootRef)
 	}
 	if !allowed {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 	r.mu.Lock()
@@ -141,9 +131,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
 		return r.failPod(key, workload.Path, err, workload.Root)
 	}
 	if !selected {
-		r.mu.Lock()
-		r.removePodLocked(key)
-		r.mu.Unlock()
+		r.removePod(key)
 		return nil
 	}
 	rootRef = refOf(rootObject)
@@ -201,6 +189,12 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
 	}
 	r.deps.Publications.UpsertPod(&next)
 	return nil
+}
+
+func (r *Runtime) removePod(key inputKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.removePodLocked(key)
 }
 
 func (r *Runtime) failPod(key inputKey, path []discovery.ObjectRef, cause error, root ...discovery.ObjectRef) error {
