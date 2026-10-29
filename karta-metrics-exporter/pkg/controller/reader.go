@@ -99,7 +99,7 @@ func (r *Reader) read(ref discovery.ObjectRef, requireFullObject bool) (*unstruc
 	return r.readLocked(ref, requireFullObject)
 }
 
-func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
+func (r *Reader) restMapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
 	mapping, err := r.clients.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if meta.IsNoMatchError(err) {
 		r.mapperMu.Lock()

@@ -99,7 +99,7 @@ func simpleOwner(object, owner *unstructured.Unstructured) {
 }
 func seedSource(t *testing.T, r *Runtime, gvk schema.GroupVersionKind, full bool, objects ...*unstructured.Unstructured) *resourceWatch {
 	t.Helper()
-	mapping, err := r.state.reader.mapping(gvk)
+	mapping, err := r.state.reader.restMapping(gvk)
 	require.NoError(t, err)
 	key := watchKey{Resource: mapping.Resource}
 	w := &resourceWatch{key: key, gvk: gvk, full: full, ready: true, objects: map[objectKey]struct{}{}, cancel: func() {}}

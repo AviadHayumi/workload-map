@@ -113,7 +113,7 @@ func (r *controllerState) syncWatches(ctx context.Context) error {
 func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, full bool) (watchKey, error) {
 	request := discovery.WatchRequest{GVK: gvk, Namespace: namespace}
 	failureRef := store.ObjectRef{GVK: gvk, Namespace: namespace, UID: types.UID("source:" + gvk.String() + "/" + namespace)}
-	mapping, err := r.reader.mapping(gvk)
+	mapping, err := r.reader.restMapping(gvk)
 	if err != nil {
 		return watchKey{}, r.recordWatchFailure(request, failureRef, err)
 	}
