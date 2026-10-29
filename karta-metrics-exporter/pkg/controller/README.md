@@ -49,6 +49,8 @@ A scrape reads the Metric Store. It does not call Kubernetes or evaluate Karta e
 
 The sources queue has one worker. Pod and workload worker counts are configurable;
 both default to two. A scope is the namespace being watched, or all namespaces.
+A rescan walks cached objects in that scope and queues relevant Pods and candidate
+workloads again. The rescan itself makes no API request.
 
 Event routing skips leaf work for Pods that do not match the Pod selector.
 Those Pods remain in the cache because another Pod may reference them as an owner.
@@ -123,6 +125,10 @@ and retry instead of evaluating metadata as if it were a full object.
 Queues hold identities, not copies of Kubernetes objects. Repeated adds of the
 same pending key are merged. One queue does not give the same key to two workers at
 once. Different keys can run concurrently, so shared caches still need locks.
+For example, two Pod workers can update the same Deployment's membership.
+Runtime protects that membership with its lock. Reader and the Metric Store
+protect their own shared data. A wait group lets shutdown wait until workers
+and watches have stopped.
 
 `runWorker` takes a key with `Get`, calls its handler, then calls `Done`.
 A returned error schedules a retry with backoff. When the handler returns no

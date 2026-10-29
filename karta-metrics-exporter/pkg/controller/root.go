@@ -23,25 +23,6 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-func ValidateResourceRules(rules []ResourceRule) error {
-	for index, rule := range rules {
-		if len(rule.APIGroups) == 0 || len(rule.APIVersions) == 0 || len(rule.Resources) == 0 {
-			return fmt.Errorf("resource rule %d requires apiGroups, apiVersions and resources", index)
-		}
-		for _, version := range rule.APIVersions {
-			if version == "" || strings.ContainsAny(version, "/ \t\n") {
-				return errors.New("resource rule API versions must name a version or *")
-			}
-		}
-		for _, resource := range rule.Resources {
-			if resource == "" || strings.ContainsAny(resource, "/ \t\n") {
-				return errors.New("resource rules must name whole resources or *")
-			}
-		}
-	}
-	return nil
-}
-
 func (r *Runtime) resolveWorkload(ctx context.Context, key rootKey) error {
 	if key.Candidate.UID != "" {
 		return r.admitRoot(ctx, key.Candidate)
@@ -347,6 +328,25 @@ func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *in
 		}
 	}
 	return name, instance, group, nil
+}
+
+func ValidateResourceRules(rules []ResourceRule) error {
+	for index, rule := range rules {
+		if len(rule.APIGroups) == 0 || len(rule.APIVersions) == 0 || len(rule.Resources) == 0 {
+			return fmt.Errorf("resource rule %d requires apiGroups, apiVersions and resources", index)
+		}
+		for _, version := range rule.APIVersions {
+			if version == "" || strings.ContainsAny(version, "/ \t\n") {
+				return errors.New("resource rule API versions must name a version or *")
+			}
+		}
+		for _, resource := range rule.Resources {
+			if resource == "" || strings.ContainsAny(resource, "/ \t\n") {
+				return errors.New("resource rules must name whole resources or *")
+			}
+		}
+	}
+	return nil
 }
 
 func matchesResource(rule ResourceRule, gvr schema.GroupVersionResource) bool {
