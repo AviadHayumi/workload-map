@@ -22,7 +22,7 @@ func TestRootSnapshotOwnsSources(t *testing.T) {
 	require.NoError(t, err)
 	sources := []store.SourceKey{{Namespace: "original"}}
 	workload := &discovery.GenericWorkload{Root: ref, Path: []discovery.ObjectRef{ref}}
-	require.NoError(t, r.state.admitCandidate(key, workload, selection, selection, sources))
+	require.NoError(t, r.state.registerSelectedObjectRoot(key, workload, selection, selection, sources))
 	sources[0].Namespace = "changed input"
 	snapshot, ok := r.state.snapshotRoot(ref.UID)
 	require.True(t, ok)
@@ -44,8 +44,8 @@ func TestRootSnapshotCannotPublishAfterMembershipRecreation(t *testing.T) {
 	previous := *values.Workload(ref.UID)
 
 	// Keep the same cached object and definition. Only the membership lifetime changes.
-	r.state.removePod(objectJobFor(refOf(pod)))
-	r.state.removeCandidate(objectJobFor(ref))
+	r.state.unregisterPod(objectJobFor(refOf(pod)))
+	r.state.unregisterSelectedObject(objectJobFor(ref))
 	_, ok = r.state.snapshotRoot(ref.UID)
 	require.False(t, ok)
 	require.Nil(t, values.Workload(ref.UID))

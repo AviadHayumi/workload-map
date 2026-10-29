@@ -262,11 +262,11 @@ func TestCandidateFailureDoesNotFabricateRoot(t *testing.T) {
 	simpleOwner(child, parent)
 	source := seedSource(t, r, deploymentKind, true)
 	seedSource(t, r, jobKind, true, child)
-	require.Error(t, r.admitRoot(context.Background(), objectJobFor(refOf(child))))
+	require.Error(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(child))))
 	require.Empty(t, values.Capture().Workloads)
 	require.Len(t, values.Capture().Failures, 1)
 	require.NoError(t, r.state.applyWatchEvent(source, parent, false))
-	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(child))))
+	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(child))))
 	require.Empty(t, values.Capture().Failures)
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.NotNil(t, values.Workload(parent.GetUID()))
@@ -298,7 +298,7 @@ func TestCandidateAdmissionFailuresPreserveCause(t *testing.T) {
 			} else {
 				discoverer.EXPECT().Get(ctx, refOf(child)).Return(discovery.Result{}, tc.discoveryErr).Once()
 			}
-			err := r.admitRoot(ctx, objectJobFor(refOf(child)))
+			err := r.resolveSelectedObjectRoot(ctx, objectJobFor(refOf(child)))
 			require.Same(t, tc.want, err)
 			require.Empty(t, values.Capture().Workloads)
 			require.Equal(t, []store.DiscoveryFailure{{Input: storedRef(objectJobFor(refOf(child)).ref()), Error: failureReason(tc.want)}}, values.Capture().Failures)

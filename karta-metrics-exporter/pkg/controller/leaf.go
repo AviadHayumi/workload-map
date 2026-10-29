@@ -31,19 +31,19 @@ func (r *Runtime) resolveInput(ctx context.Context, key objectJobKey) error {
 func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	ref := key.ref()
 	if !r.state.namespaceAdmitted(ref.Namespace) {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
 	object, _, err := r.state.reader.read(ref, true)
 	if apierrors.IsNotFound(err) {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
 	if err != nil {
 		return r.state.failPod(key, nil, err)
 	}
 	if !r.state.podSelector.Empty() && !r.state.podSelector.Matches(labelsFor(object)) {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
 	ref = refOf(object)
@@ -60,7 +60,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 		return r.state.failPod(key, workload.Path, selectionErr)
 	}
 	if workload.Root.GVK == podGVK && selection.Definition == nil {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
 
@@ -73,10 +73,10 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 		return r.state.failPod(key, workload.Path, scopeErr, rootRef)
 	}
 	if !allowed {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
-	if err := r.state.admitPod(key, workload); err != nil {
+	if err := r.state.registerPodRoot(key, workload); err != nil {
 		if errors.Is(err, discovery.ErrStale) {
 			return err
 		}
@@ -99,7 +99,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 		return r.state.failPod(key, workload.Path, err, workload.Root)
 	}
 	if !selected {
-		r.state.removePod(key)
+		r.state.unregisterPod(key)
 		return nil
 	}
 	rootRef = refOf(rootObject)

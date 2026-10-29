@@ -58,8 +58,8 @@ type objectJobKey struct {
 	Rescan bool
 }
 type workloadJobKey struct {
-	RootUID   types.UID
-	Candidate objectJobKey
+	RootUID        types.UID
+	SelectedObject objectJobKey
 }
 type watchKey = store.SourceKey
 
@@ -273,9 +273,9 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 				r.enqueueMembersLocked(root)
 			}
 		}
-		for candidate := range r.candidates {
-			if changedKinds[candidate.Object.GVK.GroupKind()] {
-				r.workloadQueue.Add(workloadJobKey{Candidate: candidate})
+		for selectedObject := range r.selectedObjectRoots {
+			if changedKinds[selectedObject.Object.GVK.GroupKind()] {
+				r.workloadQueue.Add(workloadJobKey{SelectedObject: selectedObject})
 			}
 		}
 	}

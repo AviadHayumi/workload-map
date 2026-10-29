@@ -24,26 +24,26 @@ import (
 )
 
 func (r *Runtime) resolveWorkload(ctx context.Context, key workloadJobKey) error {
-	if key.Candidate.UID != "" {
-		return r.admitRoot(ctx, key.Candidate)
+	if key.SelectedObject.UID != "" {
+		return r.resolveSelectedObjectRoot(ctx, key.SelectedObject)
 	}
 	return r.reconcile(ctx, key.RootUID)
 }
 
-func (r *Runtime) admitRoot(ctx context.Context, key objectJobKey) error {
+func (r *Runtime) resolveSelectedObjectRoot(ctx context.Context, key objectJobKey) error {
 	if !r.state.namespaceAdmitted(key.Object.Namespace) {
-		r.state.removeCandidate(key)
+		r.state.unregisterSelectedObject(key)
 		return nil
 	}
 
-	r.state.trackCandidate(key)
+	r.state.trackSelectedObject(key)
 	selection, selectionErr := r.state.lookupDefinition(key.Object.GVK)
 	if selection.Definition == nil {
 		if selectionErr != nil {
 			r.state.deps.Publications.SetDiscoveryFailure(storedRef(key.ref()), failureReason(selectionErr))
 			return selectionErr
 		}
-		r.state.removeCandidate(key)
+		r.state.unregisterSelectedObject(key)
 		return nil
 	}
 	if selection.GVK != key.Object.GVK {
@@ -56,15 +56,15 @@ func (r *Runtime) admitRoot(ctx context.Context, key objectJobKey) error {
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-		return r.state.replaceCandidate(key, object)
+		return r.state.replaceSelectedObjectTracking(key, object)
 	}
 	object, _, err := r.state.reader.read(key.ref(), true)
 	if apierrors.IsNotFound(err) {
-		r.state.removeCandidate(key)
+		r.state.unregisterSelectedObject(key)
 		return nil
 	}
 	if err != nil {
-		r.state.failCandidate(key, err)
+		r.state.failSelectedObjectDiscovery(key, err)
 		return err
 	}
 	result, err := r.state.deps.Discovery.Get(ctx, refOf(object))
@@ -72,7 +72,7 @@ func (r *Runtime) admitRoot(ctx context.Context, key objectJobKey) error {
 		err = discovery.ErrUnresolvedOwner
 	}
 	if err != nil {
-		r.state.failCandidate(key, err)
+		r.state.failSelectedObjectDiscovery(key, err)
 		return err
 	}
 	workload := result.Workload
@@ -83,19 +83,19 @@ func (r *Runtime) admitRoot(ctx context.Context, key objectJobKey) error {
 	}
 	allowed, scopeErr := r.state.selectedResource(selectedGVK)
 	if scopeErr != nil {
-		r.state.failCandidate(key, scopeErr)
+		r.state.failSelectedObjectDiscovery(key, scopeErr)
 		return scopeErr
 	}
 	if !allowed {
-		r.state.removeCandidate(key)
+		r.state.unregisterSelectedObject(key)
 		return nil
 	}
 	sources := r.state.sourcesFor(workload.Path)
-	return r.state.admitCandidate(key, workload, selection, rootSelection, sources)
+	return r.state.registerSelectedObjectRoot(key, workload, selection, rootSelection, sources)
 }
 
-// Only canonical UID keys publish workload results. Candidate keys only admit
-// or withdraw membership, including selected children that have no Pods.
+// Only canonical UID keys publish workload results. Selected-object keys register
+// or unregister root membership, including selected children that have no Pods.
 func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	snapshot, exists := r.state.snapshotRoot(uid)
 	if !exists {

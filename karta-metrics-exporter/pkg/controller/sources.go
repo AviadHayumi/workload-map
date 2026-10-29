@@ -445,8 +445,8 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	if old != nil && (current == nil || old.GetUID() != current.GetUID()) {
 		delete(r.ancestorPods, old.GetUID())
 		oldKey := objectJobFor(refOf(old))
-		if _, known := r.candidates[oldKey]; known {
-			r.workloadQueue.Add(workloadJobKey{Candidate: oldKey})
+		if _, known := r.selectedObjectRoots[oldKey]; known {
+			r.workloadQueue.Add(workloadJobKey{SelectedObject: oldKey})
 		}
 		r.enqueueRootAndMembersLocked(old.GetUID())
 	}
@@ -458,9 +458,9 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	}
 	if current != nil {
 		key := objectJobFor(refOf(current))
-		_, admitted := r.candidates[key]
-		if (!admitted || ownershipChanged) && r.isCandidateLocked(gvk) {
-			r.workloadQueue.Add(workloadJobKey{Candidate: key})
+		_, tracked := r.selectedObjectRoots[key]
+		if (!tracked || ownershipChanged) && r.hasSelectedDefinitionLocked(gvk) {
+			r.workloadQueue.Add(workloadJobKey{SelectedObject: key})
 		}
 		if root := r.roots[current.GetUID()]; root != nil {
 			r.workloadQueue.Add(workloadJobKey{RootUID: current.GetUID()})

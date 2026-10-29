@@ -223,7 +223,7 @@ func TestRuntimeDefinitionChangeDoesNotReconcileOtherKinds(t *testing.T) {
 	seedSource(t, r, deploymentKind, true, deployment)
 	seedSource(t, r, podGVK, true, jobPod, deploymentPod)
 	settle(t, r)
-	require.Len(t, r.state.candidates, 2)
+	require.Len(t, r.state.selectedObjectRoots, 2)
 	jobCalls := labels.count(job.GetUID(), labelresolver.MetricWorkloadStatus)
 	deploymentCalls := labels.count(deployment.GetUID(), labelresolver.MetricWorkloadStatus)
 	deploymentPodCalls := labels.count(deployment.GetUID(), labelresolver.MetricPodWorkloadInfo)
