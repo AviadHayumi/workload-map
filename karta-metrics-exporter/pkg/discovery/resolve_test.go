@@ -179,7 +179,7 @@ var _ = Describe("root resolution", func() {
 
 	It("requires an object reader", func() {
 		_, err := New(nil, Config{})
-		Expect(err).To(MatchError("reader required"))
+		Expect(errors.Is(err, ErrReaderRequired)).To(BeTrue())
 	})
 	It("honors cancellation before reading", func() {
 		ctx, cancel := context.WithCancel(context.Background())

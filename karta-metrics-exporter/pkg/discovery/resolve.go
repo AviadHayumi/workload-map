@@ -24,10 +24,13 @@ type Config struct {
 	IgnoredTopOwners []schema.GroupVersionKind
 }
 
+// ErrReaderRequired indicates that no object reader was provided.
+var ErrReaderRequired = errors.New("reader required")
+
 // New constructs an owner resolver. The reader must be safe for concurrent use.
 func New(reader ObjectReader, config Config) (Discoverer, error) {
 	if reader == nil {
-		return nil, errors.New("reader required")
+		return nil, ErrReaderRequired
 	}
 	d := &discovery{reader: reader, ignored: make(map[schema.GroupVersionKind]bool)}
 	for _, gvk := range config.IgnoredTopOwners {
