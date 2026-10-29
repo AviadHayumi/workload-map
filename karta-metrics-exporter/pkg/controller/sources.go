@@ -71,7 +71,7 @@ func (r *controllerState) syncWatches(ctx context.Context) error {
 		scopes = append(scopes, namespace)
 	}
 	kinds := map[schema.GroupVersionKind]bool{podGVK: true}
-	for _, selection := range r.selections {
+	for _, selection := range r.selectedDefinitions {
 		if selection.GVK.Version != "" && selection.GVK.Kind != "" {
 			kinds[selection.GVK] = true
 		}

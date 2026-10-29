@@ -46,12 +46,12 @@ type controllerState struct {
 	ancestorPods map[types.UID]bool
 	candidates   map[objectJobKey]types.UID
 
-	selections        map[schema.GroupKind]selectedDefinition
-	definitionError   error
-	definitionVersion uint64
-	namespaceSelector labels.Selector
-	objectSelector    labels.Selector
-	podSelector       labels.Selector
+	selectedDefinitions    map[schema.GroupKind]selectedDefinition
+	definitionInventoryErr error
+	definitionVersion      uint64
+	namespaceSelector      labels.Selector
+	objectSelector         labels.Selector
+	podSelector            labels.Selector
 
 	ctx     context.Context
 	started bool
@@ -88,26 +88,26 @@ type rootSnapshot struct {
 
 func newControllerState(objects *objectCache) *controllerState {
 	return &controllerState{
-		objectCache:   objects,
-		watches:       map[watchKey]*resourceWatch{},
-		replacements:  map[watchKey]*resourceWatch{},
-		watchFailures: map[discovery.WatchRequest]error{},
-		roots:         map[types.UID]*rootState{},
-		podRoots:      map[types.UID]types.UID{},
-		ancestorPods:  map[types.UID]bool{},
-		candidates:    map[objectJobKey]types.UID{},
-		selections:    map[schema.GroupKind]selectedDefinition{},
-		scopes:        map[string]bool{},
+		objectCache:         objects,
+		watches:             map[watchKey]*resourceWatch{},
+		replacements:        map[watchKey]*resourceWatch{},
+		watchFailures:       map[discovery.WatchRequest]error{},
+		roots:               map[types.UID]*rootState{},
+		podRoots:            map[types.UID]types.UID{},
+		ancestorPods:        map[types.UID]bool{},
+		candidates:          map[objectJobKey]types.UID{},
+		selectedDefinitions: map[schema.GroupKind]selectedDefinition{},
+		scopes:              map[string]bool{},
 	}
 }
 
 func (r *controllerState) lookupDefinition(gvk schema.GroupVersionKind) (selectedDefinition, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	selected := r.selections[gvk.GroupKind()]
+	selected := r.selectedDefinitions[gvk.GroupKind()]
 	selected.version = r.definitionVersion
-	if r.definitionError != nil {
-		return selected, r.definitionError
+	if r.definitionInventoryErr != nil {
+		return selected, r.definitionInventoryErr
 	}
 	return selected, selected.err
 }
@@ -401,7 +401,7 @@ func (r *controllerState) enqueuePodLocked(object *unstructured.Unstructured) {
 }
 
 func (r *controllerState) isCandidateLocked(gvk schema.GroupVersionKind) bool {
-	selection := r.selections[gvk.GroupKind()]
+	selection := r.selectedDefinitions[gvk.GroupKind()]
 	return selection.Definition != nil && selection.GVK == gvk
 }
 
@@ -436,7 +436,7 @@ func (r *controllerState) rootLocked(workload *discovery.GenericWorkload) *rootS
 		r.roots[workload.Root.UID] = root
 	}
 	root.resolution = workload.Resolution
-	if selection := r.selections[workload.Root.GVK.GroupKind()]; selection.Definition != nil {
+	if selection := r.selectedDefinitions[workload.Root.GVK.GroupKind()]; selection.Definition != nil {
 		root.ref.GVK = selection.GVK
 	} else if root.ref.GVK != workload.Root.GVK {
 		current := root.ref
@@ -496,12 +496,12 @@ func (r *controllerState) currentSelectionLocked(ref discovery.ObjectRef, select
 	if r.definitionVersion != selection.version {
 		return false
 	}
-	current := r.selections[ref.GVK.GroupKind()]
+	current := r.selectedDefinitions[ref.GVK.GroupKind()]
 	return current.GVK == selection.GVK && current.Origin == selection.Origin
 }
 
 func (r *controllerState) isRootLocked(ref discovery.ObjectRef) bool {
-	selected := r.selections[ref.GVK.GroupKind()]
+	selected := r.selectedDefinitions[ref.GVK.GroupKind()]
 	if selected.Definition != nil && selected.err == nil {
 		entry := r.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
 		source := r.sources[entry.source]

@@ -108,7 +108,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 		r.scopes[""] = true
 	}
 	if config.ClusterDefinitions {
-		r.definitionError = inventory.ErrNotReady
+		r.definitionInventoryErr = inventory.ErrNotReady
 		deps.Publications.SetSourceHealth(definitionSource, store.SourceHealth{GVK: kartaGVK})
 	}
 	var err error
@@ -173,7 +173,7 @@ func (r *Runtime) Ready() bool {
 func (r *controllerState) ready() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionError != nil || len(r.watches) == 0 {
+	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionInventoryErr != nil || len(r.watches) == 0 {
 		return false
 	}
 	for request := range r.watchFailures {
@@ -217,7 +217,7 @@ func (r *controllerState) requiredWatch(gvk schema.GroupVersionKind) bool {
 
 func (r *controllerState) refreshDefinitionsLocked() error {
 	results, sourceErr := r.deps.Inventory.List()
-	next := r.selections
+	next := r.selectedDefinitions
 	if sourceErr == nil {
 		next = make(map[schema.GroupKind]selectedDefinition, len(results))
 		for _, result := range results {
@@ -232,20 +232,20 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 			next[result.GVK.GroupKind()] = selected
 		}
 	}
-	healthChanged := failureReason(r.definitionError) != failureReason(sourceErr)
+	healthChanged := failureReason(r.definitionInventoryErr) != failureReason(sourceErr)
 	changedKinds := map[schema.GroupKind]bool{}
 	for kind, selected := range next {
-		if !reflect.DeepEqual(r.selections[kind], selected) {
+		if !reflect.DeepEqual(r.selectedDefinitions[kind], selected) {
 			changedKinds[kind] = true
 		}
 	}
-	for kind := range r.selections {
+	for kind := range r.selectedDefinitions {
 		if _, exists := next[kind]; !exists {
 			changedKinds[kind] = true
 		}
 	}
-	r.definitionError = sourceErr
-	r.selections = next
+	r.definitionInventoryErr = sourceErr
+	r.selectedDefinitions = next
 	if r.config.ClusterDefinitions {
 		r.deps.Publications.SetSourceHealth(definitionSource, store.SourceHealth{GVK: kartaGVK, Synced: sourceErr == nil, Error: failureReason(sourceErr)})
 	}
