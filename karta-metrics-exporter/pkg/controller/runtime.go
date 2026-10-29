@@ -85,7 +85,7 @@ type Runtime struct {
 type inputKey struct {
 	Object objectKey
 	UID    types.UID
-	Sweep  bool
+	Rescan bool
 }
 type rootKey struct {
 	UID       types.UID
@@ -311,7 +311,7 @@ func (r *Runtime) refreshDefinitionsLocked() error {
 	if healthChanged || len(changedKinds) > 0 {
 		r.definitionVersion++
 		if healthChanged {
-			r.enqueueSweepLocked("")
+			r.enqueueRescanLocked("")
 		} else {
 			r.reader.mu.RLock()
 			for _, entry := range r.reader.objects {
@@ -357,8 +357,8 @@ func inputFor(ref discovery.ObjectRef) inputKey { return inputKey{Object: keyOf(
 func (key inputKey) ref() discovery.ObjectRef {
 	return discovery.ObjectRef{GVK: key.Object.GVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
 }
-func (r *Runtime) enqueueSweepLocked(namespace string) {
-	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Sweep: true})
+func (r *Runtime) enqueueRescanLocked(namespace string) {
+	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Rescan: true})
 }
 func (r *Runtime) enqueueObjectLocked(object *unstructured.Unstructured) {
 	r.enqueuePodLocked(object)

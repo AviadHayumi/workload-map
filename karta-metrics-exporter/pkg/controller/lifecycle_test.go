@@ -204,7 +204,7 @@ func TestTombstoneAndSameNameReplacement(t *testing.T) {
 		})
 	}
 }
-func TestIntermediateOwnershipSweepAndQuietStatus(t *testing.T) {
+func TestIntermediateOwnershipRescanAndQuietStatus(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	a, b := simpleObject(deploymentKind, "a"), simpleObject(deploymentKind, "b")
 	middle, pod := simpleObject(replicaSetKind, "middle"), simpleObject(podGVK, "pod")

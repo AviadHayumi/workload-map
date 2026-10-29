@@ -52,7 +52,7 @@ both default to two. A scope is the namespace being watched, or all namespaces.
 
 Event routing skips leaf work for Pods that do not match the Pod selector.
 Those Pods remain in the cache because another Pod may reference them as an owner.
-Previously selected or tracked Pods still get queued for cleanup. Sweeps use the
+Previously selected or tracked Pods still get queued for cleanup. Rescans use the
 same rule. The worker rechecks current labels because they may change while a
 key is waiting in the queue.
 
@@ -131,12 +131,12 @@ on a timer.
 | --- | --- |
 | Pod changes | That Pod, if selected, previously selected, or needing cleanup |
 | Known root changes | The root and its associated Pods |
-| An intermediate owner changes ownership | One scope-sweep item; it requeues cached Pods and candidates |
+| An intermediate owner changes ownership | One scope-rescan item; it requeues cached Pods and candidates |
 | Inventory reports a definition change | Refresh sources; requeue affected candidates, roots, their Pods and unresolved Pods |
-| A source recovers | A scope sweep and root evaluations |
+| A source recovers | A scope rescan and root evaluations |
 
 For example, a ReplicaSet can gain a different Deployment owner while its Pods
-stay unchanged. The scope sweep lets those Pods discover their new root.
+stay unchanged. The scope rescan lets those Pods discover their new root.
 
 Removing a definition triggers reevaluation using Inventory's new selection,
 including any fallback. If no definition remains, objects of that kind stop
@@ -160,7 +160,7 @@ detailed result and source-health rules.
 | [runtime.go](runtime.go) | Start workers, track Pod/root membership, observe definitions and shut down |
 | [sources.go](sources.go) | Start Reflectors, accept LIST/WATCH results and route changes to queues |
 | [reader.go](reader.go) | Read cached objects and check their identities and source health |
-| [leaf.go](leaf.go) | Discover a Pod's root and save its mapping; handle scope sweeps |
+| [leaf.go](leaf.go) | Discover a Pod's root and save its mapping; handle scope rescans |
 | [root.go](root.go) | Discover candidate roots and save workload status and labels |
 
 Diagram sources: [startup](images/startup.excalidraw),

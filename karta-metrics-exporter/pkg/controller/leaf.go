@@ -23,7 +23,7 @@ import (
 )
 
 func (r *Runtime) resolveInput(ctx context.Context, key inputKey) error {
-	if !key.Sweep {
+	if !key.Rescan {
 		return r.resolveLeaf(ctx, key)
 	}
 	r.mu.Lock()

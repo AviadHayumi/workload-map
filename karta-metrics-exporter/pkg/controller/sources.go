@@ -200,7 +200,7 @@ func (r *Runtime) setHealthLocked(w *resourceWatch, err error) {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
 	}
 	if recovered {
-		r.enqueueSweepLocked(w.key.Namespace)
+		r.enqueueRescanLocked(w.key.Namespace)
 		for uid := range r.roots {
 			r.rootQueue.Add(rootKey{UID: uid})
 		}
@@ -414,7 +414,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	r.reader.mu.Unlock()
 	w.ready = true
 	r.setHealthLocked(w, nil)
-	r.enqueueSweepLocked(w.key.Namespace)
+	r.enqueueRescanLocked(w.key.Namespace)
 	return nil
 }
 func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
@@ -495,7 +495,7 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 	}
 	selectorChanged := !r.objectSelector.Empty() && old != nil && current != nil && r.objectSelector.Matches(labelsFor(old)) != r.objectSelector.Matches(labelsFor(current))
 	if (ownershipChanged && ancestor) || selectorChanged {
-		r.enqueueSweepLocked(object.GetNamespace())
+		r.enqueueRescanLocked(object.GetNamespace())
 	}
 }
 

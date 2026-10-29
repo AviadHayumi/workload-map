@@ -353,7 +353,7 @@ func TestUnselectedPodEventsKeepCacheWithoutLeafWork(t *testing.T) {
 	require.NoError(t, (&reflectorStore{runtime: r, source: pods}).Replace([]any{initial}, "1"))
 	require.Equal(t, 1, r.inputQueue.Len())
 	key, _ := r.inputQueue.Get()
-	require.True(t, key.Sweep, "initial synchronization queues only its scope sweep")
+	require.True(t, key.Rescan, "initial synchronization queues only its scope rescan")
 	require.NoError(t, r.resolveInput(context.Background(), key))
 	r.inputQueue.Done(key)
 	require.Zero(t, r.inputQueue.Len())
@@ -430,7 +430,7 @@ func TestPodSelectorTransitionsRemovePreviousResultsAndRestoreMapping(t *testing
 }
 
 func TestPodSelectorFiltersScopeAndDefinitionRescans(t *testing.T) {
-	for _, trigger := range []string{"scope sweep", "definition change"} {
+	for _, trigger := range []string{"scope rescan", "definition change"} {
 		t.Run(trigger, func(t *testing.T) {
 			r, values := simpleRuntime(t, nil)
 			r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
@@ -446,14 +446,14 @@ func TestPodSelectorFiltersScopeAndDefinitionRescans(t *testing.T) {
 			require.NotNil(t, values.Pod(selected.GetUID()))
 			require.Nil(t, values.Pod(ignored.GetUID()))
 
-			if trigger == "scope sweep" {
-				require.NoError(t, r.resolveInput(context.Background(), inputKey{Object: objectKey{Namespace: "ns"}, Sweep: true}))
+			if trigger == "scope rescan" {
+				require.NoError(t, r.resolveInput(context.Background(), inputKey{Object: objectKey{Namespace: "ns"}, Rescan: true}))
 			} else {
 				selectCatalog(t, r, "batch-job-v1")
 			}
 			require.Equal(t, 1, r.inputQueue.Len())
 			key, _ := r.inputQueue.Get()
-			require.False(t, key.Sweep)
+			require.False(t, key.Rescan)
 			require.Equal(t, selected.GetUID(), key.UID)
 			require.NoError(t, r.resolveInput(context.Background(), key))
 			r.inputQueue.Done(key)
@@ -491,7 +491,7 @@ func TestUnselectedAncestorPodOwnershipChangeUpdatesSelectedDescendant(t *testin
 	require.NoError(t, r.accept(pods, changed, false))
 	require.Equal(t, 1, r.inputQueue.Len())
 	key, _ := r.inputQueue.Get()
-	require.True(t, key.Sweep)
+	require.True(t, key.Rescan)
 	require.NoError(t, r.resolveInput(context.Background(), key))
 	r.inputQueue.Done(key)
 	require.Equal(t, 1, r.inputQueue.Len())
@@ -538,7 +538,7 @@ func TestPodSelectorLossDuringDiscoveryQueuesCleanupBeforePublication(t *testing
 	require.Empty(t, values.Capture().Workloads)
 }
 
-func TestOrdinaryPodChurnDoesNotSweepAndAncestorPodAdoptionDoes(t *testing.T) {
+func TestOrdinaryPodChurnDoesNotRescanAndAncestorPodAdoptionDoes(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	a, b := simpleObject(deploymentKind, "a"), simpleObject(deploymentKind, "b")
 	seedSource(t, r, deploymentKind, true, a, b)
@@ -551,13 +551,13 @@ func TestOrdinaryPodChurnDoesNotSweepAndAncestorPodAdoptionDoes(t *testing.T) {
 	simpleOwner(ordinary, a)
 	require.NoError(t, r.accept(pods, ordinary, false))
 	key, _ := r.inputQueue.Get()
-	require.False(t, key.Sweep)
+	require.False(t, key.Rescan)
 	require.Equal(t, ordinary.GetUID(), key.UID)
 	r.inputQueue.Done(key)
 	require.Zero(t, r.inputQueue.Len())
 	require.NoError(t, r.accept(pods, ordinary, true))
 	key, _ = r.inputQueue.Get()
-	require.False(t, key.Sweep)
+	require.False(t, key.Rescan)
 	r.inputQueue.Done(key)
 	require.Zero(t, r.inputQueue.Len())
 	adopted := leader.DeepCopy()
@@ -567,13 +567,13 @@ func TestOrdinaryPodChurnDoesNotSweepAndAncestorPodAdoptionDoes(t *testing.T) {
 	settle(t, r)
 	require.Equal(t, b.GetUID(), values.Pod(child.GetUID()).Record.Workload.UID)
 	require.NoError(t, r.accept(pods, adopted, true))
-	foundSweep := false
+	foundRescan := false
 	for r.inputQueue.Len() > 0 {
 		key, _ := r.inputQueue.Get()
-		foundSweep = foundSweep || key.Sweep
+		foundRescan = foundRescan || key.Rescan
 		r.inputQueue.Done(key)
 	}
-	require.True(t, foundSweep)
+	require.True(t, foundRescan)
 	require.NotContains(t, r.ancestorPods, leader.GetUID())
 }
 
