@@ -193,7 +193,7 @@ func (r *controllerState) admitPod(key objectJobKey, workload *discovery.Generic
 	}
 	// Register before reading the root body. Root-event fanout takes this same lock.
 	previous := r.podRoots[key.UID]
-	root := r.rootLocked(workload)
+	root := r.ensureRootLocked(workload)
 	if previous != root.ref.UID {
 		if old := r.roots[previous]; old != nil {
 			delete(old.pods, key.UID)
@@ -233,7 +233,7 @@ func (r *controllerState) publishPod(path []discovery.ObjectRef, rootRef discove
 	return nil
 }
 
-func (r *controllerState) rescan(namespace string) error {
+func (r *controllerState) requeueScope(namespace string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, entry := range r.objects {
@@ -279,7 +279,7 @@ func (r *controllerState) admitCandidate(key objectJobKey, workload *discovery.G
 		return discovery.ErrStale
 	}
 	previous := r.candidates[key]
-	root := r.rootLocked(workload)
+	root := r.ensureRootLocked(workload)
 	if previous != root.ref.UID {
 		if old := r.roots[previous]; old != nil {
 			delete(old.candidates, key)
@@ -377,7 +377,7 @@ func (r *controllerState) stopWatches() {
 	}
 	r.mu.Unlock()
 }
-func (r *controllerState) enqueueRescanLocked(namespace string) {
+func (r *controllerState) enqueueScopeRefreshLocked(namespace string) {
 	r.podQueue.Add(objectJobKey{Object: objectKey{Namespace: namespace}, Rescan: true})
 }
 
@@ -405,7 +405,7 @@ func (r *controllerState) isCandidateLocked(gvk schema.GroupVersionKind) bool {
 	return selection.Definition != nil && selection.GVK == gvk
 }
 
-func (r *controllerState) fanoutRootLocked(uid types.UID) {
+func (r *controllerState) enqueueRootAndMembersLocked(uid types.UID) {
 	root := r.roots[uid]
 	if root == nil {
 		return
@@ -423,7 +423,7 @@ func (r *controllerState) enqueueMembersLocked(root *rootState) {
 	}
 }
 
-func (r *controllerState) rootLocked(workload *discovery.GenericWorkload) *rootState {
+func (r *controllerState) ensureRootLocked(workload *discovery.GenericWorkload) *rootState {
 	for _, ref := range workload.Path[1:] {
 		if ref.GVK == podGVK {
 			r.ancestorPods[ref.UID] = true

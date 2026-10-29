@@ -182,7 +182,7 @@ func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
 	}
 	if recovered {
-		r.enqueueRescanLocked(w.key.Namespace)
+		r.enqueueScopeRefreshLocked(w.key.Namespace)
 		for uid := range r.roots {
 			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 		}
@@ -386,7 +386,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	}
 	w.ready = true
 	r.setHealthLocked(w, nil)
-	r.enqueueRescanLocked(w.key.Namespace)
+	r.enqueueScopeRefreshLocked(w.key.Namespace)
 	return nil
 }
 func (r *controllerState) accept(w *resourceWatch, value any, deleted bool) error {
@@ -442,7 +442,7 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 		if _, known := r.candidates[oldKey]; known {
 			r.workloadQueue.Add(workloadJobKey{Candidate: oldKey})
 		}
-		r.fanoutRootLocked(old.GetUID())
+		r.enqueueRootAndMembersLocked(old.GetUID())
 	}
 	ownershipChanged := old == nil || current == nil || old.GetUID() != current.GetUID()
 	if !ownershipChanged {
@@ -465,7 +465,7 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	}
 	selectorChanged := !r.objectSelector.Empty() && old != nil && current != nil && r.objectSelector.Matches(labelsFor(old)) != r.objectSelector.Matches(labelsFor(current))
 	if (ownershipChanged && ancestor) || selectorChanged {
-		r.enqueueRescanLocked(object.GetNamespace())
+		r.enqueueScopeRefreshLocked(object.GetNamespace())
 	}
 }
 

@@ -252,7 +252,7 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 	if healthChanged || len(changedKinds) > 0 {
 		r.definitionVersion++
 		if healthChanged {
-			r.enqueueRescanLocked("")
+			r.enqueueScopeRefreshLocked("")
 		} else {
 			for _, entry := range r.objects {
 				ref := refOf(entry.object)
