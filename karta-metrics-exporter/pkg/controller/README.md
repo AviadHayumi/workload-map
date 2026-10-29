@@ -10,6 +10,8 @@ the root. The Pod result records `web-7 -> web`; a separate workload result
 records the Deployment's status using its Karta definition.
 
 The Pod is the leaf. The workload returned by Discovery is the root.
+Discovery stops at an object with no controller owner, or immediately before
+an owner kind listed in `IgnoredOwnerKinds`.
 The controller keeps Kubernetes objects in a cache, processes changes through
 queues, and saves results for `/metrics`.
 
@@ -47,10 +49,10 @@ A scrape reads the Metric Store. It does not call Kubernetes or evaluate Karta e
 | Queue | Key shape | Handler |
 | --- | --- | --- |
 | `exporter-sources` | String `"sources"` | [`syncWatches`](sources.go#L38) refreshes definitions and namespace scopes, then starts shared watches |
-| `exporter-pods` | `inputKey{Object: objectKey{GVK, Namespace, Name}, UID}` | [`resolveInput`](leaf.go#L24) calls `resolveLeaf` for one Pod |
-| `exporter-pods` | `inputKey{Object: objectKey{Namespace: scope}, Rescan: true}` | `resolveInput` calls [`rescan`](state.go#L236) to requeue cached objects and previous candidates |
-| `exporter-workloads` | `rootKey{Candidate: inputKey{Object, UID}}` | [`resolveWorkload`](root.go#L26) calls `admitRoot` to discover a candidate |
-| `exporter-workloads` | `rootKey{UID: rootUID}` | `resolveWorkload` calls `reconcile` to evaluate an admitted root |
+| `exporter-pods` | `objectJobKey{Object: objectKey{GVK, Namespace, Name}, UID}` | [`handlePodInput`](leaf.go#L24) calls `reconcilePod` for one Pod |
+| `exporter-pods` | `objectJobKey{Object: objectKey{Namespace: scope}, Rescan: true}` | `handlePodInput` calls [`requeueScope`](state.go#L238) to requeue cached objects and previous selected objects |
+| `exporter-workloads` | `workloadJobKey{SelectedObject: objectJobKey{Object, UID}}` | [`handleWorkloadInput`](root.go#L26) calls `resolveSelectedObjectRoot` to discover a selected object |
+| `exporter-workloads` | `workloadJobKey{RootUID: rootUID}` | `handleWorkloadInput` calls `reconcileWorkload` to evaluate a known root |
 
 GVK means group, version and kind. UID is Kubernetes' object identity, distinct
 from its name. Queue keys contain neither resource versions nor object bodies.
@@ -59,7 +61,8 @@ use this scope. With one, `syncWatches` derives admitted scopes from the
 Namespace cache. Cluster-scoped resources still use the empty scope. A rescan
 makes no API request.
 
-The sources queue has one worker. `New` defaults `Workers` to two.
+In `controllerState`, these queues are named `watchSyncQueue`, `podQueue` and
+`workloadQueue`. The sources queue has one worker. `New` defaults `Workers` to two.
 `LeafWorkers` and `RootWorkers` inherit that value unless set explicitly.
 
 Event routing skips leaf work for Pods that do not match the Pod selector.
@@ -70,19 +73,19 @@ key is waiting in the queue.
 
 ### Follow one Pod
 
-The main path is [`resolveLeaf`](leaf.go#L31):
+The main path is [`reconcilePod`](leaf.go#L31):
 
 1. A selected Pod's event updates the object cache and queues the Pod's identity.
 2. A Pod worker reads the latest full Pod object.
 3. Discovery follows controller owner references through the cache:
    `Pod -> ReplicaSet -> Deployment`.
-4. [`admitPod`](state.go#L185) records membership and queues the root before the
+4. [`registerPodRoot`](state.go#L187) records membership and queues the root before the
    worker reads the full Deployment. This lets root events find the Pod while
    its evaluation is in flight.
 5. The Deployment's Karta definition maps the Pod to a component and instance.
    The label resolver receives both the full Pod and the full Deployment.
-6. [`publishPod`](state.go#L216) checks current inputs and saves the Pod result.
-   [`reconcile`](root.go#L99) separately evaluates the full Deployment's status
+6. [`publishPod`](state.go#L218) checks current inputs and saves the Pod result.
+   [`reconcileWorkload`](root.go#L99) separately evaluates the full Deployment's status
    and labels, then calls `publishWorkload`.
 
 A non-Pod root without a Karta definition can still provide creation information
@@ -92,15 +95,20 @@ needs a Pod Karta definition to be included.
 ### How does a workload appear before it has Pods?
 
 Objects whose GVK matches a selected Karta definition enter the workload queue
-as candidates. This means an instance of the selected kind, not the Karta
-custom resource itself. A candidate is an object to discover, not necessarily
-the root. For example, a selected Job owned by a Deployment admits the
-Deployment, even with no Pods and no Deployment definition.
+as selected objects. These are workload objects, not Karta custom resources.
+A selected object is an input to discovery. It may turn out to be the root or
+have an ancestor that is the root. For example, a selected Job owned by a
+Deployment registers the Deployment, even with no Pods and no Deployment
+definition.
 
-[`admitRoot`](root.go#L33) discovers the candidate's owner chain.
-[`admitCandidate`](state.go#L275) records its membership and queues the resulting
-root UID. Only `reconcile` on that UID publishes workload results. Candidate
-keys admit or withdraw membership; they never publish a workload directly.
+[`resolveSelectedObjectRoot`](root.go#L33) discovers the selected object's owner chain.
+[`registerSelectedObjectRoot`](state.go#L277) records its membership and queues the resulting
+root UID. Only `reconcileWorkload` on that UID publishes workload results. Selected object
+keys register or unregister membership; they never publish a workload directly.
+
+`unregisterSelectedObject` removes that object from exporter tracking and clears
+its discovery error. It queues the previous root for reevaluation. It does not
+delete a Kubernetes object or remove still-live Pods from that root.
 
 ## 3. Reflectors: how does the cache stay current?
 
@@ -113,8 +121,8 @@ A collection's group, version and resource form its GVR, such as `apps/v1/deploy
 
 - `LIST` supplies a complete snapshot.
 - `WATCH` supplies later additions, updates and deletions.
-- The controller's [`reflectorStore.Replace`](sources.go#L342) accepts snapshots;
-  `accept` handles individual events. They update the Reader cache and
+- The controller's [`reflectorStore.Replace`](sources.go#L348) accepts snapshots;
+  `applyWatchEvent` handles individual events. They update the Reader cache and
   queue work. They do not calculate metrics.
 - The Reflector reconnects and relists when needed.
 
@@ -133,7 +141,7 @@ requests and context cancellation unblock it.
 | Other ancestors encountered by Discovery | Metadata, unless already watched in full | Follow names, UIDs and owner references |
 
 A full object includes all fields returned by Kubernetes, including metadata,
-spec and status where present. `sourceObject` removes managed fields. If an
+spec and status where present. `prepareWatchObject` removes managed fields. If an
 API rejects metadata requests, the source retries with the dynamic client but
 still strips the result to metadata for a metadata-only watch.
 
@@ -146,7 +154,7 @@ full watch starts. `reflectorStore.Replace` accepts the complete full snapshot
 before canceling the metadata watch. Workers wait and retry instead of
 evaluating metadata as if it were a full object.
 
-[`readLocked`](state.go#L530) rejects unhealthy or unsynchronized sources before
+[`readLocked`](state.go#L533) rejects unhealthy or unsynchronized sources before
 checking object identity. It returns `ErrPending` when a full read has only
 metadata, `ErrStale` for a changed resource version, and NotFound for a
 mismatched UID. Absence is NotFound only when a matching source is healthy
@@ -165,6 +173,7 @@ update the same Deployment's membership.
 cache, source health, selected definitions and Pod/root membership.
 State methods take the lock when they read or change shared state. The handlers
 in `leaf.go` and `root.go` call those methods instead of managing locks themselves.
+Private helpers ending in `Locked` require the caller to hold that lock.
 The Metric Store has its own lock. Reader uses a separate mutex for mapper resets.
 
 ### State maps and snapshots
@@ -175,15 +184,15 @@ The Metric Store has its own lock. Reader uses a separate mutex for mapper reset
 | --- | --- |
 | `objects`, `sources` | Accepted objects by GVK/namespace/name, and their collection health/fullness |
 | `watches`, `replacements`, `watchFailures` | Active watches, full-watch replacements and failed watch requests |
-| `scopes`, `selections` | Admitted namespaces and selected definitions by group/kind |
+| `scopes`, `selectedDefinitions` | Admitted namespaces and selected definitions by group/kind |
 | `podRoots` | Pod UID to root UID |
-| `candidates` | Candidate key to root UID; empty UID means tracked but not yet admitted |
-| `roots` | Root UID to reference, generation, owner resolution, Pod members and candidate members |
+| `selectedObjectRoots` | Selected object key to root UID; empty UID means tracked but not yet resolved |
+| `roots` | Root UID to reference, generation, owner resolution, Pod members and selected object members |
 | `ancestorPods` | Pod UIDs seen as owners, so their ownership changes trigger rescans |
 
-`rootState.candidates` stores each candidate's sources and discovery error.
-[`snapshotRoot`](state.go#L302) combines those into an owned snapshot. One candidate's
-success cannot clear another candidate's error. The snapshot also carries the
+`rootState.selectedObjects` stores each selected object's sources and discovery error.
+[`snapshotRoot`](state.go#L305) combines those into an owned snapshot. One selected object's
+success cannot clear another selected object's error. The snapshot also carries the
 root reference, owner resolution and generation; it exposes no membership maps.
 
 ### Evaluation and publication
@@ -193,7 +202,7 @@ Workers follow three steps:
 1. Read cached objects and take the state snapshots needed for this evaluation.
 2. Run discovery, mapping, status and label evaluation after the state methods
    have released the lock.
-3. [`publishPod`](state.go#L216) or [`publishWorkload`](state.go#L337) locks state again.
+3. [`publishPod`](state.go#L218) or [`publishWorkload`](state.go#L340) locks state again.
    It checks cached UID/resource versions, current definition selection and
    whether the workload is still a root before saving. A mismatch returns
    `ErrStale` for retry. Pod publication checks the whole discovered path and
@@ -215,8 +224,8 @@ copy the whole object cache.
 | --- | --- |
 | Pod changes | That Pod, if selected, previously selected, or needing cleanup |
 | Known root changes | The root and its associated Pods |
-| An intermediate owner changes ownership | One scope-rescan item; it requeues cached Pods and candidates |
-| Inventory reports a definition change | Refresh sources; requeue affected candidates, roots, their Pods and unresolved Pods |
+| An intermediate owner changes ownership | One scope-rescan item; it requeues cached Pods and selected objects |
+| Inventory reports a definition change | Refresh sources; requeue affected selected objects, roots, their Pods and unresolved Pods |
 | A source recovers | A scope rescan and root evaluations |
 
 For example, a ReplicaSet can gain a different Deployment owner while its Pods
@@ -230,13 +239,14 @@ affected kinds, members and unresolved Pods.
 
 Removing a definition triggers reevaluation using Inventory's new selection,
 including any fallback. If no definition remains, objects of that kind stop
-admitting roots as candidates. A non-Pod root can still remain through its
+registering roots from selected objects. A non-Pod root can still remain through its
 Pods, with ownership and creation information but no Karta-derived status or
 component mapping.
 
-If a definition selects a different API version, [`replaceCandidate`](state.go#L261)
-queues its candidate and waits for admission before removing the old
-membership. Confirmed absence in the new version removes the old candidate.
+If a definition selects a different API version, [`replaceSelectedObjectTracking`](state.go#L263)
+queues the object in the new version and waits for its root registration before
+removing the old registration. Confirmed absence in the new version removes
+only the old exporter registration.
 
 ## 6. Errors, retries and cleanup
 
@@ -248,7 +258,7 @@ Pod evaluation and invalid-definition failures are saved by `failPodLocked`
 without a timed retry. Workload status failures are saved by `publishWorkload`.
 Changed inputs cause another evaluation.
 
-[`failPodLocked`](state.go#L461) and `failWorkload` retain any previous successful
+[`failPodLocked`](state.go#L464) and `failWorkload` retain any previous successful
 record and attach the current error. Publication also preserves previous values
 when label or status evaluation fails. The collector combines saved errors
 with current source health, so retained values are not reported as fresh success.
@@ -264,18 +274,19 @@ error can be attributed to that workload without emitting a mapping value.
 
 ### Deletion is different from a failed read
 
-- Confirmed Pod deletion calls [`removePod`](state.go#L121), removing its mapping
+- Confirmed Pod deletion calls [`unregisterPod`](state.go#L123), removing its mapping
   and membership. Leaving the Pod selector or admitted namespace also removes it.
-- Confirmed root deletion calls [`withdrawWorkload`](state.go#L322), removing the
-  workload result and requeuing its Pods and candidates. It does not delete
-  still-live Pods' mapping results. Their next failed discovery retains the
-  last successful mapping with an unresolved-owner error. A new root with the
+- Confirmed root deletion calls [`withdrawWorkload`](state.go#L325), removing the
+  workload result and requeuing its Pods and selected objects. The ownership
+  maps remain until those workers move or remove their registrations. It does
+  not delete still-live Pods' mapping results. Their next failed discovery
+  retains the last successful mapping with an unresolved-owner error. A new root with the
   same name cannot satisfy an owner reference to the old UID.
 - A root that gains a non-ignored controller owner is also withdrawn. Its
   members rediscover the new root. Removing the last member lets `snapshotRoot`
   remove the old root entry and result.
 - Failed or malformed lists do not erase accepted objects. `Replace` validates
-  the whole snapshot before treating absence as deletion. `accept` ignores
+  the whole snapshot before treating absence as deletion. `applyWatchEvent` ignores
   deletion events whose UID does not match the cached object.
 - Namespace removal makes `syncWatches` retire that scope's watches and failed
   requests. Retirement routes cached removals through the same queues. Late
@@ -293,7 +304,7 @@ detailed result and source-health rules.
 | [sources.go](sources.go) | Start Reflectors, accept LIST/WATCH results and route changes to queues |
 | [reader.go](reader.go) | Read cached objects and check their identities and source health |
 | [leaf.go](leaf.go) | Discover a Pod's root and save its mapping; handle scope rescans |
-| [root.go](root.go) | Discover candidate roots and save workload status and labels |
+| [root.go](root.go) | Discover selected objects and save workload status and labels |
 
 Diagram sources: [startup](images/startup.excalidraw),
 [runtime](images/runtime.excalidraw), [reflector](images/reflector.excalidraw),

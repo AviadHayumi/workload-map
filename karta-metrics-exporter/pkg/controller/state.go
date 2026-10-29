@@ -193,7 +193,7 @@ func (r *controllerState) registerPodRoot(key objectJobKey, workload *discovery.
 	if !r.isRootLocked(workload.Root) {
 		return discovery.ErrUnresolvedOwner
 	}
-	// Register before reading the root body. Root-event fanout takes this same lock.
+	// Register before reading the root body. Root events use the same lock when queuing members.
 	previous := r.podRoots[key.UID]
 	root := r.ensureRootLocked(workload)
 	if previous != root.ref.UID {
