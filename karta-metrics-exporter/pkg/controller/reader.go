@@ -44,14 +44,14 @@ type objectKey struct {
 	GVK             schema.GroupVersionKind
 	Namespace, Name string
 }
-type observation struct {
+type cachedObject struct {
 	object *unstructured.Unstructured
 	source watchKey
 }
-type readSource struct {
-	gvk          schema.GroupVersionKind
-	full, synced bool
-	err          error
+type cacheSource struct {
+	gvk                   schema.GroupVersionKind
+	hasFullObject, synced bool
+	err                   error
 }
 
 func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
@@ -64,7 +64,7 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.RequestTimeout < 0 {
 		return nil, errors.New("request timeout must be positive")
 	}
-	return &Reader{clients: clients, options: options, objectCache: &objectCache{objects: map[objectKey]observation{}, sources: map[watchKey]readSource{}}}, nil
+	return &Reader{clients: clients, options: options, objectCache: &objectCache{objects: map[objectKey]cachedObject{}, sources: map[watchKey]cacheSource{}}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
@@ -93,10 +93,10 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 	return result, nil
 }
 
-func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
+func (r *Reader) read(ref discovery.ObjectRef, requireFullObject bool) (*unstructured.Unstructured, watchKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.readLocked(ref, full)
+	return r.readLocked(ref, requireFullObject)
 }
 
 func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {

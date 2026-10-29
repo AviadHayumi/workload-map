@@ -148,7 +148,7 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		r.replacements[key] = w
 	} else {
 		r.watches[key] = w
-		r.sources[key] = readSource{gvk: gvk, full: full}
+		r.sources[key] = cacheSource{gvk: gvk, hasFullObject: full}
 	}
 	r.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk})
 	lw := &cache.ListWatch{
@@ -176,7 +176,7 @@ func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 	recovered := w.err != nil && err == nil
 	w.err = err
 	if r.watches[w.key] == w {
-		r.sources[w.key] = readSource{gvk: w.gvk, full: w.full, synced: w.ready, err: err}
+		r.sources[w.key] = cacheSource{gvk: w.gvk, hasFullObject: w.full, synced: w.ready, err: err}
 	}
 	if r.replacements[w.key] == nil || r.replacements[w.key] == w {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
@@ -380,7 +380,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	w.objects = make(map[objectKey]struct{}, len(objects))
 	for key, object := range objects {
 		old := r.objects[key].object
-		r.objects[key] = observation{object: object, source: w.key}
+		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}
@@ -412,7 +412,7 @@ func (r *controllerState) accept(w *resourceWatch, value any, deleted bool) erro
 		delete(w.objects, key)
 		r.routeObjectLocked(old, nil)
 	} else {
-		r.objects[key] = observation{object: object, source: w.key}
+		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}

@@ -61,8 +61,8 @@ type controllerState struct {
 // Reader and controllerState use this lock for cache reads and state changes.
 type objectCache struct {
 	mu      sync.RWMutex
-	objects map[objectKey]observation
-	sources map[watchKey]readSource
+	objects map[objectKey]cachedObject
+	sources map[watchKey]cacheSource
 }
 
 type rootState struct {
@@ -505,7 +505,7 @@ func (r *controllerState) isRootLocked(ref discovery.ObjectRef) bool {
 	if selected.Definition != nil && selected.err == nil {
 		entry := r.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
 		source := r.sources[entry.source]
-		if entry.object != nil && entry.object.GetUID() == ref.UID && source.full && source.synced && source.err == nil {
+		if entry.object != nil && entry.object.GetUID() == ref.UID && source.hasFullObject && source.synced && source.err == nil {
 			owner, valid := discovery.ControllerOwner(entry.object)
 			return valid && (owner.UID == "" || slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK))
 		}
@@ -527,7 +527,7 @@ func (r *controllerState) isRootLocked(ref discovery.ObjectRef) bool {
 }
 
 // readLocked requires the state read or write lock.
-func (r *objectCache) readLocked(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
+func (r *objectCache) readLocked(ref discovery.ObjectRef, requireFullObject bool) (*unstructured.Unstructured, watchKey, error) {
 	key := keyOf(ref)
 	entry, ok := r.objects[key]
 	if !ok && key.Namespace != "" {
@@ -539,7 +539,7 @@ func (r *objectCache) readLocked(ref discovery.ObjectRef, full bool) (*unstructu
 		if source.err != nil {
 			return nil, entry.source, source.err
 		}
-		if !source.synced || (full && !source.full) {
+		if !source.synced || (requireFullObject && !source.hasFullObject) {
 			return nil, entry.source, discovery.ErrPending
 		}
 		object := entry.object
@@ -558,7 +558,7 @@ func (r *objectCache) readLocked(ref discovery.ObjectRef, full bool) (*unstructu
 		if source.err != nil {
 			return nil, sourceKey, source.err
 		}
-		if !source.synced || (full && !source.full) {
+		if !source.synced || (requireFullObject && !source.hasFullObject) {
 			return nil, sourceKey, discovery.ErrPending
 		}
 		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)

@@ -104,7 +104,7 @@ func seedSource(t *testing.T, r *Runtime, gvk schema.GroupVersionKind, full bool
 	key := watchKey{Resource: mapping.Resource}
 	w := &resourceWatch{key: key, gvk: gvk, full: full, ready: true, objects: map[objectKey]struct{}{}, cancel: func() {}}
 	r.state.watches[key] = w
-	r.state.reader.sources[key] = readSource{gvk: gvk, full: full, synced: true}
+	r.state.reader.sources[key] = cacheSource{gvk: gvk, hasFullObject: full, synced: true}
 	r.state.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk, Synced: true})
 	for _, object := range objects {
 		require.NoError(t, r.state.accept(w, object, false))

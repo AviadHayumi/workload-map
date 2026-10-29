@@ -293,7 +293,7 @@ func TestSelectedVersionHandoverWaitsForReplacementAndUsesItsBoundary(t *testing
 	r.state.reader.clients.Mapper.(*meta.DefaultRESTMapper).AddSpecific(v2, gvr, gvr, meta.RESTScopeNamespace)
 	next := seedSource(t, r, v2, true)
 	next.ready = false
-	r.state.reader.sources[next.key] = readSource{gvk: v2, full: true}
+	r.state.reader.sources[next.key] = cacheSource{gvk: v2, hasFullObject: true}
 	updated := definition.DeepCopy()
 	updated.SetResourceVersion("2")
 	require.NoError(t, unstructured.SetNestedField(updated.Object, "v2", "spec", "structureDefinition", "rootComponent", "kind", "version"))
@@ -327,7 +327,7 @@ func TestResolvedOwnerReplacesUnknownIdentityBeforeFirstMappingSucceeds(t *testi
 	pod.Object["spec"] = map[string]any{"containers": "invalid container list"}
 	roots := seedSource(t, r, jobKind, true)
 	roots.ready = false
-	r.state.reader.sources[roots.key] = readSource{gvk: jobKind, full: true}
+	r.state.reader.sources[roots.key] = cacheSource{gvk: jobKind, hasFullObject: true}
 	seedSource(t, r, podGVK, true, pod)
 	require.ErrorIs(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))), discovery.ErrPending)
 	require.False(t, values.Pod(pod.GetUID()).HasValue)
