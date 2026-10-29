@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -25,6 +27,16 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/discovery"
 	"github.com/dsx-ai-factory/workload-map/karta-metrics-exporter/pkg/store"
 )
+
+type countingStream struct {
+	watch.Interface
+	stops atomic.Int32
+}
+
+func (s *countingStream) Stop() {
+	s.stops.Add(1)
+	s.Interface.Stop()
+}
 
 func TestSourcePromotionWaitsForFullSnapshotAndRetiresMetadata(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
@@ -180,6 +192,54 @@ func TestWatchFailureAndEOFRemainVisibleUntilReconnect(t *testing.T) {
 	require.NoError(t, err)
 	defer recovered.Stop()
 	require.Empty(t, values.Capture().Sources[source.key].Error)
+}
+
+func TestWatchShutdownStopsSourceOnce(t *testing.T) {
+	for _, blockedOn := range []string{"input", "output"} {
+		for _, shutdown := range []string{"stop", "cancel", "concurrent stop and cancel"} {
+			t.Run(blockedOn+"/"+shutdown, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					r, _ := simpleRuntime(t, nil)
+					source := seedSource(t, r, deploymentKind, true)
+					stream := watch.NewRaceFreeFake()
+					counted := &countingStream{Interface: stream}
+					r.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient).PrependWatchReactor("deployments", func(clienttesting.Action) (bool, watch.Interface, error) {
+						return true, counted, nil
+					})
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					monitored, err := r.watchResource(ctx, source, metav1.ListOptions{})
+					require.NoError(t, err)
+					defer monitored.Stop()
+					if blockedOn == "output" {
+						stream.Add(simpleObject(deploymentKind, "root"))
+					}
+					synctest.Wait()
+					require.Empty(t, stream.ResultChan())
+					require.Zero(t, counted.stops.Load())
+					switch shutdown {
+					case "stop":
+						monitored.Stop()
+					case "cancel":
+						cancel()
+					case "concurrent stop and cancel":
+						for range 10 {
+							go monitored.Stop()
+							go cancel()
+						}
+					}
+					synctest.Wait()
+					r.wg.Wait()
+					_, open := <-monitored.ResultChan()
+					require.False(t, open)
+					require.Equal(t, int32(1), counted.stops.Load())
+					monitored.Stop()
+					cancel()
+					require.Equal(t, int32(1), counted.stops.Load())
+				})
+			})
+		}
+	}
 }
 
 func TestRequiredMappingFailureIsVisibleAndBlocksReadiness(t *testing.T) {

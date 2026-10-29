@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -36,10 +35,8 @@ type reflectorStore struct {
 	source  *resourceWatch
 }
 type watchedStream struct {
-	source watch.Interface
 	events chan watch.Event
 	cancel context.CancelFunc
-	once   sync.Once
 }
 
 func (r *Runtime) syncWatches(ctx context.Context) error {
@@ -302,7 +299,7 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 		return nil, err
 	}
 	child, cancel := context.WithCancel(ctx)
-	monitored := &watchedStream{source: stream, events: make(chan watch.Event), cancel: cancel}
+	monitored := &watchedStream{events: make(chan watch.Event), cancel: cancel}
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
@@ -345,7 +342,7 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 	}()
 	return monitored, nil
 }
-func (w *watchedStream) Stop()                          { w.once.Do(func() { w.cancel(); w.source.Stop() }) }
+func (w *watchedStream) Stop()                          { w.cancel() }
 func (w *watchedStream) ResultChan() <-chan watch.Event { return w.events }
 
 func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
