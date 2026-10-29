@@ -145,9 +145,9 @@ func TestDefinitionSnapshotFencesInflightValuesAndErrors(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				if test.workload {
-					done <- r.reconcile(context.Background(), root.GetUID())
+					done <- r.reconcileWorkload(context.Background(), root.GetUID())
 				} else {
-					done <- r.resolveLeaf(context.Background(), objectJobFor(refOf(pod)))
+					done <- r.reconcilePod(context.Background(), objectJobFor(refOf(pod)))
 				}
 			}()
 			<-labels.entered

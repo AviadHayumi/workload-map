@@ -133,14 +133,14 @@ func settle(t *testing.T, r *Runtime) {
 	for n := 0; n < 2000; n++ {
 		if r.state.podQueue.Len() > 0 {
 			key, _ := r.state.podQueue.Get()
-			err := r.resolveInput(context.Background(), key)
+			err := r.handlePodInput(context.Background(), key)
 			r.state.podQueue.Done(key)
 			require.NoError(t, err)
 			continue
 		}
 		if r.state.workloadQueue.Len() > 0 {
 			key, _ := r.state.workloadQueue.Get()
-			err := r.resolveWorkload(context.Background(), key)
+			err := r.handleWorkloadInput(context.Background(), key)
 			r.state.workloadQueue.Done(key)
 			require.NoError(t, err)
 			continue
@@ -168,10 +168,10 @@ func TestIndependentPodAndWorkloadPublication(t *testing.T) {
 	pod.SetResourceVersion("2")
 	pod.SetLabels(map[string]string{"changed": "yes"})
 	require.NoError(t, r.state.applyWatchEvent(pods, pod, false))
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.Same(t, oldRoot, values.Workload(root.GetUID()))
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Input.ResourceVersion)
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Input.ResourceVersion)
 }
 func TestTombstoneAndSameNameReplacement(t *testing.T) {
@@ -196,9 +196,9 @@ func TestTombstoneAndSameNameReplacement(t *testing.T) {
 				require.Nil(t, values.Pod(old.GetUID()))
 				require.NotNil(t, values.Pod(replacement.GetUID()))
 			} else {
-				require.NoError(t, r.reconcile(context.Background(), old.GetUID()))
+				require.NoError(t, r.reconcileWorkload(context.Background(), old.GetUID()))
 				require.Nil(t, values.Workload(old.GetUID()))
-				require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+				require.Error(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 				require.Equal(t, store.ReasonUnresolvedOwner, values.Pod(pod.GetUID()).Error)
 			}
 		})
@@ -268,7 +268,7 @@ func TestCandidateFailureDoesNotFabricateRoot(t *testing.T) {
 	require.NoError(t, r.state.applyWatchEvent(source, parent, false))
 	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(child))))
 	require.Empty(t, values.Capture().Failures)
-	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), parent.GetUID()))
 	require.NotNil(t, values.Workload(parent.GetUID()))
 }
 func TestCandidateAdmissionFailuresPreserveCause(t *testing.T) {
@@ -318,7 +318,7 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	valid, reason := values.Capture().Valid(before.Sources, before.Error)
 	require.False(t, valid)
 	require.Equal(t, store.ReasonPermissionDenied, reason)
-	require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.Error(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.Equal(t, before.Record, values.Pod(pod.GetUID()).Record)
 	r.state.mu.Lock()
 	r.state.setWatchHealthLocked(roots, nil)
@@ -326,9 +326,9 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	resolver.mu.Lock()
 	resolver.fail = true
 	resolver.mu.Unlock()
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.Equal(t, store.ReasonEvaluationFailed, values.Pod(pod.GetUID()).Error)
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	r.state.mu.Lock()
 	r.state.setWatchHealthLocked(roots, denied)
 	r.state.setWatchHealthLocked(roots, nil)
@@ -337,7 +337,7 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	resolver.mu.Lock()
 	resolver.fail = false
 	resolver.mu.Unlock()
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.Empty(t, values.Pod(pod.GetUID()).Error)
 }
 func TestCompleteRelistDeletionAndMalformedList(t *testing.T) {
@@ -372,8 +372,8 @@ func TestNamespaceRemovalCleansBothDomains(t *testing.T) {
 	root, pod, _, _ := seedPair(t, r)
 	r.state.config.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"include": "yes"}}
 	r.state.scopes = map[string]bool{}
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	require.Empty(t, values.Capture().Pods)
 	require.Empty(t, values.Capture().Workloads)
 }
@@ -448,7 +448,7 @@ func TestRootChangeDuringPodEvaluationRequeuesRegisteredMembership(t *testing.T)
 	r.state.podQueue.Add(key)
 	key, _ = r.state.podQueue.Get()
 	done := make(chan error, 1)
-	go func() { done <- r.resolveLeaf(context.Background(), key); r.state.podQueue.Done(key) }()
+	go func() { done <- r.reconcilePod(context.Background(), key); r.state.podQueue.Done(key) }()
 	select {
 	case <-labels.entered:
 	case <-time.After(time.Second):
@@ -472,7 +472,7 @@ func TestPodDeletionDuringEvaluationCannotPublish(t *testing.T) {
 	seedSource(t, r, deploymentKind, true, root)
 	pods := seedSource(t, r, podGVK, true, pod)
 	done := make(chan error, 1)
-	go func() { done <- r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))) }()
+	go func() { done <- r.reconcilePod(context.Background(), objectJobFor(refOf(pod))) }()
 	<-labels.entered
 	require.NoError(t, r.state.applyWatchEvent(pods, pod, true))
 	close(labels.resume)
@@ -506,11 +506,11 @@ func TestConcurrentLabelResolutionAndFullPodInputs(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+			require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 		}()
 	}
 	wg.Wait()
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	for _, pod := range values.Capture().Pods {
 		require.Equal(t, "worker", pod.Record.Labels["node"])
 		require.Equal(t, "Running", pod.Record.Labels["pod_phase"])

@@ -133,11 +133,11 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	for i := 0; i < r.state.config.LeafWorkers; i++ {
 		r.state.wg.Add(1)
-		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.podQueue, r.resolveInput) }()
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.podQueue, r.handlePodInput) }()
 	}
 	for i := 0; i < r.state.config.RootWorkers; i++ {
 		r.state.wg.Add(1)
-		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.workloadQueue, r.resolveWorkload) }()
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.workloadQueue, r.handleWorkloadInput) }()
 	}
 	r.state.wg.Add(1)
 	go func() {

@@ -21,20 +21,20 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-func (r *Runtime) resolveInput(ctx context.Context, key objectJobKey) error {
+func (r *Runtime) handlePodInput(ctx context.Context, key objectJobKey) error {
 	if !key.Rescan {
-		return r.resolveLeaf(ctx, key)
+		return r.reconcilePod(ctx, key)
 	}
 	return r.state.requeueScope(key.Object.Namespace)
 }
 
-func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
+func (r *Runtime) reconcilePod(ctx context.Context, key objectJobKey) error {
 	ref := key.ref()
 	if !r.state.namespaceAdmitted(ref.Namespace) {
 		r.state.unregisterPod(key)
 		return nil
 	}
-	object, _, err := r.state.reader.read(ref, true)
+	podObject, _, err := r.state.reader.read(ref, true)
 	if apierrors.IsNotFound(err) {
 		r.state.unregisterPod(key)
 		return nil
@@ -42,19 +42,19 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	if err != nil {
 		return r.state.failPod(key, nil, err)
 	}
-	if !r.state.podSelector.Empty() && !r.state.podSelector.Matches(labelsFor(object)) {
+	if !r.state.podSelector.Empty() && !r.state.podSelector.Matches(labelsFor(podObject)) {
 		r.state.unregisterPod(key)
 		return nil
 	}
-	ref = refOf(object)
-	result, err := r.state.deps.Discovery.Get(ctx, ref)
+	ref = refOf(podObject)
+	discoveryResult, err := r.state.deps.Discovery.Get(ctx, ref)
 	if err != nil {
 		return r.state.failPod(key, []discovery.ObjectRef{ref}, err)
 	}
-	if result.Workload == nil {
+	if discoveryResult.Workload == nil {
 		return r.state.failPod(key, []discovery.ObjectRef{ref}, discovery.ErrUnresolvedOwner)
 	}
-	workload := result.Workload
+	workload := discoveryResult.Workload
 	selection, selectionErr := r.state.lookupDefinition(workload.Root.GVK)
 	if workload.Root.GVK == podGVK && selectionErr != nil {
 		return r.state.failPod(key, workload.Path, selectionErr)
@@ -68,7 +68,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	if selection.Definition != nil {
 		rootRef.GVK = selection.GVK
 	}
-	allowed, scopeErr := r.state.selectedResource(rootRef.GVK)
+	allowed, scopeErr := r.state.isResourceSelected(rootRef.GVK)
 	if scopeErr != nil {
 		return r.state.failPod(key, workload.Path, scopeErr, rootRef)
 	}
@@ -94,7 +94,7 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	if err != nil {
 		return r.state.failPod(key, workload.Path, err, workload.Root)
 	}
-	selected, err := r.state.selectedRoot(rootObject)
+	selected, err := r.state.isRootSelected(rootObject)
 	if err != nil {
 		return r.state.failPod(key, workload.Path, err, workload.Root)
 	}
@@ -118,18 +118,18 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	}
 	if selection.Definition != nil {
 		pod := &corev1.Pod{}
-		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, pod); err != nil {
+		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(podObject.Object, pod); err != nil {
 			return r.state.failPodEvaluation(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), rootRef, selection)
 		}
 		record.Karta = selection.Origin.Name
 		record.KartaSource = string(selection.Origin.Source)
 		factory := resource.NewComponentFactoryFromObject(selection.Definition, rootObject)
-		record.Component, record.Instance, record.Group, err = mapPod(ctx, factory, selection.summary, pod)
+		record.Component, record.Instance, record.Group, err = evaluatePodComponent(ctx, factory, selection.summary, pod)
 		if err != nil {
 			return r.state.failPodEvaluation(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), rootRef, selection)
 		}
 	}
-	labelResults, err := r.state.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{labelresolver.MetricPodWorkloadInfo}, Workload: rootObject, PodObject: object})
+	labelResults, err := r.state.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{labelresolver.MetricPodWorkloadInfo}, Workload: rootObject, PodObject: podObject})
 	if err != nil {
 		return r.state.failPodEvaluation(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), rootRef, selection)
 	}
@@ -139,8 +139,8 @@ func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	if !slices.Contains(sources, rootSource) {
 		sources = append(sources, rootSource)
 	}
-	next := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources}
-	return r.state.publishPod(workload.Path, rootRef, selection, next, len(labelResult.Errors) > 0)
+	podResult := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources}
+	return r.state.publishPod(workload.Path, rootRef, selection, podResult, len(labelResult.Errors) > 0)
 }
 
 func labelsFor(object *unstructured.Unstructured) labels.Set { return labels.Set(object.GetLabels()) }

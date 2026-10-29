@@ -76,9 +76,9 @@ func TestDefinitionReadFailurePreservesSelectionAndCreation(t *testing.T) {
 	err := r.state.refreshDefinitionsLocked()
 	r.state.mu.Unlock()
 	require.Error(t, err)
-	require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.Error(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(root))))
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	after := values.Workload(root.GetUID())
 	require.Equal(t, beforeRoot.Record, after.Record)
 	require.Empty(t, after.Error)
@@ -108,8 +108,8 @@ func TestInvalidReplacementRetainsOldProvenanceUntilSuccess(t *testing.T) {
 	selected, err := r.state.lookupDefinition(jobKind)
 	require.ErrorIs(t, err, inventory.ErrInvalidDefinition)
 	require.Equal(t, "replacement", selected.Origin.Name)
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	require.Equal(t, "first", values.Pod(pod.GetUID()).Record.Karta)
 	require.Equal(t, "first", values.Workload(root.GetUID()).Record.Karta)
 	require.Equal(t, store.ReasonInvalidDefinition, values.Pod(pod.GetUID()).Error)
@@ -170,8 +170,8 @@ func TestRootSelectorRestorationRediscoversRemovedMembership(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	root, pod, source, _ := seedPair(t, r)
 	r.state.objectSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	require.Nil(t, values.Pod(pod.GetUID()))
 	changed := root.DeepCopy()
 	changed.SetResourceVersion("2")
@@ -204,13 +204,13 @@ func TestInitialDefinitionFailureStillPublishesConfirmedRootCreation(t *testing.
 			simpleOwner(pod, root)
 			seedSource(t, r, jobKind, true, root)
 			seedSource(t, r, podGVK, true, pod)
-			err := r.resolveLeaf(context.Background(), objectJobFor(refOf(pod)))
+			err := r.reconcilePod(context.Background(), objectJobFor(refOf(pod)))
 			if invalid {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
 			}
-			require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+			require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 			row := values.Workload(root.GetUID())
 			require.NotNil(t, row)
 			require.True(t, row.HasValue)
@@ -251,9 +251,9 @@ func TestGenericPodVersionsAndSelectedVersionScope(t *testing.T) {
 				r.state.config.ResourceRules = []ResourceRule{{APIGroups: []string{"batch"}, APIVersions: []string{"v2"}, Resources: []string{"jobs"}}}
 			}
 			for _, pod := range []*unstructured.Unstructured{one, two, one, two} {
-				require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+				require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 			}
-			require.NoError(t, r.reconcile(context.Background(), first.GetUID()))
+			require.NoError(t, r.reconcileWorkload(context.Background(), first.GetUID()))
 			require.NotNil(t, values.Workload(first.GetUID()))
 			require.Len(t, values.Capture().Workloads, 1)
 			expectedSecond := v2
@@ -314,7 +314,7 @@ func TestSelectedVersionHandoverWaitsForReplacementAndUsesItsBoundary(t *testing
 	require.NoError(t, (&reflectorStore{controller: r.state, watch: next}).Replace([]any{replacement}, "3"))
 	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(replacement))))
 	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(root))))
-	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
+	require.NoError(t, r.reconcileWorkload(context.Background(), root.GetUID()))
 	require.Equal(t, v2, values.Workload(root.GetUID()).Record.Ref.GVK)
 	require.Empty(t, values.Workload(root.GetUID()).Error)
 }
@@ -329,11 +329,11 @@ func TestResolvedOwnerReplacesUnknownIdentityBeforeFirstMappingSucceeds(t *testi
 	roots.ready = false
 	r.state.reader.sources[roots.key] = cacheSource{gvk: jobKind, hasFullObject: true}
 	seedSource(t, r, podGVK, true, pod)
-	require.ErrorIs(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))), discovery.ErrPending)
+	require.ErrorIs(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))), discovery.ErrPending)
 	require.False(t, values.Pod(pod.GetUID()).HasValue)
 	require.Empty(t, values.Pod(pod.GetUID()).Record.Workload.UID)
 	require.NoError(t, (&reflectorStore{controller: r.state, watch: roots}).Replace([]any{root}, "2"))
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	failure := values.Pod(pod.GetUID())
 	require.False(t, failure.HasValue)
 	require.Equal(t, store.ReasonEvaluationFailed, failure.Error)
@@ -376,14 +376,14 @@ func TestGenericCanonicalVersionRecoversAfterElectionRemoval(t *testing.T) {
 			}
 			r.state.mu.Unlock()
 			emptyQueue(r.state.workloadQueue)
-			require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+			require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 			expected := jobKind
 			if condition == "healthy" {
 				expected = v2
 			} else {
 				require.NotZero(t, r.state.workloadQueue.Len(), "changing the canonical version must enqueue its unchanged UID")
 			}
-			require.NoError(t, r.reconcile(context.Background(), first.GetUID()))
+			require.NoError(t, r.reconcileWorkload(context.Background(), first.GetUID()))
 			result := values.Workload(first.GetUID())
 			require.Equal(t, expected, result.Record.Ref.GVK)
 			require.Empty(t, result.Record.Karta)

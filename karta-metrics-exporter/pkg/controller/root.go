@@ -23,11 +23,11 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-func (r *Runtime) resolveWorkload(ctx context.Context, key workloadJobKey) error {
+func (r *Runtime) handleWorkloadInput(ctx context.Context, key workloadJobKey) error {
 	if key.SelectedObject.UID != "" {
 		return r.resolveSelectedObjectRoot(ctx, key.SelectedObject)
 	}
-	return r.reconcile(ctx, key.RootUID)
+	return r.reconcileWorkload(ctx, key.RootUID)
 }
 
 func (r *Runtime) resolveSelectedObjectRoot(ctx context.Context, key objectJobKey) error {
@@ -47,18 +47,18 @@ func (r *Runtime) resolveSelectedObjectRoot(ctx context.Context, key objectJobKe
 		return nil
 	}
 	if selection.GVK != key.Object.GVK {
-		alternate := key.ref()
-		alternate.GVK = selection.GVK
-		if _, err := r.state.ensureWatch(ctx, alternate.GVK, alternate.Namespace, true); err != nil {
+		selectedRef := key.ref()
+		selectedRef.GVK = selection.GVK
+		if _, err := r.state.ensureWatch(ctx, selectedRef.GVK, selectedRef.Namespace, true); err != nil {
 			return err
 		}
-		object, _, err := r.state.reader.read(alternate, true)
+		selectedObject, _, err := r.state.reader.read(selectedRef, true)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-		return r.state.replaceSelectedObjectTracking(key, object)
+		return r.state.replaceSelectedObjectTracking(key, selectedObject)
 	}
-	object, _, err := r.state.reader.read(key.ref(), true)
+	selectedObject, _, err := r.state.reader.read(key.ref(), true)
 	if apierrors.IsNotFound(err) {
 		r.state.unregisterSelectedObject(key)
 		return nil
@@ -67,21 +67,21 @@ func (r *Runtime) resolveSelectedObjectRoot(ctx context.Context, key objectJobKe
 		r.state.failSelectedObjectDiscovery(key, err)
 		return err
 	}
-	result, err := r.state.deps.Discovery.Get(ctx, refOf(object))
-	if err == nil && result.Workload == nil {
+	discoveryResult, err := r.state.deps.Discovery.Get(ctx, refOf(selectedObject))
+	if err == nil && discoveryResult.Workload == nil {
 		err = discovery.ErrUnresolvedOwner
 	}
 	if err != nil {
 		r.state.failSelectedObjectDiscovery(key, err)
 		return err
 	}
-	workload := result.Workload
+	workload := discoveryResult.Workload
 	rootSelection, _ := r.state.lookupDefinition(workload.Root.GVK)
 	selectedGVK := workload.Root.GVK
 	if rootSelection.Definition != nil {
 		selectedGVK = rootSelection.GVK
 	}
-	allowed, scopeErr := r.state.selectedResource(selectedGVK)
+	allowed, scopeErr := r.state.isResourceSelected(selectedGVK)
 	if scopeErr != nil {
 		r.state.failSelectedObjectDiscovery(key, scopeErr)
 		return scopeErr
@@ -96,7 +96,7 @@ func (r *Runtime) resolveSelectedObjectRoot(ctx context.Context, key objectJobKe
 
 // Only canonical UID keys publish workload results. Selected-object keys register
 // or unregister root membership, including selected children that have no Pods.
-func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
+func (r *Runtime) reconcileWorkload(ctx context.Context, uid types.UID) error {
 	snapshot, exists := r.state.snapshotRoot(uid)
 	if !exists {
 		return nil
@@ -110,7 +110,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if _, err := r.state.ensureWatch(ctx, ref.GVK, ref.Namespace, true); err != nil {
 		return r.state.failWorkload(uid, ref, err)
 	}
-	object, _, err := r.state.reader.read(ref, true)
+	workloadObject, _, err := r.state.reader.read(ref, true)
 	if apierrors.IsNotFound(err) {
 		r.state.withdrawWorkload(uid)
 		return nil
@@ -118,8 +118,8 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if err != nil {
 		return r.state.failWorkload(uid, ref, err)
 	}
-	ref = refOf(object)
-	owner, valid := discovery.ControllerOwner(object)
+	ref = refOf(workloadObject)
+	owner, valid := discovery.ControllerOwner(workloadObject)
 	if !valid {
 		return r.state.failWorkload(uid, ref, discovery.ErrUnresolvedOwner)
 	}
@@ -131,7 +131,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	if !terminal {
 		return r.state.failWorkload(uid, ref, discovery.ErrUnresolvedOwner)
 	}
-	selected, err := r.state.selectedRoot(object)
+	selected, err := r.state.isRootSelected(workloadObject)
 	if err != nil {
 		return r.state.failWorkload(uid, ref, err)
 	}
@@ -139,12 +139,12 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 		r.state.deps.Publications.RemoveWorkload(uid)
 		return nil
 	}
-	record := store.WorkloadRecord{UID: uid, Ref: storedRef(ref), OwnerResolution: store.OwnerResolution(snapshot.resolution), CreatedTimestamp: object.GetCreationTimestamp().Unix()}
+	record := store.WorkloadRecord{UID: uid, Ref: storedRef(ref), OwnerResolution: store.OwnerResolution(snapshot.resolution), CreatedTimestamp: workloadObject.GetCreationTimestamp().Unix()}
 	statusErr := selectionErr
 	if selection.Definition != nil && statusErr == nil {
 		record.Karta = selection.Origin.Name
 		record.KartaSource = string(selection.Origin.Source)
-		factory := resource.NewComponentFactoryFromObject(selection.Definition, object)
+		factory := resource.NewComponentFactoryFromObject(selection.Definition, workloadObject)
 		component, componentErr := factory.GetRootComponent()
 		statusErr = componentErr
 		if statusErr == nil {
@@ -161,7 +161,7 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 			statusErr = fmt.Errorf("%w: %w", discovery.ErrEvaluation, statusErr)
 		}
 	}
-	labelResults, labelErr := r.state.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{labelresolver.MetricWorkloadStatus}, Workload: object})
+	labelResults, labelErr := r.state.deps.Labels.Resolve(ctx, labelresolver.Input{Metrics: []string{labelresolver.MetricWorkloadStatus}, Workload: workloadObject})
 	if labelErr != nil {
 		statusErr = fmt.Errorf("%w: %w", discovery.ErrEvaluation, labelErr)
 	} else if len(labelResults[0].Errors) > 0 {
@@ -173,27 +173,27 @@ func (r *Runtime) reconcile(ctx context.Context, uid types.UID) error {
 	creationSources := slices.DeleteFunc(slices.Clone(sources), func(key store.SourceKey) bool {
 		return key.Resource.Group == kartaGVK.Group && key.Resource.Resource == "kartas"
 	})
-	next := store.WorkloadResult{Record: record, HasValue: true, Error: failureReason(snapshot.err), StatusError: failureReason(statusErr), Sources: sources, CreationSources: creationSources}
-	return r.state.publishWorkload(uid, snapshot.generation, ref, selection, next)
+	workloadResult := store.WorkloadResult{Record: record, HasValue: true, Error: failureReason(snapshot.err), StatusError: failureReason(statusErr), Sources: sources, CreationSources: creationSources}
+	return r.state.publishWorkload(uid, snapshot.generation, ref, selection, workloadResult)
 }
 
-func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *instructions.StructureSummary, pod *corev1.Pod) (string, string, string, error) {
+func evaluatePodComponent(ctx context.Context, factory *resource.ComponentFactory, summary *instructions.StructureSummary, pod *corev1.Pod) (string, string, string, error) {
 	query := resource.NewPodQuerier(pod)
-	name, err := instructions.InferPodComponent(ctx, query, summary)
+	componentName, err := instructions.InferPodComponent(ctx, query, summary)
 	if err != nil {
 		return "", "", "", err
 	}
-	component, err := factory.GetComponent(name)
+	component, err := factory.GetComponent(componentName)
 	if err != nil {
 		return "", "", "", err
 	}
-	id, err := instructions.InferPodComponentInstance(ctx, query, name, factory)
+	instanceID, err := instructions.InferPodComponentInstance(ctx, query, componentName, factory)
 	if err != nil {
 		return "", "", "", err
 	}
 	instance := ""
-	if id != nil {
-		instance = *id
+	if instanceID != nil {
+		instance = *instanceID
 	}
 	if component.Definition().InstanceIdPath != nil && instance == "" {
 		return "", "", "", errors.New("required component instance is missing")
@@ -208,16 +208,16 @@ func mapPod(ctx context.Context, factory *resource.ComponentFactory, summary *in
 			}
 			break
 		}
-		owner := component.Definition().OwnerRef
-		if owner == nil {
+		ownerComponentName := component.Definition().OwnerRef
+		if ownerComponentName == nil {
 			break
 		}
-		component, err = factory.GetComponent(*owner)
+		component, err = factory.GetComponent(*ownerComponentName)
 		if err != nil {
 			return "", "", "", err
 		}
 	}
-	return name, instance, group, nil
+	return componentName, instance, group, nil
 }
 
 func ValidateResourceRules(rules []ResourceRule) error {
@@ -239,20 +239,20 @@ func ValidateResourceRules(rules []ResourceRule) error {
 	return nil
 }
 
-func matchesResource(rule ResourceRule, gvr schema.GroupVersionResource) bool {
+func matchesResourceRule(rule ResourceRule, gvr schema.GroupVersionResource) bool {
 	return (slices.Contains(rule.APIGroups, "*") || slices.Contains(rule.APIGroups, gvr.Group)) &&
 		(slices.Contains(rule.APIVersions, "*") || slices.Contains(rule.APIVersions, gvr.Version)) &&
 		(slices.Contains(rule.Resources, "*") || slices.Contains(rule.Resources, gvr.Resource))
 }
 
-func (r *controllerState) selectedRoot(object *unstructured.Unstructured) (bool, error) {
+func (r *controllerState) isRootSelected(object *unstructured.Unstructured) (bool, error) {
 	if !r.objectSelector.Empty() && !r.objectSelector.Matches(labelsFor(object)) {
 		return false, nil
 	}
-	return r.selectedResource(object.GroupVersionKind())
+	return r.isResourceSelected(object.GroupVersionKind())
 }
 
-func (r *controllerState) selectedResource(gvk schema.GroupVersionKind) (bool, error) {
+func (r *controllerState) isResourceSelected(gvk schema.GroupVersionKind) (bool, error) {
 	if len(r.config.ResourceRules) == 0 && len(r.config.ExcludeResourceRules) == 0 {
 		return true, nil
 	}
@@ -261,7 +261,7 @@ func (r *controllerState) selectedResource(gvk schema.GroupVersionKind) (bool, e
 		return false, err
 	}
 	for _, rule := range r.config.ExcludeResourceRules {
-		if matchesResource(rule, mapping.Resource) {
+		if matchesResourceRule(rule, mapping.Resource) {
 			return false, nil
 		}
 	}
@@ -269,7 +269,7 @@ func (r *controllerState) selectedResource(gvk schema.GroupVersionKind) (bool, e
 		return true, nil
 	}
 	for _, rule := range r.config.ResourceRules {
-		if matchesResource(rule, mapping.Resource) {
+		if matchesResourceRule(rule, mapping.Resource) {
 			return true, nil
 		}
 	}

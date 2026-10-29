@@ -49,7 +49,7 @@ func TestRootSnapshotCannotPublishAfterMembershipRecreation(t *testing.T) {
 	_, ok = r.state.snapshotRoot(ref.UID)
 	require.False(t, ok)
 	require.Nil(t, values.Workload(ref.UID))
-	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	after, ok := r.state.snapshotRoot(ref.UID)
 	require.True(t, ok)
 	require.NotEqual(t, before.generation, after.generation)
