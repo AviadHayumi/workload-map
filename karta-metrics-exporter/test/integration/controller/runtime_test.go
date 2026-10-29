@@ -49,15 +49,14 @@ type transport struct {
 	next http.RoundTripper
 	seen *requests
 }
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
 
 func (t transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	t.seen.mu.Lock()
-	if request.URL.Query().Get("watch") == "true" && request.URL.Query().Get("sendInitialEvents") != "true" {
-		t.seen.watches[request.URL.Path]++
-		if strings.Contains(request.Header.Get("Accept"), "PartialObjectMetadata") {
-			t.seen.metadataWatches[request.URL.Path]++
-		}
-	}
 	denied := t.seen.deny != "" && strings.Contains(request.URL.Path, t.seen.deny)
 	t.seen.mu.Unlock()
 	if denied {
@@ -66,6 +65,10 @@ func (t transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	response, err := t.next.RoundTrip(request)
 	if err == nil && request.URL.Query().Get("watch") == "true" && response.StatusCode == http.StatusOK {
 		t.seen.mu.Lock()
+		t.seen.watches[request.URL.Path]++
+		if strings.Contains(request.Header.Get("Accept"), "PartialObjectMetadata") {
+			t.seen.metadataWatches[request.URL.Path]++
+		}
 		t.seen.streams[request.URL.Path] = append(t.seen.streams[request.URL.Path], response.Body)
 		denied = t.seen.deny != "" && strings.Contains(request.URL.Path, t.seen.deny)
 		t.seen.mu.Unlock()
@@ -74,6 +77,52 @@ func (t transport) RoundTrip(request *http.Request) (*http.Response, error) {
 		}
 	}
 	return response, err
+}
+
+func TestWatchTransportCountsAcceptedWatches(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		query           string
+		accept          string
+		statusCode      int
+		err             error
+		watches         int
+		metadataWatches int
+	}{
+		{name: "ordinary watch", query: "watch=true", statusCode: http.StatusOK, watches: 1},
+		{name: "streaming watch", query: "watch=true&sendInitialEvents=true", statusCode: http.StatusOK, watches: 1},
+		{name: "metadata streaming watch", query: "watch=true&sendInitialEvents=true", accept: "application/json;as=PartialObjectMetadata;g=meta.k8s.io;v=v1", statusCode: http.StatusOK, watches: 1, metadataWatches: 1},
+		{name: "non-watch request", statusCode: http.StatusOK},
+		{name: "rejected streaming watch", query: "watch=true&sendInitialEvents=true", statusCode: http.StatusBadRequest},
+		{name: "transport error", query: "watch=true", err: io.ErrUnexpectedEOF},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://example.test/api/v1/pods?"+tc.query, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Accept", tc.accept)
+			var response *http.Response
+			if tc.err == nil {
+				response = &http.Response{StatusCode: tc.statusCode, Body: io.NopCloser(strings.NewReader("")), Request: request}
+				defer response.Body.Close()
+			}
+			seen := &requests{watches: map[string]int{}, metadataWatches: map[string]int{}, streams: map[string][]io.ReadCloser{}}
+			wrapped := transport{next: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return response, tc.err
+			}), seen: seen}
+			got, err := wrapped.RoundTrip(request)
+			if got != response || err != tc.err {
+				t.Fatalf("RoundTrip() = (%v, %v), want (%v, %v)", got, err, response, tc.err)
+			}
+			seen.mu.Lock()
+			watches, metadataWatches := seen.watches[request.URL.Path], seen.metadataWatches[request.URL.Path]
+			seen.mu.Unlock()
+			if watches != tc.watches || metadataWatches != tc.metadataWatches {
+				t.Errorf("watch counts = (%d, %d), want (%d, %d)", watches, metadataWatches, tc.watches, tc.metadataWatches)
+			}
+		})
+	}
 }
 
 // Interrupt the live stream so the reflector observes the changed permission on
@@ -264,10 +313,16 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		Expect(api.Update(ctx, p)).To(Succeed())
 		Eventually(func() string { return infoFor(scrape(url), p.Name, p.Namespace) }).Should(And(ContainSubstring(`pod_team="updated-pod-team"`), ContainSubstring(`team="alpha"`), ContainSubstring(`observation_valid="true"`)))
 		Expect(infoFor(scrape(url), "second", ns)).To(ContainSubstring(`pod_team="pod-team"`))
-		seen.mu.Lock()
-		defer seen.mu.Unlock()
-		Expect(seen.watches["/apis/apps/v1/namespaces/"+ns+"/deployments"]).To(Equal(1))
-		Expect(seen.metadataWatches["/apis/apps/v1/namespaces/"+ns+"/replicasets"]).To(Equal(1))
+		Eventually(func() int {
+			seen.mu.Lock()
+			defer seen.mu.Unlock()
+			return seen.watches["/apis/apps/v1/namespaces/"+ns+"/deployments"]
+		}, 15*time.Second).Should(Equal(1))
+		Eventually(func() int {
+			seen.mu.Lock()
+			defer seen.mu.Unlock()
+			return seen.metadataWatches["/apis/apps/v1/namespaces/"+ns+"/replicasets"]
+		}, 15*time.Second).Should(Equal(1))
 	})
 	It("publishes zero-Pod roots", func(ctx SpecContext) {
 		ns := namespace(ctx)
@@ -384,9 +439,11 @@ var _ = Describe("Runtime and real HTTP collection", func() {
 		cfg.NamespaceSelector = &metav1.LabelSelector{}
 		application, _, seen := start(cfg)
 		Eventually(application.Runtime.Ready).Should(BeTrue())
-		seen.mu.Lock()
-		defer seen.mu.Unlock()
-		Expect(seen.watches["/api/v1/pods"]).To(Equal(1))
+		Eventually(func() int {
+			seen.mu.Lock()
+			defer seen.mu.Unlock()
+			return seen.watches["/api/v1/pods"]
+		}, 15*time.Second).Should(Equal(1))
 		// Other fixtures can reference a Namespace as a generic workload root.
 		// Traversal may legitimately watch it even without namespace selection.
 	})
