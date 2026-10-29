@@ -41,9 +41,12 @@ spec:
         specDefinition:
           podTemplateSpecPath: .spec.template
         scaleDefinition:
-          minReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/min-scale"] // 1 | tonumber
-          maxReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/max-scale"] | tonumber?
+          minReplicasPath: (.spec.template.metadata.annotations["autoscaling.knative.dev/min-scale"] // "0") | tonumber
+          maxReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/max-scale"] | if . == null then null else tonumber end
     additionalChildKinds:
+      - group: serving.knative.dev
+        version: v1
+        kind: Configuration
       - group: apps
         version: v1
         kind: Deployment

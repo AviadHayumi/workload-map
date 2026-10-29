@@ -44,6 +44,18 @@ spec:
           - path: .spec.suspend
             value: "false"
     childComponents:
+      - name: submitter
+        kind:
+          group: batch
+          version: v1
+          kind: Job
+        ownerRef: rayjob
+        specDefinition:
+          podTemplateSpecPath: .spec.submitterPodTemplate
+        podSelector:
+          componentTypeSelector:
+            keyPath: .metadata.ownerReferences[]? | select(.controller == true and .apiVersion == "batch/v1" and .kind == "Job") | .kind
+            value: Job
       - name: head
         kind:
           group: ""
@@ -77,6 +89,10 @@ spec:
             value: worker
           componentInstanceSelector:
             idPath: .metadata.labels["ray.io/group"]
+    additionalChildKinds:
+      - group: ray.io
+        version: v1
+        kind: RayCluster
   optimizationInstructions:
     gangScheduling:
       podGroups:

@@ -57,11 +57,13 @@ spec:
         specDefinition:
           podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
         scaleDefinition:
-          replicasPath: .spec.replicatedJobs[] | .replicas * .template.spec.parallelism
+          replicasPath: .spec.replicatedJobs[] | (.replicas // 1) * (.template.spec.parallelism // 1)
         instanceIdPath: .spec.replicatedJobs[].name
         podSelector:
           componentInstanceSelector:
             idPath: .metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]
+          replicaSelector:
+            keyPath: .metadata.labels["jobset.sigs.k8s.io/job-index"]
   optimizationInstructions:
     gangScheduling:
       podGroups:

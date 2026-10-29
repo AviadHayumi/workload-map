@@ -108,17 +108,24 @@ func (pq *PodQuerier) ExtractInstanceId(ctx context.Context, instanceSelector *v
 
 // ExtractReplicaKey extracts the replica identifier from the pod using the given ReplicaSelector.
 // Returns the replica key as a string, a boolean indicating whether a value was found, and an error.
-// When the selector is nil or has an empty KeyPath, found is false with no error.
+// When the selector is nil, has an empty KeyPath, or evaluates to no results, found is false.
+// A definition can use jq empty to opt out when a group does not apply. Null and empty keys remain errors.
 func (pq *PodQuerier) ExtractReplicaKey(ctx context.Context, selector *v1alpha1.ReplicaSelector) (string, bool, error) {
 	if selector == nil || selector.KeyPath == "" {
 		return "", false, nil
 	}
 
-	value, err := pq.evaluateStringField(ctx, selector.KeyPath)
+	results, err := pq.evaluator.Evaluate(ctx, selector.KeyPath)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to extract replica key from path %q: %w", selector.KeyPath, err)
 	}
-	return value, true, nil
+	if len(results) == 0 {
+		return "", false, nil
+	}
+	if err := validateSingleQueryResult(results); err != nil {
+		return "", false, fmt.Errorf("failed to extract replica key from path %q: %w", selector.KeyPath, err)
+	}
+	return fmt.Sprint(results[0]), true, nil
 }
 
 // ExtractGroupKeys extracts grouping key values from the pod using the provided JQ paths

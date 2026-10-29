@@ -79,7 +79,8 @@ func GrovePodCliqueSet() *v1alpha1.Karta {
 						InstanceIdPath: ptr.To(".spec.template.cliques[].name"),
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-								IdPath: `.metadata.labels["grove.io/podclique"]`,
+								// Grove labels the generated PodClique name, while instances use the template name.
+								IdPath: `.metadata.labels as $labels | $labels["grove.io/podclique"] as $clique | if ($clique | type) == "string" and ($labels["app.kubernetes.io/part-of"] // "") != "" and ($labels["grove.io/podcliqueset-replica-index"] // "") != "" then $clique | ltrimstr($labels["app.kubernetes.io/part-of"] + "-" + $labels["grove.io/podcliqueset-replica-index"] + "-") else $clique end`,
 							},
 							ReplicaSelector: &v1alpha1.ReplicaSelector{
 								KeyPath: `.metadata.labels["grove.io/podcliqueset-replica-index"]`,
@@ -93,11 +94,11 @@ func GrovePodCliqueSet() *v1alpha1.Karta {
 						Kind:     &v1alpha1.GroupVersionKind{Group: "grove.io", Version: "v1alpha1", Kind: "PodCliqueScalingGroup"},
 						OwnerRef: ptr.To("podcliqueset"),
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath:    ptr.To("(.spec.replicas // 1) * (.spec.template.podCliqueScalingGroups[].replicas // 1)"),
-							MinReplicasPath: ptr.To(".spec.template.podCliqueScalingGroups[].scaleConfig.minReplicas"),
-							MaxReplicasPath: ptr.To(".spec.template.podCliqueScalingGroups[].scaleConfig.maxReplicas"),
+							ReplicasPath:    ptr.To("(.spec.replicas // 1) as $replicas | (.spec.template.podCliqueScalingGroups // [])[] | $replicas * (.replicas // 1)"),
+							MinReplicasPath: ptr.To("(.spec.template.podCliqueScalingGroups // [])[] | .scaleConfig.minReplicas"),
+							MaxReplicasPath: ptr.To("(.spec.template.podCliqueScalingGroups // [])[] | .scaleConfig.maxReplicas"),
 						},
-						InstanceIdPath: ptr.To(".spec.template.podCliqueScalingGroups[].name"),
+						InstanceIdPath: ptr.To("(.spec.template.podCliqueScalingGroups // [])[] | .name"),
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
 								IdPath: `.metadata.labels["grove.io/podcliquescalinggroup"]`,

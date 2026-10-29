@@ -59,7 +59,8 @@ func DynamoV1beta1() *v1alpha1.Karta {
 								IdPath: `.metadata.labels["nvidia.com/dynamo-component"]`,
 							},
 							ReplicaSelector: &v1alpha1.ReplicaSelector{
-								KeyPath: `.metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"]`,
+								// Deployment-backed services have no repeated multi-Pod group.
+								KeyPath: `if any(.metadata.ownerReferences[]?; .controller == true and .kind == "ReplicaSet") then empty else .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["grove.io/podcliqueset-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] end`,
 							},
 						},
 					},

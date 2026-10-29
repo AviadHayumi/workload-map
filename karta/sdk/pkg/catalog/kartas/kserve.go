@@ -30,14 +30,10 @@ func KServe() *v1alpha1.Karta {
 						},
 						StatusMappings: v1alpha1.StatusMappings{
 							Running: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{
-								{Type: "PredictorReady", Status: ptr.To("True")},
-								{Type: "RoutesReady", Status: ptr.To("True")},
-								{Type: "LatestDeploymentReady", Status: ptr.To("True")},
+								{Type: "Ready", Status: ptr.To("True")},
 							}}},
 							Failed: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{
-								{Type: "PredictorReady", Status: ptr.To("False")},
-								{Type: "PredictorConfigurationReady", Status: ptr.To("False")},
-								{Type: "RoutesReady", Status: ptr.To("False")},
+								{Type: "Ready", Status: ptr.To("False")},
 							}}},
 						},
 					},
@@ -89,6 +85,11 @@ func KServe() *v1alpha1.Karta {
 							},
 						},
 					},
+				},
+				AdditionalChildKinds: []v1alpha1.GroupVersionKind{
+					{Group: "serving.knative.dev", Version: "v1", Kind: "Service"},
+					{Group: "serving.knative.dev", Version: "v1", Kind: "Configuration"},
+					{Group: "serving.knative.dev", Version: "v1", Kind: "Revision"},
 				},
 			},
 			Instructions: v1alpha1.OptimizationInstructions{

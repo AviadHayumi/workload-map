@@ -58,6 +58,20 @@ func Rayjob() *v1alpha1.Karta {
 				},
 				ChildComponents: []v1alpha1.ComponentDefinition{
 					{
+						Name:     "submitter",
+						Kind:     &v1alpha1.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"},
+						OwnerRef: ptr.To("rayjob"),
+						SpecDefinition: &v1alpha1.SpecDefinition{
+							PodTemplateSpecPath: ptr.To(".spec.submitterPodTemplate"),
+						},
+						PodSelector: &v1alpha1.PodSelector{
+							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
+								KeyPath: `.metadata.ownerReferences[]? | select(.controller == true and .apiVersion == "batch/v1" and .kind == "Job") | .kind`,
+								Value:   ptr.To("Job"),
+							},
+						},
+					},
+					{
 						Name:     "head",
 						Kind:     &v1alpha1.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
 						OwnerRef: ptr.To("rayjob"),
@@ -97,6 +111,9 @@ func Rayjob() *v1alpha1.Karta {
 							},
 						},
 					},
+				},
+				AdditionalChildKinds: []v1alpha1.GroupVersionKind{
+					{Group: "ray.io", Version: "v1", Kind: "RayCluster"},
 				},
 			},
 			Instructions: v1alpha1.OptimizationInstructions{
