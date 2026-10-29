@@ -31,11 +31,11 @@ type resourceWatch struct {
 	cancel      context.CancelFunc
 }
 type reflectorStore struct {
-	runtime *Runtime
+	runtime *controllerState
 	source  *resourceWatch
 }
 
-func (r *Runtime) syncWatches(ctx context.Context) error {
+func (r *controllerState) syncWatches(ctx context.Context) error {
 	if r.config.NamespaceSelector != nil {
 		if _, err := r.ensureWatch(ctx, namespaceGVK, "", true); err != nil {
 			return err
@@ -112,20 +112,12 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, full bool) (watchKey, error) {
+func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, full bool) (watchKey, error) {
 	request := discovery.WatchRequest{GVK: gvk, Namespace: namespace}
 	failureRef := store.ObjectRef{GVK: gvk, Namespace: namespace, UID: types.UID("source:" + gvk.String() + "/" + namespace)}
 	mapping, err := r.reader.mapping(gvk)
 	if err != nil {
-		r.mu.Lock()
-		if r.config.NamespaceSelector != nil && namespace != "" && !r.scopes[namespace] {
-			r.mu.Unlock()
-			return watchKey{}, discovery.ErrPending
-		}
-		r.watchFailures[request] = err
-		r.deps.Publications.SetDiscoveryFailure(failureRef, failureReason(err))
-		r.mu.Unlock()
-		return watchKey{}, err
+		return watchKey{}, r.recordWatchFailure(request, failureRef, err)
 	}
 	if mapping.Scope.Name() == meta.RESTScopeNameRoot || r.config.NamespaceSelector == nil {
 		namespace = ""
@@ -178,10 +170,10 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	}()
 	return key, nil
 }
-func (r *Runtime) isSourceLocked(w *resourceWatch) bool {
+func (r *controllerState) isSourceLocked(w *resourceWatch) bool {
 	return r.watches[w.key] == w || r.replacements[w.key] == w
 }
-func (r *Runtime) setHealthLocked(w *resourceWatch, err error) {
+func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 	if !r.isSourceLocked(w) {
 		return
 	}
@@ -205,7 +197,7 @@ func (r *Runtime) setHealthLocked(w *resourceWatch, err error) {
 		r.controlQueue.Add("sources")
 	}
 }
-func (r *Runtime) retireWatchLocked(w *resourceWatch) {
+func (r *controllerState) retireWatchLocked(w *resourceWatch) {
 	w.cancel()
 	delete(r.watches, w.key)
 	r.reader.mu.Lock()
@@ -221,7 +213,7 @@ func (r *Runtime) retireWatchLocked(w *resourceWatch) {
 	r.deps.Publications.RemoveSourceHealth(w.key)
 }
 
-func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
+func (r *controllerState) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
 	defer cancel()
 	var result *unstructured.UnstructuredList
@@ -259,13 +251,11 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		}
 	}
 	if err != nil && ctx.Err() == nil {
-		r.mu.Lock()
-		r.setHealthLocked(w, err)
-		r.mu.Unlock()
+		r.setHealth(w, err)
 	}
 	return result, err
 }
-func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (watch.Interface, error) {
+func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (watch.Interface, error) {
 	var stream watch.Interface
 	var err error
 	if w.full {
@@ -302,22 +292,16 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 			case event, ok := <-stream.ResultChan():
 				if !ok {
 					if ctx.Err() == nil && !monitored.Stopping() {
-						r.mu.Lock()
-						r.setHealthLocked(w, errors.New("watch closed"))
-						r.mu.Unlock()
+						r.setHealth(w, errors.New("watch closed"))
 					}
 					return
 				}
 				if event.Type == watch.Error {
-					r.mu.Lock()
-					r.setHealthLocked(w, apierrors.FromObject(event.Object))
-					r.mu.Unlock()
+					r.setHealth(w, apierrors.FromObject(event.Object))
 				} else {
 					object, conversionErr := sourceObject(event.Object, w.gvk, w.full)
 					if conversionErr != nil {
-						r.mu.Lock()
-						r.setHealthLocked(w, conversionErr)
-						r.mu.Unlock()
+						r.setHealth(w, conversionErr)
 						return
 					}
 					event.Object = object
@@ -415,7 +399,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	r.enqueueRescanLocked(w.key.Namespace)
 	return nil
 }
-func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
+func (r *controllerState) accept(w *resourceWatch, value any, deleted bool) error {
 	object, err := sourceObject(value, w.gvk, w.full)
 	if err != nil {
 		return r.rejectSource(w, err)
@@ -447,8 +431,8 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
 	return nil
 }
 
-// Called with both Runtime and Reader locked. It only queues domain work.
-func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
+// Called with both controllerState and Reader locked. It only queues domain work.
+func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructured) {
 	// Keep the old match so an update that leaves the selector can clean up.
 	r.enqueuePodLocked(old)
 	r.enqueuePodLocked(current)
@@ -497,9 +481,24 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 	}
 }
 
-func (r *Runtime) rejectSource(w *resourceWatch, err error) error {
+func (r *controllerState) rejectSource(w *resourceWatch, err error) error {
+	r.setHealth(w, err)
+	return err
+}
+
+func (r *controllerState) setHealth(w *resourceWatch, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.setHealthLocked(w, err)
+}
+
+func (r *controllerState) recordWatchFailure(request discovery.WatchRequest, ref store.ObjectRef, err error) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.config.NamespaceSelector != nil && request.Namespace != "" && !r.scopes[request.Namespace] {
+		return discovery.ErrPending
+	}
+	r.watchFailures[request] = err
+	r.deps.Publications.SetDiscoveryFailure(ref, failureReason(err))
 	return err
 }

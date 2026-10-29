@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -26,7 +25,7 @@ import (
 )
 
 // Reader exposes the accepted shared collection caches to ownership discovery.
-// Runtime always takes its lock before Reader's lock; readers never call Runtime
+// controllerState takes its lock before Reader's lock; readers never call it
 // while holding this lock.
 type Reader struct {
 	mu              sync.RWMutex
@@ -180,33 +179,4 @@ func failureReason(err error) string {
 	default:
 		return store.ReasonAPIUnavailable
 	}
-}
-
-// An observed API alias must not let a demoted object publish as a root.
-func (r *Runtime) isRootLocked(ref discovery.ObjectRef) bool {
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
-	selected := r.selections[ref.GVK.GroupKind()]
-	if selected.Definition != nil && selected.err == nil {
-		entry := r.reader.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
-		source := r.reader.sources[entry.source]
-		if entry.object != nil && entry.object.GetUID() == ref.UID && source.full && source.synced && source.err == nil {
-			owner, valid := discovery.ControllerOwner(entry.object)
-			return valid && (owner.UID == "" || slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK))
-		}
-	}
-	for _, source := range r.reader.sources {
-		if !source.synced || source.err != nil || source.gvk.GroupKind() != ref.GVK.GroupKind() {
-			continue
-		}
-		entry := r.reader.objects[objectKey{GVK: source.gvk, Namespace: ref.Namespace, Name: ref.Name}]
-		if entry.object == nil || entry.object.GetUID() != ref.UID {
-			continue
-		}
-		owner, valid := discovery.ControllerOwner(entry.object)
-		if !valid || (owner.UID != "" && !slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK)) {
-			return false
-		}
-	}
-	return true
 }

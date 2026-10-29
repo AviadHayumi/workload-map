@@ -9,11 +9,9 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,35 +49,7 @@ type ResourceRule struct {
 }
 
 type Runtime struct {
-	mu     sync.Mutex
-	config Config
-	deps   Dependencies
-	reader *Reader
-
-	inputQueue   workqueue.TypedRateLimitingInterface[inputKey]
-	rootQueue    workqueue.TypedRateLimitingInterface[rootKey]
-	controlQueue workqueue.TypedRateLimitingInterface[string]
-
-	watches       map[watchKey]*resourceWatch
-	replacements  map[watchKey]*resourceWatch
-	watchFailures map[discovery.WatchRequest]error
-	scopes        map[string]bool
-
-	roots        map[types.UID]*rootState
-	podRoots     map[types.UID]types.UID
-	ancestorPods map[types.UID]bool
-	candidates   map[inputKey]types.UID
-
-	selections        map[schema.GroupKind]selectedDefinition
-	definitionError   error
-	definitionVersion uint64
-	namespaceSelector labels.Selector
-	objectSelector    labels.Selector
-	podSelector       labels.Selector
-
-	ctx     context.Context
-	started bool
-	wg      sync.WaitGroup
+	state *controllerState
 }
 
 type inputKey struct {
@@ -92,23 +62,12 @@ type rootKey struct {
 	Candidate inputKey
 }
 type watchKey = store.SourceKey
-type rootState struct {
-	ref        discovery.ObjectRef
-	resolution discovery.OwnerResolution
-	pods       map[types.UID]inputKey
-	candidates map[inputKey]candidateState
-}
 
 type selectedDefinition struct {
 	inventory.Selection
 	summary *instructions.StructureSummary
 	err     error
 	version uint64
-}
-
-type candidateState struct {
-	sources []store.SourceKey
-	err     error
 }
 
 var podGVK = schema.GroupVersionKind{Version: "v1", Kind: "Pod"}
@@ -138,7 +97,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := &Runtime{
+	r := &controllerState{
 		config:        config,
 		deps:          deps,
 		reader:        reader,
@@ -176,32 +135,27 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 		return nil, err
 	}
 	reader.ensure = r.ensureWatch
-	return r, nil
+	return &Runtime{state: r}, nil
 }
 func (r *Runtime) Run(ctx context.Context) error {
-	r.mu.Lock()
-	if r.started {
-		r.mu.Unlock()
-		return errors.New("runtime already started")
+	if err := r.state.start(ctx); err != nil {
+		return err
 	}
-	r.started = true
-	r.ctx = ctx
-	r.mu.Unlock()
-	for i := 0; i < r.config.LeafWorkers; i++ {
-		r.wg.Add(1)
-		go func() { defer r.wg.Done(); runWorker(ctx, r.inputQueue, r.resolveInput) }()
+	for i := 0; i < r.state.config.LeafWorkers; i++ {
+		r.state.wg.Add(1)
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.inputQueue, r.resolveInput) }()
 	}
-	for i := 0; i < r.config.RootWorkers; i++ {
-		r.wg.Add(1)
-		go func() { defer r.wg.Done(); runWorker(ctx, r.rootQueue, r.resolveWorkload) }()
+	for i := 0; i < r.state.config.RootWorkers; i++ {
+		r.state.wg.Add(1)
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.rootQueue, r.resolveWorkload) }()
 	}
-	r.wg.Add(1)
+	r.state.wg.Add(1)
 	go func() {
-		defer r.wg.Done()
-		runWorker(ctx, r.controlQueue, func(ctx context.Context, _ string) error { return r.syncWatches(ctx) })
+		defer r.state.wg.Done()
+		runWorker(ctx, r.state.controlQueue, func(ctx context.Context, _ string) error { return r.state.syncWatches(ctx) })
 	}()
-	r.controlQueue.Add("sources")
-	changes := r.deps.Inventory.Changes()
+	r.state.controlQueue.Add("sources")
+	changes := r.state.deps.Inventory.Changes()
 running:
 	for {
 		select {
@@ -212,24 +166,21 @@ running:
 				changes = nil
 				continue
 			}
-			r.controlQueue.Add("sources")
+			r.state.controlQueue.Add("sources")
 		}
 	}
-	r.inputQueue.ShutDown()
-	r.rootQueue.ShutDown()
-	r.controlQueue.ShutDown()
-	r.mu.Lock()
-	for _, w := range r.watches {
-		w.cancel()
-	}
-	for _, w := range r.replacements {
-		w.cancel()
-	}
-	r.mu.Unlock()
-	r.wg.Wait()
+	r.state.inputQueue.ShutDown()
+	r.state.rootQueue.ShutDown()
+	r.state.controlQueue.ShutDown()
+	r.state.stopWatches()
+	r.state.wg.Wait()
 	return nil
 }
 func (r *Runtime) Ready() bool {
+	return r.state.ready()
+}
+
+func (r *controllerState) ready() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionError != nil || len(r.watches) == 0 {
@@ -270,11 +221,11 @@ func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimit
 		queue.Done(key)
 	}
 }
-func (r *Runtime) requiredWatch(gvk schema.GroupVersionKind) bool {
+func (r *controllerState) requiredWatch(gvk schema.GroupVersionKind) bool {
 	return gvk == podGVK || (gvk == namespaceGVK && r.config.NamespaceSelector != nil) || slices.Contains(r.config.RequiredKinds, gvk)
 }
 
-func (r *Runtime) refreshDefinitionsLocked() error {
+func (r *controllerState) refreshDefinitionsLocked() error {
 	results, sourceErr := r.deps.Inventory.List()
 	next := r.selections
 	if sourceErr == nil {
@@ -342,102 +293,13 @@ func (r *Runtime) refreshDefinitionsLocked() error {
 	}
 	return sourceErr
 }
-func (r *Runtime) lookupDefinition(gvk schema.GroupVersionKind) (selectedDefinition, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	selected := r.selections[gvk.GroupKind()]
-	selected.version = r.definitionVersion
-	if r.definitionError != nil {
-		return selected, r.definitionError
-	}
-	return selected, selected.err
-}
 
 func inputFor(ref discovery.ObjectRef) inputKey { return inputKey{Object: keyOf(ref), UID: ref.UID} }
 func (key inputKey) ref() discovery.ObjectRef {
 	return discovery.ObjectRef{GVK: key.Object.GVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
 }
-func (r *Runtime) enqueueRescanLocked(namespace string) {
-	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Rescan: true})
-}
-func (r *Runtime) enqueueObjectLocked(object *unstructured.Unstructured) {
-	r.enqueuePodLocked(object)
-	if r.isCandidateLocked(object.GroupVersionKind()) {
-		r.rootQueue.Add(rootKey{Candidate: inputFor(refOf(object))})
-	}
-}
-func (r *Runtime) enqueuePodLocked(object *unstructured.Unstructured) {
-	if object == nil || object.GroupVersionKind() != podGVK {
-		return
-	}
-	uid := object.GetUID()
-	_, member := r.podRoots[uid]
-	// Previously tracked Pods still need a worker to remove their result.
-	if r.podSelector.Empty() || r.podSelector.Matches(labelsFor(object)) || member || r.deps.Publications.Pod(uid) != nil {
-		r.inputQueue.Add(inputFor(refOf(object)))
-	}
-}
-func (r *Runtime) isCandidateLocked(gvk schema.GroupVersionKind) bool {
-	selection := r.selections[gvk.GroupKind()]
-	return selection.Definition != nil && selection.GVK == gvk
-}
-func (r *Runtime) fanoutRootLocked(uid types.UID) {
-	root := r.roots[uid]
-	if root == nil {
-		return
-	}
-	r.rootQueue.Add(rootKey{UID: uid})
-	r.enqueueMembersLocked(root)
-}
-func (r *Runtime) enqueueMembersLocked(root *rootState) {
-	for _, key := range root.pods {
-		r.inputQueue.Add(key)
-	}
-	for key := range root.candidates {
-		r.rootQueue.Add(rootKey{Candidate: key})
-	}
-}
-func (r *Runtime) rootLocked(workload *discovery.GenericWorkload) *rootState {
-	for _, ref := range workload.Path[1:] {
-		if ref.GVK == podGVK {
-			r.ancestorPods[ref.UID] = true
-		}
-	}
-	root := r.roots[workload.Root.UID]
-	if root == nil {
-		root = &rootState{ref: workload.Root, pods: map[types.UID]inputKey{}, candidates: map[inputKey]candidateState{}}
-		r.roots[workload.Root.UID] = root
-	}
-	root.resolution = workload.Resolution
-	if selection := r.selections[workload.Root.GVK.GroupKind()]; selection.Definition != nil {
-		root.ref.GVK = selection.GVK
-	} else if root.ref.GVK != workload.Root.GVK {
-		current := root.ref
-		current.ResourceVersion = ""
-		if _, _, err := r.reader.read(current, false); err != nil {
-			root.ref = workload.Root
-			r.rootQueue.Add(rootKey{UID: root.ref.UID})
-		}
-	}
-	return root
-}
-func (r *Runtime) removePodLocked(key inputKey) {
-	if root := r.roots[r.podRoots[key.UID]]; root != nil {
-		delete(root.pods, key.UID)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
-	}
-	delete(r.podRoots, key.UID)
-	r.deps.Publications.RemovePod(key.UID)
-}
-func (r *Runtime) removeCandidateLocked(key inputKey) {
-	if root := r.roots[r.candidates[key]]; root != nil {
-		delete(root.candidates, key)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
-	}
-	delete(r.candidates, key)
-	r.deps.Publications.RemoveDiscoveryFailure(key.UID)
-}
-func (r *Runtime) sourcesFor(path []discovery.ObjectRef) []store.SourceKey {
+
+func (r *controllerState) sourcesFor(path []discovery.ObjectRef) []store.SourceKey {
 	r.reader.mu.RLock()
 	defer r.reader.mu.RUnlock()
 	var sources []store.SourceKey
@@ -466,10 +328,4 @@ func appendSources(sources, additional []store.SourceKey) []store.SourceKey {
 		}
 	}
 	return result
-}
-
-func (r *Runtime) namespaceAdmitted(namespace string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.config.NamespaceSelector == nil || namespace == "" || r.scopes[namespace]
 }

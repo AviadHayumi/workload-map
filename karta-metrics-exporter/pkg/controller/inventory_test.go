@@ -110,7 +110,7 @@ func (i *observedInventory) replace(t *testing.T, objects ...*unstructured.Unstr
 
 func setDefinitions(t *testing.T, r *Runtime, objects ...*unstructured.Unstructured) *observedInventory {
 	t.Helper()
-	observer, ok := r.deps.Inventory.(*observedInventory)
+	observer, ok := r.state.deps.Inventory.(*observedInventory)
 	require.True(t, ok)
 	observer.replace(t, objects...)
 	return observer
@@ -194,10 +194,10 @@ func TestDefinitionChangesQueueAffectedKinds(t *testing.T) {
 	observer.replace(t, definitionObject(t, "job"))
 	refreshSelection(t, r)
 	var inputs []inputKey
-	for r.inputQueue.Len() > 0 {
-		key, _ := r.inputQueue.Get()
+	for r.state.inputQueue.Len() > 0 {
+		key, _ := r.state.inputQueue.Get()
 		inputs = append(inputs, key)
-		r.inputQueue.Done(key)
+		r.state.inputQueue.Done(key)
 	}
 	require.Equal(t, []inputKey{inputFor(refOf(jobPod))}, inputs)
 }
@@ -223,7 +223,7 @@ func TestRuntimeDefinitionChangeDoesNotReconcileOtherKinds(t *testing.T) {
 	seedSource(t, r, deploymentKind, true, deployment)
 	seedSource(t, r, podGVK, true, jobPod, deploymentPod)
 	settle(t, r)
-	require.Len(t, r.candidates, 2)
+	require.Len(t, r.state.candidates, 2)
 	jobCalls := labels.count(job.GetUID(), labelresolver.MetricWorkloadStatus)
 	deploymentCalls := labels.count(deployment.GetUID(), labelresolver.MetricWorkloadStatus)
 	deploymentPodCalls := labels.count(deployment.GetUID(), labelresolver.MetricPodWorkloadInfo)
@@ -266,7 +266,7 @@ func TestInventoryWatchDrivesRuntimeWithoutControllerKartaWatch(t *testing.T) {
 	inventoryDone := make(chan error, 1)
 	go func() { inventoryDone <- definitions.Run(ctx) }()
 	require.NoError(t, definitions.WaitLoaded(ctx))
-	r.deps.Inventory, r.config.ClusterDefinitions = definitions, true
+	r.state.deps.Inventory, r.state.config.ClusterDefinitions = definitions, true
 	refreshSelection(t, r)
 	root, pod := definedPair(t, r)
 	controllerDone := make(chan error, 1)
@@ -285,7 +285,7 @@ func TestInventoryWatchDrivesRuntimeWithoutControllerKartaWatch(t *testing.T) {
 		return values.Pod(pod.GetUID()).Record.Karta == ""
 	}, 3*time.Second, time.Millisecond)
 	require.NotNil(t, values.Workload(root.GetUID()))
-	for _, action := range r.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient).Actions() {
+	for _, action := range r.state.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient).Actions() {
 		require.NotEqual(t, resource, action.GetResource())
 	}
 	var lists, watches int

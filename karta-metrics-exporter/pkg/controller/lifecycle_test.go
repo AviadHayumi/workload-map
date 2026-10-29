@@ -66,21 +66,21 @@ func simpleRuntime(t *testing.T, resolver labelresolver.Resolver) (*Runtime, sto
 	r, err := New(Config{}, Dependencies{Discovery: ownership, Inventory: definitions, Labels: resolver, Publications: values}, reader)
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
-	r.ctx = ctx
+	r.state.ctx = ctx
 	t.Cleanup(func() {
 		cancel()
-		r.inputQueue.ShutDown()
-		r.rootQueue.ShutDown()
-		r.controlQueue.ShutDown()
-		r.mu.Lock()
-		for _, w := range r.watches {
+		r.state.inputQueue.ShutDown()
+		r.state.rootQueue.ShutDown()
+		r.state.controlQueue.ShutDown()
+		r.state.mu.Lock()
+		for _, w := range r.state.watches {
 			w.cancel()
 		}
-		for _, w := range r.replacements {
+		for _, w := range r.state.replacements {
 			w.cancel()
 		}
-		r.mu.Unlock()
-		r.wg.Wait()
+		r.state.mu.Unlock()
+		r.state.wg.Wait()
 	})
 	return r, values
 }
@@ -99,26 +99,26 @@ func simpleOwner(object, owner *unstructured.Unstructured) {
 }
 func seedSource(t *testing.T, r *Runtime, gvk schema.GroupVersionKind, full bool, objects ...*unstructured.Unstructured) *resourceWatch {
 	t.Helper()
-	mapping, err := r.reader.mapping(gvk)
+	mapping, err := r.state.reader.mapping(gvk)
 	require.NoError(t, err)
 	key := watchKey{Resource: mapping.Resource}
 	w := &resourceWatch{key: key, gvk: gvk, full: full, ready: true, objects: map[objectKey]struct{}{}, cancel: func() {}}
-	r.watches[key] = w
-	r.reader.sources[key] = readSource{gvk: gvk, full: full, synced: true}
-	r.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk, Synced: true})
+	r.state.watches[key] = w
+	r.state.reader.sources[key] = readSource{gvk: gvk, full: full, synced: true}
+	r.state.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk, Synced: true})
 	for _, object := range objects {
-		require.NoError(t, r.accept(w, object, false))
+		require.NoError(t, r.state.accept(w, object, false))
 	}
 	return w
 }
 func selectCatalog(t *testing.T, r *Runtime, names ...string) {
 	t.Helper()
 	var err error
-	r.deps.Inventory, err = inventory.New(nil, inventory.Config{Catalog: inventory.SourceConfig{Enabled: true, Include: names}})
+	r.state.deps.Inventory, err = inventory.New(nil, inventory.Config{Catalog: inventory.SourceConfig{Enabled: true, Include: names}})
 	require.NoError(t, err)
-	r.mu.Lock()
-	err = r.refreshDefinitionsLocked()
-	r.mu.Unlock()
+	r.state.mu.Lock()
+	err = r.state.refreshDefinitionsLocked()
+	r.state.mu.Unlock()
 	require.NoError(t, err)
 }
 func emptyQueue[T comparable](queue workqueue.TypedRateLimitingInterface[T]) {
@@ -131,17 +131,17 @@ func emptyQueue[T comparable](queue workqueue.TypedRateLimitingInterface[T]) {
 func settle(t *testing.T, r *Runtime) {
 	t.Helper()
 	for n := 0; n < 2000; n++ {
-		if r.inputQueue.Len() > 0 {
-			key, _ := r.inputQueue.Get()
+		if r.state.inputQueue.Len() > 0 {
+			key, _ := r.state.inputQueue.Get()
 			err := r.resolveInput(context.Background(), key)
-			r.inputQueue.Done(key)
+			r.state.inputQueue.Done(key)
 			require.NoError(t, err)
 			continue
 		}
-		if r.rootQueue.Len() > 0 {
-			key, _ := r.rootQueue.Get()
+		if r.state.rootQueue.Len() > 0 {
+			key, _ := r.state.rootQueue.Get()
 			err := r.resolveWorkload(context.Background(), key)
-			r.rootQueue.Done(key)
+			r.state.rootQueue.Done(key)
 			require.NoError(t, err)
 			continue
 		}
@@ -167,7 +167,7 @@ func TestIndependentPodAndWorkloadPublication(t *testing.T) {
 	pod = pod.DeepCopy()
 	pod.SetResourceVersion("2")
 	pod.SetLabels(map[string]string{"changed": "yes"})
-	require.NoError(t, r.accept(pods, pod, false))
+	require.NoError(t, r.state.accept(pods, pod, false))
 	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
 	require.Same(t, oldRoot, values.Workload(root.GetUID()))
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Input.ResourceVersion)
@@ -186,9 +186,9 @@ func TestTombstoneAndSameNameReplacement(t *testing.T) {
 			replacement := old.DeepCopy()
 			replacement.SetUID(old.GetUID() + "-new")
 			replacement.SetResourceVersion("2")
-			require.NoError(t, r.accept(source, replacement, false))
-			require.NoError(t, r.accept(source, cache.DeletedFinalStateUnknown{Obj: old}, true))
-			current, ok := r.reader.Cached(refOf(replacement))
+			require.NoError(t, r.state.accept(source, replacement, false))
+			require.NoError(t, r.state.accept(source, cache.DeletedFinalStateUnknown{Obj: old}, true))
+			current, ok := r.state.reader.Cached(refOf(replacement))
 			require.True(t, ok)
 			require.Equal(t, replacement.GetUID(), current.GetUID())
 			if kind == podGVK {
@@ -218,15 +218,15 @@ func TestIntermediateOwnershipRescanAndQuietStatus(t *testing.T) {
 	changed := middle.DeepCopy()
 	changed.SetResourceVersion("2")
 	changed.Object["status"] = map[string]any{"readyReplicas": int64(5)}
-	require.NoError(t, r.accept(source, changed, false))
-	require.Zero(t, r.inputQueue.Len())
-	require.Zero(t, r.rootQueue.Len())
+	require.NoError(t, r.state.accept(source, changed, false))
+	require.Zero(t, r.state.inputQueue.Len())
+	require.Zero(t, r.state.rootQueue.Len())
 	changed.SetResourceVersion("3")
 	simpleOwner(changed, b)
 	for i := 0; i < 20; i++ {
-		require.NoError(t, r.accept(source, changed, false))
+		require.NoError(t, r.state.accept(source, changed, false))
 	}
-	require.Equal(t, 1, r.inputQueue.Len())
+	require.Equal(t, 1, r.state.inputQueue.Len())
 	settle(t, r)
 	require.Equal(t, b.GetUID(), values.Pod(pod.GetUID()).Record.Workload.UID)
 	require.Nil(t, values.Workload(a.GetUID()))
@@ -250,7 +250,7 @@ func TestZeroPodCandidateFindsGenericParentAndMoves(t *testing.T) {
 	changed := middle.DeepCopy()
 	changed.SetResourceVersion("2")
 	simpleOwner(changed, b)
-	require.NoError(t, r.accept(source, changed, false))
+	require.NoError(t, r.state.accept(source, changed, false))
 	settle(t, r)
 	require.Nil(t, values.Workload(a.GetUID()))
 	require.NotNil(t, values.Workload(b.GetUID()))
@@ -265,7 +265,7 @@ func TestCandidateFailureDoesNotFabricateRoot(t *testing.T) {
 	require.Error(t, r.admitRoot(context.Background(), inputFor(refOf(child))))
 	require.Empty(t, values.Capture().Workloads)
 	require.Len(t, values.Capture().Failures, 1)
-	require.NoError(t, r.accept(source, parent, false))
+	require.NoError(t, r.state.accept(source, parent, false))
 	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(child))))
 	require.Empty(t, values.Capture().Failures)
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
@@ -289,12 +289,12 @@ func TestCandidateAdmissionFailuresPreserveCause(t *testing.T) {
 			child := simpleObject(jobKind, "child")
 			source := seedSource(t, r, jobKind, true, child)
 			discoverer := discovery.NewMockDiscovery(t)
-			r.deps.Discovery = discoverer
+			r.state.deps.Discovery = discoverer
 			ctx := context.Background()
 			if tc.readErr != nil {
-				r.mu.Lock()
-				r.setHealthLocked(source, tc.readErr)
-				r.mu.Unlock()
+				r.state.mu.Lock()
+				r.state.setHealthLocked(source, tc.readErr)
+				r.state.mu.Unlock()
 			} else {
 				discoverer.EXPECT().Get(ctx, refOf(child)).Return(discovery.Result{}, tc.discoveryErr).Once()
 			}
@@ -312,27 +312,27 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	root, pod, roots, _ := seedPair(t, r)
 	before := values.Pod(pod.GetUID())
 	denied := apierrors.NewForbidden(roots.key.Resource.GroupResource(), "", errors.New("denied"))
-	r.mu.Lock()
-	r.setHealthLocked(roots, denied)
-	r.mu.Unlock()
+	r.state.mu.Lock()
+	r.state.setHealthLocked(roots, denied)
+	r.state.mu.Unlock()
 	valid, reason := values.Capture().Valid(before.Sources, before.Error)
 	require.False(t, valid)
 	require.Equal(t, store.ReasonPermissionDenied, reason)
 	require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
 	require.Equal(t, before.Record, values.Pod(pod.GetUID()).Record)
-	r.mu.Lock()
-	r.setHealthLocked(roots, nil)
-	r.mu.Unlock()
+	r.state.mu.Lock()
+	r.state.setHealthLocked(roots, nil)
+	r.state.mu.Unlock()
 	resolver.mu.Lock()
 	resolver.fail = true
 	resolver.mu.Unlock()
 	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
 	require.Equal(t, store.ReasonEvaluationFailed, values.Pod(pod.GetUID()).Error)
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
-	r.mu.Lock()
-	r.setHealthLocked(roots, denied)
-	r.setHealthLocked(roots, nil)
-	r.mu.Unlock()
+	r.state.mu.Lock()
+	r.state.setHealthLocked(roots, denied)
+	r.state.setHealthLocked(roots, nil)
+	r.state.mu.Unlock()
 	require.Equal(t, store.ReasonEvaluationFailed, values.Pod(pod.GetUID()).Error)
 	resolver.mu.Lock()
 	resolver.fail = false
@@ -343,10 +343,10 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 func TestCompleteRelistDeletionAndMalformedList(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	_, pod, _, pods := seedPair(t, r)
-	replacement := &reflectorStore{runtime: r, source: pods}
+	replacement := &reflectorStore{runtime: r.state, source: pods}
 	require.Error(t, replacement.Replace([]any{&unstructured.Unstructured{}}, "2"))
 	require.NotNil(t, values.Pod(pod.GetUID()))
-	require.NotNil(t, r.reader.objects[keyOf(refOf(pod))].object)
+	require.NotNil(t, r.state.reader.objects[keyOf(refOf(pod))].object)
 	require.NotEmpty(t, values.Capture().Sources[pods.key].Error)
 	require.NoError(t, replacement.Replace(nil, "3"))
 	settle(t, r)
@@ -357,21 +357,21 @@ func TestRetiredCallbacksCannotRepopulateCache(t *testing.T) {
 	r, _ := simpleRuntime(t, nil)
 	pod := simpleObject(podGVK, "pod")
 	old := seedSource(t, r, podGVK, true, pod)
-	r.mu.Lock()
-	r.retireWatchLocked(old)
-	r.mu.Unlock()
+	r.state.mu.Lock()
+	r.state.retireWatchLocked(old)
+	r.state.mu.Unlock()
 	current := seedSource(t, r, podGVK, true)
-	require.NoError(t, r.accept(old, pod, false))
-	require.NoError(t, (&reflectorStore{runtime: r, source: old}).Replace([]any{pod}, "2"))
+	require.NoError(t, r.state.accept(old, pod, false))
+	require.NoError(t, (&reflectorStore{runtime: r.state, source: old}).Replace([]any{pod}, "2"))
 	require.Empty(t, current.objects)
-	_, ok := r.reader.Cached(refOf(pod))
+	_, ok := r.state.reader.Cached(refOf(pod))
 	require.False(t, ok)
 }
 func TestNamespaceRemovalCleansBothDomains(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	root, pod, _, _ := seedPair(t, r)
-	r.config.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"include": "yes"}}
-	r.scopes = map[string]bool{}
+	r.state.config.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"include": "yes"}}
+	r.state.scopes = map[string]bool{}
 	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Empty(t, values.Capture().Pods)
@@ -391,7 +391,7 @@ func TestStandalonePodAdoptionKeepsOnlyPodRole(t *testing.T) {
 	changed := pod.DeepCopy()
 	changed.SetResourceVersion("2")
 	simpleOwner(changed, root)
-	require.NoError(t, r.accept(source, changed, false))
+	require.NoError(t, r.state.accept(source, changed, false))
 	settle(t, r)
 	require.Nil(t, values.Workload(pod.GetUID()))
 	require.Equal(t, root.GetUID(), values.Pod(pod.GetUID()).Record.Workload.UID)
@@ -442,13 +442,13 @@ func TestRootChangeDuringPodEvaluationRequeuesRegisteredMembership(t *testing.T)
 	simpleOwner(pod, root)
 	roots := seedSource(t, r, deploymentKind, true, root)
 	seedSource(t, r, podGVK, true, pod)
-	emptyQueue(r.inputQueue)
-	emptyQueue(r.rootQueue)
+	emptyQueue(r.state.inputQueue)
+	emptyQueue(r.state.rootQueue)
 	key := inputFor(refOf(pod))
-	r.inputQueue.Add(key)
-	key, _ = r.inputQueue.Get()
+	r.state.inputQueue.Add(key)
+	key, _ = r.state.inputQueue.Get()
 	done := make(chan error, 1)
-	go func() { done <- r.resolveLeaf(context.Background(), key); r.inputQueue.Done(key) }()
+	go func() { done <- r.resolveLeaf(context.Background(), key); r.state.inputQueue.Done(key) }()
 	select {
 	case <-labels.entered:
 	case <-time.After(time.Second):
@@ -457,10 +457,10 @@ func TestRootChangeDuringPodEvaluationRequeuesRegisteredMembership(t *testing.T)
 	changed := root.DeepCopy()
 	changed.SetResourceVersion("2")
 	changed.Object["status"] = map[string]any{"availableReplicas": int64(1)}
-	require.NoError(t, r.accept(roots, changed, false))
+	require.NoError(t, r.state.accept(roots, changed, false))
 	close(labels.resume)
 	require.ErrorIs(t, <-done, discovery.ErrStale)
-	require.Eventually(t, func() bool { return r.inputQueue.Len() > 0 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return r.state.inputQueue.Len() > 0 }, time.Second, time.Millisecond)
 	settle(t, r)
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Record.Labels["revision"])
 }
@@ -474,7 +474,7 @@ func TestPodDeletionDuringEvaluationCannotPublish(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- r.resolveLeaf(context.Background(), inputFor(refOf(pod))) }()
 	<-labels.entered
-	require.NoError(t, r.accept(pods, pod, true))
+	require.NoError(t, r.state.accept(pods, pod, true))
 	close(labels.resume)
 	require.ErrorIs(t, <-done, discovery.ErrStale)
 	settle(t, r)
@@ -518,14 +518,14 @@ func TestConcurrentLabelResolutionAndFullPodInputs(t *testing.T) {
 func TestFailedListRetainsCacheAndLastGoodRows(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	_, pod, _, pods := seedPair(t, r)
-	client := r.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient)
+	client := r.state.reader.clients.Dynamic.(*dynamicfake.FakeDynamicClient)
 	client.PrependReactor("list", "pods", func(clienttesting.Action) (bool, kruntime.Object, error) {
 		return true, nil, errors.New("failed second page")
 	})
-	_, err := r.listWatch(context.Background(), pods, metav1.ListOptions{Continue: "second"})
+	_, err := r.state.listWatch(context.Background(), pods, metav1.ListOptions{Continue: "second"})
 	require.Error(t, err)
-	_, ok := r.reader.Cached(refOf(pod))
+	_, ok := r.state.reader.Cached(refOf(pod))
 	require.False(t, ok)
-	require.NotNil(t, r.reader.objects[keyOf(refOf(pod))].object)
+	require.NotNil(t, r.state.reader.objects[keyOf(refOf(pod))].object)
 	require.NotNil(t, values.Pod(pod.GetUID()))
 }
