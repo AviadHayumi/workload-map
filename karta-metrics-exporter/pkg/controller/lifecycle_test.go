@@ -69,9 +69,9 @@ func simpleRuntime(t *testing.T, resolver labelresolver.Resolver) (*Runtime, sto
 	r.state.ctx = ctx
 	t.Cleanup(func() {
 		cancel()
-		r.state.inputQueue.ShutDown()
-		r.state.rootQueue.ShutDown()
-		r.state.controlQueue.ShutDown()
+		r.state.podQueue.ShutDown()
+		r.state.workloadQueue.ShutDown()
+		r.state.watchSyncQueue.ShutDown()
 		r.state.mu.Lock()
 		for _, w := range r.state.watches {
 			w.cancel()
@@ -131,17 +131,17 @@ func emptyQueue[T comparable](queue workqueue.TypedRateLimitingInterface[T]) {
 func settle(t *testing.T, r *Runtime) {
 	t.Helper()
 	for n := 0; n < 2000; n++ {
-		if r.state.inputQueue.Len() > 0 {
-			key, _ := r.state.inputQueue.Get()
+		if r.state.podQueue.Len() > 0 {
+			key, _ := r.state.podQueue.Get()
 			err := r.resolveInput(context.Background(), key)
-			r.state.inputQueue.Done(key)
+			r.state.podQueue.Done(key)
 			require.NoError(t, err)
 			continue
 		}
-		if r.state.rootQueue.Len() > 0 {
-			key, _ := r.state.rootQueue.Get()
+		if r.state.workloadQueue.Len() > 0 {
+			key, _ := r.state.workloadQueue.Get()
 			err := r.resolveWorkload(context.Background(), key)
-			r.state.rootQueue.Done(key)
+			r.state.workloadQueue.Done(key)
 			require.NoError(t, err)
 			continue
 		}
@@ -168,7 +168,7 @@ func TestIndependentPodAndWorkloadPublication(t *testing.T) {
 	pod.SetResourceVersion("2")
 	pod.SetLabels(map[string]string{"changed": "yes"})
 	require.NoError(t, r.state.accept(pods, pod, false))
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.Same(t, oldRoot, values.Workload(root.GetUID()))
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Input.ResourceVersion)
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
@@ -198,7 +198,7 @@ func TestTombstoneAndSameNameReplacement(t *testing.T) {
 			} else {
 				require.NoError(t, r.reconcile(context.Background(), old.GetUID()))
 				require.Nil(t, values.Workload(old.GetUID()))
-				require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+				require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 				require.Equal(t, store.ReasonUnresolvedOwner, values.Pod(pod.GetUID()).Error)
 			}
 		})
@@ -219,14 +219,14 @@ func TestIntermediateOwnershipRescanAndQuietStatus(t *testing.T) {
 	changed.SetResourceVersion("2")
 	changed.Object["status"] = map[string]any{"readyReplicas": int64(5)}
 	require.NoError(t, r.state.accept(source, changed, false))
-	require.Zero(t, r.state.inputQueue.Len())
-	require.Zero(t, r.state.rootQueue.Len())
+	require.Zero(t, r.state.podQueue.Len())
+	require.Zero(t, r.state.workloadQueue.Len())
 	changed.SetResourceVersion("3")
 	simpleOwner(changed, b)
 	for i := 0; i < 20; i++ {
 		require.NoError(t, r.state.accept(source, changed, false))
 	}
-	require.Equal(t, 1, r.state.inputQueue.Len())
+	require.Equal(t, 1, r.state.podQueue.Len())
 	settle(t, r)
 	require.Equal(t, b.GetUID(), values.Pod(pod.GetUID()).Record.Workload.UID)
 	require.Nil(t, values.Workload(a.GetUID()))
@@ -262,11 +262,11 @@ func TestCandidateFailureDoesNotFabricateRoot(t *testing.T) {
 	simpleOwner(child, parent)
 	source := seedSource(t, r, deploymentKind, true)
 	seedSource(t, r, jobKind, true, child)
-	require.Error(t, r.admitRoot(context.Background(), inputFor(refOf(child))))
+	require.Error(t, r.admitRoot(context.Background(), objectJobFor(refOf(child))))
 	require.Empty(t, values.Capture().Workloads)
 	require.Len(t, values.Capture().Failures, 1)
 	require.NoError(t, r.state.accept(source, parent, false))
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(child))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(child))))
 	require.Empty(t, values.Capture().Failures)
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.NotNil(t, values.Workload(parent.GetUID()))
@@ -298,10 +298,10 @@ func TestCandidateAdmissionFailuresPreserveCause(t *testing.T) {
 			} else {
 				discoverer.EXPECT().Get(ctx, refOf(child)).Return(discovery.Result{}, tc.discoveryErr).Once()
 			}
-			err := r.admitRoot(ctx, inputFor(refOf(child)))
+			err := r.admitRoot(ctx, objectJobFor(refOf(child)))
 			require.Same(t, tc.want, err)
 			require.Empty(t, values.Capture().Workloads)
-			require.Equal(t, []store.DiscoveryFailure{{Input: storedRef(inputFor(refOf(child)).ref()), Error: failureReason(tc.want)}}, values.Capture().Failures)
+			require.Equal(t, []store.DiscoveryFailure{{Input: storedRef(objectJobFor(refOf(child)).ref()), Error: failureReason(tc.want)}}, values.Capture().Failures)
 		})
 	}
 }
@@ -318,7 +318,7 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	valid, reason := values.Capture().Valid(before.Sources, before.Error)
 	require.False(t, valid)
 	require.Equal(t, store.ReasonPermissionDenied, reason)
-	require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.Equal(t, before.Record, values.Pod(pod.GetUID()).Record)
 	r.state.mu.Lock()
 	r.state.setHealthLocked(roots, nil)
@@ -326,7 +326,7 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	resolver.mu.Lock()
 	resolver.fail = true
 	resolver.mu.Unlock()
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.Equal(t, store.ReasonEvaluationFailed, values.Pod(pod.GetUID()).Error)
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	r.state.mu.Lock()
@@ -337,7 +337,7 @@ func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *t
 	resolver.mu.Lock()
 	resolver.fail = false
 	resolver.mu.Unlock()
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.Empty(t, values.Pod(pod.GetUID()).Error)
 }
 func TestCompleteRelistDeletionAndMalformedList(t *testing.T) {
@@ -372,7 +372,7 @@ func TestNamespaceRemovalCleansBothDomains(t *testing.T) {
 	root, pod, _, _ := seedPair(t, r)
 	r.state.config.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"include": "yes"}}
 	r.state.scopes = map[string]bool{}
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Empty(t, values.Capture().Pods)
 	require.Empty(t, values.Capture().Workloads)
@@ -442,13 +442,13 @@ func TestRootChangeDuringPodEvaluationRequeuesRegisteredMembership(t *testing.T)
 	simpleOwner(pod, root)
 	roots := seedSource(t, r, deploymentKind, true, root)
 	seedSource(t, r, podGVK, true, pod)
-	emptyQueue(r.state.inputQueue)
-	emptyQueue(r.state.rootQueue)
-	key := inputFor(refOf(pod))
-	r.state.inputQueue.Add(key)
-	key, _ = r.state.inputQueue.Get()
+	emptyQueue(r.state.podQueue)
+	emptyQueue(r.state.workloadQueue)
+	key := objectJobFor(refOf(pod))
+	r.state.podQueue.Add(key)
+	key, _ = r.state.podQueue.Get()
 	done := make(chan error, 1)
-	go func() { done <- r.resolveLeaf(context.Background(), key); r.state.inputQueue.Done(key) }()
+	go func() { done <- r.resolveLeaf(context.Background(), key); r.state.podQueue.Done(key) }()
 	select {
 	case <-labels.entered:
 	case <-time.After(time.Second):
@@ -460,7 +460,7 @@ func TestRootChangeDuringPodEvaluationRequeuesRegisteredMembership(t *testing.T)
 	require.NoError(t, r.state.accept(roots, changed, false))
 	close(labels.resume)
 	require.ErrorIs(t, <-done, discovery.ErrStale)
-	require.Eventually(t, func() bool { return r.state.inputQueue.Len() > 0 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return r.state.podQueue.Len() > 0 }, time.Second, time.Millisecond)
 	settle(t, r)
 	require.Equal(t, "2", values.Pod(pod.GetUID()).Record.Labels["revision"])
 }
@@ -472,7 +472,7 @@ func TestPodDeletionDuringEvaluationCannotPublish(t *testing.T) {
 	seedSource(t, r, deploymentKind, true, root)
 	pods := seedSource(t, r, podGVK, true, pod)
 	done := make(chan error, 1)
-	go func() { done <- r.resolveLeaf(context.Background(), inputFor(refOf(pod))) }()
+	go func() { done <- r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))) }()
 	<-labels.entered
 	require.NoError(t, r.state.accept(pods, pod, true))
 	close(labels.resume)
@@ -504,7 +504,10 @@ func TestConcurrentLabelResolutionAndFullPodInputs(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, pod := range pods {
 		wg.Add(1)
-		go func() { defer wg.Done(); require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod)))) }()
+		go func() {
+			defer wg.Done()
+			require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+		}()
 	}
 	wg.Wait()
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))

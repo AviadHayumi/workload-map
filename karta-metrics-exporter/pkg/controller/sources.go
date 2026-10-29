@@ -184,11 +184,11 @@ func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 	if recovered {
 		r.enqueueRescanLocked(w.key.Namespace)
 		for uid := range r.roots {
-			r.rootQueue.Add(rootKey{UID: uid})
+			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 		}
 	}
 	if w.gvk == namespaceGVK {
-		r.controlQueue.Add("sources")
+		r.watchSyncQueue.Add("sources")
 	}
 }
 func (r *controllerState) retireWatchLocked(w *resourceWatch) {
@@ -430,7 +430,7 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	}
 	gvk := object.GroupVersionKind()
 	if gvk == namespaceGVK && r.config.NamespaceSelector != nil {
-		r.controlQueue.Add("sources")
+		r.watchSyncQueue.Add("sources")
 	}
 	ancestor := gvk != podGVK || r.ancestorPods[object.GetUID()]
 	if old != nil && gvk == podGVK {
@@ -438,9 +438,9 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	}
 	if old != nil && (current == nil || old.GetUID() != current.GetUID()) {
 		delete(r.ancestorPods, old.GetUID())
-		oldKey := inputFor(refOf(old))
+		oldKey := objectJobFor(refOf(old))
 		if _, known := r.candidates[oldKey]; known {
-			r.rootQueue.Add(rootKey{Candidate: oldKey})
+			r.workloadQueue.Add(workloadJobKey{Candidate: oldKey})
 		}
 		r.fanoutRootLocked(old.GetUID())
 	}
@@ -451,15 +451,15 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 		ownershipChanged = beforeOK != afterOK || before != after
 	}
 	if current != nil {
-		key := inputFor(refOf(current))
+		key := objectJobFor(refOf(current))
 		_, admitted := r.candidates[key]
 		if (!admitted || ownershipChanged) && r.isCandidateLocked(gvk) {
-			r.rootQueue.Add(rootKey{Candidate: key})
+			r.workloadQueue.Add(workloadJobKey{Candidate: key})
 		}
 		if root := r.roots[current.GetUID()]; root != nil {
-			r.rootQueue.Add(rootKey{UID: current.GetUID()})
+			r.workloadQueue.Add(workloadJobKey{RootUID: current.GetUID()})
 			for _, pod := range root.pods {
-				r.inputQueue.Add(pod)
+				r.podQueue.Add(pod)
 			}
 		}
 	}

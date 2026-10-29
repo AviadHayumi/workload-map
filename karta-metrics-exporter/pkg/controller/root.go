@@ -23,14 +23,14 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-func (r *Runtime) resolveWorkload(ctx context.Context, key rootKey) error {
+func (r *Runtime) resolveWorkload(ctx context.Context, key workloadJobKey) error {
 	if key.Candidate.UID != "" {
 		return r.admitRoot(ctx, key.Candidate)
 	}
-	return r.reconcile(ctx, key.UID)
+	return r.reconcile(ctx, key.RootUID)
 }
 
-func (r *Runtime) admitRoot(ctx context.Context, key inputKey) error {
+func (r *Runtime) admitRoot(ctx context.Context, key objectJobKey) error {
 	if !r.state.namespaceAdmitted(key.Object.Namespace) {
 		r.state.removeCandidate(key)
 		return nil

@@ -52,14 +52,14 @@ type Runtime struct {
 	state *controllerState
 }
 
-type inputKey struct {
+type objectJobKey struct {
 	Object objectKey
 	UID    types.UID
 	Rescan bool
 }
-type rootKey struct {
-	UID       types.UID
-	Candidate inputKey
+type workloadJobKey struct {
+	RootUID   types.UID
+	Candidate objectJobKey
 }
 type watchKey = store.SourceKey
 
@@ -101,9 +101,9 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	r.config = config
 	r.deps = deps
 	r.reader = reader
-	r.inputQueue = newQueue[inputKey]("exporter-pods")
-	r.rootQueue = newQueue[rootKey]("exporter-workloads")
-	r.controlQueue = newQueue[string]("exporter-sources")
+	r.podQueue = newQueue[objectJobKey]("exporter-pods")
+	r.workloadQueue = newQueue[workloadJobKey]("exporter-workloads")
+	r.watchSyncQueue = newQueue[string]("exporter-sources")
 	if config.NamespaceSelector == nil {
 		r.scopes[""] = true
 	}
@@ -133,18 +133,18 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	for i := 0; i < r.state.config.LeafWorkers; i++ {
 		r.state.wg.Add(1)
-		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.inputQueue, r.resolveInput) }()
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.podQueue, r.resolveInput) }()
 	}
 	for i := 0; i < r.state.config.RootWorkers; i++ {
 		r.state.wg.Add(1)
-		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.rootQueue, r.resolveWorkload) }()
+		go func() { defer r.state.wg.Done(); runWorker(ctx, r.state.workloadQueue, r.resolveWorkload) }()
 	}
 	r.state.wg.Add(1)
 	go func() {
 		defer r.state.wg.Done()
-		runWorker(ctx, r.state.controlQueue, func(ctx context.Context, _ string) error { return r.state.syncWatches(ctx) })
+		runWorker(ctx, r.state.watchSyncQueue, func(ctx context.Context, _ string) error { return r.state.syncWatches(ctx) })
 	}()
-	r.state.controlQueue.Add("sources")
+	r.state.watchSyncQueue.Add("sources")
 	changes := r.state.deps.Inventory.Changes()
 running:
 	for {
@@ -156,12 +156,12 @@ running:
 				changes = nil
 				continue
 			}
-			r.state.controlQueue.Add("sources")
+			r.state.watchSyncQueue.Add("sources")
 		}
 	}
-	r.state.inputQueue.ShutDown()
-	r.state.rootQueue.ShutDown()
-	r.state.controlQueue.ShutDown()
+	r.state.podQueue.ShutDown()
+	r.state.workloadQueue.ShutDown()
+	r.state.watchSyncQueue.ShutDown()
 	r.state.stopWatches()
 	r.state.wg.Wait()
 	return nil
@@ -269,21 +269,23 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 		}
 		for uid, root := range r.roots {
 			if healthChanged || changedKinds[root.ref.GVK.GroupKind()] {
-				r.rootQueue.Add(rootKey{UID: uid})
+				r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 				r.enqueueMembersLocked(root)
 			}
 		}
 		for candidate := range r.candidates {
 			if changedKinds[candidate.Object.GVK.GroupKind()] {
-				r.rootQueue.Add(rootKey{Candidate: candidate})
+				r.workloadQueue.Add(workloadJobKey{Candidate: candidate})
 			}
 		}
 	}
 	return sourceErr
 }
 
-func inputFor(ref discovery.ObjectRef) inputKey { return inputKey{Object: keyOf(ref), UID: ref.UID} }
-func (key inputKey) ref() discovery.ObjectRef {
+func objectJobFor(ref discovery.ObjectRef) objectJobKey {
+	return objectJobKey{Object: keyOf(ref), UID: ref.UID}
+}
+func (key objectJobKey) ref() discovery.ObjectRef {
 	return discovery.ObjectRef{GVK: key.Object.GVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
 }
 

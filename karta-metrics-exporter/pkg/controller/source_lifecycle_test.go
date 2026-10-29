@@ -66,7 +66,7 @@ func TestSourcePromotionWaitsForFullSnapshotAndRetiresMetadata(t *testing.T) {
 		}
 		return true, watch.NewRaceFreeFake(), nil
 	})
-	err := r.resolveLeaf(context.Background(), inputFor(refOf(pod)))
+	err := r.resolveLeaf(context.Background(), objectJobFor(refOf(pod)))
 	require.ErrorIs(t, err, discovery.ErrPending)
 	key := old.key
 	select {
@@ -91,7 +91,7 @@ func TestSourcePromotionWaitsForFullSnapshotAndRetiresMetadata(t *testing.T) {
 	full, _, err := r.state.reader.read(refOf(root), true)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), full.Object["spec"].(map[string]any)["replicas"])
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.True(t, values.Pod(pod.GetUID()).HasValue)
 	require.NoError(t, r.state.accept(old, root, true))
 	full, _, err = r.state.reader.read(refOf(root), true)
@@ -130,7 +130,7 @@ func TestPodUsesFullRootCacheAndRecoversMappingFailure(t *testing.T) {
 				require.Len(t, values.Capture().Failures, 1)
 				mapper.calls, mapper.err = 0, nil
 			}
-			require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+			require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 			require.True(t, values.Pod(pod.GetUID()).HasValue)
 			require.Empty(t, values.Pod(pod.GetUID()).Error)
 			require.Empty(t, r.state.watchFailures)
@@ -310,9 +310,9 @@ func TestEmptyNamespaceSelectorUsesAllNamespacePodSource(t *testing.T) {
 	r, _ := simpleRuntime(t, nil)
 	other, err := New(Config{NamespaceSelector: &metav1.LabelSelector{}}, r.state.deps, r.state.reader)
 	require.NoError(t, err)
-	defer other.state.inputQueue.ShutDown()
-	defer other.state.rootQueue.ShutDown()
-	defer other.state.controlQueue.ShutDown()
+	defer other.state.podQueue.ShutDown()
+	defer other.state.workloadQueue.ShutDown()
+	defer other.state.watchSyncQueue.ShutDown()
 	require.Nil(t, other.state.config.NamespaceSelector)
 	require.True(t, other.state.scopes[""])
 	require.False(t, other.state.requiredWatch(namespaceGVK))
@@ -323,7 +323,7 @@ func TestNewRuntimeDoesNotOverwriteExistingRuntime(t *testing.T) {
 		t.Run(fmt.Sprintf("invalid_selector=%t", invalid), func(t *testing.T) {
 			r, _ := simpleRuntime(t, nil)
 			original := r.state.config
-			inputs, roots, controls := r.state.inputQueue, r.state.rootQueue, r.state.controlQueue
+			inputs, roots, controls := r.state.podQueue, r.state.workloadQueue, r.state.watchSyncQueue
 			r.state.started = true
 			r.state.podRoots["pod"] = "root"
 			config := Config{Workers: 4}
@@ -332,9 +332,9 @@ func TestNewRuntimeDoesNotOverwriteExistingRuntime(t *testing.T) {
 			}
 			other, err := New(config, r.state.deps, r.state.reader)
 			if other != nil {
-				defer other.state.inputQueue.ShutDown()
-				defer other.state.rootQueue.ShutDown()
-				defer other.state.controlQueue.ShutDown()
+				defer other.state.podQueue.ShutDown()
+				defer other.state.workloadQueue.ShutDown()
+				defer other.state.watchSyncQueue.ShutDown()
 			}
 			if invalid {
 				require.Error(t, err)
@@ -344,9 +344,9 @@ func TestNewRuntimeDoesNotOverwriteExistingRuntime(t *testing.T) {
 				require.Empty(t, other.state.podRoots)
 			}
 			require.Equal(t, original, r.state.config)
-			require.Same(t, inputs, r.state.inputQueue)
-			require.Same(t, roots, r.state.rootQueue)
-			require.Same(t, controls, r.state.controlQueue)
+			require.Same(t, inputs, r.state.podQueue)
+			require.Same(t, roots, r.state.workloadQueue)
+			require.Same(t, controls, r.state.watchSyncQueue)
 			require.True(t, r.state.started)
 			require.Equal(t, types.UID("root"), r.state.podRoots["pod"])
 		})
@@ -368,7 +368,7 @@ func TestConflictingAPIAliasCannotRestoreDemotedRoot(t *testing.T) {
 	seedSource(t, r, alternate, true, alias)
 	require.Error(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Equal(t, store.ReasonUnresolvedOwner, values.Workload(root.GetUID()).Error)
-	require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.Equal(t, store.ReasonUnresolvedOwner, values.Pod(pod.GetUID()).Error)
 	require.Len(t, values.Capture().Workloads, 1, "different API aliases share one canonical writer")
 }
@@ -390,14 +390,14 @@ func TestKnownCandidateFailureInvalidatesRootWithoutOtherCandidatesClearingIt(t 
 	changed.SetResourceVersion("2")
 	simpleOwner(changed, missing)
 	require.NoError(t, r.state.accept(jobs, changed, false))
-	require.Error(t, r.admitRoot(context.Background(), inputFor(refOf(changed))))
+	require.Error(t, r.admitRoot(context.Background(), objectJobFor(refOf(changed))))
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.Equal(t, store.ReasonUnresolvedOwner, values.Workload(parent.GetUID()).Error)
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(second))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(second))))
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.Equal(t, store.ReasonUnresolvedOwner, values.Workload(parent.GetUID()).Error)
 	require.NoError(t, r.state.accept(jobs, changed, true))
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(changed))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(changed))))
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.Empty(t, values.Workload(parent.GetUID()).Error)
 }
@@ -418,23 +418,23 @@ func TestUnselectedPodEventsKeepCacheWithoutLeafWork(t *testing.T) {
 	pods := seedSource(t, r, podGVK, true)
 	initial := simpleObject(podGVK, "initial")
 	require.NoError(t, (&reflectorStore{runtime: r.state, source: pods}).Replace([]any{initial}, "1"))
-	require.Equal(t, 1, r.state.inputQueue.Len())
-	key, _ := r.state.inputQueue.Get()
+	require.Equal(t, 1, r.state.podQueue.Len())
+	key, _ := r.state.podQueue.Get()
 	require.True(t, key.Rescan, "initial synchronization queues only its scope rescan")
 	require.NoError(t, r.resolveInput(context.Background(), key))
-	r.state.inputQueue.Done(key)
-	require.Zero(t, r.state.inputQueue.Len())
+	r.state.podQueue.Done(key)
+	require.Zero(t, r.state.podQueue.Len())
 	_, cached := r.state.reader.Cached(refOf(initial))
 	require.True(t, cached)
 
 	added := simpleObject(podGVK, "added")
 	require.NoError(t, r.state.accept(pods, added, false))
-	require.Zero(t, r.state.inputQueue.Len())
+	require.Zero(t, r.state.podQueue.Len())
 	changed := added.DeepCopy()
 	changed.SetResourceVersion("2")
 	changed.Object["status"] = map[string]any{"phase": "Running"}
 	require.NoError(t, r.state.accept(pods, changed, false))
-	require.Zero(t, r.state.inputQueue.Len())
+	require.Zero(t, r.state.podQueue.Len())
 	current, cached := r.state.reader.Cached(refOf(changed))
 	require.True(t, cached)
 	require.Equal(t, changed.Object, current.Object)
@@ -457,25 +457,25 @@ func TestPodSelectorTransitionsRemovePreviousResultsAndRestoreMapping(t *testing
 				settle(t, r)
 				require.True(t, values.Pod(pod.GetUID()).HasValue)
 			} else {
-				require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+				require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 				require.NotNil(t, values.Pod(pod.GetUID()))
 				require.False(t, values.Pod(pod.GetUID()).HasValue)
 				require.Equal(t, store.ReasonUnresolvedOwner, values.Pod(pod.GetUID()).Error)
 				require.NotContains(t, r.state.podRoots, pod.GetUID())
-				emptyQueue(r.state.inputQueue)
-				emptyQueue(r.state.rootQueue)
+				emptyQueue(r.state.podQueue)
+				emptyQueue(r.state.workloadQueue)
 			}
 
 			changed := pod.DeepCopy()
 			changed.SetResourceVersion("2")
 			changed.SetLabels(nil)
 			require.NoError(t, r.state.accept(pods, changed, false))
-			require.Equal(t, 1, r.state.inputQueue.Len())
+			require.Equal(t, 1, r.state.podQueue.Len())
 			// A later event must still schedule cleanup if the first queued item was lost.
-			emptyQueue(r.state.inputQueue)
+			emptyQueue(r.state.podQueue)
 			changed.SetResourceVersion("3")
 			require.NoError(t, r.state.accept(pods, changed, false))
-			require.Equal(t, 1, r.state.inputQueue.Len())
+			require.Equal(t, 1, r.state.podQueue.Len())
 			settle(t, r)
 			require.Nil(t, values.Pod(pod.GetUID()))
 			require.Empty(t, values.Capture().Workloads)
@@ -487,7 +487,7 @@ func TestPodSelectorTransitionsRemovePreviousResultsAndRestoreMapping(t *testing
 			changed.SetResourceVersion("4")
 			changed.SetLabels(map[string]string{"selected": "true"})
 			require.NoError(t, r.state.accept(pods, changed, false))
-			require.Equal(t, 1, r.state.inputQueue.Len())
+			require.Equal(t, 1, r.state.podQueue.Len())
 			settle(t, r)
 			require.True(t, values.Pod(pod.GetUID()).HasValue)
 			require.Equal(t, root.GetUID(), values.Pod(pod.GetUID()).Record.Workload.UID)
@@ -514,16 +514,16 @@ func TestPodSelectorFiltersScopeAndDefinitionRescans(t *testing.T) {
 			require.Nil(t, values.Pod(ignored.GetUID()))
 
 			if trigger == "scope rescan" {
-				require.NoError(t, r.resolveInput(context.Background(), inputKey{Object: objectKey{Namespace: "ns"}, Rescan: true}))
+				require.NoError(t, r.resolveInput(context.Background(), objectJobKey{Object: objectKey{Namespace: "ns"}, Rescan: true}))
 			} else {
 				selectCatalog(t, r, "batch-job-v1")
 			}
-			require.Equal(t, 1, r.state.inputQueue.Len())
-			key, _ := r.state.inputQueue.Get()
+			require.Equal(t, 1, r.state.podQueue.Len())
+			key, _ := r.state.podQueue.Get()
 			require.False(t, key.Rescan)
 			require.Equal(t, selected.GetUID(), key.UID)
 			require.NoError(t, r.resolveInput(context.Background(), key))
-			r.state.inputQueue.Done(key)
+			r.state.podQueue.Done(key)
 			settle(t, r)
 			require.True(t, values.Pod(selected.GetUID()).HasValue)
 			if trigger == "definition change" {
@@ -556,12 +556,12 @@ func TestUnselectedAncestorPodOwnershipChangeUpdatesSelectedDescendant(t *testin
 	changed.SetResourceVersion("2")
 	simpleOwner(changed, b)
 	require.NoError(t, r.state.accept(pods, changed, false))
-	require.Equal(t, 1, r.state.inputQueue.Len())
-	key, _ := r.state.inputQueue.Get()
+	require.Equal(t, 1, r.state.podQueue.Len())
+	key, _ := r.state.podQueue.Get()
 	require.True(t, key.Rescan)
 	require.NoError(t, r.resolveInput(context.Background(), key))
-	r.state.inputQueue.Done(key)
-	require.Equal(t, 1, r.state.inputQueue.Len())
+	r.state.podQueue.Done(key)
+	require.Equal(t, 1, r.state.podQueue.Len())
 	settle(t, r)
 	require.Nil(t, values.Pod(leader.GetUID()))
 	require.Equal(t, b.GetUID(), values.Pod(child.GetUID()).Record.Workload.UID)
@@ -586,7 +586,7 @@ func TestPodSelectorLossDuringDiscoveryQueuesCleanupBeforePublication(t *testing
 		return discovery.Result{}, discovery.ErrUnavailable
 	}).Once()
 	r.state.deps.Discovery = discoverer
-	key, _ := r.state.inputQueue.Get()
+	key, _ := r.state.podQueue.Get()
 	done := make(chan error, 1)
 	go func() { done <- r.resolveInput(context.Background(), key) }()
 	<-entered
@@ -598,8 +598,8 @@ func TestPodSelectorLossDuringDiscoveryQueuesCleanupBeforePublication(t *testing
 	require.NoError(t, r.state.accept(pods, changed, false))
 	close(resume)
 	require.ErrorIs(t, <-done, discovery.ErrUnavailable)
-	r.state.inputQueue.Done(key)
-	require.Equal(t, 1, r.state.inputQueue.Len())
+	r.state.podQueue.Done(key)
+	require.Equal(t, 1, r.state.podQueue.Len())
 	settle(t, r)
 	require.Nil(t, values.Pod(pod.GetUID()))
 	require.Empty(t, values.Capture().Workloads)
@@ -617,16 +617,16 @@ func TestOrdinaryPodChurnDoesNotRescanAndAncestorPodAdoptionDoes(t *testing.T) {
 	ordinary := simpleObject(podGVK, "ordinary")
 	simpleOwner(ordinary, a)
 	require.NoError(t, r.state.accept(pods, ordinary, false))
-	key, _ := r.state.inputQueue.Get()
+	key, _ := r.state.podQueue.Get()
 	require.False(t, key.Rescan)
 	require.Equal(t, ordinary.GetUID(), key.UID)
-	r.state.inputQueue.Done(key)
-	require.Zero(t, r.state.inputQueue.Len())
+	r.state.podQueue.Done(key)
+	require.Zero(t, r.state.podQueue.Len())
 	require.NoError(t, r.state.accept(pods, ordinary, true))
-	key, _ = r.state.inputQueue.Get()
+	key, _ = r.state.podQueue.Get()
 	require.False(t, key.Rescan)
-	r.state.inputQueue.Done(key)
-	require.Zero(t, r.state.inputQueue.Len())
+	r.state.podQueue.Done(key)
+	require.Zero(t, r.state.podQueue.Len())
 	adopted := leader.DeepCopy()
 	adopted.SetResourceVersion("2")
 	simpleOwner(adopted, b)
@@ -635,10 +635,10 @@ func TestOrdinaryPodChurnDoesNotRescanAndAncestorPodAdoptionDoes(t *testing.T) {
 	require.Equal(t, b.GetUID(), values.Pod(child.GetUID()).Record.Workload.UID)
 	require.NoError(t, r.state.accept(pods, adopted, true))
 	foundRescan := false
-	for r.state.inputQueue.Len() > 0 {
-		key, _ := r.state.inputQueue.Get()
+	for r.state.podQueue.Len() > 0 {
+		key, _ := r.state.podQueue.Get()
 		foundRescan = foundRescan || key.Rescan
-		r.state.inputQueue.Done(key)
+		r.state.podQueue.Done(key)
 	}
 	require.True(t, foundRescan)
 	require.NotContains(t, r.state.ancestorPods, leader.GetUID())
@@ -717,7 +717,7 @@ func TestConcurrentCacheReadsAndSourceUpdates(t *testing.T) {
 					t.Error("cached object changed after publication")
 					return
 				}
-				if err := r.resolveInput(context.Background(), inputKey{Rescan: true}); err != nil {
+				if err := r.resolveInput(context.Background(), objectJobKey{Rescan: true}); err != nil {
 					t.Errorf("rescan: %v", err)
 					return
 				}

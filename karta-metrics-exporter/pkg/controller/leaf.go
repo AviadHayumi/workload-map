@@ -21,14 +21,14 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
-func (r *Runtime) resolveInput(ctx context.Context, key inputKey) error {
+func (r *Runtime) resolveInput(ctx context.Context, key objectJobKey) error {
 	if !key.Rescan {
 		return r.resolveLeaf(ctx, key)
 	}
 	return r.state.rescan(key.Object.Namespace)
 }
 
-func (r *Runtime) resolveLeaf(ctx context.Context, key inputKey) error {
+func (r *Runtime) resolveLeaf(ctx context.Context, key objectJobKey) error {
 	ref := key.ref()
 	if !r.state.namespaceAdmitted(ref.Namespace) {
 		r.state.removePod(key)

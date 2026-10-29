@@ -31,9 +31,9 @@ type controllerState struct {
 	deps   Dependencies
 	reader *Reader
 
-	inputQueue   workqueue.TypedRateLimitingInterface[inputKey]
-	rootQueue    workqueue.TypedRateLimitingInterface[rootKey]
-	controlQueue workqueue.TypedRateLimitingInterface[string]
+	podQueue       workqueue.TypedRateLimitingInterface[objectJobKey]
+	workloadQueue  workqueue.TypedRateLimitingInterface[workloadJobKey]
+	watchSyncQueue workqueue.TypedRateLimitingInterface[string]
 
 	watches       map[watchKey]*resourceWatch
 	replacements  map[watchKey]*resourceWatch
@@ -44,7 +44,7 @@ type controllerState struct {
 	roots        map[types.UID]*rootState
 	podRoots     map[types.UID]types.UID
 	ancestorPods map[types.UID]bool
-	candidates   map[inputKey]types.UID
+	candidates   map[objectJobKey]types.UID
 
 	selections        map[schema.GroupKind]selectedDefinition
 	definitionError   error
@@ -69,8 +69,8 @@ type rootState struct {
 	generation uint64
 	ref        discovery.ObjectRef
 	resolution discovery.OwnerResolution
-	pods       map[types.UID]inputKey
-	candidates map[inputKey]candidateState
+	pods       map[types.UID]objectJobKey
+	candidates map[objectJobKey]candidateState
 }
 
 type candidateState struct {
@@ -95,7 +95,7 @@ func newControllerState(objects *objectCache) *controllerState {
 		roots:         map[types.UID]*rootState{},
 		podRoots:      map[types.UID]types.UID{},
 		ancestorPods:  map[types.UID]bool{},
-		candidates:    map[inputKey]types.UID{},
+		candidates:    map[objectJobKey]types.UID{},
 		selections:    map[schema.GroupKind]selectedDefinition{},
 		scopes:        map[string]bool{},
 	}
@@ -118,25 +118,25 @@ func (r *controllerState) namespaceAdmitted(namespace string) bool {
 	return r.config.NamespaceSelector == nil || namespace == "" || r.scopes[namespace]
 }
 
-func (r *controllerState) removePod(key inputKey) {
+func (r *controllerState) removePod(key objectJobKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if root := r.roots[r.podRoots[key.UID]]; root != nil {
 		delete(root.pods, key.UID)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+		r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 	}
 	delete(r.podRoots, key.UID)
 	r.deps.Publications.RemovePod(key.UID)
 }
 
-func (r *controllerState) failPod(key inputKey, path []discovery.ObjectRef, cause error, root ...discovery.ObjectRef) error {
+func (r *controllerState) failPod(key objectJobKey, path []discovery.ObjectRef, cause error, root ...discovery.ObjectRef) error {
 	sources := r.sourcesFor(path)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.failPodLocked(key, sources, cause, root...)
 }
 
-func (r *controllerState) failPodEvaluation(key inputKey, path []discovery.ObjectRef, cause error, root discovery.ObjectRef, selection selectedDefinition) error {
+func (r *controllerState) failPodEvaluation(key objectJobKey, path []discovery.ObjectRef, cause error, root discovery.ObjectRef, selection selectedDefinition) error {
 	sources := r.sourcesFor(path)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -149,14 +149,14 @@ func (r *controllerState) failPodEvaluation(key inputKey, path []discovery.Objec
 	return r.failPodLocked(key, sources, cause, root)
 }
 
-func (r *controllerState) failCandidate(key inputKey, err error) {
+func (r *controllerState) failCandidate(key objectJobKey, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if root := r.roots[r.candidates[key]]; root != nil {
 		candidate := root.candidates[key]
 		candidate.err = err
 		root.candidates[key] = candidate
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+		r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 	}
 	r.deps.Publications.SetDiscoveryFailure(storedRef(key.ref()), failureReason(err))
 }
@@ -182,7 +182,7 @@ func (r *controllerState) failWorkload(uid types.UID, ref discovery.ObjectRef, c
 	return cause
 }
 
-func (r *controllerState) admitPod(key inputKey, workload *discovery.GenericWorkload) error {
+func (r *controllerState) admitPod(key objectJobKey, workload *discovery.GenericWorkload) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.currentPathLocked(workload.Path) {
@@ -197,11 +197,11 @@ func (r *controllerState) admitPod(key inputKey, workload *discovery.GenericWork
 	if previous != root.ref.UID {
 		if old := r.roots[previous]; old != nil {
 			delete(old.pods, key.UID)
-			r.rootQueue.Add(rootKey{UID: previous})
+			r.workloadQueue.Add(workloadJobKey{RootUID: previous})
 		}
 		r.podRoots[key.UID] = root.ref.UID
 		root.pods[key.UID] = key
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+		r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 	}
 	return nil
 }
@@ -244,13 +244,13 @@ func (r *controllerState) rescan(namespace string) error {
 	// Include previous memberships so a removed definition can withdraw its roots.
 	for candidate := range r.candidates {
 		if namespace == "" || candidate.Object.Namespace == namespace {
-			r.rootQueue.Add(rootKey{Candidate: candidate})
+			r.workloadQueue.Add(workloadJobKey{Candidate: candidate})
 		}
 	}
 	return nil
 }
 
-func (r *controllerState) trackCandidate(key inputKey) {
+func (r *controllerState) trackCandidate(key objectJobKey) {
 	r.mu.Lock()
 	if _, known := r.candidates[key]; !known {
 		r.candidates[key] = ""
@@ -258,12 +258,12 @@ func (r *controllerState) trackCandidate(key inputKey) {
 	r.mu.Unlock()
 }
 
-func (r *controllerState) replaceCandidate(key inputKey, object *unstructured.Unstructured) error {
+func (r *controllerState) replaceCandidate(key objectJobKey, object *unstructured.Unstructured) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if object != nil {
-		replacement := inputFor(refOf(object))
-		r.rootQueue.Add(rootKey{Candidate: replacement})
+		replacement := objectJobFor(refOf(object))
+		r.workloadQueue.Add(workloadJobKey{Candidate: replacement})
 		if r.candidates[replacement] == "" {
 			return discovery.ErrPending
 		}
@@ -272,7 +272,7 @@ func (r *controllerState) replaceCandidate(key inputKey, object *unstructured.Un
 	return nil
 }
 
-func (r *controllerState) admitCandidate(key inputKey, workload *discovery.GenericWorkload, selection, rootSelection selectedDefinition, sources []store.SourceKey) error {
+func (r *controllerState) admitCandidate(key objectJobKey, workload *discovery.GenericWorkload, selection, rootSelection selectedDefinition, sources []store.SourceKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.currentPathLocked(workload.Path) || !r.currentSelectionLocked(key.ref(), selection) || !r.currentSelectionLocked(workload.Root, rootSelection) {
@@ -283,17 +283,17 @@ func (r *controllerState) admitCandidate(key inputKey, workload *discovery.Gener
 	if previous != root.ref.UID {
 		if old := r.roots[previous]; old != nil {
 			delete(old.candidates, key)
-			r.rootQueue.Add(rootKey{UID: previous})
+			r.workloadQueue.Add(workloadJobKey{RootUID: previous})
 		}
 	}
 	r.candidates[key] = root.ref.UID
 	root.candidates[key] = candidateState{sources: slices.Clone(sources)}
-	r.rootQueue.Add(rootKey{UID: root.ref.UID})
+	r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 	r.deps.Publications.RemoveDiscoveryFailure(key.UID)
 	return nil
 }
 
-func (r *controllerState) removeCandidate(key inputKey) {
+func (r *controllerState) removeCandidate(key objectJobKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.removeCandidateLocked(key)
@@ -378,13 +378,13 @@ func (r *controllerState) stopWatches() {
 	r.mu.Unlock()
 }
 func (r *controllerState) enqueueRescanLocked(namespace string) {
-	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Rescan: true})
+	r.podQueue.Add(objectJobKey{Object: objectKey{Namespace: namespace}, Rescan: true})
 }
 
 func (r *controllerState) enqueueObjectLocked(object *unstructured.Unstructured) {
 	r.enqueuePodLocked(object)
 	if r.isCandidateLocked(object.GroupVersionKind()) {
-		r.rootQueue.Add(rootKey{Candidate: inputFor(refOf(object))})
+		r.workloadQueue.Add(workloadJobKey{Candidate: objectJobFor(refOf(object))})
 	}
 }
 
@@ -396,7 +396,7 @@ func (r *controllerState) enqueuePodLocked(object *unstructured.Unstructured) {
 	_, member := r.podRoots[uid]
 	// Previously tracked Pods still need a worker to remove their result.
 	if r.podSelector.Empty() || r.podSelector.Matches(labelsFor(object)) || member || r.deps.Publications.Pod(uid) != nil {
-		r.inputQueue.Add(inputFor(refOf(object)))
+		r.podQueue.Add(objectJobFor(refOf(object)))
 	}
 }
 
@@ -410,16 +410,16 @@ func (r *controllerState) fanoutRootLocked(uid types.UID) {
 	if root == nil {
 		return
 	}
-	r.rootQueue.Add(rootKey{UID: uid})
+	r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 	r.enqueueMembersLocked(root)
 }
 
 func (r *controllerState) enqueueMembersLocked(root *rootState) {
 	for _, key := range root.pods {
-		r.inputQueue.Add(key)
+		r.podQueue.Add(key)
 	}
 	for key := range root.candidates {
-		r.rootQueue.Add(rootKey{Candidate: key})
+		r.workloadQueue.Add(workloadJobKey{Candidate: key})
 	}
 }
 
@@ -432,7 +432,7 @@ func (r *controllerState) rootLocked(workload *discovery.GenericWorkload) *rootS
 	root := r.roots[workload.Root.UID]
 	if root == nil {
 		r.nextRoot++
-		root = &rootState{generation: r.nextRoot, ref: workload.Root, pods: map[types.UID]inputKey{}, candidates: map[inputKey]candidateState{}}
+		root = &rootState{generation: r.nextRoot, ref: workload.Root, pods: map[types.UID]objectJobKey{}, candidates: map[objectJobKey]candidateState{}}
 		r.roots[workload.Root.UID] = root
 	}
 	root.resolution = workload.Resolution
@@ -443,22 +443,22 @@ func (r *controllerState) rootLocked(workload *discovery.GenericWorkload) *rootS
 		current.ResourceVersion = ""
 		if _, _, err := r.readLocked(current, false); err != nil {
 			root.ref = workload.Root
-			r.rootQueue.Add(rootKey{UID: root.ref.UID})
+			r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 		}
 	}
 	return root
 }
 
-func (r *controllerState) removeCandidateLocked(key inputKey) {
+func (r *controllerState) removeCandidateLocked(key objectJobKey) {
 	if root := r.roots[r.candidates[key]]; root != nil {
 		delete(root.candidates, key)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
+		r.workloadQueue.Add(workloadJobKey{RootUID: root.ref.UID})
 	}
 	delete(r.candidates, key)
 	r.deps.Publications.RemoveDiscoveryFailure(key.UID)
 }
 
-func (r *controllerState) failPodLocked(key inputKey, sources []store.SourceKey, cause error, root ...discovery.ObjectRef) error {
+func (r *controllerState) failPodLocked(key objectJobKey, sources []store.SourceKey, cause error, root ...discovery.ObjectRef) error {
 	if errors.Is(cause, context.Canceled) {
 		return cause
 	}

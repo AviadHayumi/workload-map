@@ -76,8 +76,8 @@ func TestDefinitionReadFailurePreservesSelectionAndCreation(t *testing.T) {
 	err := r.state.refreshDefinitionsLocked()
 	r.state.mu.Unlock()
 	require.Error(t, err)
-	require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(root))))
+	require.Error(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(root))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	after := values.Workload(root.GetUID())
 	require.Equal(t, beforeRoot.Record, after.Record)
@@ -108,7 +108,7 @@ func TestInvalidReplacementRetainsOldProvenanceUntilSuccess(t *testing.T) {
 	selected, err := r.state.lookupDefinition(jobKind)
 	require.ErrorIs(t, err, inventory.ErrInvalidDefinition)
 	require.Equal(t, "replacement", selected.Origin.Name)
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Equal(t, "first", values.Pod(pod.GetUID()).Record.Karta)
 	require.Equal(t, "first", values.Workload(root.GetUID()).Record.Karta)
@@ -170,7 +170,7 @@ func TestRootSelectorRestorationRediscoversRemovedMembership(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	root, pod, source, _ := seedPair(t, r)
 	r.state.objectSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Nil(t, values.Pod(pod.GetUID()))
 	changed := root.DeepCopy()
@@ -204,7 +204,7 @@ func TestInitialDefinitionFailureStillPublishesConfirmedRootCreation(t *testing.
 			simpleOwner(pod, root)
 			seedSource(t, r, jobKind, true, root)
 			seedSource(t, r, podGVK, true, pod)
-			err := r.resolveLeaf(context.Background(), inputFor(refOf(pod)))
+			err := r.resolveLeaf(context.Background(), objectJobFor(refOf(pod)))
 			if invalid {
 				require.NoError(t, err)
 			} else {
@@ -251,7 +251,7 @@ func TestGenericPodVersionsAndSelectedVersionScope(t *testing.T) {
 				r.state.config.ResourceRules = []ResourceRule{{APIGroups: []string{"batch"}, APIVersions: []string{"v2"}, Resources: []string{"jobs"}}}
 			}
 			for _, pod := range []*unstructured.Unstructured{one, two, one, two} {
-				require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+				require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 			}
 			require.NoError(t, r.reconcile(context.Background(), first.GetUID()))
 			require.NotNil(t, values.Workload(first.GetUID()))
@@ -299,9 +299,9 @@ func TestSelectedVersionHandoverWaitsForReplacementAndUsesItsBoundary(t *testing
 	require.NoError(t, unstructured.SetNestedField(updated.Object, "v2", "spec", "structureDefinition", "rootComponent", "kind", "version"))
 	definitions.replace(t, updated)
 	refreshSelection(t, r)
-	require.ErrorIs(t, r.admitRoot(context.Background(), inputFor(refOf(root))), discovery.ErrPending)
+	require.ErrorIs(t, r.admitRoot(context.Background(), objectJobFor(refOf(root))), discovery.ErrPending)
 	require.NotNil(t, values.Workload(root.GetUID()))
-	require.NotEmpty(t, r.state.candidates[inputFor(refOf(root))])
+	require.NotEmpty(t, r.state.candidates[objectJobFor(refOf(root))])
 	oldOwned := root.DeepCopy()
 	oldOwned.SetResourceVersion("2")
 	simpleOwner(oldOwned, simpleObject(jobKind, "missing"))
@@ -312,8 +312,8 @@ func TestSelectedVersionHandoverWaitsForReplacementAndUsesItsBoundary(t *testing
 	replacement := root.DeepCopy()
 	replacement.SetGroupVersionKind(v2)
 	require.NoError(t, (&reflectorStore{runtime: r.state, source: next}).Replace([]any{replacement}, "3"))
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(replacement))))
-	require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(root))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(replacement))))
+	require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(root))))
 	require.NoError(t, r.reconcile(context.Background(), root.GetUID()))
 	require.Equal(t, v2, values.Workload(root.GetUID()).Record.Ref.GVK)
 	require.Empty(t, values.Workload(root.GetUID()).Error)
@@ -329,11 +329,11 @@ func TestResolvedOwnerReplacesUnknownIdentityBeforeFirstMappingSucceeds(t *testi
 	roots.ready = false
 	r.state.reader.sources[roots.key] = readSource{gvk: jobKind, full: true}
 	seedSource(t, r, podGVK, true, pod)
-	require.ErrorIs(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))), discovery.ErrPending)
+	require.ErrorIs(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))), discovery.ErrPending)
 	require.False(t, values.Pod(pod.GetUID()).HasValue)
 	require.Empty(t, values.Pod(pod.GetUID()).Record.Workload.UID)
 	require.NoError(t, (&reflectorStore{runtime: r.state, source: roots}).Replace([]any{root}, "2"))
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	failure := values.Pod(pod.GetUID())
 	require.False(t, failure.HasValue)
 	require.Equal(t, store.ReasonEvaluationFailed, failure.Error)
@@ -366,7 +366,7 @@ func TestGenericCanonicalVersionRecoversAfterElectionRemoval(t *testing.T) {
 			require.Equal(t, v2, values.Workload(first.GetUID()).Record.Ref.GVK)
 			definitions.replace(t)
 			refreshSelection(t, r)
-			require.NoError(t, r.admitRoot(context.Background(), inputFor(refOf(second))))
+			require.NoError(t, r.admitRoot(context.Background(), objectJobFor(refOf(second))))
 			r.state.mu.Lock()
 			switch condition {
 			case "failed":
@@ -375,13 +375,13 @@ func TestGenericCanonicalVersionRecoversAfterElectionRemoval(t *testing.T) {
 				r.state.retireWatchLocked(alternate)
 			}
 			r.state.mu.Unlock()
-			emptyQueue(r.state.rootQueue)
-			require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+			emptyQueue(r.state.workloadQueue)
+			require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 			expected := jobKind
 			if condition == "healthy" {
 				expected = v2
 			} else {
-				require.NotZero(t, r.state.rootQueue.Len(), "changing the canonical version must enqueue its unchanged UID")
+				require.NotZero(t, r.state.workloadQueue.Len(), "changing the canonical version must enqueue its unchanged UID")
 			}
 			require.NoError(t, r.reconcile(context.Background(), first.GetUID()))
 			result := values.Workload(first.GetUID())

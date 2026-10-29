@@ -147,7 +147,7 @@ func TestDefinitionSnapshotFencesInflightValuesAndErrors(t *testing.T) {
 				if test.workload {
 					done <- r.reconcile(context.Background(), root.GetUID())
 				} else {
-					done <- r.resolveLeaf(context.Background(), inputFor(refOf(pod)))
+					done <- r.resolveLeaf(context.Background(), objectJobFor(refOf(pod)))
 				}
 			}()
 			<-labels.entered
@@ -193,13 +193,13 @@ func TestDefinitionChangesQueueAffectedKinds(t *testing.T) {
 	settle(t, r)
 	observer.replace(t, definitionObject(t, "job"))
 	refreshSelection(t, r)
-	var inputs []inputKey
-	for r.state.inputQueue.Len() > 0 {
-		key, _ := r.state.inputQueue.Get()
+	var inputs []objectJobKey
+	for r.state.podQueue.Len() > 0 {
+		key, _ := r.state.podQueue.Get()
 		inputs = append(inputs, key)
-		r.state.inputQueue.Done(key)
+		r.state.podQueue.Done(key)
 	}
-	require.Equal(t, []inputKey{inputFor(refOf(jobPod))}, inputs)
+	require.Equal(t, []objectJobKey{objectJobFor(refOf(jobPod))}, inputs)
 }
 
 func TestRuntimeDefinitionChangeDoesNotReconcileOtherKinds(t *testing.T) {

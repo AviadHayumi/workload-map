@@ -17,7 +17,7 @@ func TestRootSnapshotOwnsSources(t *testing.T) {
 	r, _ := simpleRuntime(t, nil)
 	root, _, _, _ := seedPair(t, r)
 	ref := refOf(root)
-	key := inputFor(ref)
+	key := objectJobFor(ref)
 	selection, err := r.state.lookupDefinition(ref.GVK)
 	require.NoError(t, err)
 	sources := []store.SourceKey{{Namespace: "original"}}
@@ -44,12 +44,12 @@ func TestRootSnapshotCannotPublishAfterMembershipRecreation(t *testing.T) {
 	previous := *values.Workload(ref.UID)
 
 	// Keep the same cached object and definition. Only the membership lifetime changes.
-	r.state.removePod(inputFor(refOf(pod)))
-	r.state.removeCandidate(inputFor(ref))
+	r.state.removePod(objectJobFor(refOf(pod)))
+	r.state.removeCandidate(objectJobFor(ref))
 	_, ok = r.state.snapshotRoot(ref.UID)
 	require.False(t, ok)
 	require.Nil(t, values.Workload(ref.UID))
-	require.NoError(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+	require.NoError(t, r.resolveLeaf(context.Background(), objectJobFor(refOf(pod))))
 	after, ok := r.state.snapshotRoot(ref.UID)
 	require.True(t, ok)
 	require.NotEqual(t, before.generation, after.generation)
