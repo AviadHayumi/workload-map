@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -22,12 +23,15 @@ import (
 
 // controllerState serializes source events, ownership changes and publication.
 // Methods return values or owned snapshots. Mutable membership maps stay here.
-// Cache access takes Reader.mu after mu; discovery and evaluation run unlocked.
+// Accepted objects are immutable. Reader shares this lock.
+// Discovery and evaluation run unlocked.
 type controllerState struct {
-	mu     sync.Mutex
-	config Config
-	deps   Dependencies
-	reader *Reader
+	mu      sync.RWMutex
+	config  Config
+	deps    Dependencies
+	reader  *Reader
+	objects map[objectKey]observation
+	sources map[watchKey]readSource
 
 	inputQueue   workqueue.TypedRateLimitingInterface[inputKey]
 	rootQueue    workqueue.TypedRateLimitingInterface[rootKey]
@@ -77,6 +81,22 @@ type rootSnapshot struct {
 	err        error
 }
 
+func newControllerState() *controllerState {
+	return &controllerState{
+		objects:       map[objectKey]observation{},
+		sources:       map[watchKey]readSource{},
+		watches:       map[watchKey]*resourceWatch{},
+		replacements:  map[watchKey]*resourceWatch{},
+		watchFailures: map[discovery.WatchRequest]error{},
+		roots:         map[types.UID]*rootState{},
+		podRoots:      map[types.UID]types.UID{},
+		ancestorPods:  map[types.UID]bool{},
+		candidates:    map[inputKey]types.UID{},
+		selections:    map[schema.GroupKind]selectedDefinition{},
+		scopes:        map[string]bool{},
+	}
+}
+
 func (r *controllerState) lookupDefinition(gvk schema.GroupVersionKind) (selectedDefinition, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -119,7 +139,7 @@ func (r *controllerState) failPodEvaluation(key inputKey, path []discovery.Objec
 	if !r.currentSelectionLocked(root, selection) || !r.currentPathLocked(path) {
 		return discovery.ErrStale
 	}
-	if _, current := r.reader.Cached(root); !current || !r.isRootLocked(root) {
+	if _, _, err := r.readLocked(root, false); err != nil || !r.isRootLocked(root) {
 		return discovery.ErrStale
 	}
 	return r.failPodLocked(key, sources, cause, root)
@@ -195,7 +215,7 @@ func (r *controllerState) publishPod(path []discovery.ObjectRef, rootRef discove
 	if !r.currentPathLocked(path) || !r.isRootLocked(rootRef) || !r.currentSelectionLocked(rootRef, selection) {
 		return discovery.ErrStale
 	}
-	if current, ok := r.reader.Cached(rootRef); !ok || current.GetResourceVersion() != rootRef.ResourceVersion {
+	if current, _, err := r.readLocked(rootRef, false); err != nil || current.GetResourceVersion() != rootRef.ResourceVersion {
 		return discovery.ErrStale
 	}
 	if labelFailed {
@@ -212,9 +232,7 @@ func (r *controllerState) publishPod(path []discovery.ObjectRef, rootRef discove
 func (r *controllerState) rescan(namespace string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
-	for _, entry := range r.reader.objects {
+	for _, entry := range r.objects {
 		if namespace == "" || entry.object.GetNamespace() == namespace {
 			r.enqueueObjectLocked(entry.object)
 		}
@@ -419,7 +437,7 @@ func (r *controllerState) rootLocked(workload *discovery.GenericWorkload) *rootS
 	} else if root.ref.GVK != workload.Root.GVK {
 		current := root.ref
 		current.ResourceVersion = ""
-		if _, _, err := r.reader.read(current, false); err != nil {
+		if _, _, err := r.readLocked(current, false); err != nil {
 			root.ref = workload.Root
 			r.rootQueue.Add(rootKey{UID: root.ref.UID})
 		}
@@ -463,7 +481,7 @@ func (r *controllerState) failPodLocked(key inputKey, sources []store.SourceKey,
 
 func (r *controllerState) currentPathLocked(path []discovery.ObjectRef) bool {
 	for _, ref := range path {
-		if _, ok := r.reader.Cached(ref); !ok {
+		if _, _, err := r.readLocked(ref, false); err != nil {
 			return false
 		}
 	}
@@ -479,22 +497,20 @@ func (r *controllerState) currentSelectionLocked(ref discovery.ObjectRef, select
 }
 
 func (r *controllerState) isRootLocked(ref discovery.ObjectRef) bool {
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
 	selected := r.selections[ref.GVK.GroupKind()]
 	if selected.Definition != nil && selected.err == nil {
-		entry := r.reader.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
-		source := r.reader.sources[entry.source]
+		entry := r.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
+		source := r.sources[entry.source]
 		if entry.object != nil && entry.object.GetUID() == ref.UID && source.full && source.synced && source.err == nil {
 			owner, valid := discovery.ControllerOwner(entry.object)
 			return valid && (owner.UID == "" || slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK))
 		}
 	}
-	for _, source := range r.reader.sources {
+	for _, source := range r.sources {
 		if !source.synced || source.err != nil || source.gvk.GroupKind() != ref.GVK.GroupKind() {
 			continue
 		}
-		entry := r.reader.objects[objectKey{GVK: source.gvk, Namespace: ref.Namespace, Name: ref.Name}]
+		entry := r.objects[objectKey{GVK: source.gvk, Namespace: ref.Namespace, Name: ref.Name}]
 		if entry.object == nil || entry.object.GetUID() != ref.UID {
 			continue
 		}
@@ -504,4 +520,44 @@ func (r *controllerState) isRootLocked(ref discovery.ObjectRef) bool {
 		}
 	}
 	return true
+}
+
+// readLocked requires the state read or write lock.
+func (r *controllerState) readLocked(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
+	key := keyOf(ref)
+	entry, ok := r.objects[key]
+	if !ok && key.Namespace != "" {
+		key.Namespace = ""
+		entry, ok = r.objects[key]
+	}
+	if ok {
+		source := r.sources[entry.source]
+		if source.err != nil {
+			return nil, entry.source, source.err
+		}
+		if !source.synced || (full && !source.full) {
+			return nil, entry.source, discovery.ErrPending
+		}
+		object := entry.object
+		if ref.UID != "" && object.GetUID() != ref.UID {
+			return nil, entry.source, apierrors.NewNotFound(entry.source.Resource.GroupResource(), ref.Name)
+		}
+		if ref.ResourceVersion != "" && object.GetResourceVersion() != ref.ResourceVersion {
+			return nil, entry.source, discovery.ErrStale
+		}
+		return object, entry.source, nil
+	}
+	for sourceKey, source := range r.sources {
+		if source.gvk != ref.GVK || (sourceKey.Namespace != "" && sourceKey.Namespace != ref.Namespace) {
+			continue
+		}
+		if source.err != nil {
+			return nil, sourceKey, source.err
+		}
+		if !source.synced || (full && !source.full) {
+			return nil, sourceKey, discovery.ErrPending
+		}
+		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)
+	}
+	return nil, watchKey{}, discovery.ErrPending
 }

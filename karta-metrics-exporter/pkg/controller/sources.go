@@ -52,14 +52,12 @@ func (r *controllerState) syncWatches(ctx context.Context) error {
 			}
 			if w.ready && w.err == nil {
 				ready = true
-				r.reader.mu.RLock()
 				for key := range w.objects {
-					object := r.reader.objects[key].object
+					object := r.objects[key].object
 					if r.namespaceSelector.Matches(labelsFor(object)) {
 						next[object.GetName()] = true
 					}
 				}
-				r.reader.mu.RUnlock()
 			}
 		}
 		if !ready {
@@ -150,9 +148,7 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		r.replacements[key] = w
 	} else {
 		r.watches[key] = w
-		r.reader.mu.Lock()
-		r.reader.sources[key] = readSource{gvk: gvk, full: full}
-		r.reader.mu.Unlock()
+		r.sources[key] = readSource{gvk: gvk, full: full}
 	}
 	r.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk})
 	lw := &cache.ListWatch{
@@ -180,9 +176,7 @@ func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 	recovered := w.err != nil && err == nil
 	w.err = err
 	if r.watches[w.key] == w {
-		r.reader.mu.Lock()
-		r.reader.sources[w.key] = readSource{gvk: w.gvk, full: w.full, synced: w.ready, err: err}
-		r.reader.mu.Unlock()
+		r.sources[w.key] = readSource{gvk: w.gvk, full: w.full, synced: w.ready, err: err}
 	}
 	if r.replacements[w.key] == nil || r.replacements[w.key] == w {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
@@ -200,16 +194,14 @@ func (r *controllerState) setHealthLocked(w *resourceWatch, err error) {
 func (r *controllerState) retireWatchLocked(w *resourceWatch) {
 	w.cancel()
 	delete(r.watches, w.key)
-	r.reader.mu.Lock()
 	for key := range w.objects {
-		entry := r.reader.objects[key]
+		entry := r.objects[key]
 		if entry.object != nil && entry.source == w.key {
-			delete(r.reader.objects, key)
+			delete(r.objects, key)
 			r.routeObjectLocked(entry.object, nil)
 		}
 	}
-	delete(r.reader.sources, w.key)
-	r.reader.mu.Unlock()
+	delete(r.sources, w.key)
 	r.deps.Publications.RemoveSourceHealth(w.key)
 }
 
@@ -376,11 +368,10 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 		r.watches[w.key] = w
 		delete(r.replacements, w.key)
 	}
-	r.reader.mu.Lock()
 	for key := range w.objects {
 		if objects[key] == nil {
-			old := r.reader.objects[key].object
-			delete(r.reader.objects, key)
+			old := r.objects[key].object
+			delete(r.objects, key)
 			if old != nil {
 				r.routeObjectLocked(old, nil)
 			}
@@ -388,12 +379,11 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	}
 	w.objects = make(map[objectKey]struct{}, len(objects))
 	for key, object := range objects {
-		old := r.reader.objects[key].object
-		r.reader.objects[key] = observation{object: object, source: w.key}
+		old := r.objects[key].object
+		r.objects[key] = observation{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}
-	r.reader.mu.Unlock()
 	w.ready = true
 	r.setHealthLocked(w, nil)
 	r.enqueueRescanLocked(w.key.Namespace)
@@ -413,25 +403,23 @@ func (r *controllerState) accept(w *resourceWatch, value any, deleted bool) erro
 		return nil
 	}
 	key := keyOf(refOf(object))
-	r.reader.mu.Lock()
-	defer r.reader.mu.Unlock()
-	old := r.reader.objects[key].object
+	old := r.objects[key].object
 	if deleted {
 		if old == nil || old.GetUID() != object.GetUID() {
 			return nil
 		}
-		delete(r.reader.objects, key)
+		delete(r.objects, key)
 		delete(w.objects, key)
 		r.routeObjectLocked(old, nil)
 	} else {
-		r.reader.objects[key] = observation{object: object, source: w.key}
+		r.objects[key] = observation{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}
 	return nil
 }
 
-// Called with both controllerState and Reader locked. It only queues domain work.
+// Called with controllerState locked. It only queues domain work.
 func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructured) {
 	// Keep the old match so an update that leaves the selector can clean up.
 	r.enqueuePodLocked(old)

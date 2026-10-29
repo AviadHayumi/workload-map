@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -653,4 +654,55 @@ func TestLateMappingFailureCannotReviveRemovedNamespace(t *testing.T) {
 	require.ErrorIs(t, <-done, discovery.ErrPending)
 	require.Empty(t, r.state.watchFailures)
 	require.Empty(t, values.Capture().Failures)
+}
+
+// Readers, rescans and reflector updates contend on the same state boundary.
+func TestConcurrentCacheReadsAndSourceUpdates(t *testing.T) {
+	r, _ := simpleRuntime(t, nil)
+	pod := simpleObject(podGVK, "pod")
+	pod.SetLabels(map[string]string{"version": "1"})
+	w := seedSource(t, r, podGVK, true, pod)
+	ref := refOf(pod)
+	ref.ResourceVersion = ""
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for range 4 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			for range 100 {
+				object, _, err := r.state.reader.read(ref, true)
+				if err != nil {
+					t.Errorf("read: %v", err)
+					return
+				}
+				if object.GetResourceVersion() != object.GetLabels()["version"] {
+					t.Error("cached object changed after publication")
+					return
+				}
+				if err := r.resolveInput(context.Background(), inputKey{Rescan: true}); err != nil {
+					t.Errorf("rescan: %v", err)
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	for version := 2; version <= 100; version++ {
+		next := pod.DeepCopy()
+		value := fmt.Sprint(version)
+		next.SetResourceVersion(value)
+		next.SetLabels(map[string]string{"version": value})
+		if version%2 == 0 {
+			require.NoError(t, r.state.accept(w, next, false))
+		} else {
+			require.NoError(t, (&reflectorStore{runtime: r.state, source: w}).Replace([]any{next}, value))
+		}
+	}
+	workers.Wait()
+	current, ok := r.state.reader.Cached(ref)
+	require.True(t, ok)
+	require.Equal(t, "100", current.GetResourceVersion())
+	require.Equal(t, "1", pod.GetResourceVersion())
 }
