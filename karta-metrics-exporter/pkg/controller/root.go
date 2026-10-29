@@ -102,53 +102,54 @@ func (r *Runtime) admitRoot(ctx context.Context, key inputKey) error {
 		r.mu.Unlock()
 		return nil
 	}
-	if err == nil {
-		var result discovery.Result
-		result, err = r.deps.Discovery.Get(ctx, refOf(object))
-		if err == nil && result.Workload == nil {
-			err = discovery.ErrUnresolvedOwner
-		}
-		if err == nil {
-			workload := result.Workload
-			rootSelection, _ := r.lookupDefinition(workload.Root.GVK)
-			selectedGVK := workload.Root.GVK
-			if rootSelection.Definition != nil {
-				selectedGVK = rootSelection.GVK
-			}
-			allowed, scopeErr := r.selectedResource(selectedGVK)
-			if scopeErr != nil {
-				r.failCandidate(key, scopeErr)
-				return scopeErr
-			}
-			if !allowed {
-				r.mu.Lock()
-				r.removeCandidateLocked(key)
-				r.mu.Unlock()
-				return nil
-			}
-			sources := r.sourcesFor(workload.Path)
-			r.mu.Lock()
-			defer r.mu.Unlock()
-			if !r.currentPathLocked(workload.Path) || !r.currentSelectionLocked(key.ref(), selection) || !r.currentSelectionLocked(workload.Root, rootSelection) {
-				return discovery.ErrStale
-			}
-			previous := r.candidates[key]
-			root := r.rootLocked(workload)
-			if previous != root.ref.UID {
-				if old := r.roots[previous]; old != nil {
-					delete(old.candidates, key)
-					r.rootQueue.Add(rootKey{UID: previous})
-				}
-			}
-			r.candidates[key] = root.ref.UID
-			root.candidates[key] = candidateState{sources: sources}
-			r.rootQueue.Add(rootKey{UID: root.ref.UID})
-			r.deps.Publications.RemoveDiscoveryFailure(key.UID)
-			return nil
+	if err != nil {
+		r.failCandidate(key, err)
+		return err
+	}
+	result, err := r.deps.Discovery.Get(ctx, refOf(object))
+	if err == nil && result.Workload == nil {
+		err = discovery.ErrUnresolvedOwner
+	}
+	if err != nil {
+		r.failCandidate(key, err)
+		return err
+	}
+	workload := result.Workload
+	rootSelection, _ := r.lookupDefinition(workload.Root.GVK)
+	selectedGVK := workload.Root.GVK
+	if rootSelection.Definition != nil {
+		selectedGVK = rootSelection.GVK
+	}
+	allowed, scopeErr := r.selectedResource(selectedGVK)
+	if scopeErr != nil {
+		r.failCandidate(key, scopeErr)
+		return scopeErr
+	}
+	if !allowed {
+		r.mu.Lock()
+		r.removeCandidateLocked(key)
+		r.mu.Unlock()
+		return nil
+	}
+	sources := r.sourcesFor(workload.Path)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.currentPathLocked(workload.Path) || !r.currentSelectionLocked(key.ref(), selection) || !r.currentSelectionLocked(workload.Root, rootSelection) {
+		return discovery.ErrStale
+	}
+	previous := r.candidates[key]
+	root := r.rootLocked(workload)
+	if previous != root.ref.UID {
+		if old := r.roots[previous]; old != nil {
+			delete(old.candidates, key)
+			r.rootQueue.Add(rootKey{UID: previous})
 		}
 	}
-	r.failCandidate(key, err)
-	return err
+	r.candidates[key] = root.ref.UID
+	root.candidates[key] = candidateState{sources: sources}
+	r.rootQueue.Add(rootKey{UID: root.ref.UID})
+	r.deps.Publications.RemoveDiscoveryFailure(key.UID)
+	return nil
 }
 
 // Only canonical UID keys publish workload results. Candidate keys only admit

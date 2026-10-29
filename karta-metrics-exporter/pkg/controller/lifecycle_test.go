@@ -271,6 +271,41 @@ func TestCandidateFailureDoesNotFabricateRoot(t *testing.T) {
 	require.NoError(t, r.reconcile(context.Background(), parent.GetUID()))
 	require.NotNil(t, values.Workload(parent.GetUID()))
 }
+func TestCandidateAdmissionFailuresPreserveCause(t *testing.T) {
+	cause := errors.New("candidate source failed")
+	for _, tc := range []struct {
+		name         string
+		readErr      error
+		discoveryErr error
+		want         error
+	}{
+		{name: "cache read", readErr: cause, want: cause},
+		{name: "discovery", discoveryErr: cause, want: cause},
+		{name: "empty discovery", want: discovery.ErrUnresolvedOwner},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, values := simpleRuntime(t, nil)
+			selectCatalog(t, r, "batch-job-v1")
+			child := simpleObject(jobKind, "child")
+			source := seedSource(t, r, jobKind, true, child)
+			discoverer := discovery.NewMockDiscovery(t)
+			r.deps.Discovery = discoverer
+			ctx := context.Background()
+			if tc.readErr != nil {
+				r.mu.Lock()
+				r.setHealthLocked(source, tc.readErr)
+				r.mu.Unlock()
+			} else {
+				discoverer.EXPECT().Get(ctx, refOf(child)).Return(discovery.Result{}, tc.discoveryErr).Once()
+			}
+			err := r.admitRoot(ctx, inputFor(refOf(child)))
+			require.Same(t, tc.want, err)
+			require.Empty(t, values.Capture().Workloads)
+			require.Equal(t, []store.DiscoveryFailure{{Input: storedRef(inputFor(refOf(child)).ref()), Error: failureReason(tc.want)}}, values.Capture().Failures)
+		})
+	}
+}
+
 func TestSourceFailureRetainsLastGoodAndRecoveryDoesNotClearEvaluationError(t *testing.T) {
 	resolver := &controlledLabels{}
 	r, values := simpleRuntime(t, resolver)
