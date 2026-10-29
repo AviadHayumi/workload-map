@@ -13,6 +13,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -316,12 +317,12 @@ func (r *Runtime) refreshDefinitionsLocked() error {
 			for _, entry := range r.reader.objects {
 				ref := refOf(entry.object)
 				if changedKinds[ref.GVK.GroupKind()] {
-					r.enqueueObjectLocked(ref)
+					r.enqueueObjectLocked(entry.object)
 				}
 				if ref.GVK == podGVK {
 					root := r.roots[r.podRoots[ref.UID]]
 					if root == nil || changedKinds[root.ref.GVK.GroupKind()] {
-						r.inputQueue.Add(inputFor(ref))
+						r.enqueuePodLocked(entry.object)
 					}
 				}
 			}
@@ -359,14 +360,26 @@ func (key inputKey) ref() discovery.ObjectRef {
 func (r *Runtime) enqueueSweepLocked(namespace string) {
 	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Sweep: true})
 }
-func (r *Runtime) enqueueObjectLocked(ref discovery.ObjectRef) {
-	key := inputFor(ref)
-	if ref.GVK == podGVK {
-		r.inputQueue.Add(key)
+func (r *Runtime) enqueueObjectLocked(object *unstructured.Unstructured) {
+	r.enqueuePodLocked(object)
+	if r.isCandidateLocked(object.GroupVersionKind()) {
+		r.rootQueue.Add(rootKey{Candidate: inputFor(refOf(object))})
 	}
-	if selection := r.selections[ref.GVK.GroupKind()]; selection.Definition != nil && selection.GVK == ref.GVK {
-		r.rootQueue.Add(rootKey{Candidate: key})
+}
+func (r *Runtime) enqueuePodLocked(object *unstructured.Unstructured) {
+	if object == nil || object.GroupVersionKind() != podGVK {
+		return
 	}
+	uid := object.GetUID()
+	_, member := r.podRoots[uid]
+	// Previously tracked Pods still need a worker to remove their result.
+	if r.podSelector.Empty() || r.podSelector.Matches(labelsFor(object)) || member || r.deps.Publications.Pod(uid) != nil {
+		r.inputQueue.Add(inputFor(refOf(object)))
+	}
+}
+func (r *Runtime) isCandidateLocked(gvk schema.GroupVersionKind) bool {
+	selection := r.selections[gvk.GroupKind()]
+	return selection.Definition != nil && selection.GVK == gvk
 }
 func (r *Runtime) fanoutRootLocked(uid types.UID) {
 	root := r.roots[uid]

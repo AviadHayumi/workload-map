@@ -34,7 +34,7 @@ func run() error {
 	fs := flag.NewFlagSet("karta-metrics-exporter", flag.ContinueOnError)
 	kubeconfig := fs.String("kubeconfig", "", "Path to a kubeconfig; defaults to in-cluster credentials or the default kubeconfig.")
 	address := fs.String("metrics-bind-address", ":8080", "Listen address for metrics and health probes.")
-	showVersion := fs.Bool("version", false, "Print the exporter version and exit.")
+	showVersion := fs.Bool("version", false, "Print the exporter version and exit.") // should we do it with ldflags?
 	loader := config.NewLoader(fs, os.LookupEnv)
 	switch err := fs.Parse(os.Args[1:]); {
 	case errors.Is(err, flag.ErrHelp):

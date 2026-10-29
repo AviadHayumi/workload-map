@@ -345,6 +345,199 @@ func TestInitialLabelErrorKeepsBasePodMapping(t *testing.T) {
 	require.Equal(t, "<unknown>", row.Record.Component)
 }
 
+func TestUnselectedPodEventsKeepCacheWithoutLeafWork(t *testing.T) {
+	r, values := simpleRuntime(t, nil)
+	r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
+	pods := seedSource(t, r, podGVK, true)
+	initial := simpleObject(podGVK, "initial")
+	require.NoError(t, (&reflectorStore{runtime: r, source: pods}).Replace([]any{initial}, "1"))
+	require.Equal(t, 1, r.inputQueue.Len())
+	key, _ := r.inputQueue.Get()
+	require.True(t, key.Sweep, "initial synchronization queues only its scope sweep")
+	require.NoError(t, r.resolveInput(context.Background(), key))
+	r.inputQueue.Done(key)
+	require.Zero(t, r.inputQueue.Len())
+	_, cached := r.reader.Cached(refOf(initial))
+	require.True(t, cached)
+
+	added := simpleObject(podGVK, "added")
+	require.NoError(t, r.accept(pods, added, false))
+	require.Zero(t, r.inputQueue.Len())
+	changed := added.DeepCopy()
+	changed.SetResourceVersion("2")
+	changed.Object["status"] = map[string]any{"phase": "Running"}
+	require.NoError(t, r.accept(pods, changed, false))
+	require.Zero(t, r.inputQueue.Len())
+	current, cached := r.reader.Cached(refOf(changed))
+	require.True(t, cached)
+	require.Equal(t, changed.Object, current.Object)
+	require.Empty(t, values.Capture().Pods)
+	require.Empty(t, values.Capture().Workloads)
+}
+
+func TestPodSelectorTransitionsRemovePreviousResultsAndRestoreMapping(t *testing.T) {
+	for _, previous := range []string{"mapping", "error only"} {
+		t.Run(previous, func(t *testing.T) {
+			r, values := simpleRuntime(t, nil)
+			r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
+			root, pod := simpleObject(deploymentKind, "root"), simpleObject(podGVK, "pod")
+			pod.SetLabels(map[string]string{"selected": "true"})
+			simpleOwner(pod, root)
+			roots := seedSource(t, r, deploymentKind, true)
+			pods := seedSource(t, r, podGVK, true, pod)
+			if previous == "mapping" {
+				require.NoError(t, r.accept(roots, root, false))
+				settle(t, r)
+				require.True(t, values.Pod(pod.GetUID()).HasValue)
+			} else {
+				require.Error(t, r.resolveLeaf(context.Background(), inputFor(refOf(pod))))
+				require.NotNil(t, values.Pod(pod.GetUID()))
+				require.False(t, values.Pod(pod.GetUID()).HasValue)
+				require.Equal(t, store.ReasonUnresolvedOwner, values.Pod(pod.GetUID()).Error)
+				require.NotContains(t, r.podRoots, pod.GetUID())
+				emptyQueue(r.inputQueue)
+				emptyQueue(r.rootQueue)
+			}
+
+			changed := pod.DeepCopy()
+			changed.SetResourceVersion("2")
+			changed.SetLabels(nil)
+			require.NoError(t, r.accept(pods, changed, false))
+			require.Equal(t, 1, r.inputQueue.Len())
+			// A later event must still schedule cleanup if the first queued item was lost.
+			emptyQueue(r.inputQueue)
+			changed.SetResourceVersion("3")
+			require.NoError(t, r.accept(pods, changed, false))
+			require.Equal(t, 1, r.inputQueue.Len())
+			settle(t, r)
+			require.Nil(t, values.Pod(pod.GetUID()))
+			require.Empty(t, values.Capture().Workloads)
+			_, cached := r.reader.Cached(refOf(changed))
+			require.True(t, cached)
+
+			require.NoError(t, r.accept(roots, root, false))
+			settle(t, r)
+			changed.SetResourceVersion("4")
+			changed.SetLabels(map[string]string{"selected": "true"})
+			require.NoError(t, r.accept(pods, changed, false))
+			require.Equal(t, 1, r.inputQueue.Len())
+			settle(t, r)
+			require.True(t, values.Pod(pod.GetUID()).HasValue)
+			require.Equal(t, root.GetUID(), values.Pod(pod.GetUID()).Record.Workload.UID)
+			require.Empty(t, values.Pod(pod.GetUID()).Error)
+		})
+	}
+}
+
+func TestPodSelectorFiltersScopeAndDefinitionRescans(t *testing.T) {
+	for _, trigger := range []string{"scope sweep", "definition change"} {
+		t.Run(trigger, func(t *testing.T) {
+			r, values := simpleRuntime(t, nil)
+			r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
+			root := simpleObject(jobKind, "root")
+			root.Object["spec"] = map[string]any{"parallelism": int64(1)}
+			selected, ignored := simpleObject(podGVK, "selected"), simpleObject(podGVK, "ignored")
+			selected.SetLabels(map[string]string{"selected": "true"})
+			simpleOwner(selected, root)
+			simpleOwner(ignored, root)
+			seedSource(t, r, jobKind, true, root)
+			seedSource(t, r, podGVK, true, selected, ignored)
+			settle(t, r)
+			require.NotNil(t, values.Pod(selected.GetUID()))
+			require.Nil(t, values.Pod(ignored.GetUID()))
+
+			if trigger == "scope sweep" {
+				require.NoError(t, r.resolveInput(context.Background(), inputKey{Object: objectKey{Namespace: "ns"}, Sweep: true}))
+			} else {
+				selectCatalog(t, r, "batch-job-v1")
+			}
+			require.Equal(t, 1, r.inputQueue.Len())
+			key, _ := r.inputQueue.Get()
+			require.False(t, key.Sweep)
+			require.Equal(t, selected.GetUID(), key.UID)
+			require.NoError(t, r.resolveInput(context.Background(), key))
+			r.inputQueue.Done(key)
+			settle(t, r)
+			require.True(t, values.Pod(selected.GetUID()).HasValue)
+			if trigger == "definition change" {
+				require.Equal(t, "batch-job-v1", values.Pod(selected.GetUID()).Record.Karta)
+			}
+			require.Nil(t, values.Pod(ignored.GetUID()))
+			_, cached := r.reader.Cached(refOf(ignored))
+			require.True(t, cached)
+		})
+	}
+}
+
+func TestUnselectedAncestorPodOwnershipChangeUpdatesSelectedDescendant(t *testing.T) {
+	r, values := simpleRuntime(t, nil)
+	r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
+	a, b := simpleObject(deploymentKind, "a"), simpleObject(deploymentKind, "b")
+	seedSource(t, r, deploymentKind, true, a, b)
+	leader, child := simpleObject(podGVK, "leader"), simpleObject(podGVK, "child")
+	child.SetLabels(map[string]string{"selected": "true"})
+	simpleOwner(leader, a)
+	simpleOwner(child, leader)
+	pods := seedSource(t, r, podGVK, true, leader, child)
+	settle(t, r)
+	require.Nil(t, values.Pod(leader.GetUID()))
+	require.Equal(t, a.GetUID(), values.Pod(child.GetUID()).Record.Workload.UID)
+	_, cached := r.reader.Cached(refOf(leader))
+	require.True(t, cached)
+
+	changed := leader.DeepCopy()
+	changed.SetResourceVersion("2")
+	simpleOwner(changed, b)
+	require.NoError(t, r.accept(pods, changed, false))
+	require.Equal(t, 1, r.inputQueue.Len())
+	key, _ := r.inputQueue.Get()
+	require.True(t, key.Sweep)
+	require.NoError(t, r.resolveInput(context.Background(), key))
+	r.inputQueue.Done(key)
+	require.Equal(t, 1, r.inputQueue.Len())
+	settle(t, r)
+	require.Nil(t, values.Pod(leader.GetUID()))
+	require.Equal(t, b.GetUID(), values.Pod(child.GetUID()).Record.Workload.UID)
+	require.Nil(t, values.Workload(a.GetUID()))
+	require.NotNil(t, values.Workload(b.GetUID()))
+	current, cached := r.reader.Cached(refOf(changed))
+	require.True(t, cached)
+	require.Equal(t, changed.GetOwnerReferences(), current.GetOwnerReferences())
+}
+
+func TestPodSelectorLossDuringDiscoveryQueuesCleanupBeforePublication(t *testing.T) {
+	r, values := simpleRuntime(t, nil)
+	r.podSelector, _ = selector(&metav1.LabelSelector{MatchLabels: map[string]string{"selected": "true"}})
+	pod := simpleObject(podGVK, "pod")
+	pod.SetLabels(map[string]string{"selected": "true"})
+	pods := seedSource(t, r, podGVK, true, pod)
+	entered, resume := make(chan struct{}), make(chan struct{})
+	discoverer := discovery.NewMockDiscovery(t)
+	discoverer.EXPECT().Get(context.Background(), refOf(pod)).RunAndReturn(func(context.Context, discovery.ObjectRef) (discovery.Result, error) {
+		close(entered)
+		<-resume
+		return discovery.Result{}, discovery.ErrUnavailable
+	}).Once()
+	r.deps.Discovery = discoverer
+	key, _ := r.inputQueue.Get()
+	done := make(chan error, 1)
+	go func() { done <- r.resolveInput(context.Background(), key) }()
+	<-entered
+	require.Nil(t, values.Pod(pod.GetUID()))
+	require.NotContains(t, r.podRoots, pod.GetUID())
+	changed := pod.DeepCopy()
+	changed.SetResourceVersion("2")
+	changed.SetLabels(nil)
+	require.NoError(t, r.accept(pods, changed, false))
+	close(resume)
+	require.ErrorIs(t, <-done, discovery.ErrUnavailable)
+	r.inputQueue.Done(key)
+	require.Equal(t, 1, r.inputQueue.Len())
+	settle(t, r)
+	require.Nil(t, values.Pod(pod.GetUID()))
+	require.Empty(t, values.Capture().Workloads)
+}
+
 func TestOrdinaryPodChurnDoesNotSweepAndAncestorPodAdoptionDoes(t *testing.T) {
 	r, values := simpleRuntime(t, nil)
 	a, b := simpleObject(deploymentKind, "a"), simpleObject(deploymentKind, "b")

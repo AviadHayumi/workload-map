@@ -32,7 +32,7 @@ func (r *Runtime) resolveInput(ctx context.Context, key inputKey) error {
 	defer r.reader.mu.RUnlock()
 	for _, entry := range r.reader.objects {
 		if key.Object.Namespace == "" || entry.object.GetNamespace() == key.Object.Namespace {
-			r.enqueueObjectLocked(refOf(entry.object))
+			r.enqueueObjectLocked(entry.object)
 		}
 	}
 	// Include previous memberships so a removed definition can withdraw its roots.

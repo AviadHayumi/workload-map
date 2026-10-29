@@ -451,6 +451,9 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
 
 // Called with both Runtime and Reader locked. It only queues domain work.
 func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
+	// Keep the old match so an update that leaves the selector can clean up.
+	r.enqueuePodLocked(old)
+	r.enqueuePodLocked(current)
 	object := current
 	if object == nil {
 		object = old
@@ -466,9 +469,6 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 	if old != nil && (current == nil || old.GetUID() != current.GetUID()) {
 		delete(r.ancestorPods, old.GetUID())
 		oldKey := inputFor(refOf(old))
-		if gvk == podGVK {
-			r.inputQueue.Add(oldKey)
-		}
 		if _, known := r.candidates[oldKey]; known {
 			r.rootQueue.Add(rootKey{Candidate: oldKey})
 		}
@@ -482,14 +482,9 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 	}
 	if current != nil {
 		key := inputFor(refOf(current))
-		if current.GroupVersionKind() == podGVK {
-			r.inputQueue.Add(key)
-		}
 		_, admitted := r.candidates[key]
-		if !admitted || ownershipChanged {
-			if selection := r.selections[gvk.GroupKind()]; selection.Definition != nil && selection.GVK == gvk {
-				r.rootQueue.Add(rootKey{Candidate: key})
-			}
+		if (!admitted || ownershipChanged) && r.isCandidateLocked(gvk) {
+			r.rootQueue.Add(rootKey{Candidate: key})
 		}
 		if root := r.roots[current.GetUID()]; root != nil {
 			r.rootQueue.Add(rootKey{UID: current.GetUID()})
