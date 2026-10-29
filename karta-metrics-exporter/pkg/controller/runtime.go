@@ -97,13 +97,23 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := reader.controllerState
-	r.config = config
-	r.deps = deps
-	r.reader = reader
-	r.inputQueue = newQueue[inputKey]("exporter-pods")
-	r.rootQueue = newQueue[rootKey]("exporter-workloads")
-	r.controlQueue = newQueue[string]("exporter-sources")
+	r := &controllerState{
+		config:        config,
+		deps:          deps,
+		reader:        reader,
+		inputQueue:    newQueue[inputKey]("exporter-pods"),
+		rootQueue:     newQueue[rootKey]("exporter-workloads"),
+		controlQueue:  newQueue[string]("exporter-sources"),
+		watches:       map[watchKey]*resourceWatch{},
+		replacements:  map[watchKey]*resourceWatch{},
+		watchFailures: map[discovery.WatchRequest]error{},
+		roots:         map[types.UID]*rootState{},
+		podRoots:      map[types.UID]types.UID{},
+		ancestorPods:  map[types.UID]bool{},
+		candidates:    map[inputKey]types.UID{},
+		selections:    map[schema.GroupKind]selectedDefinition{},
+		scopes:        map[string]bool{},
+	}
 	if config.NamespaceSelector == nil {
 		r.scopes[""] = true
 	}
@@ -254,7 +264,8 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 		if healthChanged {
 			r.enqueueRescanLocked("")
 		} else {
-			for _, entry := range r.objects {
+			r.reader.mu.RLock()
+			for _, entry := range r.reader.objects {
 				ref := refOf(entry.object)
 				if changedKinds[ref.GVK.GroupKind()] {
 					r.enqueueObjectLocked(entry.object)
@@ -266,6 +277,7 @@ func (r *controllerState) refreshDefinitionsLocked() error {
 					}
 				}
 			}
+			r.reader.mu.RUnlock()
 		}
 		for uid, root := range r.roots {
 			if healthChanged || changedKinds[root.ref.GVK.GroupKind()] {
@@ -288,15 +300,15 @@ func (key inputKey) ref() discovery.ObjectRef {
 }
 
 func (r *controllerState) sourcesFor(path []discovery.ObjectRef) []store.SourceKey {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.reader.mu.RLock()
+	defer r.reader.mu.RUnlock()
 	var sources []store.SourceKey
 	for _, ref := range path {
-		if entry, ok := r.objects[keyOf(ref)]; ok && !slices.Contains(sources, entry.source) {
+		if entry, ok := r.reader.objects[keyOf(ref)]; ok && !slices.Contains(sources, entry.source) {
 			sources = append(sources, entry.source)
 		}
 	}
-	for key, source := range r.sources {
+	for key, source := range r.reader.sources {
 		if source.gvk == namespaceGVK && r.config.NamespaceSelector != nil {
 			if !slices.Contains(sources, key) {
 				sources = append(sources, key)
