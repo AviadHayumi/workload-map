@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,64 +49,25 @@ type ResourceRule struct {
 }
 
 type Runtime struct {
-	mu     sync.Mutex
-	config Config
-	deps   Dependencies
-	reader *Reader
-
-	inputQueue   workqueue.TypedRateLimitingInterface[inputKey]
-	rootQueue    workqueue.TypedRateLimitingInterface[rootKey]
-	controlQueue workqueue.TypedRateLimitingInterface[string]
-
-	watches       map[watchKey]*resourceWatch
-	replacements  map[watchKey]*resourceWatch
-	watchFailures map[discovery.WatchRequest]error
-	scopes        map[string]bool
-
-	roots        map[types.UID]*rootState
-	podRoots     map[types.UID]types.UID
-	ancestorPods map[types.UID]bool
-	candidates   map[inputKey]types.UID
-
-	selections        map[schema.GroupKind]selectedDefinition
-	definitionError   error
-	definitionVersion uint64
-	namespaceSelector labels.Selector
-	objectSelector    labels.Selector
-	podSelector       labels.Selector
-
-	ctx     context.Context
-	started bool
-	wg      sync.WaitGroup
+	state *controllerState
 }
 
-type inputKey struct {
+type objectJobKey struct {
 	Object objectKey
 	UID    types.UID
-	Sweep  bool
+	Rescan bool
 }
-type rootKey struct {
-	UID       types.UID
-	Candidate inputKey
+type workloadJobKey struct {
+	RootUID        types.UID
+	SelectedObject objectJobKey
 }
 type watchKey = store.SourceKey
-type rootState struct {
-	ref        discovery.ObjectRef
-	resolution discovery.OwnerResolution
-	pods       map[types.UID]inputKey
-	candidates map[inputKey]candidateState
-}
 
 type selectedDefinition struct {
 	inventory.Selection
 	summary *instructions.StructureSummary
 	err     error
 	version uint64
-}
-
-type candidateState struct {
-	sources []store.SourceKey
-	err     error
 }
 
 var podGVK = schema.GroupVersionKind{Version: "v1", Kind: "Pod"}
@@ -119,7 +79,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if deps.Discovery == nil || deps.Inventory == nil || deps.Labels == nil || deps.Publications == nil || reader == nil {
 		return nil, errors.New("runtime dependencies are required")
 	}
-	if err := ValidateResourceRules(append(append([]ResourceRule{}, config.ResourceRules...), config.ExcludeResourceRules...)); err != nil {
+	if err := ValidateResourceRules(slices.Concat(config.ResourceRules, config.ExcludeResourceRules)); err != nil {
 		return nil, err
 	}
 	if config.Workers == 0 {
@@ -137,28 +97,18 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if config.NamespaceSelector != nil && len(config.NamespaceSelector.MatchLabels) == 0 && len(config.NamespaceSelector.MatchExpressions) == 0 {
 		config.NamespaceSelector = nil
 	}
-	r := &Runtime{
-		config:        config,
-		deps:          deps,
-		reader:        reader,
-		inputQueue:    newQueue[inputKey]("exporter-pods"),
-		rootQueue:     newQueue[rootKey]("exporter-workloads"),
-		controlQueue:  newQueue[string]("exporter-sources"),
-		watches:       map[watchKey]*resourceWatch{},
-		replacements:  map[watchKey]*resourceWatch{},
-		watchFailures: map[discovery.WatchRequest]error{},
-		roots:         map[types.UID]*rootState{},
-		podRoots:      map[types.UID]types.UID{},
-		ancestorPods:  map[types.UID]bool{},
-		candidates:    map[inputKey]types.UID{},
-		selections:    map[schema.GroupKind]selectedDefinition{},
-		scopes:        map[string]bool{},
-	}
+	r := newControllerState(reader.objectCache)
+	r.config = config
+	r.deps = deps
+	r.reader = reader
+	r.podQueue = newQueue[objectJobKey]("exporter-pods")
+	r.workloadQueue = newQueue[workloadJobKey]("exporter-workloads")
+	r.watchSyncQueue = newQueue[string]("exporter-sources")
 	if config.NamespaceSelector == nil {
 		r.scopes[""] = true
 	}
 	if config.ClusterDefinitions {
-		r.definitionError = inventory.ErrNotReady
+		r.definitionInventoryErr = inventory.ErrNotReady
 		deps.Publications.SetSourceHealth(definitionSource, store.SourceHealth{GVK: kartaGVK})
 	}
 	var err error
@@ -175,41 +125,23 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 		return nil, err
 	}
 	reader.ensure = r.ensureWatch
-	return r, nil
-}
-func newQueue[T comparable](name string) workqueue.TypedRateLimitingInterface[T] {
-	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[T](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[T]{Name: name})
-}
-func selector(value *metav1.LabelSelector) (labels.Selector, error) {
-	if value == nil {
-		return labels.Everything(), nil
-	}
-	return metav1.LabelSelectorAsSelector(value)
+	return &Runtime{state: r}, nil
 }
 func (r *Runtime) Run(ctx context.Context) error {
-	r.mu.Lock()
-	if r.started {
-		r.mu.Unlock()
-		return errors.New("runtime already started")
+	if err := r.state.start(ctx); err != nil {
+		return err
 	}
-	r.started = true
-	r.ctx = ctx
-	r.mu.Unlock()
-	for i := 0; i < r.config.LeafWorkers; i++ {
-		r.wg.Add(1)
-		go func() { defer r.wg.Done(); runWorker(ctx, r.inputQueue, r.resolveInput) }()
+	for i := 0; i < r.state.config.LeafWorkers; i++ {
+		r.state.wg.Go(func() { runWorker(ctx, r.state.podQueue, r.handlePodInput) })
 	}
-	for i := 0; i < r.config.RootWorkers; i++ {
-		r.wg.Add(1)
-		go func() { defer r.wg.Done(); runWorker(ctx, r.rootQueue, r.resolveWorkload) }()
+	for i := 0; i < r.state.config.RootWorkers; i++ {
+		r.state.wg.Go(func() { runWorker(ctx, r.state.workloadQueue, r.handleWorkloadInput) })
 	}
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		runWorker(ctx, r.controlQueue, func(ctx context.Context, _ string) error { return r.syncWatches(ctx) })
-	}()
-	r.controlQueue.Add("sources")
-	changes := r.deps.Inventory.Changes()
+	r.state.wg.Go(func() {
+		runWorker(ctx, r.state.watchSyncQueue, func(ctx context.Context, _ string) error { return r.state.syncWatches(ctx) })
+	})
+	r.state.watchSyncQueue.Add("sources")
+	changes := r.state.deps.Inventory.Changes()
 running:
 	for {
 		select {
@@ -220,22 +152,46 @@ running:
 				changes = nil
 				continue
 			}
-			r.controlQueue.Add("sources")
+			r.state.watchSyncQueue.Add("sources")
 		}
 	}
-	r.inputQueue.ShutDown()
-	r.rootQueue.ShutDown()
-	r.controlQueue.ShutDown()
-	r.mu.Lock()
-	for _, w := range r.watches {
-		w.cancel()
-	}
-	for _, w := range r.replacements {
-		w.cancel()
-	}
-	r.mu.Unlock()
-	r.wg.Wait()
+	r.state.podQueue.ShutDown()
+	r.state.workloadQueue.ShutDown()
+	r.state.watchSyncQueue.ShutDown()
+	r.state.stopWatches()
+	r.state.wg.Wait()
 	return nil
+}
+func (r *Runtime) Ready() bool {
+	return r.state.ready()
+}
+
+func (r *controllerState) ready() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionInventoryErr != nil || len(r.watches) == 0 {
+		return false
+	}
+	for request := range r.watchFailures {
+		if r.requiredWatch(request.GVK) {
+			return false
+		}
+	}
+	for _, w := range r.watches {
+		if r.requiredWatch(w.gvk) && (!w.ready || w.err != nil || r.replacements[w.key] != nil) {
+			return false
+		}
+	}
+	return true
+}
+func newQueue[T comparable](name string) workqueue.TypedRateLimitingInterface[T] {
+	return workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.NewTypedItemExponentialFailureRateLimiter[T](10*time.Millisecond, 10*time.Second), workqueue.TypedRateLimitingQueueConfig[T]{Name: name})
+}
+func selector(value *metav1.LabelSelector) (labels.Selector, error) {
+	if value == nil {
+		return labels.Everything(), nil
+	}
+	return metav1.LabelSelectorAsSelector(value)
 }
 func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimitingInterface[T], reconcile func(context.Context, T) error) {
 	for {
@@ -251,31 +207,13 @@ func runWorker[T comparable](ctx context.Context, queue workqueue.TypedRateLimit
 		queue.Done(key)
 	}
 }
-func (r *Runtime) Ready() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if !r.started || (r.ctx != nil && r.ctx.Err() != nil) || r.definitionError != nil || len(r.watches) == 0 {
-		return false
-	}
-	for request := range r.watchFailures {
-		if r.requiredWatch(request.GVK) {
-			return false
-		}
-	}
-	for _, w := range r.watches {
-		if r.requiredWatch(w.gvk) && (!w.ready || w.err != nil || r.replacements[w.key] != nil) {
-			return false
-		}
-	}
-	return true
-}
-func (r *Runtime) requiredWatch(gvk schema.GroupVersionKind) bool {
+func (r *controllerState) requiredWatch(gvk schema.GroupVersionKind) bool {
 	return gvk == podGVK || (gvk == namespaceGVK && r.config.NamespaceSelector != nil) || slices.Contains(r.config.RequiredKinds, gvk)
 }
 
-func (r *Runtime) refreshDefinitionsLocked() error {
+func (r *controllerState) refreshDefinitionsLocked() error {
 	results, sourceErr := r.deps.Inventory.List()
-	next := r.selections
+	next := r.selectedDefinitions
 	if sourceErr == nil {
 		next = make(map[schema.GroupKind]selectedDefinition, len(results))
 		for _, result := range results {
@@ -290,150 +228,73 @@ func (r *Runtime) refreshDefinitionsLocked() error {
 			next[result.GVK.GroupKind()] = selected
 		}
 	}
-	healthChanged := failureReason(r.definitionError) != failureReason(sourceErr)
+	healthChanged := failureReason(r.definitionInventoryErr) != failureReason(sourceErr)
 	changedKinds := map[schema.GroupKind]bool{}
 	for kind, selected := range next {
-		if !reflect.DeepEqual(r.selections[kind], selected) {
+		if !reflect.DeepEqual(r.selectedDefinitions[kind], selected) {
 			changedKinds[kind] = true
 		}
 	}
-	for kind := range r.selections {
+	for kind := range r.selectedDefinitions {
 		if _, exists := next[kind]; !exists {
 			changedKinds[kind] = true
 		}
 	}
-	r.definitionError = sourceErr
-	r.selections = next
+	r.definitionInventoryErr = sourceErr
+	r.selectedDefinitions = next
 	if r.config.ClusterDefinitions {
 		r.deps.Publications.SetSourceHealth(definitionSource, store.SourceHealth{GVK: kartaGVK, Synced: sourceErr == nil, Error: failureReason(sourceErr)})
 	}
 	if healthChanged || len(changedKinds) > 0 {
 		r.definitionVersion++
 		if healthChanged {
-			r.enqueueSweepLocked("")
+			r.enqueueScopeRefreshLocked("")
 		} else {
-			r.reader.mu.RLock()
-			for _, entry := range r.reader.objects {
+			for _, entry := range r.objects {
 				ref := refOf(entry.object)
 				if changedKinds[ref.GVK.GroupKind()] {
-					r.enqueueObjectLocked(ref)
+					r.enqueueObjectLocked(entry.object)
 				}
 				if ref.GVK == podGVK {
 					root := r.roots[r.podRoots[ref.UID]]
 					if root == nil || changedKinds[root.ref.GVK.GroupKind()] {
-						r.inputQueue.Add(inputFor(ref))
+						r.enqueuePodLocked(entry.object)
 					}
 				}
 			}
-			r.reader.mu.RUnlock()
 		}
 		for uid, root := range r.roots {
 			if healthChanged || changedKinds[root.ref.GVK.GroupKind()] {
-				r.rootQueue.Add(rootKey{UID: uid})
+				r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 				r.enqueueMembersLocked(root)
 			}
 		}
-		for candidate := range r.candidates {
-			if changedKinds[candidate.Object.GVK.GroupKind()] {
-				r.rootQueue.Add(rootKey{Candidate: candidate})
+		for selectedObject := range r.selectedObjectRoots {
+			if changedKinds[selectedObject.Object.GVK.GroupKind()] {
+				r.workloadQueue.Add(workloadJobKey{SelectedObject: selectedObject})
 			}
 		}
 	}
 	return sourceErr
 }
-func (r *Runtime) lookupDefinition(gvk schema.GroupVersionKind) (selectedDefinition, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	selected := r.selections[gvk.GroupKind()]
-	selected.version = r.definitionVersion
-	if r.definitionError != nil {
-		return selected, r.definitionError
-	}
-	return selected, selected.err
-}
 
-func inputFor(ref discovery.ObjectRef) inputKey { return inputKey{Object: keyOf(ref), UID: ref.UID} }
-func (key inputKey) ref() discovery.ObjectRef {
+func objectJobFor(ref discovery.ObjectRef) objectJobKey {
+	return objectJobKey{Object: keyOf(ref), UID: ref.UID}
+}
+func (key objectJobKey) ref() discovery.ObjectRef {
 	return discovery.ObjectRef{GVK: key.Object.GVK, Namespace: key.Object.Namespace, Name: key.Object.Name, UID: key.UID}
 }
-func (r *Runtime) enqueueSweepLocked(namespace string) {
-	r.inputQueue.Add(inputKey{Object: objectKey{Namespace: namespace}, Sweep: true})
-}
-func (r *Runtime) enqueueObjectLocked(ref discovery.ObjectRef) {
-	key := inputFor(ref)
-	if ref.GVK == podGVK {
-		r.inputQueue.Add(key)
-	}
-	if selection := r.selections[ref.GVK.GroupKind()]; selection.Definition != nil && selection.GVK == ref.GVK {
-		r.rootQueue.Add(rootKey{Candidate: key})
-	}
-}
-func (r *Runtime) fanoutRootLocked(uid types.UID) {
-	root := r.roots[uid]
-	if root == nil {
-		return
-	}
-	r.rootQueue.Add(rootKey{UID: uid})
-	r.enqueueMembersLocked(root)
-}
-func (r *Runtime) enqueueMembersLocked(root *rootState) {
-	for _, key := range root.pods {
-		r.inputQueue.Add(key)
-	}
-	for key := range root.candidates {
-		r.rootQueue.Add(rootKey{Candidate: key})
-	}
-}
-func (r *Runtime) rootLocked(workload *discovery.GenericWorkload) *rootState {
-	for _, ref := range workload.Path[1:] {
-		if ref.GVK == podGVK {
-			r.ancestorPods[ref.UID] = true
-		}
-	}
-	root := r.roots[workload.Root.UID]
-	if root == nil {
-		root = &rootState{ref: workload.Root, pods: map[types.UID]inputKey{}, candidates: map[inputKey]candidateState{}}
-		r.roots[workload.Root.UID] = root
-	}
-	root.resolution = workload.Resolution
-	if selection := r.selections[workload.Root.GVK.GroupKind()]; selection.Definition != nil {
-		root.ref.GVK = selection.GVK
-	} else if root.ref.GVK != workload.Root.GVK {
-		current := root.ref
-		current.ResourceVersion = ""
-		if _, _, err := r.reader.read(current, false); err != nil {
-			root.ref = workload.Root
-			r.rootQueue.Add(rootKey{UID: root.ref.UID})
-		}
-	}
-	return root
-}
-func (r *Runtime) removePodLocked(key inputKey) {
-	if root := r.roots[r.podRoots[key.UID]]; root != nil {
-		delete(root.pods, key.UID)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
-	}
-	delete(r.podRoots, key.UID)
-	r.deps.Publications.RemovePod(key.UID)
-}
-func (r *Runtime) removeCandidateLocked(key inputKey) {
-	if root := r.roots[r.candidates[key]]; root != nil {
-		delete(root.candidates, key)
-		r.rootQueue.Add(rootKey{UID: root.ref.UID})
-	}
-	delete(r.candidates, key)
-	r.deps.Publications.RemoveDiscoveryFailure(key.UID)
-}
-func (r *Runtime) sourcesFor(path []discovery.ObjectRef) []store.SourceKey {
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
+
+func (r *controllerState) sourcesFor(path []discovery.ObjectRef) []store.SourceKey {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	var sources []store.SourceKey
 	for _, ref := range path {
-		if entry, ok := r.reader.objects[keyOf(ref)]; ok && !slices.Contains(sources, entry.source) {
+		if entry, ok := r.objects[keyOf(ref)]; ok && !slices.Contains(sources, entry.source) {
 			sources = append(sources, entry.source)
 		}
 	}
-	for key, source := range r.reader.sources {
+	for key, source := range r.sources {
 		if source.gvk == namespaceGVK && r.config.NamespaceSelector != nil {
 			if !slices.Contains(sources, key) {
 				sources = append(sources, key)
@@ -453,10 +314,4 @@ func appendSources(sources, additional []store.SourceKey) []store.SourceKey {
 		}
 	}
 	return result
-}
-
-func (r *Runtime) namespaceAdmitted(namespace string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.config.NamespaceSelector == nil || namespace == "" || r.scopes[namespace]
 }

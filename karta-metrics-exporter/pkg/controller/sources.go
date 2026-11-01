@@ -31,53 +31,63 @@ type resourceWatch struct {
 	cancel      context.CancelFunc
 }
 type reflectorStore struct {
-	runtime *Runtime
-	source  *resourceWatch
-}
-type watchedStream struct {
-	events chan watch.Event
-	cancel context.CancelFunc
+	controller *controllerState
+	watch      *resourceWatch
 }
 
-func (r *Runtime) syncWatches(ctx context.Context) error {
+func (r *controllerState) syncWatches(ctx context.Context) error {
 	if r.config.NamespaceSelector != nil {
-		if _, err := r.ensureWatch(ctx, namespaceGVK, "", true); err != nil {
+		if _, err := r.ensureWatch(ctx, namespaceGVK, "", false); err != nil {
 			return err
 		}
 	}
+	requests, preparationErr := r.prepareWatchRequests()
+	if requests == nil {
+		return preparationErr
+	}
+	var errs []error
+	if preparationErr != nil {
+		errs = append(errs, preparationErr)
+	}
+	for _, request := range requests {
+		if _, err := r.ensureWatch(ctx, request.GVK, request.Namespace, false); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// Prepare source changes under the state lock. REST mapping and watch startup run after it is released.
+func (r *controllerState) prepareWatchRequests() ([]discovery.WatchRequest, error) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	definitionErr := r.refreshDefinitionsLocked()
 	if r.config.NamespaceSelector != nil {
-		ready := false
-		next := map[string]bool{}
+		namespaceWatchReady := false
+		admittedNamespaces := map[string]bool{}
 		for _, w := range r.watches {
-			if w.gvk != namespaceGVK {
+			if w.gvk != namespaceGVK || !w.ready || w.err != nil {
 				continue
 			}
-			if w.ready && w.err == nil {
-				ready = true
-				r.reader.mu.RLock()
-				for key := range w.objects {
-					object := r.reader.objects[key].object
-					if r.namespaceSelector.Matches(labelsFor(object)) {
-						next[object.GetName()] = true
-					}
+			namespaceWatchReady = true
+			for key := range w.objects {
+				object := r.objects[key].object
+				if r.namespaceSelector.Matches(labelsFor(object)) {
+					admittedNamespaces[object.GetName()] = true
 				}
-				r.reader.mu.RUnlock()
 			}
 		}
-		if !ready {
-			r.mu.Unlock()
-			return discovery.ErrPending
+		if !namespaceWatchReady {
+			return nil, discovery.ErrPending
 		}
-		r.scopes = next
+		r.scopes = admittedNamespaces
 	}
 	scopes := make([]string, 0, len(r.scopes))
 	for namespace := range r.scopes {
 		scopes = append(scopes, namespace)
 	}
 	kinds := map[schema.GroupVersionKind]bool{podGVK: true}
-	for _, selection := range r.selections {
+	for _, selection := range r.selectedDefinitions {
 		if selection.GVK.Version != "" && selection.GVK.Kind != "" {
 			kinds[selection.GVK] = true
 		}
@@ -101,35 +111,21 @@ func (r *Runtime) syncWatches(ctx context.Context) error {
 			r.deps.Publications.RemoveDiscoveryFailure(types.UID("source:" + request.GVK.String() + "/" + request.Namespace))
 		}
 	}
-	r.mu.Unlock()
-	var errs []error
-	if definitionErr != nil {
-		errs = append(errs, definitionErr)
-	}
+	requests := make([]discovery.WatchRequest, 0, len(kinds)*len(scopes))
 	for gvk := range kinds {
 		for _, namespace := range scopes {
-			if _, err := r.ensureWatch(ctx, gvk, namespace, true); err != nil {
-				errs = append(errs, err)
-			}
+			requests = append(requests, discovery.WatchRequest{GVK: gvk, Namespace: namespace})
 		}
 	}
-	return errors.Join(errs...)
+	return requests, definitionErr
 }
 
-func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, full bool) (watchKey, error) {
+func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, namespace string, metadataOnly bool) (watchKey, error) {
 	request := discovery.WatchRequest{GVK: gvk, Namespace: namespace}
 	failureRef := store.ObjectRef{GVK: gvk, Namespace: namespace, UID: types.UID("source:" + gvk.String() + "/" + namespace)}
-	mapping, err := r.reader.mapping(gvk)
+	mapping, err := r.reader.restMapping(ctx, gvk)
 	if err != nil {
-		r.mu.Lock()
-		if r.config.NamespaceSelector != nil && namespace != "" && !r.scopes[namespace] {
-			r.mu.Unlock()
-			return watchKey{}, discovery.ErrPending
-		}
-		r.watchFailures[request] = err
-		r.deps.Publications.SetDiscoveryFailure(failureRef, failureReason(err))
-		r.mu.Unlock()
-		return watchKey{}, err
+		return watchKey{}, r.recordWatchFailure(request, failureRef, err)
 	}
 	if mapping.Scope.Name() == meta.RESTScopeNameRoot || r.config.NamespaceSelector == nil {
 		namespace = ""
@@ -143,7 +139,7 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 		return key, discovery.ErrPending
 	}
 	if existing := r.watches[key]; existing != nil {
-		if !full || existing.full {
+		if metadataOnly || existing.full {
 			return key, nil
 		}
 		if r.replacements[key] != nil {
@@ -156,20 +152,18 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	if err := ctx.Err(); err != nil {
 		return key, err
 	}
-	child, cancel := context.WithCancel(ctx)
-	w := &resourceWatch{key: key, gvk: gvk, full: full, objects: map[objectKey]struct{}{}, cancel: cancel}
+	watchCtx, cancel := context.WithCancel(ctx)
+	w := &resourceWatch{key: key, gvk: gvk, full: !metadataOnly, objects: map[objectKey]struct{}{}, cancel: cancel}
 	if r.watches[key] != nil {
 		r.replacements[key] = w
 	} else {
 		r.watches[key] = w
-		r.reader.mu.Lock()
-		r.reader.sources[key] = readSource{gvk: gvk, full: full}
-		r.reader.mu.Unlock()
+		r.sources[key] = cacheSource{gvk: gvk, hasFullObject: !metadataOnly}
 	}
 	r.deps.Publications.SetSourceHealth(key, store.SourceHealth{GVK: gvk})
-	lw := &cache.ListWatch{
+	listWatch := &cache.ListWatch{
 		ListWithContextFunc: func(requestCtx context.Context, options metav1.ListOptions) (kruntime.Object, error) {
-			return r.listWatch(requestCtx, w, options)
+			return r.listResource(requestCtx, w, options)
 		},
 		WatchFuncWithContext: func(requestCtx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return r.watchResource(requestCtx, w, options)
@@ -178,54 +172,50 @@ func (r *Runtime) ensureWatch(ctx context.Context, gvk schema.GroupVersionKind, 
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		cache.NewReflectorWithOptions(lw, &unstructured.Unstructured{}, &reflectorStore{runtime: r, source: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(child)
+		cache.NewReflectorWithOptions(listWatch, &unstructured.Unstructured{}, &reflectorStore{controller: r, watch: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(watchCtx)
 	}()
 	return key, nil
 }
-func (r *Runtime) isSourceLocked(w *resourceWatch) bool {
+func (r *controllerState) isTrackedWatchLocked(w *resourceWatch) bool {
 	return r.watches[w.key] == w || r.replacements[w.key] == w
 }
-func (r *Runtime) setHealthLocked(w *resourceWatch, err error) {
-	if !r.isSourceLocked(w) {
+func (r *controllerState) setWatchHealthLocked(w *resourceWatch, err error) {
+	if !r.isTrackedWatchLocked(w) {
 		return
 	}
 	recovered := w.err != nil && err == nil
 	w.err = err
 	if r.watches[w.key] == w {
-		r.reader.mu.Lock()
-		r.reader.sources[w.key] = readSource{gvk: w.gvk, full: w.full, synced: w.ready, err: err}
-		r.reader.mu.Unlock()
+		r.sources[w.key] = cacheSource{gvk: w.gvk, hasFullObject: w.full, synced: w.ready, err: err}
 	}
 	if r.replacements[w.key] == nil || r.replacements[w.key] == w {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
 	}
 	if recovered {
-		r.enqueueSweepLocked(w.key.Namespace)
+		r.enqueueScopeRefreshLocked(w.key.Namespace)
 		for uid := range r.roots {
-			r.rootQueue.Add(rootKey{UID: uid})
+			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 		}
 	}
 	if w.gvk == namespaceGVK {
-		r.controlQueue.Add("sources")
+		r.watchSyncQueue.Add("sources")
 	}
 }
-func (r *Runtime) retireWatchLocked(w *resourceWatch) {
+func (r *controllerState) retireWatchLocked(w *resourceWatch) {
 	w.cancel()
 	delete(r.watches, w.key)
-	r.reader.mu.Lock()
 	for key := range w.objects {
-		entry := r.reader.objects[key]
+		entry := r.objects[key]
 		if entry.object != nil && entry.source == w.key {
-			delete(r.reader.objects, key)
+			delete(r.objects, key)
 			r.routeObjectLocked(entry.object, nil)
 		}
 	}
-	delete(r.reader.sources, w.key)
-	r.reader.mu.Unlock()
+	delete(r.sources, w.key)
 	r.deps.Publications.RemoveSourceHealth(w.key)
 }
 
-func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
+func (r *controllerState) listResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (kruntime.Object, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, r.reader.options.RequestTimeout)
 	defer cancel()
 	var result *unstructured.UnstructuredList
@@ -242,7 +232,7 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 			result.SetRemainingItemCount(list.RemainingItemCount)
 			for i := range list.Items {
 				var object *unstructured.Unstructured
-				object, err = sourceObject(&list.Items[i], w.gvk, false)
+				object, err = prepareWatchObject(&list.Items[i], w.gvk, false)
 				if err != nil {
 					break
 				}
@@ -255,7 +245,7 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 	if err == nil {
 		for i := range result.Items {
 			var object *unstructured.Unstructured
-			object, err = sourceObject(&result.Items[i], w.gvk, w.full)
+			object, err = prepareWatchObject(&result.Items[i], w.gvk, w.full)
 			if err != nil {
 				break
 			}
@@ -263,13 +253,11 @@ func (r *Runtime) listWatch(ctx context.Context, w *resourceWatch, options metav
 		}
 	}
 	if err != nil && ctx.Err() == nil {
-		r.mu.Lock()
-		r.setHealthLocked(w, err)
-		r.mu.Unlock()
+		r.setWatchHealth(w, err)
 	}
 	return result, err
 }
-func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (watch.Interface, error) {
+func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, options metav1.ListOptions) (watch.Interface, error) {
 	var stream watch.Interface
 	var err error
 	if w.full {
@@ -280,64 +268,65 @@ func (r *Runtime) watchResource(ctx context.Context, w *resourceWatch, options m
 			stream, err = r.reader.clients.Dynamic.Resource(w.key.Resource).Namespace(w.key.Namespace).Watch(ctx, options)
 		}
 	}
-	r.mu.Lock()
-	if err == nil {
-		r.setHealthLocked(w, nil)
-	} else if ctx.Err() == nil && (options.SendInitialEvents == nil || !*options.SendInitialEvents || !apierrors.IsBadRequest(err)) {
-		r.setHealthLocked(w, err)
-	}
-	r.mu.Unlock()
+	r.recordWatchStart(ctx, w, options, err)
 	if err != nil {
 		return nil, err
 	}
-	child, cancel := context.WithCancel(ctx)
-	monitored := &watchedStream{events: make(chan watch.Event), cancel: cancel}
+	events := make(chan watch.Event)
+	monitored := watch.NewProxyWatcher(events)
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		defer close(monitored.events)
+		defer close(events)
 		defer stream.Stop()
 		for {
 			select {
-			case <-child.Done():
+			case <-ctx.Done():
+				return
+			case <-monitored.StopChan():
 				return
 			case event, ok := <-stream.ResultChan():
 				if !ok {
-					if child.Err() == nil {
-						r.mu.Lock()
-						r.setHealthLocked(w, errors.New("watch closed"))
-						r.mu.Unlock()
+					if ctx.Err() == nil && !monitored.Stopping() {
+						r.setWatchHealth(w, errors.New("watch closed"))
 					}
 					return
 				}
 				if event.Type == watch.Error {
-					r.mu.Lock()
-					r.setHealthLocked(w, apierrors.FromObject(event.Object))
-					r.mu.Unlock()
+					r.setWatchHealth(w, apierrors.FromObject(event.Object))
 				} else {
-					object, conversionErr := sourceObject(event.Object, w.gvk, w.full)
+					object, conversionErr := prepareWatchObject(event.Object, w.gvk, w.full)
 					if conversionErr != nil {
-						r.mu.Lock()
-						r.setHealthLocked(w, conversionErr)
-						r.mu.Unlock()
+						r.setWatchHealth(w, conversionErr)
 						return
 					}
 					event.Object = object
 				}
 				select {
-				case <-child.Done():
+				case <-ctx.Done():
 					return
-				case monitored.events <- event:
+				case <-monitored.StopChan():
+					return
+				case events <- event:
 				}
 			}
 		}
 	}()
 	return monitored, nil
 }
-func (w *watchedStream) Stop()                          { w.cancel() }
-func (w *watchedStream) ResultChan() <-chan watch.Event { return w.events }
 
-func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
+func (r *controllerState) recordWatchStart(ctx context.Context, w *resourceWatch, options metav1.ListOptions, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	isWatchListFallback := options.SendInitialEvents != nil && *options.SendInitialEvents && apierrors.IsBadRequest(err)
+	if err == nil {
+		r.setWatchHealthLocked(w, nil)
+	} else if ctx.Err() == nil && !isWatchListFallback {
+		r.setWatchHealthLocked(w, err)
+	}
+}
+
+func prepareWatchObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructured.Unstructured, error) {
 	if tombstone, ok := value.(cache.DeletedFinalStateUnknown); ok {
 		value = tombstone.Obj
 	}
@@ -361,31 +350,37 @@ func sourceObject(value any, gvk schema.GroupVersionKind, full bool) (*unstructu
 	object.SetGroupVersionKind(gvk)
 	return object, nil
 }
-func (s *reflectorStore) Add(object any) error    { return s.runtime.accept(s.source, object, false) }
-func (s *reflectorStore) Update(object any) error { return s.runtime.accept(s.source, object, false) }
-func (s *reflectorStore) Delete(object any) error { return s.runtime.accept(s.source, object, true) }
-func (s *reflectorStore) Resync() error           { return nil }
+func (s *reflectorStore) Add(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, false)
+}
+func (s *reflectorStore) Update(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, false)
+}
+func (s *reflectorStore) Delete(object any) error {
+	return s.controller.applyWatchEvent(s.watch, object, true)
+}
+func (s *reflectorStore) Resync() error { return nil }
 func (s *reflectorStore) Replace(values []any, _ string) error {
 	// Validate the complete snapshot before making absence authoritative.
 	objects := make(map[objectKey]*unstructured.Unstructured, len(values))
 	for _, value := range values {
-		object, err := sourceObject(value, s.source.gvk, s.source.full)
+		object, err := prepareWatchObject(value, s.watch.gvk, s.watch.full)
 		if err != nil {
-			return s.runtime.rejectSource(s.source, err)
+			return s.controller.rejectWatchObject(s.watch, err)
 		}
 		if object.GetUID() == "" || object.GetName() == "" {
-			return s.runtime.rejectSource(s.source, errors.New("LIST object has no identity"))
+			return s.controller.rejectWatchObject(s.watch, errors.New("LIST object has no identity"))
 		}
 		key := keyOf(refOf(object))
 		if _, duplicate := objects[key]; duplicate {
-			return s.runtime.rejectSource(s.source, errors.New("LIST contains duplicate object names"))
+			return s.controller.rejectWatchObject(s.watch, errors.New("LIST contains duplicate object names"))
 		}
 		objects[key] = object
 	}
-	r, w := s.runtime, s.source
+	r, w := s.controller, s.watch
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.isSourceLocked(w) {
+	if !r.isTrackedWatchLocked(w) {
 		return nil
 	}
 	if previous := r.watches[w.key]; previous != w {
@@ -394,11 +389,10 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 		r.watches[w.key] = w
 		delete(r.replacements, w.key)
 	}
-	r.reader.mu.Lock()
 	for key := range w.objects {
 		if objects[key] == nil {
-			old := r.reader.objects[key].object
-			delete(r.reader.objects, key)
+			old := r.objects[key].object
+			delete(r.objects, key)
 			if old != nil {
 				r.routeObjectLocked(old, nil)
 			}
@@ -406,24 +400,23 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	}
 	w.objects = make(map[objectKey]struct{}, len(objects))
 	for key, object := range objects {
-		old := r.reader.objects[key].object
-		r.reader.objects[key] = observation{object: object, source: w.key}
+		old := r.objects[key].object
+		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}
-	r.reader.mu.Unlock()
 	w.ready = true
-	r.setHealthLocked(w, nil)
-	r.enqueueSweepLocked(w.key.Namespace)
+	r.setWatchHealthLocked(w, nil)
+	r.enqueueScopeRefreshLocked(w.key.Namespace)
 	return nil
 }
-func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
-	object, err := sourceObject(value, w.gvk, w.full)
+func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted bool) error {
+	object, err := prepareWatchObject(value, w.gvk, w.full)
 	if err != nil {
-		return r.rejectSource(w, err)
+		return r.rejectWatchObject(w, err)
 	}
 	if object.GetUID() == "" || object.GetName() == "" {
-		return r.rejectSource(w, errors.New("watch object has no identity"))
+		return r.rejectWatchObject(w, errors.New("watch object has no identity"))
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -431,33 +424,34 @@ func (r *Runtime) accept(w *resourceWatch, value any, deleted bool) error {
 		return nil
 	}
 	key := keyOf(refOf(object))
-	r.reader.mu.Lock()
-	defer r.reader.mu.Unlock()
-	old := r.reader.objects[key].object
+	old := r.objects[key].object
 	if deleted {
 		if old == nil || old.GetUID() != object.GetUID() {
 			return nil
 		}
-		delete(r.reader.objects, key)
+		delete(r.objects, key)
 		delete(w.objects, key)
 		r.routeObjectLocked(old, nil)
 	} else {
-		r.reader.objects[key] = observation{object: object, source: w.key}
+		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
 		r.routeObjectLocked(old, object)
 	}
 	return nil
 }
 
-// Called with both Runtime and Reader locked. It only queues domain work.
-func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
+// Called with controllerState locked. It only queues domain work.
+func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructured) {
+	// Keep the old match so an update that leaves the selector can clean up.
+	r.enqueuePodLocked(old)
+	r.enqueuePodLocked(current)
 	object := current
 	if object == nil {
 		object = old
 	}
 	gvk := object.GroupVersionKind()
 	if gvk == namespaceGVK && r.config.NamespaceSelector != nil {
-		r.controlQueue.Add("sources")
+		r.watchSyncQueue.Add("sources")
 	}
 	ancestor := gvk != podGVK || r.ancestorPods[object.GetUID()]
 	if old != nil && gvk == podGVK {
@@ -465,14 +459,11 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 	}
 	if old != nil && (current == nil || old.GetUID() != current.GetUID()) {
 		delete(r.ancestorPods, old.GetUID())
-		oldKey := inputFor(refOf(old))
-		if gvk == podGVK {
-			r.inputQueue.Add(oldKey)
+		oldKey := objectJobFor(refOf(old))
+		if _, known := r.selectedObjectRoots[oldKey]; known {
+			r.workloadQueue.Add(workloadJobKey{SelectedObject: oldKey})
 		}
-		if _, known := r.candidates[oldKey]; known {
-			r.rootQueue.Add(rootKey{Candidate: oldKey})
-		}
-		r.fanoutRootLocked(old.GetUID())
+		r.enqueueRootAndMembersLocked(old.GetUID())
 	}
 	ownershipChanged := old == nil || current == nil || old.GetUID() != current.GetUID()
 	if !ownershipChanged {
@@ -481,32 +472,42 @@ func (r *Runtime) routeObjectLocked(old, current *unstructured.Unstructured) {
 		ownershipChanged = beforeOK != afterOK || before != after
 	}
 	if current != nil {
-		key := inputFor(refOf(current))
-		if current.GroupVersionKind() == podGVK {
-			r.inputQueue.Add(key)
-		}
-		_, admitted := r.candidates[key]
-		if !admitted || ownershipChanged {
-			if selection := r.selections[gvk.GroupKind()]; selection.Definition != nil && selection.GVK == gvk {
-				r.rootQueue.Add(rootKey{Candidate: key})
-			}
+		key := objectJobFor(refOf(current))
+		_, tracked := r.selectedObjectRoots[key]
+		if (!tracked || ownershipChanged) && r.hasSelectedDefinitionLocked(gvk) {
+			r.workloadQueue.Add(workloadJobKey{SelectedObject: key})
 		}
 		if root := r.roots[current.GetUID()]; root != nil {
-			r.rootQueue.Add(rootKey{UID: current.GetUID()})
+			r.workloadQueue.Add(workloadJobKey{RootUID: current.GetUID()})
 			for _, pod := range root.pods {
-				r.inputQueue.Add(pod)
+				r.podQueue.Add(pod)
 			}
 		}
 	}
 	selectorChanged := !r.objectSelector.Empty() && old != nil && current != nil && r.objectSelector.Matches(labelsFor(old)) != r.objectSelector.Matches(labelsFor(current))
 	if (ownershipChanged && ancestor) || selectorChanged {
-		r.enqueueSweepLocked(object.GetNamespace())
+		r.enqueueScopeRefreshLocked(object.GetNamespace())
 	}
 }
 
-func (r *Runtime) rejectSource(w *resourceWatch, err error) error {
+func (r *controllerState) rejectWatchObject(w *resourceWatch, err error) error {
+	r.setWatchHealth(w, err)
+	return err
+}
+
+func (r *controllerState) setWatchHealth(w *resourceWatch, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.setHealthLocked(w, err)
+	r.setWatchHealthLocked(w, err)
+}
+
+func (r *controllerState) recordWatchFailure(request discovery.WatchRequest, ref store.ObjectRef, err error) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.config.NamespaceSelector != nil && request.Namespace != "" && !r.scopes[request.Namespace] {
+		return discovery.ErrPending
+	}
+	r.watchFailures[request] = err
+	r.deps.Publications.SetDiscoveryFailure(ref, failureReason(err))
 	return err
 }

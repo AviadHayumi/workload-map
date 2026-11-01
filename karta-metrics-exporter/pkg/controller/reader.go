@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -26,15 +25,12 @@ import (
 )
 
 // Reader exposes the accepted shared collection caches to ownership discovery.
-// Runtime always takes its lock before Reader's lock; readers never call Runtime
-// while holding this lock.
+// Cache reads share the controller state lock; mapper reset is independent.
 type Reader struct {
-	mu              sync.RWMutex
+	*objectCache
 	clients         Clients
 	options         ReaderOptions
-	objects         map[objectKey]observation
-	sources         map[watchKey]readSource
-	ensure          func(context.Context, schema.GroupVersionKind, string, bool) (watchKey, error)
+	ensure          func(ctx context.Context, gvk schema.GroupVersionKind, namespace string, metadataOnly bool) (watchKey, error)
 	mapperMu        sync.Mutex
 	lastMapperReset time.Time
 }
@@ -48,14 +44,14 @@ type objectKey struct {
 	GVK             schema.GroupVersionKind
 	Namespace, Name string
 }
-type observation struct {
+type cachedObject struct {
 	object *unstructured.Unstructured
 	source watchKey
 }
-type readSource struct {
-	gvk          schema.GroupVersionKind
-	full, synced bool
-	err          error
+type cacheSource struct {
+	gvk                   schema.GroupVersionKind
+	hasFullObject, synced bool
+	err                   error
 }
 
 func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
@@ -68,53 +64,12 @@ func NewReader(clients Clients, options ReaderOptions) (*Reader, error) {
 	if options.RequestTimeout < 0 {
 		return nil, errors.New("request timeout must be positive")
 	}
-	return &Reader{clients: clients, options: options, objects: map[objectKey]observation{}, sources: map[watchKey]readSource{}}, nil
+	return &Reader{clients: clients, options: options, objectCache: &objectCache{objects: map[objectKey]cachedObject{}, sources: map[watchKey]cacheSource{}}}, nil
 }
 
 func (r *Reader) Cached(ref discovery.ObjectRef) (*unstructured.Unstructured, bool) {
 	object, _, err := r.read(ref, false)
 	return object, err == nil
-}
-
-func (r *Reader) read(ref discovery.ObjectRef, full bool) (*unstructured.Unstructured, watchKey, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	key := keyOf(ref)
-	entry, ok := r.objects[key]
-	if !ok && key.Namespace != "" {
-		key.Namespace = ""
-		entry, ok = r.objects[key]
-	}
-	if ok {
-		source := r.sources[entry.source]
-		if source.err != nil {
-			return nil, entry.source, source.err
-		}
-		if !source.synced || (full && !source.full) {
-			return nil, entry.source, discovery.ErrPending
-		}
-		object := entry.object
-		if ref.UID != "" && object.GetUID() != ref.UID {
-			return nil, entry.source, apierrors.NewNotFound(entry.source.Resource.GroupResource(), ref.Name)
-		}
-		if ref.ResourceVersion != "" && object.GetResourceVersion() != ref.ResourceVersion {
-			return nil, entry.source, discovery.ErrStale
-		}
-		return object, entry.source, nil
-	}
-	for sourceKey, source := range r.sources {
-		if source.gvk != ref.GVK || (sourceKey.Namespace != "" && sourceKey.Namespace != ref.Namespace) {
-			continue
-		}
-		if source.err != nil {
-			return nil, sourceKey, source.err
-		}
-		if !source.synced || (full && !source.full) {
-			return nil, sourceKey, discovery.ErrPending
-		}
-		return nil, sourceKey, apierrors.NewNotFound(sourceKey.Resource.GroupResource(), ref.Name)
-	}
-	return nil, watchKey{}, discovery.ErrPending
 }
 
 func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*metav1.PartialObjectMetadata, error) {
@@ -124,7 +79,7 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 	if r.ensure == nil {
 		return nil, discovery.ErrPending
 	}
-	if _, err := r.ensure(ctx, ref.GVK, ref.Namespace, false); err != nil {
+	if _, err := r.ensure(ctx, ref.GVK, ref.Namespace, true); err != nil {
 		return nil, err
 	}
 	object, _, err := r.read(ref, false)
@@ -138,22 +93,38 @@ func (r *Reader) GetMetadata(ctx context.Context, ref discovery.ObjectRef) (*met
 	return result, nil
 }
 
-func (r *Reader) mapping(gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
-	mapping, err := r.clients.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+func (r *Reader) read(ref discovery.ObjectRef, requireFullObject bool) (*unstructured.Unstructured, watchKey, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.readLocked(ref, requireFullObject)
+}
+
+func (r *Reader) restMapping(ctx context.Context, gvk schema.GroupVersionKind) (*meta.RESTMapping, error) {
+	requestCtx, cancel := context.WithTimeout(ctx, r.options.RequestTimeout)
+	defer cancel()
+	if err := requestCtx.Err(); err != nil {
+		return nil, err
+	}
+	mapping, err := meta.ToRESTMapperWithContext(r.clients.Mapper).RESTMappingWithContext(requestCtx, gvk.GroupKind(), gvk.Version)
 	if meta.IsNoMatchError(err) {
-		r.mapperMu.Lock()
-		if time.Since(r.lastMapperReset) >= 45*time.Second {
-			if mapper, ok := r.clients.Mapper.(meta.ResettableRESTMapper); ok {
-				mapper.Reset()
-				r.lastMapperReset = time.Now()
-			}
-		}
-		r.mapperMu.Unlock()
+		r.resetMapperIfNeeded(requestCtx)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("map %s: %w", gvk, err)
 	}
 	return mapping, nil
+}
+
+func (r *Reader) resetMapperIfNeeded(ctx context.Context) {
+	r.mapperMu.Lock()
+	defer r.mapperMu.Unlock()
+	if time.Since(r.lastMapperReset) < 45*time.Second {
+		return
+	}
+	if mapper, ok := r.clients.Mapper.(meta.ResettableRESTMapper); ok {
+		meta.ToResettableRESTMapperWithContext(mapper).ResetWithContext(ctx)
+		r.lastMapperReset = time.Now()
+	}
 }
 
 func keyOf(ref discovery.ObjectRef) objectKey {
@@ -180,33 +151,4 @@ func failureReason(err error) string {
 	default:
 		return store.ReasonAPIUnavailable
 	}
-}
-
-// An observed API alias must not let a demoted object publish as a root.
-func (r *Runtime) isRootLocked(ref discovery.ObjectRef) bool {
-	r.reader.mu.RLock()
-	defer r.reader.mu.RUnlock()
-	selected := r.selections[ref.GVK.GroupKind()]
-	if selected.Definition != nil && selected.err == nil {
-		entry := r.reader.objects[objectKey{GVK: selected.GVK, Namespace: ref.Namespace, Name: ref.Name}]
-		source := r.reader.sources[entry.source]
-		if entry.object != nil && entry.object.GetUID() == ref.UID && source.full && source.synced && source.err == nil {
-			owner, valid := discovery.ControllerOwner(entry.object)
-			return valid && (owner.UID == "" || slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK))
-		}
-	}
-	for _, source := range r.reader.sources {
-		if !source.synced || source.err != nil || source.gvk.GroupKind() != ref.GVK.GroupKind() {
-			continue
-		}
-		entry := r.reader.objects[objectKey{GVK: source.gvk, Namespace: ref.Namespace, Name: ref.Name}]
-		if entry.object == nil || entry.object.GetUID() != ref.UID {
-			continue
-		}
-		owner, valid := discovery.ControllerOwner(entry.object)
-		if !valid || (owner.UID != "" && !slices.Contains(r.config.IgnoredOwnerKinds, owner.GVK)) {
-			return false
-		}
-	}
-	return true
 }
