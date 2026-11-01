@@ -554,9 +554,21 @@ func (i *Inventory) Lookup(gvk schema.GroupVersionKind) (Selection, error) {
 // Invalid winners retain their identity and validation error. A source error
 // returns no snapshot and must not be treated as confirmed absence.
 func (i *Inventory) List() ([]SelectionResult, error) {
+	results, err := i.listSelectedDefinitions()
+	if err != nil {
+		return nil, err
+	}
+	for n := range results {
+		results[n].Selection = selection(results[n].Definition, results[n].Origin.Source)
+	}
+	slices.SortFunc(results, func(a, b SelectionResult) int { return strings.Compare(a.GVK.String(), b.GVK.String()) })
+	return results, nil
+}
+
+func (i *Inventory) listSelectedDefinitions() ([]SelectionResult, error) {
 	i.mu.RLock()
+	defer i.mu.RUnlock()
 	if err := i.ready(); err != nil {
-		i.mu.RUnlock()
 		return nil, err
 	}
 	kinds := sets.New[schema.GroupKind]()
@@ -574,11 +586,6 @@ func (i *Inventory) List() ([]SelectionResult, error) {
 		winner, source := i.electLocked(gk.WithVersion(""))
 		results = append(results, SelectionResult{Selection: Selection{Definition: winner.definition, Origin: Origin{Source: source}}, Err: winner.err})
 	}
-	i.mu.RUnlock()
-	for n := range results {
-		results[n].Selection = selection(results[n].Definition, results[n].Origin.Source)
-	}
-	slices.SortFunc(results, func(a, b SelectionResult) int { return strings.Compare(a.GVK.String(), b.GVK.String()) })
 	return results, nil
 }
 
