@@ -59,9 +59,9 @@ func (r *controllerState) syncWatches(ctx context.Context) error {
 
 // Prepare source changes under the state lock. REST mapping and watch startup run after it is released.
 func (r *controllerState) prepareWatchRequests() ([]discovery.WatchRequest, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	definitionErr := r.refreshDefinitionsLocked()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	definitionErr := r.refreshDefinitions()
 	if r.config.NamespaceSelector != nil {
 		namespaceWatchReady := false
 		admittedNamespaces := map[string]bool{}
@@ -98,7 +98,7 @@ func (r *controllerState) prepareWatchRequests() ([]discovery.WatchRequest, erro
 	// Sources encountered during traversal live for the admitted namespace's lifetime.
 	for key, w := range r.watches {
 		if key.Namespace != "" && !r.scopes[key.Namespace] {
-			r.retireWatchLocked(w)
+			r.retireWatch(w)
 			if replacement := r.replacements[key]; replacement != nil {
 				replacement.cancel()
 				delete(r.replacements, key)
@@ -131,8 +131,8 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		namespace = ""
 	}
 	key := watchKey{Resource: mapping.Resource, Namespace: namespace}
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	delete(r.watchFailures, request)
 	r.deps.Publications.RemoveDiscoveryFailure(failureRef.UID)
 	if namespace != "" && !r.scopes[namespace] {
@@ -172,15 +172,25 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		cache.NewReflectorWithOptions(listWatch, &unstructured.Unstructured{}, &reflectorStore{controller: r, watch: w}, cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace}).RunWithContext(watchCtx)
+		reflector := cache.NewReflectorWithOptions(
+			listWatch,
+			&unstructured.Unstructured{},
+			&reflectorStore{controller: r, watch: w},
+			cache.ReflectorOptions{Name: key.Resource.String() + "/" + namespace},
+		)
+		reflector.RunWithContext(watchCtx)
 	}()
 	return key, nil
 }
-func (r *controllerState) isTrackedWatchLocked(w *resourceWatch) bool {
+
+// isTrackedWatch requires the caller to hold stateMu in read or write mode.
+func (r *controllerState) isTrackedWatch(w *resourceWatch) bool {
 	return r.watches[w.key] == w || r.replacements[w.key] == w
 }
-func (r *controllerState) setWatchHealthLocked(w *resourceWatch, err error) {
-	if !r.isTrackedWatchLocked(w) {
+
+// updateWatchHealth requires the caller to hold stateMu in write mode.
+func (r *controllerState) updateWatchHealth(w *resourceWatch, err error) {
+	if !r.isTrackedWatch(w) {
 		return
 	}
 	recovered := w.err != nil && err == nil
@@ -192,7 +202,7 @@ func (r *controllerState) setWatchHealthLocked(w *resourceWatch, err error) {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
 	}
 	if recovered {
-		r.enqueueScopeRefreshLocked(w.key.Namespace)
+		r.enqueueScopeRefresh(w.key.Namespace)
 		for uid := range r.roots {
 			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 		}
@@ -201,14 +211,16 @@ func (r *controllerState) setWatchHealthLocked(w *resourceWatch, err error) {
 		r.watchSyncQueue.Add("sources")
 	}
 }
-func (r *controllerState) retireWatchLocked(w *resourceWatch) {
+
+// retireWatch requires the caller to hold stateMu in write mode.
+func (r *controllerState) retireWatch(w *resourceWatch) {
 	w.cancel()
 	delete(r.watches, w.key)
 	for key := range w.objects {
 		entry := r.objects[key]
 		if entry.object != nil && entry.source == w.key {
 			delete(r.objects, key)
-			r.routeObjectLocked(entry.object, nil)
+			r.queueObjectChange(entry.object, nil)
 		}
 	}
 	delete(r.sources, w.key)
@@ -316,13 +328,13 @@ func (r *controllerState) watchResource(ctx context.Context, w *resourceWatch, o
 }
 
 func (r *controllerState) recordWatchStart(ctx context.Context, w *resourceWatch, options metav1.ListOptions, err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	isWatchListFallback := options.SendInitialEvents != nil && *options.SendInitialEvents && apierrors.IsBadRequest(err)
 	if err == nil {
-		r.setWatchHealthLocked(w, nil)
+		r.updateWatchHealth(w, nil)
 	} else if ctx.Err() == nil && !isWatchListFallback {
-		r.setWatchHealthLocked(w, err)
+		r.updateWatchHealth(w, err)
 	}
 }
 
@@ -361,26 +373,14 @@ func (s *reflectorStore) Delete(object any) error {
 }
 func (s *reflectorStore) Resync() error { return nil }
 func (s *reflectorStore) Replace(values []any, _ string) error {
-	// Validate the complete snapshot before making absence authoritative.
-	objects := make(map[objectKey]*unstructured.Unstructured, len(values))
-	for _, value := range values {
-		object, err := prepareWatchObject(value, s.watch.gvk, s.watch.full)
-		if err != nil {
-			return s.controller.rejectWatchObject(s.watch, err)
-		}
-		if object.GetUID() == "" || object.GetName() == "" {
-			return s.controller.rejectWatchObject(s.watch, errors.New("LIST object has no identity"))
-		}
-		key := keyOf(refOf(object))
-		if _, duplicate := objects[key]; duplicate {
-			return s.controller.rejectWatchObject(s.watch, errors.New("LIST contains duplicate object names"))
-		}
-		objects[key] = object
+	objects, err := prepareWatchSnapshot(values, s.watch.gvk, s.watch.full)
+	if err != nil {
+		return s.controller.rejectWatchObject(s.watch, err)
 	}
 	r, w := s.controller, s.watch
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if !r.isTrackedWatchLocked(w) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	if !r.isTrackedWatch(w) {
 		return nil
 	}
 	if previous := r.watches[w.key]; previous != w {
@@ -394,7 +394,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 			old := r.objects[key].object
 			delete(r.objects, key)
 			if old != nil {
-				r.routeObjectLocked(old, nil)
+				r.queueObjectChange(old, nil)
 			}
 		}
 	}
@@ -403,13 +403,33 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 		old := r.objects[key].object
 		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
-		r.routeObjectLocked(old, object)
+		r.queueObjectChange(old, object)
 	}
 	w.ready = true
-	r.setWatchHealthLocked(w, nil)
-	r.enqueueScopeRefreshLocked(w.key.Namespace)
+	r.updateWatchHealth(w, nil)
+	r.enqueueScopeRefresh(w.key.Namespace)
 	return nil
 }
+func prepareWatchSnapshot(values []any, gvk schema.GroupVersionKind, full bool) (map[objectKey]*unstructured.Unstructured, error) {
+	// Validate the complete snapshot before making absence authoritative.
+	objects := make(map[objectKey]*unstructured.Unstructured, len(values))
+	for _, value := range values {
+		object, err := prepareWatchObject(value, gvk, full)
+		if err != nil {
+			return nil, err
+		}
+		if object.GetUID() == "" || object.GetName() == "" {
+			return nil, errors.New("LIST object has no identity")
+		}
+		key := keyOf(refOf(object))
+		if _, duplicate := objects[key]; duplicate {
+			return nil, errors.New("LIST contains duplicate object names")
+		}
+		objects[key] = object
+	}
+	return objects, nil
+}
+
 func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted bool) error {
 	object, err := prepareWatchObject(value, w.gvk, w.full)
 	if err != nil {
@@ -418,8 +438,8 @@ func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted b
 	if object.GetUID() == "" || object.GetName() == "" {
 		return r.rejectWatchObject(w, errors.New("watch object has no identity"))
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	if r.watches[w.key] != w {
 		return nil
 	}
@@ -431,20 +451,21 @@ func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted b
 		}
 		delete(r.objects, key)
 		delete(w.objects, key)
-		r.routeObjectLocked(old, nil)
+		r.queueObjectChange(old, nil)
 	} else {
 		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
-		r.routeObjectLocked(old, object)
+		r.queueObjectChange(old, object)
 	}
 	return nil
 }
 
-// Called with controllerState locked. It only queues domain work.
-func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructured) {
+// queueObjectChange requires stateMu in write mode.
+// It updates ancestor tracking and queues work without evaluating objects.
+func (r *controllerState) queueObjectChange(old, current *unstructured.Unstructured) {
 	// Keep the old match so an update that leaves the selector can clean up.
-	r.enqueuePodLocked(old)
-	r.enqueuePodLocked(current)
+	r.enqueuePod(old)
+	r.enqueuePod(current)
 	object := current
 	if object == nil {
 		object = old
@@ -463,7 +484,7 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 		if _, known := r.selectedObjectRoots[oldKey]; known {
 			r.workloadQueue.Add(workloadJobKey{SelectedObject: oldKey})
 		}
-		r.enqueueRootAndMembersLocked(old.GetUID())
+		r.enqueueRootAndMembers(old.GetUID())
 	}
 	ownershipChanged := old == nil || current == nil || old.GetUID() != current.GetUID()
 	if !ownershipChanged {
@@ -474,7 +495,7 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 	if current != nil {
 		key := objectJobFor(refOf(current))
 		_, tracked := r.selectedObjectRoots[key]
-		if (!tracked || ownershipChanged) && r.hasSelectedDefinitionLocked(gvk) {
+		if (!tracked || ownershipChanged) && r.hasSelectedDefinition(gvk) {
 			r.workloadQueue.Add(workloadJobKey{SelectedObject: key})
 		}
 		if root := r.roots[current.GetUID()]; root != nil {
@@ -484,9 +505,10 @@ func (r *controllerState) routeObjectLocked(old, current *unstructured.Unstructu
 			}
 		}
 	}
-	selectorChanged := !r.objectSelector.Empty() && old != nil && current != nil && r.objectSelector.Matches(labelsFor(old)) != r.objectSelector.Matches(labelsFor(current))
-	if (ownershipChanged && ancestor) || selectorChanged {
-		r.enqueueScopeRefreshLocked(object.GetNamespace())
+	objectMembershipChanged := old != nil && current != nil && r.objectSelector.Matches(labelsFor(old)) != r.objectSelector.Matches(labelsFor(current))
+	ancestorOwnershipChanged := ownershipChanged && ancestor
+	if ancestorOwnershipChanged || objectMembershipChanged {
+		r.enqueueScopeRefresh(object.GetNamespace())
 	}
 }
 
@@ -496,14 +518,14 @@ func (r *controllerState) rejectWatchObject(w *resourceWatch, err error) error {
 }
 
 func (r *controllerState) setWatchHealth(w *resourceWatch, err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.setWatchHealthLocked(w, err)
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.updateWatchHealth(w, err)
 }
 
 func (r *controllerState) recordWatchFailure(request discovery.WatchRequest, ref store.ObjectRef, err error) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	if r.config.NamespaceSelector != nil && request.Namespace != "" && !r.scopes[request.Namespace] {
 		return discovery.ErrPending
 	}

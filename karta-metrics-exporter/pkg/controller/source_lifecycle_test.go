@@ -75,17 +75,17 @@ func TestSourcePromotionWaitsForFullSnapshotAndRetiresMetadata(t *testing.T) {
 		close(release)
 		t.Fatal("standby LIST did not start")
 	}
-	r.state.mu.Lock()
+	r.state.stateMu.Lock()
 	require.Same(t, old, r.state.watches[key])
 	require.NotNil(t, r.state.replacements[key])
-	r.state.mu.Unlock()
+	r.state.stateMu.Unlock()
 	require.False(t, values.Capture().Sources[key].Synced)
 	_, _, err = r.state.reader.read(refOf(root), true)
 	require.ErrorIs(t, err, discovery.ErrPending)
 	close(release)
 	require.Eventually(t, func() bool {
-		r.state.mu.Lock()
-		defer r.state.mu.Unlock()
+		r.state.stateMu.Lock()
+		defer r.state.stateMu.Unlock()
 		return r.state.watches[key] != old && r.state.watches[key].ready && r.state.replacements[key] == nil
 	}, 2*time.Second, time.Millisecond)
 	full, _, err := r.state.reader.read(refOf(root), true)
@@ -97,10 +97,10 @@ func TestSourcePromotionWaitsForFullSnapshotAndRetiresMetadata(t *testing.T) {
 	full, _, err = r.state.reader.read(refOf(root), true)
 	require.NoError(t, err)
 	require.NotNil(t, full)
-	r.state.mu.Lock()
+	r.state.stateMu.Lock()
 	require.Len(t, r.state.watches, 2)
 	require.Empty(t, r.state.replacements)
-	r.state.mu.Unlock()
+	r.state.stateMu.Unlock()
 }
 
 type recordingMapper struct {
@@ -293,9 +293,9 @@ func TestReadinessUsesInitialSynchronizationAndRequiredSourceErrors(t *testing.T
 	pods := seedSource(t, r, podGVK, true)
 	supplemental := seedSource(t, r, deploymentKind, true)
 	require.True(t, r.Ready())
-	r.state.mu.Lock()
-	r.state.setWatchHealthLocked(supplemental, errors.New("unavailable"))
-	r.state.mu.Unlock()
+	r.state.stateMu.Lock()
+	r.state.updateWatchHealth(supplemental, errors.New("unavailable"))
+	r.state.stateMu.Unlock()
 	require.True(t, r.Ready())
 	r.state.config.RequiredKinds = []schema.GroupVersionKind{deploymentKind}
 	require.False(t, r.Ready())
@@ -760,8 +760,8 @@ func TestPrepareWatchRequestsWaitsForHealthyNamespaces(t *testing.T) {
 			require.Nil(t, requests)
 			require.Equal(t, map[string]bool{"previous": true}, r.state.scopes)
 			require.Same(t, inventoryError, r.state.definitionInventoryErr)
-			require.True(t, r.state.mu.TryLock(), "preparation must release the lock on pending")
-			r.state.mu.Unlock()
+			require.True(t, r.state.stateMu.TryLock(), "preparation must release the lock on pending")
+			r.state.stateMu.Unlock()
 		})
 	}
 }
@@ -774,8 +774,8 @@ func TestPrepareWatchRequestsKeepsRequiredKindsOnInventoryFailure(t *testing.T) 
 	requests, err := r.state.prepareWatchRequests()
 	require.Same(t, inventoryError, err)
 	require.ElementsMatch(t, []discovery.WatchRequest{{GVK: podGVK}, {GVK: deploymentKind}}, requests)
-	require.True(t, r.state.mu.TryLock(), "watch startup must run outside the preparation lock")
-	r.state.mu.Unlock()
+	require.True(t, r.state.stateMu.TryLock(), "watch startup must run outside the preparation lock")
+	r.state.stateMu.Unlock()
 }
 
 func TestRecordWatchStartHealth(t *testing.T) {
@@ -810,6 +810,46 @@ func TestRecordWatchStartHealth(t *testing.T) {
 				want = previousError
 			}
 			require.Equal(t, want, w.err)
+		})
+	}
+}
+
+func TestPrepareWatchSnapshotValidatesBeforeAcceptance(t *testing.T) {
+	object := simpleObject(podGVK, "pod")
+	object.Object["spec"] = map[string]any{"nodeName": "example-node"}
+	missingUID := object.DeepCopy()
+	missingUID.SetUID("")
+	missingName := object.DeepCopy()
+	missingName.SetName("")
+	for _, tc := range []struct {
+		name   string
+		values []any
+		err    string
+	}{
+		{name: "empty"},
+		{name: "valid", values: []any{object}},
+		{name: "conversion failure", values: []any{object, &metav1.Status{}}, err: "unexpected source object *v1.Status"},
+		{name: "missing UID", values: []any{missingUID}, err: "LIST object has no identity"},
+		{name: "missing name", values: []any{missingName}, err: "LIST object has no identity"},
+		{name: "duplicate", values: []any{object, object.DeepCopy()}, err: "LIST contains duplicate object names"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			objects, err := prepareWatchSnapshot(tc.values, podGVK, false)
+			if tc.err != "" {
+				require.EqualError(t, err, tc.err)
+				require.Nil(t, objects, "invalid snapshots cannot become authoritative")
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, objects)
+			require.Len(t, objects, len(tc.values))
+			if len(tc.values) > 0 {
+				prepared := objects[keyOf(refOf(object))]
+				require.NotSame(t, object, prepared)
+				require.NotContains(t, prepared.Object, "spec")
+				require.Contains(t, object.Object, "spec")
+				require.Equal(t, object.GetResourceVersion(), prepared.GetResourceVersion())
+			}
 		})
 	}
 }
