@@ -2,16 +2,19 @@
   "uid": "karta-structure-activity",
   "title": "Karta Workload Structure",
   "schemaVersion": 41,
-  "version": 3,
+  "version": 7,
   "editable": true,
   "tags": [
+    "gpu",
     "karta",
+    "restored-layout",
+    "simulated-gpu",
     "structure"
   ],
   "timezone": "browser",
   "refresh": "30s",
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "graphTooltip": 1,
@@ -89,7 +92,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "# Workload -> Components -> Pods\nChoose a namespace and workload. The graph uses verified Pod attribution. Gray workload nodes do not indicate GPU inactivity; the separate activity observer is not installed."
+        "content": "### Workload structure and GPU activity\nSolid edges show Karta component attribution. Dashed edges show replica-group membership. GPU readings are simulated; requested GPUs are not verified physical allocations.\n\nActivity states require the separate GPU observer. Round panels require the old round simulator. Unavailable means those metrics are absent. The current generator creates workloads independently."
       }
     },
     {
@@ -98,15 +101,15 @@
       "title": "Karta attribution structure",
       "gridPos": {
         "x": 0,
-        "y": 4,
-        "w": 24,
-        "h": 22
+        "y": 8,
+        "w": 16,
+        "h": 17
       },
       "datasource": {
         "type": "prometheus",
         "uid": "karta-prometheus"
       },
-      "description": "Live projection of Karta attribution metrics, not the full desired library tree or Kubernetes ownerReferences. Solid edges show component/instance attribution; dashed edges show the separate logical replica-group axis. Pod nodes are unique by namespace and Pod UID. workload nodes persist with zero mapped Pods. Missing children are not invented. Counts show mapped Pods, not desired replicas. workload color is workload-level GPU activity evidence only.",
+      "description": "Live projection of Karta attribution metrics, not the full desired library tree or Kubernetes ownerReferences. Solid edges show component/instance attribution; dashed edges show the separate logical replica-group axis. Pod nodes are unique by namespace and Pod UID. workload nodes persist with zero mapped Pods. Missing children are not invented. Counts show mapped Pods, not desired replicas. workload color is workload-level GPU activity evidence only.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
       "targets": [
         {
           "refId": "nodes",
@@ -164,8 +167,1292 @@
         "zoomMode": "cooperative",
         "layoutAlgorithm": "layered"
       }
+    },
+    {
+      "id": 3,
+      "title": "Measured GPU activity",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Direct workload-level observer state. Low activity requires complete UID-proven coverage of all assigned GPU devices for the configured window; it is not application idleness or reclaimable capacity. This separate observer covers karta-metrics-workloads only; other namespaces have no GPU telemetry and no inferred no-GPU decision.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"$namespace\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Active",
+                  "color": "#73bf69"
+                },
+                "2": {
+                  "text": "Low GPU activity",
+                  "color": "#5794f2"
+                },
+                "3": {
+                  "text": "Warming",
+                  "color": "#f2cc0c"
+                },
+                "4": {
+                  "text": "Unknown",
+                  "color": "#8e8e8e"
+                },
+                "5": {
+                  "text": "No GPUs",
+                  "color": "#a3a3a3"
+                },
+                "6": {
+                  "text": "No GPU telemetry",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73bf69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "low_activity"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Low GPU activity"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794f2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warming"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Warming"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#f2cc0c"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Unknown"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "no_gpu"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "No GPUs"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Simulated GPU utilization (max available)",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Fake GPU telemetry, not physical GPU work or proof of application activity. exported_namespace and exported_pod are normalized before the Pod-name join. Name reuse remains a limitation.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(max by(namespace,workload,workload_uid) (max by(namespace,pod,UUID) (label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{exported_namespace=~\"$namespace\",exported_pod!=\"\"},\"namespace\",\"$1\",\"exported_namespace\",\"(.+)\"),\"pod\",\"$1\",\"exported_pod\",\"(.+)\")) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"}))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{workload}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [],
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Low evidence",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Continuous valid low-activity evidence. Active values reset this timer; no inference is made from workload age. N/A requires a fresh observed No GPUs state; missing telemetry stays Unknown.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(min(workload_gpu_observer_low_activity_observation_seconds{namespace=\"$namespace\",workload_uid=\"$workload_uid\"} and (time() - timestamp(workload_gpu_observer_low_activity_observation_seconds{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() (-1 * (max(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "N/A",
+                  "color": "#a3a3a3"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Requested GPUs",
+      "type": "stat",
+      "gridPos": {
+        "x": 20,
+        "y": 16,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Kubernetes GPU requests for Running Pods, joined to valid Karta attribution. Devices in this cluster are simulated. This is requested capacity, not measured physical allocation.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by(namespace,pod,container) (kube_pod_container_resource_requests{namespace=~\"$namespace\",resource=\"nvidia_com_gpu\"}) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"} * on(namespace,pod) group_left() (max by(namespace,pod) (kube_pod_status_phase{namespace=~\"$namespace\",phase=\"Running\"}) == 1))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{workload}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [],
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Window",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 20,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Configured continuous low-activity evidence window.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(workload_gpu_observer_window_seconds)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Threshold",
+      "type": "stat",
+      "gridPos": {
+        "x": 20,
+        "y": 20,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Every assigned device must remain at or below this utilization threshold throughout the required window.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(workload_gpu_observer_threshold_ratio)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Measured activity over time",
+      "type": "state-timeline",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Measured classifier states rendered as discrete values. Unknown means the observer target is down, the sample is older than 45s, or telemetry is absent. Simulator intentions are separate. No GPU is distinct from low activity.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"$namespace\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "legendFormat": "Measured activity"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Active",
+                  "color": "#73bf69"
+                },
+                "2": {
+                  "text": "Low GPU activity",
+                  "color": "#5794f2"
+                },
+                "3": {
+                  "text": "Warming",
+                  "color": "#f2cc0c"
+                },
+                "4": {
+                  "text": "Unknown",
+                  "color": "#8e8e8e"
+                },
+                "5": {
+                  "text": "No GPUs",
+                  "color": "#a3a3a3"
+                },
+                "6": {
+                  "text": "No GPU telemetry",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "spanNulls": false,
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^active / "
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Active",
+                        "color": "#73bf69"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^low_activity / "
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Low GPU activity",
+                        "color": "#5794f2"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^warming / "
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Warming",
+                        "color": "#f2cc0c"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^unknown / "
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Unknown",
+                        "color": "#8e8e8e"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^no_gpu / "
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "No GPU",
+                        "color": "#a3a3a3"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Simulated maximum GPU utilization",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Fake GPU telemetry, not physical GPU work or proof of application activity. exported_namespace and exported_pod are normalized before the Pod-name join. Name reuse remains a limitation.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(namespace,workload,workload_uid) (max by(namespace,pod,UUID) (label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{exported_namespace=~\"$namespace\",exported_pod!=\"\"},\"namespace\",\"$1\",\"exported_namespace\",\"(.+)\"),\"pod\",\"$1\",\"exported_pod\",\"(.+)\")) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"})",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{workload}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false
+          },
+          "mappings": [],
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Evidence reason",
+      "type": "table",
+      "gridPos": {
+        "x": 16,
+        "y": 43,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Bounded classifier reason explaining warming, missing evidence, or no assigned GPUs.\n\nOptional input: GPU observer. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(state,reason)(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() label_replace(label_replace(vector(1),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Simulator intention",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 8,
+        "h": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Desired scenario from the randomizer ConfigMap, never measured classification. Quiet targets 0-3%; active targets 60-95%. A partially applied round is not proof that every Pod changed.\n\nOptional input: round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max(workload_gpu_demo_intent_info{namespace=\"$namespace\",workload_uid=\"$workload_uid\",scenario=\"quiet\"} or (2 * workload_gpu_demo_intent_info{namespace=\"$namespace\",workload_uid=\"$workload_uid\",scenario=\"active\"})) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on() (4 * ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or vector(3)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Quiet scenario",
+                  "color": "#5794f2"
+                },
+                "2": {
+                  "text": "Active scenario",
+                  "color": "#73bf69"
+                },
+                "3": {
+                  "text": "Unknown",
+                  "color": "#8e8e8e"
+                },
+                "4": {
+                  "text": "Not in round",
+                  "color": "#a3a3a3"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 13,
+      "title": "Round progress",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 5,
+        "w": 8,
+        "h": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Progress of the current ten-minute demo round. The measured low-activity timer is separate.\n\nOptional input: round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "clamp((time() - max(workload_gpu_demo_round_started_timestamp_seconds{namespace=\"$namespace\"})) / (max(workload_gpu_demo_round_ends_timestamp_seconds{namespace=\"$namespace\"}) - max(workload_gpu_demo_round_started_timestamp_seconds{namespace=\"$namespace\"})),0,1) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 14,
+      "title": "Round application",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Randomizer application status from its ConfigMap. This is control intent, not GPU evidence.\n\nOptional input: round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max(workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"applied\"} or (2 * workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"applying\"}) or (3 * workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"partial\"})) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or vector(4)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Applied",
+                  "color": "#a3a3a3"
+                },
+                "2": {
+                  "text": "Applying",
+                  "color": "#f2cc0c"
+                },
+                "3": {
+                  "text": "Partial",
+                  "color": "#f2cc0c"
+                },
+                "4": {
+                  "text": "Unknown",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 15,
+      "title": "Simulator assignment details",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Selected workload assignment status and bounded application reason, separate from measured activity. Blocked means the intended cohort could not be safely applied.\n\nOptional input: round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(round_id,scenario,status,reason)(workload_gpu_demo_assignment_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "title": "Workloads in this simulation round",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 20,
+        "h": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Only UIDs present in the current valid simulation round. Intention is separate from measured state. Missing utilization is Unknown. Click a workload name to select its exact UID.\n\nOptional input: GPU observer and round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) or label_replace(((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) unless on(namespace,workload_uid) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))),\"workload\",\"$1\",\"workload_uid\",\"(.*)\")) * on(namespace,workload_uid) group_left() (max by(namespace,workload_uid)(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (((((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) or label_replace(((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) unless on(namespace,workload_uid) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))),\"workload\",\"$1\",\"workload_uid\",\"(.*)\")) unless on(namespace,workload_uid) (max by(namespace,workload_uid)(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * (0/0))",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unknown",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "workload_uid"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workload"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open structure",
+                    "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=$namespace&var-workload_uid=${__data.fields.workload_uid}",
+                    "targetBlank": false
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Measured state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "text": "Active",
+                        "color": "#73bf69"
+                      },
+                      "low_activity": {
+                        "text": "Low GPU activity",
+                        "color": "#5794f2"
+                      },
+                      "warming": {
+                        "text": "Warming",
+                        "color": "#f2cc0c"
+                      },
+                      "unknown": {
+                        "text": "Unknown",
+                        "color": "#8e8e8e"
+                      },
+                      "no_gpu": {
+                        "text": "No GPUs",
+                        "color": "#a3a3a3"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Intention"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU max"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Evidence reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Measured state",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "workload",
+                "workload_kind",
+                "scenario",
+                "state",
+                "reason",
+                "workload_uid",
+                "Value"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "workload": 0,
+              "workload_kind": 1,
+              "scenario": 2,
+              "state": 3,
+              "Value": 4,
+              "reason": 5,
+              "workload_uid": 6
+            },
+            "renameByName": {
+              "workload": "Workload",
+              "workload_kind": "Kind",
+              "scenario": "Intention",
+              "state": "Measured state",
+              "Value": "GPU max",
+              "reason": "Evidence reason"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Metadata",
+      "type": "stat",
+      "gridPos": {
+        "x": 20,
+        "y": 25,
+        "w": 4,
+        "h": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Availability of current round metadata. Zero is explicitly unavailable metadata, not a workload or GPU measurement.\n\nOptional input: round simulator. These components are not installed in this demo. Missing telemetry is unavailable, not zero or idle.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1) or vector(0)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#a3a3a3"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Available",
+                  "color": "#a3a3a3"
+                },
+                "0": {
+                  "text": "Unavailable",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value",
+        "text": {
+          "valueSize": 22
+        }
+      }
+    },
+    {
+      "id": 9900,
+      "type": "row",
+      "title": "METRICS & PROMQL / expand to read and copy every panel query",
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 9901,
+          "type": "text",
+          "title": "Metrics and exact PromQL",
+          "gridPos": {
+            "x": 0,
+            "y": 59,
+            "w": 24,
+            "h": 22
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "Queries used by this dashboard. Optional observer and round-simulator metrics may be absent.\n\n### Karta attribution structure / nodes\n\n```promql\nlabel_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\"),\"color\",\"#73bf69\",\"state\",\"active\"),\"color\",\"#5794f2\",\"state\",\"low_activity\"),\"color\",\"#f2cc0c\",\"state\",\"warming\"),\"color\",\"#8e8e8e\",\"state\",\"unknown\"),\"color\",\"#8e8e8e\",\"state\",\"no_gpu\"),\"detail__activity_reason\",\"$1\",\"reason\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"id\",\"component|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Component\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"id\",\"instance|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component_instance\",\"(.*)\"),\"subtitle\",\"Component Instance\",\"\",\".*\"),\"mainstat\",\"Instance\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#b877d9\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"id\",\"replica-group|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"replica_group_id\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Replica Group\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#a3a3a3\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"id\",\"|\",\"namespace\",\"pod_uid\"),\"id\",\"pod|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"pod\",\"(.*)\"),\"subtitle\",\"Pod\",\"\",\".*\"),\"mainstat\",\"Pod\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#56b9c8\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\")\n```\n\n### Karta attribution structure / edges\n\n```promql\nlabel_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"target\",\"component|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"target\",\"instance|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component-instance containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component-instance containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"source\",\"instance|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"detail__relationship\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"target\",\"replica-group|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica group\",\"\",\".*\"),\"detail__relationship\",\"Logical replica group\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"source\",\"replica-group|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica-group membership\",\"\",\".*\"),\"detail__relationship\",\"Logical replica-group membership\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\")\n```\n\n### Measured GPU activity / A\n\n```promql\nsum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"$namespace\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)\n```\n\n### Simulated GPU utilization (max available) / A\n\n```promql\nmax(max by(namespace,workload,workload_uid) (max by(namespace,pod,UUID) (label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{exported_namespace=~\"$namespace\",exported_pod!=\"\"},\"namespace\",\"$1\",\"exported_namespace\",\"(.+)\"),\"pod\",\"$1\",\"exported_pod\",\"(.+)\")) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"}))\n```\n\n### Low evidence / A\n\n```promql\n(min(workload_gpu_observer_low_activity_observation_seconds{namespace=\"$namespace\",workload_uid=\"$workload_uid\"} and (time() - timestamp(workload_gpu_observer_low_activity_observation_seconds{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() (-1 * (max(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))))\n```\n\n### Requested GPUs / A\n\n```promql\nsum(max by(namespace,pod,container) (kube_pod_container_resource_requests{namespace=~\"$namespace\",resource=\"nvidia_com_gpu\"}) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"} * on(namespace,pod) group_left() (max by(namespace,pod) (kube_pod_status_phase{namespace=~\"$namespace\",phase=\"Running\"}) == 1))\n```\n\n### Window / A\n\n```promql\nmax(workload_gpu_observer_window_seconds)\n```\n\n### Threshold / A\n\n```promql\nmax(workload_gpu_observer_threshold_ratio)\n```\n\n### Measured activity over time / A\n\n```promql\nsum((1 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"active\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (2 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"low_activity\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (3 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"warming\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (4 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"unknown\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (5 * (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\",state=\"no_gpu\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)))) or on() (label_replace(vector(6),\"namespace\",\"$namespace\",\"\",\".*\") unless on(namespace) label_replace(vector(1),\"namespace\",\"karta-metrics-workloads\",\"\",\".*\")) or on() vector(4)\n```\n\n### Simulated maximum GPU utilization / A\n\n```promql\nmax by(namespace,workload,workload_uid) (max by(namespace,pod,UUID) (label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{exported_namespace=~\"$namespace\",exported_pod!=\"\"},\"namespace\",\"$1\",\"exported_namespace\",\"(.+)\"),\"pod\",\"$1\",\"exported_pod\",\"(.+)\")) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload_uid=\"$workload_uid\"})\n```\n\n### Evidence reason / A\n\n```promql\nmax by(state,reason)(max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1)) or on() label_replace(label_replace(vector(1),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")\n```\n\n### Simulator intention / A\n\n```promql\n(max(workload_gpu_demo_intent_info{namespace=\"$namespace\",workload_uid=\"$workload_uid\",scenario=\"quiet\"} or (2 * workload_gpu_demo_intent_info{namespace=\"$namespace\",workload_uid=\"$workload_uid\",scenario=\"active\"})) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or on() (4 * ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or vector(3)\n```\n\n### Round progress / A\n\n```promql\nclamp((time() - max(workload_gpu_demo_round_started_timestamp_seconds{namespace=\"$namespace\"})) / (max(workload_gpu_demo_round_ends_timestamp_seconds{namespace=\"$namespace\"}) - max(workload_gpu_demo_round_started_timestamp_seconds{namespace=\"$namespace\"})),0,1) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))\n```\n\n### Round application / A\n\n```promql\n(max(workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"applied\"} or (2 * workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"applying\"}) or (3 * workload_gpu_demo_round_status{namespace=\"$namespace\",status=\"partial\"})) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or vector(4)\n```\n\n### Simulator assignment details / A\n\n```promql\nmax by(round_id,scenario,status,reason)(workload_gpu_demo_assignment_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))\n```\n\n### Workloads in this simulation round / A\n\n```promql\n((((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) or label_replace(((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) unless on(namespace,workload_uid) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))),\"workload\",\"$1\",\"workload_uid\",\"(.*)\")) * on(namespace,workload_uid) group_left() (max by(namespace,workload_uid)(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or (((((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) or label_replace(((((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) or label_replace(label_replace(((max by(namespace,workload_uid,scenario,round_id)(workload_gpu_demo_intent_info{namespace=\"$namespace\"}) and on() ((max(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time() - timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) == 1) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid!=\"\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"state\",\"unknown\",\"\",\".*\"),\"reason\",\"no_fresh_observer_telemetry\",\"\",\".*\")) unless on(namespace,workload_uid) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))),\"workload\",\"$1\",\"workload_uid\",\"(.*)\")) unless on(namespace,workload_uid) (max by(namespace,workload_uid)(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_observer_utilization_max_ratio{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))) * (0/0))\n```\n\n### Metadata / A\n\n```promql\nmax(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"} and (time()-timestamp(workload_gpu_demo_metadata_healthy{namespace=\"$namespace\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1) or vector(0)\n```"
+          }
+        }
+      ]
     }
   ],
-  "id": null,
-  "description": "Verified workload, component, instance, replica group and Pod attribution. No GPU activity inference."
+  "id": null
 }
