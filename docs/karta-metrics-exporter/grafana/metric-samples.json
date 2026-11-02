@@ -1,0 +1,244 @@
+{
+  "uid": "karta-metric-samples",
+  "title": "Karta Metric Samples",
+  "schemaVersion": 41,
+  "version": 3,
+  "editable": false,
+  "tags": [
+    "karta",
+    "metrics"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "description": "Current exporter metric names and original label values from Prometheus.",
+  "links": [
+    {
+      "title": "Workload overview",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc",
+      "includeVars": true,
+      "keepTime": true
+    },
+    {
+      "title": "Full-size samples",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-metric-samples/karta-metric-samples?viewPanel=2",
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "metric",
+        "label": "Metric",
+        "type": "custom",
+        "query": "karta_pod_workload_info,karta_workload_status,karta_workload_created_timestamp_seconds,karta_exporter_observation_valid",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "karta_pod_workload_info",
+          "value": "karta_pod_workload_info"
+        },
+        "options": [
+          {
+            "text": "karta_pod_workload_info",
+            "value": "karta_pod_workload_info",
+            "selected": true
+          },
+          {
+            "text": "karta_workload_status",
+            "value": "karta_workload_status",
+            "selected": false
+          },
+          {
+            "text": "karta_workload_created_timestamp_seconds",
+            "value": "karta_workload_created_timestamp_seconds",
+            "selected": false
+          },
+          {
+            "text": "karta_exporter_observation_valid",
+            "value": "karta_exporter_observation_valid",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "# Current exporter samples\nActual exporter metric names, labels and values. Workload and Pod identity use `workload_name` and `pod_name`. Check `observation_valid` before treating attribution or status as verified."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "${metric} / labels and values",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 16
+      },
+      "description": "Original labels and values from a Prometheus instant query. Native DCGM metrics are filtered by Karta Pod UID membership when a workload is selected; their values and labels are preserved. Exporter replicas appear separately. Inspect > Data exports all labels. Time is query evaluation time, not original collection time.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "${metric:raw}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "workload"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 270
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "namespace"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pod"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 350
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UUID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 310
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pod_uid"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 310
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "workload": 0,
+              "namespace": 1,
+              "Value": 2,
+              "pod": 3,
+              "UUID": 4,
+              "pod_uid": 5,
+              "component": 6,
+              "component_instance": 7,
+              "state": 8,
+              "phase": 9,
+              "workload_uid": 10,
+              "gpu": 11,
+              "Time": 99
+            },
+            "excludeByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "enablePagination": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "text",
+      "title": "Reading these samples",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Prometheus adds target labels such as job and instance. A workload phase and observation validity answer different questions: application state versus whether the exporter could verify that observation."
+      }
+    }
+  ],
+  "id": null
+}

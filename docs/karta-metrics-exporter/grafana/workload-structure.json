@@ -1,0 +1,171 @@
+{
+  "uid": "karta-structure-activity",
+  "title": "Karta Workload Structure",
+  "schemaVersion": 41,
+  "version": 3,
+  "editable": true,
+  "tags": [
+    "karta",
+    "structure"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "graphTooltip": 1,
+  "links": [
+    {
+      "title": "Metric samples",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-metric-samples/karta-metric-samples",
+      "targetBlank": false,
+      "includeVars": true,
+      "keepTime": true
+    },
+    {
+      "title": "Resource overview",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc",
+      "targetBlank": false
+    },
+    {
+      "title": "Metrics & PromQL",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-structure-activity/_?viewPanel=9901",
+      "targetBlank": false,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "label_values(karta_demo:observation_healthy{scope=\"workload\"}, namespace)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "karta-metrics-workloads",
+          "value": "karta-metrics-workloads"
+        }
+      },
+      {
+        "name": "workload_uid",
+        "label": "Workload (UID)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "query_result(label_join((group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid!=\"\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid!=\"\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))),\"display\",\" / \",\"workload_kind\",\"workload\"))",
+        "regex": "/display=\"(?<text>[^\"]+)\".*workload_uid=\"(?<value>[^\"]+)\"/",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "# Workload -> Components -> Pods\nChoose a namespace and workload. The graph uses verified Pod attribution. Gray workload nodes do not indicate GPU inactivity; the separate activity observer is not installed."
+      }
+    },
+    {
+      "id": 2,
+      "type": "nodeGraph",
+      "title": "Karta attribution structure",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 22
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "Live projection of Karta attribution metrics, not the full desired library tree or Kubernetes ownerReferences. Solid edges show component/instance attribution; dashed edges show the separate logical replica-group axis. Pod nodes are unique by namespace and Pod UID. workload nodes persist with zero mapped Pods. Missing children are not invented. Counts show mapped Pods, not desired replicas. workload color is workload-level GPU activity evidence only.",
+      "targets": [
+        {
+          "refId": "nodes",
+          "expr": "label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) * on(namespace,workload_uid) group_left(state,reason) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\"),\"color\",\"#73bf69\",\"state\",\"active\"),\"color\",\"#5794f2\",\"state\",\"low_activity\"),\"color\",\"#f2cc0c\",\"state\",\"warming\"),\"color\",\"#8e8e8e\",\"state\",\"unknown\"),\"color\",\"#8e8e8e\",\"state\",\"no_gpu\"),\"detail__activity_reason\",\"$1\",\"reason\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join((((sum by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=\"$namespace\",workload_uid=\"$workload_uid\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) unless on(namespace,workload_uid) (max by(namespace,workload_uid,state,reason)((workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"} == 1) and (time() - timestamp(workload_gpu_observer_state{namespace=\"$namespace\",workload_uid=\"$workload_uid\",source=\"synthetic\"}) < 45)) and on() (max(up{job=\"karta-workload-gpu-observer\"}) == 1))),\"id\",\"|\",\"namespace\",\"workload_uid\"),\"id\",\"workload|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"workload\",\"(.*)\"),\"subtitle\",\"$1\",\"workload_kind\",\"(.*)\"),\"mainstat\",\"Workload\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"id\",\"component|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Component\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"id\",\"instance|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"component_instance\",\"(.*)\"),\"subtitle\",\"Component Instance\",\"\",\".*\"),\"mainstat\",\"Instance\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#b877d9\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"id\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"id\",\"replica-group|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"replica_group_id\",\"(.*)\"),\"subtitle\",\"\",\"\",\".*\"),\"mainstat\",\"Replica Group\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#a3a3a3\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\") or label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\"},\"id\",\"|\",\"namespace\",\"pod_uid\"),\"id\",\"pod|$1\",\"id\",\"(.*)\"),\"title\",\"$1\",\"pod\",\"(.*)\"),\"subtitle\",\"Pod\",\"\",\".*\"),\"mainstat\",\"Pod\",\"\",\".*\"),\"nodeRadius\",\"50\",\"\",\".*\"),\"color\",\"#56b9c8\",\"\",\".*\"),\"detail__namespace\",\"$1\",\"namespace\",\"(.+)\"),\"detail__workload_uid\",\"$1\",\"workload_uid\",\"(.+)\"),\"detail__component\",\"$1\",\"component\",\"(.+)\"),\"detail__component_instance\",\"$1\",\"component_instance\",\"(.+)\"),\"detail__replica_group_id\",\"$1\",\"replica_group_id\",\"(.+)\"),\"detail__pod_uid\",\"$1\",\"pod_uid\",\"(.+)\"),\"detail__pod\",\"$1\",\"pod\",\"(.+)\")",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "edges",
+          "expr": "label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"target\",\"component|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"target\",\"instance|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta component-instance containment\",\"\",\".*\"),\"detail__relationship\",\"Karta component-instance containment\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance!=\"\",component_instance!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\",\"component_instance\"),\"source\",\"instance|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component!=\"\",component!=\"<unknown>\",component_instance=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"component\"),\"source\",\"component|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta Pod attribution\",\"\",\".*\"),\"detail__relationship\",\"Karta Pod attribution\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",component=~\"|<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"detail__relationship\",\"Karta attribution; component unavailable\",\"\",\".*\"),\"color\",\"#5794f2\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(count by(namespace,workload_uid,replica_group_id)(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"}),\"source\",\"|\",\"namespace\",\"workload_uid\"),\"source\",\"workload|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"target\",\"replica-group|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica group\",\"\",\".*\"),\"detail__relationship\",\"Logical replica group\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\") or label_replace(label_replace(label_replace(label_replace(label_join(label_replace(label_join(label_replace(label_join(karta:pod_attribution:unique{namespace=\"$namespace\",workload_uid=\"$workload_uid\",replica_group_id!=\"\",replica_group_id!=\"<unknown>\"},\"source\",\"|\",\"namespace\",\"workload_uid\",\"replica_group_id\"),\"source\",\"replica-group|$1\",\"source\",\"(.*)\"),\"target\",\"|\",\"namespace\",\"pod_uid\"),\"target\",\"pod|$1\",\"target\",\"(.*)\"),\"id\",\" -> \",\"source\",\"target\"),\"mainstat\",\"Logical replica-group membership\",\"\",\".*\"),\"detail__relationship\",\"Logical replica-group membership\",\"\",\".*\"),\"color\",\"#8e8e8e\",\"\",\".*\"),\"strokeDasharray\",\"5,4\",\"\",\".*\")",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(id|title|subtitle|mainstat|source|target|color|strokeDasharray|nodeRadius|detail__.*|Value)$"
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^Value$",
+            "renamePattern": "secondarystat"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "nodeRadius",
+                "destinationType": "number"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "nodes": {
+          "mainStatUnit": "none",
+          "secondaryStatUnit": "suffix:mapped Pods"
+        },
+        "edges": {},
+        "zoomMode": "cooperative",
+        "layoutAlgorithm": "layered"
+      }
+    }
+  ],
+  "id": null,
+  "description": "Verified workload, component, instance, replica group and Pod attribution. No GPU activity inference."
+}

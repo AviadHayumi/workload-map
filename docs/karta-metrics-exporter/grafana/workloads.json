@@ -1,0 +1,1972 @@
+{
+  "uid": "karta-workload-overview",
+  "title": "Karta Workloads",
+  "schemaVersion": 41,
+  "version": 6,
+  "editable": true,
+  "tags": [
+    "karta",
+    "workloads",
+    "simulated-gpu"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "description": "",
+      "transparent": false,
+      "options": {
+        "mode": "markdown",
+        "content": "# Karta Workloads\nLive workload identity, status, CPU and memory from the current exporter. Open a workload to inspect its Components and Pods. GPU readings on this cluster are simulated. GPU utilization alone does not establish application idleness.\n\nThis layout was restored from the saved playground. `karta_demo:*` rules adapt the old labels; exporter metrics remain unchanged."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Workloads",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Distinct observed workload UIDs, including workloads with zero currently attributed Pods. Namespace and workload filters apply; component filters do not. Deleted workloads disappear from current inventory after exporter reconciliation and Prometheus staleness.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pods",
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Unique current Pod attributions after exporter replica deduplication and conflict rejection. Workload-level scope; component filters do not apply.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Workload health",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Healthy described workload lifetimes divided by all described workload lifetimes for the selected namespace/workload. Includes workloads with zero Pods. Unknown if an exporter target is down. This is observation health, not workload readiness. Workload-level scope; component filters do not apply.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"})) / count(min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}))) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1)",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "CPU",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Total measured container CPU for selected attributed Pods. CPU fixtures may intentionally sleep; low activity is expected. Displayed in millicores: 1000 mCPU = one CPU core. Workload-level scope; component filters do not apply.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1000 * sum(sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:mCPU",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Memory",
+      "gridPos": {
+        "x": 8,
+        "y": 7,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Total observed container working set for selected attributed Pods. Workload-level scope; component filters do not apply.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Scrape health",
+      "gridPos": {
+        "x": 16,
+        "y": 7,
+        "w": 8,
+        "h": 3
+      },
+      "description": "Fraction of discovered exporter targets whose latest scrape succeeded. Independent of namespace/workload filters; does not assert expected target discovery completeness.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(up{job=~\"karta-(exporter|finite-exporter)\"})",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 201,
+      "type": "row",
+      "title": "WORKLOADS / all components combined",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 202,
+      "type": "bargauge",
+      "title": "Top 8 workloads by CPU",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Measured container resources summed across all attributed components of each workload UID. Component filters do not apply. Top eight can change over time; absence is not zero. Click to inspect the exact workload UID.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1000 * topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:mCPU",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 2,
+          "links": [
+            {
+              "title": "Open workload structure",
+              "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__field.labels.namespace}&var-workload_uid=${__field.labels.workload_uid}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 203,
+      "type": "bargauge",
+      "title": "Top 8 workloads by memory",
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Measured container resources summed across all attributed components of each workload UID. Component filters do not apply. Top eight can change over time; absence is not zero. Click to inspect the exact workload UID.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open workload structure",
+              "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__field.labels.namespace}&var-workload_uid=${__field.labels.workload_uid}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 204,
+      "type": "timeseries",
+      "title": "Workload CPU over time",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Measured container resources summed across all attributed components of each workload UID. Component filters do not apply. Top eight can change over time; absence is not zero. Click to inspect the exact workload UID.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1000 * topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:mCPU",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": [
+            {
+              "title": "Open workload structure",
+              "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__field.labels.namespace}&var-workload_uid=${__field.labels.workload_uid}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 205,
+      "type": "timeseries",
+      "title": "Workload memory over time",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Measured container resources summed across all attributed components of each workload UID. Component filters do not apply. Top eight can change over time; absence is not zero. Click to inspect the exact workload UID.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(8,sum by(namespace,workload,workload_uid)(sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})))",
+          "legendFormat": "{{workload}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": [
+            {
+              "title": "Open workload structure",
+              "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__field.labels.namespace}&var-workload_uid=${__field.labels.workload_uid}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": "bargauge",
+      "title": "Reported workload phases",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Independent phase-match counts across described workloads. The KEP permits several phases to match one workload, so these counts overlap and must not be summed into an inventory total. Component filtering does not change this workload-wide view.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(phase)(max by(namespace,workload_uid,phase)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"})) > 0",
+          "legendFormat": "{{phase}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "links": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Unhealthy described workloads",
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Zero means every currently described workload in the selected workload scope is healthy. No data means no workloads or an exporter scrape is down. Uninstalled API definitions are excluded.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}) == bool 0) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1)",
+          "legendFormat": "Unhealthy workloads",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 206,
+      "type": "table",
+      "title": "Observed workloads / click a workload for components and Pods",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "description": "One row per namespace and workload UID, including completed and zero-Pod workloads still observed by Karta. Observation health is separate from lifecycle phases. Exact UID is used for drilldown. No missing resource samples are converted to zero.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(((count by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) * on(namespace,workload_uid) group_left(observation) ((label_replace((min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}) == 1),\"observation\",\"Healthy\",\"\",\".*\") or label_replace((min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}) == bool 0),\"observation\",\"Unhealthy\",\"\",\".*\") == 1) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1))) or label_replace((((count by(namespace,workload_uid)(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"}) or on(namespace,workload_uid) (0 * (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\"))))) * on(namespace,workload_uid) group_left(workload,workload_kind) (group by(namespace,workload,workload_uid,workload_kind)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) or group by(namespace,workload,workload_uid,workload_kind)(label_replace(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"},\"workload_kind\",\"$1\",\"kind\",\"(.*)\")))) unless on(namespace,workload_uid) ((label_replace((min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}) == 1),\"observation\",\"Healthy\",\"\",\".*\") or label_replace((min by(namespace,workload_uid)(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\",workload=~\"$workload\"}) == bool 0),\"observation\",\"Unhealthy\",\"\",\".*\") == 1) and on() (min(up{job=~\"karta-(exporter|finite-exporter)\"}) == 1))),\"observation\",\"Unknown\",\"\",\".*\")",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "workload_kind": 1,
+              "workload": 2,
+              "Value": 3,
+              "observation": 4,
+              "workload_uid": 5
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "workload_kind": "Kind",
+              "workload": "Workload",
+              "Value": "Attributed Pods",
+              "observation": "Observation",
+              "workload_uid": "Workload UID"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workload"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open workload structure",
+                    "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__data.fields.Namespace}&var-workload_uid=${__data.fields[\"Workload UID\"]}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Workload",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 35,
+      "type": "table",
+      "title": "Workload lifecycle / each matching phase shown",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 8
+      },
+      "description": "Each matching phase is a separate row for the exact workload UID. Karta phases may overlap; Completed and Initializing can both match one workload. This is not a mutually exclusive state machine.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(namespace,workload,workload_kind,workload_uid,phase)(karta_demo:workload_status{namespace=~\"$namespace\",workload=~\"$workload\"}) == 1",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "workload"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open workload structure",
+                    "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity?var-namespace=${__data.fields.namespace}&var-workload_uid=${__data.fields.workload_uid}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "workload",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "workload_kind": 1,
+              "workload": 2,
+              "phase": 3,
+              "workload_uid": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "COMPONENTS / selected workload detail",
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 1
+      },
+      "description": "",
+      "transparent": false,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Top 8 CPU components",
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "description": "Current top eight component/instance CPU totals; replica groups are summed. Click a bar to focus that workload/component. Source container series are deduplicated before attribution. Displayed in millicores: 1000 mCPU = one CPU core.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(1000 * (topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"}))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:mCPU",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 2,
+          "links": [
+            {
+              "title": "Focus this workload and component",
+              "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?${__url_time_range}&var-namespace=${__field.labels.namespace}&var-workload=${__field.labels.workload}&var-component=${__field.labels.component}&var-component_instance=${__field.labels.component_instance}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 10,
+      "type": "bargauge",
+      "title": "Top 8 memory components",
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "description": "Current top eight component/instance working sets; replica groups are summed. Click a bar to focus that workload/component.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Focus this workload and component",
+              "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?${__url_time_range}&var-namespace=${__field.labels.namespace}&var-workload=${__field.labels.workload}&var-component=${__field.labels.component}&var-component_instance=${__field.labels.component_instance}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "CPU over time",
+      "gridPos": {
+        "x": 0,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "description": "Top eight components at each sample. Series can enter and leave the top eight. Select a workload/component for stable focused comparisons. Displayed in millicores: 1000 mCPU = one CPU core.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(1000 * (topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"}[$__rate_interval]))) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"}))),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:mCPU",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": [
+            {
+              "title": "Focus this workload and component",
+              "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?${__url_time_range}&var-namespace=${__field.labels.namespace}&var-workload=${__field.labels.workload}&var-component=${__field.labels.component}&var-component_instance=${__field.labels.component_instance}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Memory over time",
+      "gridPos": {
+        "x": 12,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "description": "Top eight components at each sample. Gaps represent absent samples, not zero usage.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(topk(8,sum by(namespace,workload,workload_uid,component,component_instance)(sum by(namespace,pod)(max by(namespace,pod,container)(container_memory_working_set_bytes{namespace=~\"$namespace\",pod!=\"\",container!=\"\",container!=\"POD\"})) * on(namespace,pod) group_left(workload,workload_uid,component,component_instance) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": [
+            {
+              "title": "Focus this workload and component",
+              "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?${__url_time_range}&var-namespace=${__field.labels.namespace}&var-workload=${__field.labels.workload}&var-component=${__field.labels.component}&var-component_instance=${__field.labels.component_instance}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "bargauge",
+      "title": "Pod distribution by component",
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 6
+      },
+      "description": "Top ten component groups by number of attributed Pods.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(topk(10,count by(namespace,workload,workload_uid,component,component_instance)(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"})),\"display_component\",\"$1\",\"component\",\"(.*)\"),\"display_component\",\"$1\",\"component_instance\",\"(.+)\")",
+          "legendFormat": "{{workload}} / {{display_component}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Focus this workload and component",
+              "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?${__url_time_range}&var-namespace=${__field.labels.namespace}&var-workload=${__field.labels.workload}&var-component=${__field.labels.component}&var-component_instance=${__field.labels.component_instance}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "valueMode": "color",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 42
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "EXPORTER DIAGNOSTICS  /  independent of workload filters",
+      "gridPos": {
+        "x": 0,
+        "y": 74,
+        "w": 24,
+        "h": 1
+      },
+      "description": "",
+      "transparent": false,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Scrape duration by replica",
+      "gridPos": {
+        "x": 0,
+        "y": 75,
+        "w": 8,
+        "h": 7
+      },
+      "description": "Time Prometheus spent scraping each exporter replica. A faster small demo scrape is not a 100k-workload scalability result.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "scrape_duration_seconds{job=~\"karta-(exporter|finite-exporter)\"}",
+          "legendFormat": "{{exporter_pod}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Attribution sample age",
+      "gridPos": {
+        "x": 8,
+        "y": 75,
+        "w": 8,
+        "h": 7
+      },
+      "description": "Age of latest exporter attribution sample. Normal sawtooth follows the 30-second scrape interval. Missing series cannot establish freshness.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - max(timestamp(karta_pod_workload_info))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Scrape payload samples",
+      "gridPos": {
+        "x": 16,
+        "y": 75,
+        "w": 8,
+        "h": 7
+      },
+      "description": "Number of samples returned by each exporter scrape, before relabeling. Useful for spotting cardinality changes; independent of workload filters.",
+      "transparent": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "interval": "30s",
+      "maxDataPoints": 400,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "scrape_samples_scraped{job=~\"karta-(exporter|finite-exporter)\"}",
+          "legendFormat": "{{exporter_pod}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisBorderShow": false
+          },
+          "links": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": "row",
+      "title": "DETAILS  /  identities, phases, and optional API definitions",
+      "gridPos": {
+        "x": 0,
+        "y": 82,
+        "w": 24,
+        "h": 1
+      },
+      "description": "",
+      "transparent": false,
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 36,
+          "type": "table",
+          "title": "Pod attribution details",
+          "gridPos": {
+            "x": 0,
+            "y": 117,
+            "w": 24,
+            "h": 9
+          },
+          "description": "Exact deduplicated Pod-to-workload identities for the selected workload/component. Unknown metadata remains visible.",
+          "transparent": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "karta-prometheus"
+          },
+          "interval": "30s",
+          "maxDataPoints": 400,
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance=~\"$component_instance\"}",
+              "legendFormat": "{{workload}} / {{display_component}}",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "No data",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "sortBy": [
+              {
+                "displayName": "workload",
+                "desc": false
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "workload_group": true,
+                  "workload_version": true
+                },
+                "indexByName": {
+                  "namespace": 0,
+                  "workload": 1,
+                  "component": 2,
+                  "component_instance": 3,
+                  "replica_group_id": 4,
+                  "pod": 5,
+                  "workload_kind": 6,
+                  "owner_resolution": 7,
+                  "workload_uid": 8,
+                  "pod_uid": 9
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 37,
+          "type": "bargauge",
+          "title": "Resource watches and discovery failures",
+          "gridPos": {
+            "x": 0,
+            "y": 126,
+            "w": 24,
+            "h": 7
+          },
+          "description": "Actual exporter failures, independent of the selected workload. Empty means no currently reported failures; exporter scrape health must also be checked.",
+          "transparent": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "karta-prometheus"
+          },
+          "interval": "30s",
+          "maxDataPoints": 400,
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "count by(scope,resource_kind,reason) (karta_exporter_observation_valid{scope=~\"resource_type|discovery\"} == 0)",
+              "legendFormat": "{{resource_kind}} / {{reason}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "No data",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "orange"
+              },
+              "min": 0,
+              "links": []
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true,
+            "namePlacement": "left",
+            "valueMode": "color",
+            "sizing": "auto",
+            "minVizHeight": 16,
+            "maxVizHeight": 42
+          }
+        }
+      ]
+    },
+    {
+      "id": 801,
+      "title": "GPU requests in Running demo Pods",
+      "description": "Kubernetes GPU requests for Running Pods, joined to valid Karta attribution. Devices in this cluster are simulated. This is requested capacity, not measured physical allocation.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 83,
+        "w": 6,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by(namespace,pod,container) (kube_pod_container_resource_requests{namespace=~\"$namespace\",resource=\"nvidia_com_gpu\"}) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"} * on(namespace,pod) group_left() (max by(namespace,pod) (kube_pod_status_phase{namespace=~\"$namespace\",phase=\"Running\"}) == 1))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 802,
+      "title": "Simulated GPU utilization by workload (maximum device)",
+      "description": "Fake GPU telemetry, not physical GPU work or proof of application activity. exported_namespace and exported_pod are normalized before the Pod-name join. Name reuse remains a limitation.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 6,
+        "y": 83,
+        "w": 18,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "karta-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(namespace,workload,workload_uid) (max by(namespace,pod,UUID) (label_replace(label_replace(DCGM_FI_DEV_GPU_UTIL{exported_namespace=~\"$namespace\",exported_pod!=\"\"},\"namespace\",\"$1\",\"exported_namespace\",\"(.+)\"),\"pod\",\"$1\",\"exported_pod\",\"(.+)\")) * on(namespace,pod) group_left(workload,workload_uid) karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"})",
+          "legendFormat": "{{workload}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "label_values(karta_demo:observation_healthy{scope=\"workload\"}, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": [
+            "karta-metrics-workloads"
+          ],
+          "value": [
+            "karta-metrics-workloads"
+          ]
+        },
+        "label": "Namespace",
+        "sort": 1
+      },
+      {
+        "name": "workload",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "label_values(karta_demo:observation_healthy{scope=\"workload\",namespace=~\"$namespace\"}, workload)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "label": "Workload",
+        "sort": 1
+      },
+      {
+        "name": "component",
+        "label": "Component",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "label_values(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\"}, component)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      },
+      {
+        "name": "component_instance",
+        "label": "Component Instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "karta-prometheus"
+        },
+        "query": "label_values(karta:pod_attribution:unique{namespace=~\"$namespace\",workload=~\"$workload\",component=~\"$component\",component_instance!=\"\"}, component_instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      }
+    ]
+  },
+  "description": "Live Karta workload attribution and status. CPU and memory measure real demo containers. GPU capacity and utilization are simulated by the existing fake GPU installation.",
+  "style": "dark",
+  "graphTooltip": 1,
+  "links": [
+    {
+      "title": "Metric samples",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-metric-samples/karta-metric-samples",
+      "targetBlank": false,
+      "includeVars": true,
+      "keepTime": true
+    },
+    {
+      "title": "Workload structure",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-structure-activity/karta-structure-and-activity",
+      "targetBlank": false
+    },
+    {
+      "title": "GPU demo",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-workload-overview/karta-workload-metrics-poc?from=now-15m&to=now&var-namespace=karta-metrics-workloads&var-workload=poc-pytorch-synthetic-gpu&var-component=$__all",
+      "targetBlank": false
+    },
+    {
+      "title": "Prometheus",
+      "type": "link",
+      "url": "/karta/prometheus/",
+      "targetBlank": true
+    },
+    {
+      "title": "Metrics & PromQL",
+      "type": "link",
+      "url": "/karta/grafana/d/karta-workload-overview/_?viewPanel=9901",
+      "targetBlank": false,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "id": null
+}
