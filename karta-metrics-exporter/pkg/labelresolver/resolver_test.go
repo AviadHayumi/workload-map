@@ -131,16 +131,38 @@ var _ = Describe("Resolve", func() {
 		Expect(results[0].Labels).To(Equal(map[string]string{"team": "research"}))
 	})
 
-	It("reads the Pod apiVersion and kind as supplied", func(ctx SpecContext) {
+	It("accepts a full unstructured Pod with metadata, spec and status", func(ctx SpecContext) {
 		rule := LabelRule{
-			Name: "kind", Metrics: []string{MetricPodWorkloadInfo}, Sources: []Source{SourcePod},
-			Expression: `object.apiVersion + "/" + object.kind`,
+			Name: "details", Metrics: []string{MetricPodWorkloadInfo}, Sources: []Source{SourcePod},
+			Expression: `object.apiVersion + "/" + object.kind + "/" + object.metadata.name + "/" + object.spec.schedulerName + "/" + object.status.phase`,
 		}
-		p := pod("", nil)
-		results, err := newResolver(rule).Resolve(ctx, Input{Metrics: []string{MetricPodWorkloadInfo}, Workload: workload(nil), Pod: p})
+		p := pod("example-scheduler", nil)
+		p.Object["status"] = map[string]any{"phase": "Running"}
+		results, err := newResolver(rule).Resolve(ctx, Input{
+			Metrics: []string{MetricPodWorkloadInfo}, Workload: workload(nil), Pod: p,
+		})
 		Expect(err).To(Succeed())
-		Expect(results[0].Labels).To(Equal(map[string]string{"kind": "v1/Pod"}))
+		Expect(results[0].Labels).To(Equal(map[string]string{"details": "v1/Pod/train-0/example-scheduler/Running"}))
 		Expect(results[0].Errors).To(BeEmpty())
+	})
+
+	It("preserves absent fields and unknown JSON without mutating source objects", func(ctx SpecContext) {
+		rule := LabelRule{
+			Name: "extension", Metrics: []string{MetricPodWorkloadInfo}, Sources: []Source{SourcePod},
+			Expression: `has(object.spec.containers) ? "present" : object.spec.futureField`,
+		}
+		root := workload(nil)
+		p := pod("", nil)
+		p.Object["spec"] = map[string]any{"futureField": "raw-value"}
+		rootBefore, podBefore := root.DeepCopy(), p.DeepCopy()
+		results, err := newResolver(rule).Resolve(ctx, Input{
+			Metrics: []string{MetricPodWorkloadInfo}, Workload: root, Pod: p,
+		})
+		Expect(err).To(Succeed())
+		Expect(results[0].Labels).To(Equal(map[string]string{"extension": "raw-value"}))
+		Expect(results[0].Errors).To(BeEmpty())
+		Expect(root).To(Equal(rootBefore))
+		Expect(p).To(Equal(podBefore))
 	})
 
 	It("falls back to the Pod after an empty root value", func(ctx SpecContext) {
@@ -161,14 +183,17 @@ var _ = Describe("Resolve", func() {
 			Name: "team", Metrics: []string{MetricPodWorkloadInfo}, Sources: []Source{SourceWorkload, SourcePod},
 			Expression: `object.metadata.labels["example.com/team"]`,
 		}
+		root := workload(map[string]any{})
+		p := pod("", map[string]string{"example.com/team": "from-pod"})
+		rootBefore, podBefore := root.DeepCopy(), p.DeepCopy()
 		results, err := newResolver(rule).Resolve(ctx, Input{
-			Metrics:  []string{MetricPodWorkloadInfo},
-			Workload: workload(map[string]any{}),
-			Pod:      pod("", map[string]string{"example.com/team": "from-pod"}),
+			Metrics: []string{MetricPodWorkloadInfo}, Workload: root, Pod: p,
 		})
 		Expect(err).To(Succeed())
 		Expect(results[0].Labels).To(Equal(map[string]string{"team": "from-pod"}))
 		Expect(results[0].Errors).To(HaveKeyWithValue("team", MatchError(ContainSubstring("workload source"))))
+		Expect(root).To(Equal(rootBefore))
+		Expect(p).To(Equal(podBefore))
 	})
 
 	It("retains the workload limit error after a successful Pod fallback", func(ctx SpecContext) {

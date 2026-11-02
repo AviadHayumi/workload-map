@@ -46,6 +46,22 @@ var _ = Describe("config defaults and rules", func() {
 		}
 	})
 
+	It("preserves YAML 1.2 string literals in definition names and label rules", func() {
+		cfg, err := loadConfig(`kartaDefinitionSource:
+  cluster:
+    include: [on, yes, off]
+labelRules:
+- name: on
+  metrics: [karta_workload_status]
+  sources: [workload]
+  expression: object.kind
+`, nil)
+		Expect(err).To(Succeed())
+		Expect(cfg.KartaDefinitionSource.Cluster.Include).To(Equal([]string{"on", "yes", "off"}))
+		Expect(cfg.Rules).To(HaveLen(1))
+		Expect(cfg.Rules[0].Name).To(Equal("on"))
+	})
+
 	It("loads label rules while retaining unspecified defaults", func() {
 		cfg, err := loadConfig("", nil)
 		Expect(err).To(Succeed())
@@ -156,8 +172,12 @@ var _ = Describe("config rejects invalid input", func() {
 			"genericLabelEvaluationLimits:\n  interruptCheckFrequency: 100",
 			"genericLabelEvaluationLimits:\n  maxValueBytes: 32",
 			"labelLimits:\n  costLimit: 5",
+			"workers: 2\nworkers: 3",
+			"genericLabelEvaluationLimits:\n  costLimit: 5\n  costLimit: 6",
 			"labelRules: [", "labelRules: []\n---\nlabelRules: []", "labelRules: []\n---\n---\nlabelRules: []",
 			"labelRules: []\n---\nlabelRules: [", "unknown: true",
+			"namespaceSelector:\n  matchLables: {team: platform}",
+			"kartaDefinitionSource:\n  cluster:\n    enabled: true\n    enabled: false",
 			"labelRules:\n- name: team\n  metrics: [karta_workload_status]\n  sources: [pod]\n  expression: object.kind",
 		} {
 			By(contents, func() {
