@@ -1,0 +1,78 @@
+{
+  "structure.json": {
+    "version": 4,
+    "panels_match": true,
+    "canEdit": false
+  },
+  "karta.json": {
+    "version": 5,
+    "panels_match": true,
+    "canEdit": false
+  },
+  "workload_pages": [
+    {
+      "workload": "demo-gpu",
+      "panel": 9,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 91
+    },
+    {
+      "workload": "demo-gpu",
+      "panel": 10,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 23
+    },
+    {
+      "workload": "demo-pytorchjob",
+      "panel": 9,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 91
+    },
+    {
+      "workload": "demo-pytorchjob",
+      "panel": 10,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 23
+    },
+    {
+      "workload": "demo-lws",
+      "panel": 9,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 91
+    },
+    {
+      "workload": "demo-lws",
+      "panel": 10,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 23
+    },
+    {
+      "workload": "demo-jaxjob",
+      "panel": 9,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 91
+    },
+    {
+      "workload": "demo-jaxjob",
+      "panel": 10,
+      "error": null,
+      "frames": 1,
+      "time_fields": 1,
+      "points": 23
+    }
+  ]
+}

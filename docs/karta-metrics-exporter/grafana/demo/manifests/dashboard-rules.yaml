@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: karta-demo-dashboard-adapters
+  namespace: monitoring
+spec:
+  groups:
+  - name: karta-demo-dashboard-adapters
+    interval: 15s
+    rules:
+    - record: karta_demo:pod_workload_info
+      expr: label_replace(label_replace(karta_pod_workload_info,"pod","$1","pod_name","(.+)"),"workload","$1","workload_name","(.+)")
+    - record: karta_demo:workload_status
+      expr: label_replace(karta_workload_status,"workload","$1","workload_name","(.+)")
+    - record: karta:pod_attribution:unique
+      expr: label_replace(label_replace((max by (namespace,pod_name,pod_uid,workload_name,workload_group,workload_version,workload_kind,workload_uid,owner_resolution,component,component_instance,replica_group_id,observation_valid)
+        (karta_pod_workload_info) and on(namespace,pod_name) (count by(namespace,pod_name)
+        (group by (namespace,pod_name,pod_uid,workload_name,workload_group,workload_version,workload_kind,workload_uid,owner_resolution,component,component_instance,replica_group_id,observation_valid)
+        (karta_pod_workload_info)) == 1)) and on(namespace,pod_name,pod_uid) karta_pod_workload_info{observation_valid="true"},"pod","$1","pod_name","(.+)"),"workload","$1","workload_name","(.+)")
+    - record: karta_demo:observation_healthy
+      expr: label_replace(label_replace((label_replace((group by(namespace,workload_name,workload_uid,workload_kind)
+        (karta_workload_status{observation_valid="true"} or karta_pod_workload_info{observation_valid="true"})
+        unless on(namespace,workload_uid) karta_exporter_observation_valid{scope="workload"}),"resource_kind","$1","workload_kind","(.+)")
+        or karta_exporter_observation_valid{scope="workload"}),"workload","$1","workload_name","(.+)"),"kind","$1","resource_kind","(.+)")
+      labels:
+        scope: workload

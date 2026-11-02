@@ -1,0 +1,32 @@
+[
+  {
+    "workload": "demo-finite-pytorch-r9z5c",
+    "samples": 6,
+    "min": 1.0,
+    "max": 1.0
+  },
+  {
+    "workload": "demo-gpu",
+    "samples": 24,
+    "min": 0.01,
+    "max": 0.02
+  },
+  {
+    "workload": "demo-jaxjob",
+    "samples": 24,
+    "min": 0.62,
+    "max": 0.94
+  },
+  {
+    "workload": "demo-lws",
+    "samples": 24,
+    "min": 0.8,
+    "max": 0.94
+  },
+  {
+    "workload": "demo-pytorchjob",
+    "samples": 24,
+    "min": 0.01,
+    "max": 0.02
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "recorded_on": "2026-11-02",
+  "source_snapshots_match_deployed_build_sources": true,
+  "helper_race_tests": "passed: compatibility, randomizer, device observer and workload observer",
+  "source_race_tests": "passed: fake GPU source entrypoint",
+  "linux_amd64_builds": "passed: all four binaries",
+  "render_checks": "passed: Grafana configuration and two-node GPU helper manifests",
+  "round_state_preserved_on_reapply": true,
+  "node_input_checks": "rejected empty, duplicate and invalid node names",
+  "documentation_checks": "JSON and Python syntax, local Markdown links, headers and sensitive-content scan passed",
+  "live_dashboard_verification": "65 queries succeeded; overview and detail utilization/activity panels returned time fields",
+  "fresh_cluster_installation": "not rerun using this packaged sequence",
+  "binary_comparison": "Hashes differ. The original binaries embed enclosing checkout VCS metadata; this rebuilt snapshot does not. Other reported Go module/build settings match. Byte-identical reproduction is not claimed.",
+  "binaries": [
+    {
+      "name": "fake-gpu-source",
+      "deployed_build_sha256": "0c60397c79e4ed7615068ba69fa6cfde33b3fd709d3a63fb2845e53a8e3c6071",
+      "rebuilt_sha256": "bd8e0e5dc900275af588aec0777f847bb578aebbd2598afc2939d5f5183ab901"
+    },
+    {
+      "name": "gpu-demo-randomizer",
+      "deployed_build_sha256": "c3727fff45eca5c6a7c5761b5993efe42b309e1e5fc1591f354cfa9b81fda90a",
+      "rebuilt_sha256": "8af0532e680f5effeca080168facfc6f9692aec83bc1586e6738945870814bd9"
+    },
+    {
+      "name": "gpu-observer",
+      "deployed_build_sha256": "26146d0ed1d05f5d1c293e813783f1ab908e595bc1a4889a52465d1e84e5b60f",
+      "rebuilt_sha256": "d8ee6fcdac9332ed2b15cf38136c1a95ed4a95316f9b4077ebf525b5aad5d90c"
+    },
+    {
+      "name": "workload-gpu-observer",
+      "deployed_build_sha256": "055f243d143471c24dd756e626af77cdb485331e8c20560fe5d267314aad1d7e",
+      "rebuilt_sha256": "2c3d604a5fd4e8723bd1d15a507881b61e67c06c1e26b2a2aacf4a02b2a84ee8"
+    }
+  ]
+}

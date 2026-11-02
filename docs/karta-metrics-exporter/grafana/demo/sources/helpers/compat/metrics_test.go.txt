@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+package compat
+
+import (
+	dto "github.com/prometheus/client_model/go"
+	"testing"
+)
+
+func TestCurrentContractIncludesInvalidEvidence(t *testing.T) {
+	pod := metric(map[string]string{"namespace": "demo", "pod_name": "p", "pod_uid": "p1", "workload_name": "w", "workload_uid": "w1", "workload_kind": "Deployment", "workload_group": "apps", "workload_version": "v1", "observation_valid": "true", "owner_resolution": "resolved"}, 1)
+	bad := metric(map[string]string{"namespace": "demo", "scope": "workload", "workload_name": "w", "workload_uid": "w1", "reason": "failed"}, 0)
+	fs := map[string]*dto.MetricFamily{"karta_pod_workload_info": {Metric: []*dto.Metric{pod}}, "karta_exporter_observation_valid": {Metric: []*dto.Metric{bad}}}
+	Normalize(fs)
+	if labels(pod)["pod"] != "p" || labels(pod)["workload"] != "w" {
+		t.Fatal("missing aliases")
+	}
+	h := fs["karta_exporter_observation_healthy"].Metric
+	if len(h) != 2 || h[0].Gauge.GetValue() != 1 || h[1].Gauge.GetValue() != 0 {
+		t.Fatal("failure evidence lost")
+	}
+}
+func TestInvalidObservationNeverHealthy(t *testing.T) {
+	p := metric(map[string]string{"workload_name": "w", "workload_uid": "w1", "observation_valid": "false", "owner_resolution": "resolved"}, 1)
+	fs := map[string]*dto.MetricFamily{"karta_pod_workload_info": {Metric: []*dto.Metric{p}}}
+	Normalize(fs)
+	if fs["karta_exporter_observation_healthy"].Metric[0].GetGauge().GetValue() != 0 {
+		t.Fatal("invalid observation accepted")
+	}
+}

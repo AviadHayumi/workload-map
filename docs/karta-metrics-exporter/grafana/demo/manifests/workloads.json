@@ -1,0 +1,1094 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ResourceQuota",
+      "metadata": {
+        "name": "demo-pod-limit",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "hard": {
+          "pods": "100"
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "demo-cpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "replicas": 3,
+        "selector": {
+          "matchLabels": {
+            "app": "demo-cpu"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/part-of": "karta-demo",
+              "example.com/team": "exporter-demo",
+              "app": "demo-cpu"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "containers": [
+              {
+                "name": "worker",
+                "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                "command": [
+                  "python",
+                  "-u",
+                  "-c",
+                  "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "32Mi"
+                  },
+                  "limits": {
+                    "cpu": "250m",
+                    "memory": "96Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "demo-gpu",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "replicas": 4,
+        "selector": {
+          "matchLabels": {
+            "app": "demo-gpu"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/part-of": "karta-demo",
+              "example.com/team": "exporter-demo",
+              "app": "demo-gpu"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "containers": [
+              {
+                "name": "worker",
+                "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                "command": [
+                  "python",
+                  "-u",
+                  "-c",
+                  "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "32Mi",
+                    "nvidia.com/gpu": 1
+                  },
+                  "limits": {
+                    "cpu": "250m",
+                    "memory": "96Mi",
+                    "nvidia.com/gpu": 1
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "demo-stateful",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "clusterIP": "None",
+        "selector": {
+          "app": "demo-stateful"
+        },
+        "ports": [
+          {
+            "port": 8080,
+            "targetPort": 8080
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "StatefulSet",
+      "metadata": {
+        "name": "demo-stateful",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "serviceName": "demo-stateful",
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app": "demo-stateful"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/part-of": "karta-demo",
+              "example.com/team": "exporter-demo",
+              "app": "demo-stateful"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "containers": [
+              {
+                "name": "worker",
+                "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                "command": [
+                  "python",
+                  "-u",
+                  "-c",
+                  "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "32Mi"
+                  },
+                  "limits": {
+                    "cpu": "250m",
+                    "memory": "96Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "demo-standalone",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 65532,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "worker",
+            "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+            "command": [
+              "python",
+              "-u",
+              "-c",
+              "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "32Mi"
+              },
+              "limits": {
+                "cpu": "250m",
+                "memory": "96Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "PyTorchJob",
+      "metadata": {
+        "name": "demo-pytorchjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "pytorchReplicaSpecs": {
+          "Master": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-pytorchjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi",
+                        "nvidia.com/gpu": 1
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi",
+                        "nvidia.com/gpu": 1
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-pytorchjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "pytorch",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi",
+                        "nvidia.com/gpu": 1
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi",
+                        "nvidia.com/gpu": 1
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "TFJob",
+      "metadata": {
+        "name": "demo-tfjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "tfReplicaSpecs": {
+          "Chief": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-tfjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "tensorflow",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi"
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi"
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 2,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-tfjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "tensorflow",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi"
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi"
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "JAXJob",
+      "metadata": {
+        "name": "demo-jaxjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "jaxReplicaSpecs": {
+          "Worker": {
+            "replicas": 2,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-jaxjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "jax",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi",
+                        "nvidia.com/gpu": 1
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi",
+                        "nvidia.com/gpu": 1
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kubeflow.org/v1",
+      "kind": "XGBoostJob",
+      "metadata": {
+        "name": "demo-xgboostjob",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "runPolicy": {
+          "cleanPodPolicy": "None"
+        },
+        "xgbReplicaSpecs": {
+          "Master": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-xgboostjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "xgboost",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi"
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi"
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          },
+          "Worker": {
+            "replicas": 1,
+            "restartPolicy": "Never",
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-xgboostjob"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": false,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "xgboost",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "-c",
+                      "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi"
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi"
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "restartPolicy": "Never"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "leaderworkerset.x-k8s.io/v1",
+      "kind": "LeaderWorkerSet",
+      "metadata": {
+        "name": "demo-lws",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "replicas": 2,
+        "leaderWorkerTemplate": {
+          "size": 2,
+          "leaderTemplate": {
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-demo",
+                "example.com/team": "exporter-demo",
+                "app": "demo-lws"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": false,
+              "securityContext": {
+                "runAsNonRoot": true,
+                "runAsUser": 65532,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "containers": [
+                {
+                  "name": "leader",
+                  "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                  "command": [
+                    "python",
+                    "-u",
+                    "-c",
+                    "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi",
+                      "nvidia.com/gpu": 1
+                    },
+                    "limits": {
+                      "cpu": "250m",
+                      "memory": "96Mi",
+                      "nvidia.com/gpu": 1
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "readOnlyRootFilesystem": true,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "workerTemplate": {
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/part-of": "karta-demo",
+                "example.com/team": "exporter-demo",
+                "app": "demo-lws"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": false,
+              "securityContext": {
+                "runAsNonRoot": true,
+                "runAsUser": 65532,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "containers": [
+                {
+                  "name": "worker",
+                  "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                  "command": [
+                    "python",
+                    "-u",
+                    "-c",
+                    "import time, os\nprint(\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\", flush=True)\nend=time.monotonic()+int(os.getenv(\"DURATION_SECONDS\",\"864000\"))\nmemory=bytearray(16*1024*1024)\nwhile time.monotonic()<end:\n    sum(i*i for i in range(18000))\n    time.sleep(0.05)\nprint(\"Completed\",flush=True)\n"
+                  ],
+                  "resources": {
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "32Mi",
+                      "nvidia.com/gpu": 1
+                    },
+                    "limits": {
+                      "cpu": "250m",
+                      "memory": "96Mi",
+                      "nvidia.com/gpu": 1
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "readOnlyRootFilesystem": true,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "demo-generator",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "demo-generator",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            "batch"
+          ],
+          "resources": [
+            "jobs"
+          ],
+          "verbs": [
+            "create"
+          ]
+        },
+        {
+          "apiGroups": [
+            "kubeflow.org"
+          ],
+          "resources": [
+            "pytorchjobs"
+          ],
+          "verbs": [
+            "create"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "demo-generator",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "demo-generator"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "demo-generator",
+          "namespace": "karta-metrics-workloads"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "demo-generator",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "data": {
+        "generate.py": "import json, ssl, time, urllib.request\nfrom pathlib import Path\nsa=Path('/var/run/secrets/kubernetes.io/serviceaccount')\ncontext=ssl.create_default_context(cafile=str(sa/'ca.crt'))\ntoken=(sa/'token').read_text().strip()\nbase='https://kubernetes.default.svc'\ndef create(path, obj):\n    request=urllib.request.Request(base+path,data=json.dumps(obj).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},method='POST')\n    with urllib.request.urlopen(request,context=context,timeout=30) as response:\n        result=json.load(response)\n    print('Created',result['kind'],result['metadata']['name'],flush=True)\ncreate('/apis/batch/v1/namespaces/karta-metrics-workloads/jobs',json.loads(Path('/templates/job.json').read_text()))\nif (int(time.time())//120)%3==0:\n    create('/apis/kubeflow.org/v1/namespaces/karta-metrics-workloads/pytorchjobs',json.loads(Path('/templates/pytorch.json').read_text()))\n",
+        "job.json": "{\"apiVersion\": \"batch/v1\", \"kind\": \"Job\", \"metadata\": {\"generateName\": \"demo-job-\", \"namespace\": \"karta-metrics-workloads\", \"labels\": {\"app.kubernetes.io/part-of\": \"karta-demo\", \"example.com/team\": \"exporter-demo\"}}, \"spec\": {\"ttlSecondsAfterFinished\": 1200, \"backoffLimit\": 0, \"activeDeadlineSeconds\": 180, \"template\": {\"metadata\": {\"labels\": {\"app.kubernetes.io/part-of\": \"karta-demo\", \"example.com/team\": \"exporter-demo\", \"app\": \"finite-job\"}}, \"spec\": {\"automountServiceAccountToken\": false, \"securityContext\": {\"runAsNonRoot\": true, \"runAsUser\": 65532, \"seccompProfile\": {\"type\": \"RuntimeDefault\"}}, \"containers\": [{\"name\": \"worker\", \"image\": \"docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8\", \"command\": [\"python\", \"-u\", \"-c\", \"import time, os\\nprint(\\\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\\\", flush=True)\\nend=time.monotonic()+int(os.getenv(\\\"DURATION_SECONDS\\\",\\\"864000\\\"))\\nmemory=bytearray(16*1024*1024)\\nwhile time.monotonic()<end:\\n    sum(i*i for i in range(18000))\\n    time.sleep(0.05)\\nprint(\\\"Completed\\\",flush=True)\\n\"], \"resources\": {\"requests\": {\"cpu\": \"50m\", \"memory\": \"32Mi\"}, \"limits\": {\"cpu\": \"250m\", \"memory\": \"96Mi\"}}, \"securityContext\": {\"allowPrivilegeEscalation\": false, \"readOnlyRootFilesystem\": true, \"capabilities\": {\"drop\": [\"ALL\"]}}, \"env\": [{\"name\": \"DURATION_SECONDS\", \"value\": \"60\"}]}], \"restartPolicy\": \"Never\"}}}}",
+        "pytorch.json": "{\"apiVersion\": \"kubeflow.org/v1\", \"kind\": \"PyTorchJob\", \"metadata\": {\"generateName\": \"demo-finite-pytorch-\", \"namespace\": \"karta-metrics-workloads\", \"labels\": {\"app.kubernetes.io/part-of\": \"karta-demo\", \"example.com/team\": \"exporter-demo\"}}, \"spec\": {\"runPolicy\": {\"cleanPodPolicy\": \"None\", \"ttlSecondsAfterFinished\": 1200, \"activeDeadlineSeconds\": 240}, \"pytorchReplicaSpecs\": {\"Master\": {\"replicas\": 1, \"restartPolicy\": \"Never\", \"template\": {\"metadata\": {\"labels\": {\"app.kubernetes.io/part-of\": \"karta-demo\", \"example.com/team\": \"exporter-demo\", \"app\": \"finite-pytorch\"}}, \"spec\": {\"automountServiceAccountToken\": false, \"securityContext\": {\"runAsNonRoot\": true, \"runAsUser\": 65532, \"seccompProfile\": {\"type\": \"RuntimeDefault\"}}, \"containers\": [{\"name\": \"pytorch\", \"image\": \"docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8\", \"command\": [\"python\", \"-u\", \"-c\", \"import time, os\\nprint(\\\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\\\", flush=True)\\nend=time.monotonic()+int(os.getenv(\\\"DURATION_SECONDS\\\",\\\"864000\\\"))\\nmemory=bytearray(16*1024*1024)\\nwhile time.monotonic()<end:\\n    sum(i*i for i in range(18000))\\n    time.sleep(0.05)\\nprint(\\\"Completed\\\",flush=True)\\n\"], \"resources\": {\"requests\": {\"cpu\": \"50m\", \"memory\": \"32Mi\", \"nvidia.com/gpu\": 1}, \"limits\": {\"cpu\": \"250m\", \"memory\": \"96Mi\", \"nvidia.com/gpu\": 1}}, \"securityContext\": {\"allowPrivilegeEscalation\": false, \"readOnlyRootFilesystem\": true, \"capabilities\": {\"drop\": [\"ALL\"]}}, \"env\": [{\"name\": \"DURATION_SECONDS\", \"value\": \"75\"}]}], \"restartPolicy\": \"Never\"}}}, \"Worker\": {\"replicas\": 1, \"restartPolicy\": \"Never\", \"template\": {\"metadata\": {\"labels\": {\"app.kubernetes.io/part-of\": \"karta-demo\", \"example.com/team\": \"exporter-demo\", \"app\": \"finite-pytorch\"}}, \"spec\": {\"automountServiceAccountToken\": false, \"securityContext\": {\"runAsNonRoot\": true, \"runAsUser\": 65532, \"seccompProfile\": {\"type\": \"RuntimeDefault\"}}, \"containers\": [{\"name\": \"pytorch\", \"image\": \"docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8\", \"command\": [\"python\", \"-u\", \"-c\", \"import time, os\\nprint(\\\"Karta ownership demo: CPU work; GPU requests use the cluster's simulated devices\\\", flush=True)\\nend=time.monotonic()+int(os.getenv(\\\"DURATION_SECONDS\\\",\\\"864000\\\"))\\nmemory=bytearray(16*1024*1024)\\nwhile time.monotonic()<end:\\n    sum(i*i for i in range(18000))\\n    time.sleep(0.05)\\nprint(\\\"Completed\\\",flush=True)\\n\"], \"resources\": {\"requests\": {\"cpu\": \"50m\", \"memory\": \"32Mi\", \"nvidia.com/gpu\": 1}, \"limits\": {\"cpu\": \"250m\", \"memory\": \"96Mi\", \"nvidia.com/gpu\": 1}}, \"securityContext\": {\"allowPrivilegeEscalation\": false, \"readOnlyRootFilesystem\": true, \"capabilities\": {\"drop\": [\"ALL\"]}}, \"env\": [{\"name\": \"DURATION_SECONDS\", \"value\": \"75\"}]}], \"restartPolicy\": \"Never\"}}}}}}"
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "CronJob",
+      "metadata": {
+        "name": "demo-generator",
+        "namespace": "karta-metrics-workloads",
+        "labels": {
+          "app.kubernetes.io/part-of": "karta-demo",
+          "example.com/team": "exporter-demo"
+        }
+      },
+      "spec": {
+        "schedule": "*/2 * * * *",
+        "concurrencyPolicy": "Forbid",
+        "startingDeadlineSeconds": 60,
+        "successfulJobsHistoryLimit": 2,
+        "failedJobsHistoryLimit": 2,
+        "jobTemplate": {
+          "spec": {
+            "ttlSecondsAfterFinished": 600,
+            "backoffLimit": 1,
+            "activeDeadlineSeconds": 90,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app.kubernetes.io/part-of": "karta-demo",
+                  "example.com/team": "exporter-demo",
+                  "app": "demo-generator"
+                }
+              },
+              "spec": {
+                "automountServiceAccountToken": true,
+                "securityContext": {
+                  "runAsNonRoot": true,
+                  "runAsUser": 65532,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "containers": [
+                  {
+                    "name": "worker",
+                    "image": "docker.io/library/python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8",
+                    "command": [
+                      "python",
+                      "-u",
+                      "/templates/generate.py"
+                    ],
+                    "resources": {
+                      "requests": {
+                        "cpu": "50m",
+                        "memory": "32Mi"
+                      },
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "96Mi"
+                      }
+                    },
+                    "securityContext": {
+                      "allowPrivilegeEscalation": false,
+                      "readOnlyRootFilesystem": true,
+                      "capabilities": {
+                        "drop": [
+                          "ALL"
+                        ]
+                      }
+                    },
+                    "volumeMounts": [
+                      {
+                        "name": "templates",
+                        "mountPath": "/templates",
+                        "readOnly": true
+                      }
+                    ]
+                  }
+                ],
+                "serviceAccountName": "demo-generator",
+                "restartPolicy": "Never",
+                "volumes": [
+                  {
+                    "name": "templates",
+                    "configMap": {
+                      "name": "demo-generator"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

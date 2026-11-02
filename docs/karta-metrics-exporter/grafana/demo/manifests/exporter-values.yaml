@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+operator:
+  enabled: false
+webhook:
+  enabled: false
+crdUpgrader:
+  enabled: false
+exporter:
+  enabled: true
+  image:
+    repository: ghcr.io/aviadhayumi/workload-map/karta-exporter
+    tag: runtime-9c14b074d03d@sha256:c1f0002787fbf752123a96f0c82c6133b2765ba5e2d9875476e07868d5e8268c
+  kartaDefinitionSource:
+    catalog:
+      enabled: true
+      exclude:
+      - agents-x-k8s-io-sandbox-v1beta1
+      - jobset-x-k8s-io-jobset-v1alpha2
+      - kubeflow-org-mpijob-v2beta1
+      - milvus-io-milvus-v1beta1
+      - nvidia-com-dynamographdeployment-v1alpha1
+      - ray-io-raycluster-v1
+      - ray-io-rayjob-v1
+      - ray-io-rayservice-v1
+      - serving-kserve-io-llminferenceservice-v1alpha1
+      - serving-kserve-io-llminferenceservice-v1alpha2
+    cluster:
+      enabled: true
+      exclude:
+      - krt-v1-egx-nvidia-io-spotrequest
+      - krt-v1-kubevirt-io-virtualmachineinstance
+      - krt-v1-machinelearning-seldon-io-seldondeployment
+      - krt-v1-ray-io-raycluster
+      - krt-v1-ray-io-rayjob
+      - krt-v1-ray-io-rayservice
+      - krt-v1-tekton-dev-pipelinerun
+      - krt-v1-tekton-dev-taskrun
+      - krt-v1alpha1-amlarc-azureml-com-amljob
+      - krt-v1alpha1-kubeflow-org-scheduledworkflow
+      - krt-v1alpha1-nvidia-com-dynamographdeployment
+      - krt-v1alpha1-ray-io-raycluster
+      - krt-v1alpha1-ray-io-rayjob
+      - krt-v1alpha1-ray-io-rayservice
+      - krt-v1alpha2-machinelearning-seldon-io-seldondeployment
+      - krt-v1alpha2-workspace-devfile-io-devworkspace
+      - krt-v1beta1-kubeflow-org-notebook
+      - krt-v1beta1-slinky-slurm-net-nodeset
+      - krt-v2beta1-kubeflow-org-mpijob

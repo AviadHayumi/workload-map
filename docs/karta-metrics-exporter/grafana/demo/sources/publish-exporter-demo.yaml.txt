@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+name: Publish pinned exporter demo
+on:
+  push:
+    branches: [exporter-demo-release-9c14b074]
+permissions:
+  contents: write
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SOURCE_SHA: 9c14b074d03dac9fde4f0b64616d7216a3ad9374
+      EXPORTER_VERSION: runtime-9c14b074d03d
+      IMAGE: ghcr.io/aviadhayumi/workload-map/karta-exporter:runtime-9c14b074d03d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 9c14b074d03dac9fde4f0b64616d7216a3ad9374
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: karta/sdk/go.mod
+          cache: true
+          cache-dependency-path: |
+            karta/sdk/go.sum
+            karta-metrics-exporter/go.sum
+            operator/go.sum
+            cli/go.sum
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        with:
+          version: v4.3.1
+      - name: Check source and chart
+        run: |
+          make check VERSION="$EXPORTER_VERSION"
+          make helm-lint helm-validate
+      - name: Build exporter
+        run: |
+          make build-exporter VERSION="$EXPORTER_VERSION"
+          test "$(bin/karta-metrics-exporter --version)" = "$EXPORTER_VERSION"
+          docker build --build-arg GO_VERSION=1.27.3 \
+            --build-arg GO_LDFLAGS="-X github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version.version=$EXPORTER_VERSION" \
+            --label org.opencontainers.image.source=https://github.com/AviadHayumi/workload-map \
+            --label org.opencontainers.image.revision="$SOURCE_SHA" \
+            --tag "$IMAGE" -f karta-metrics-exporter/Dockerfile .
+          helm package charts/karta --version 0.0.0-runtime.9c14b074 --app-version "$EXPORTER_VERSION" --destination dist
+      - name: Publish image and prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username AviadHayumi --password-stdin
+          docker push "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' > dist/image-digest.txt
+          cp bin/karta-metrics-exporter dist/karta-metrics-exporter-linux-amd64
+          cd dist
+          sha256sum karta-metrics-exporter-linux-amd64 karta-*.tgz > SHA256SUMS
+          printf 'Exporter source: `%s`\n\nLinux amd64 image: `%s`\n\nIncludes the matching Helm chart. Install with operator.enabled=false and crdUpgrader.enabled=false when Karta already exists.\n' "$SOURCE_SHA" "$(cat image-digest.txt)" > release-notes.md
+          gh release create exporter-runtime-9c14b074d03d \
+            --repo AviadHayumi/workload-map --target "$SOURCE_SHA" --prerelease \
+            --title 'Karta exporter runtime 9c14b074' --notes-file release-notes.md \
+            karta-metrics-exporter-linux-amd64 karta-*.tgz SHA256SUMS image-digest.txt

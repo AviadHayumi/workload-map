@@ -1,0 +1,11 @@
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "karta-gpu-demo-round",
+    "namespace": "karta-metrics-workloads"
+  },
+  "data": {
+    "state.json": ""
+  }
+}

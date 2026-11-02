@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+
+// Package compat adapts the current exporter contract for the saved demo helpers.
+package compat
+
+import dto "github.com/prometheus/client_model/go"
+
+func Normalize(fs map[string]*dto.MetricFamily) {
+	// Legacy fixtures retain their original contract.
+	if fs["karta_exporter_observation_healthy"] != nil {
+		return
+	}
+	health := &dto.MetricFamily{}
+	for _, family := range []string{"karta_workload_status", "karta_pod_workload_info"} {
+		for _, m := range fs[family].GetMetric() {
+			l := labels(m)
+			if l["workload_uid"] == "" || l["workload_name"] == "" {
+				continue
+			}
+			value, reason := 0.0, "invalid_observation"
+			if l["observation_valid"] == "true" && l["owner_resolution"] == "resolved" {
+				value, reason = 1, "none"
+			}
+			root := map[string]string{"namespace": l["namespace"], "workload": l["workload_name"], "workload_uid": l["workload_uid"], "group": l["workload_group"], "version": l["workload_version"], "kind": l["workload_kind"], "scope": "workload", "reason": reason}
+			health.Metric = append(health.Metric, metric(root, value))
+		}
+	}
+	// Explicit failures override inferred healthy identities in the consumers.
+	for _, m := range fs["karta_exporter_observation_valid"].GetMetric() {
+		l := labels(m)
+		if l["scope"] != "workload" {
+			continue
+		}
+		root := map[string]string{"namespace": l["namespace"], "workload": l["workload_name"], "workload_uid": l["workload_uid"], "group": l["resource_group"], "version": l["resource_version"], "kind": l["resource_kind"], "scope": "workload", "reason": l["reason"]}
+		health.Metric = append(health.Metric, metric(root, m.GetGauge().GetValue()))
+	}
+	for _, m := range fs["karta_pod_workload_info"].GetMetric() {
+		l := labels(m)
+		for old, current := range map[string]string{"pod": "pod_name", "workload": "workload_name"} {
+			if l[old] == "" && l[current] != "" {
+				name, value := old, l[current]
+				m.Label = append(m.Label, &dto.LabelPair{Name: &name, Value: &value})
+			}
+		}
+	}
+	if len(health.Metric) > 0 {
+		fs["karta_exporter_observation_healthy"] = health
+	}
+}
+func labels(m *dto.Metric) map[string]string {
+	l := map[string]string{}
+	for _, p := range m.Label {
+		l[p.GetName()] = p.GetValue()
+	}
+	return l
+}
+func metric(l map[string]string, value float64) *dto.Metric {
+	m := &dto.Metric{Gauge: &dto.Gauge{Value: &value}}
+	for k, v := range l {
+		m.Label = append(m.Label, &dto.LabelPair{Name: &k, Value: &v})
+	}
+	return m
+}

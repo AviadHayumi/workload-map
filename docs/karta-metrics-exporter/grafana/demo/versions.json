@@ -1,0 +1,17 @@
+{
+  "exporter_source_branch": "AviadHayumi/workload-map:exporter-controller-runtime",
+  "exporter_source_commit": "9c14b074d03dac9fde4f0b64616d7216a3ad9374",
+  "exporter_release": "https://github.com/AviadHayumi/workload-map/releases/tag/exporter-runtime-9c14b074d03d",
+  "exporter_build": "https://github.com/AviadHayumi/workload-map/actions/runs/41488151152",
+  "exporter_image": "ghcr.io/aviadhayumi/workload-map/karta-exporter@sha256:c1f0002787fbf752123a96f0c82c6133b2765ba5e2d9875476e07868d5e8268c",
+  "exporter_chart": "karta-0.0.0-runtime.9c14b074.tgz",
+  "exporter_chart_sha256": "ea473dc372835bdafefbfbf99eef1983eb1b186679dc9a826330c7d64ff7dddb",
+  "demo_helper_image": "ghcr.io/aviadhayumi/workload-map/karta-exporter@sha256:a33983d94d1363c1505bdd3b48f3221d86519f5ab5a50b7c0227a1d9a2459a2b",
+  "helper_runtime_base": "gcr.io/distroless/static-debian13@sha256:336e53e9941facdb69b755e6fd2c63f5400abd3b1ba47bb17ebafc2b1547cebd",
+  "fake_gpu_operator_source_commit": "0901c8fc9c235e5b2ef8a2876fb89db1f7af23f4",
+  "fake_gpu_operator_version": "0.2.1",
+  "go_version": "1.27.3",
+  "architecture": "linux/amd64",
+  "saved_dashboard_source_commit": "5d0661ab19a6830625f26f77faf51cbe3ea5964f",
+  "fake_gpu_operator_archive_sha256": "9569dcb7ba237e46378b05f3909ecb55120860986c0568fcd13c0ff9df57e49b"
+}

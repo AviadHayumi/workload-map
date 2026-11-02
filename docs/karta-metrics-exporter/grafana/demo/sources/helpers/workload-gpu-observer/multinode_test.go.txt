@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+package main
+
+import (
+	dto "github.com/prometheus/client_model/go"
+	"testing"
+	"time"
+)
+
+func TestMultiNodeAllocationValidation(t *testing.T) {
+	now := time.Unix(100000, 0)
+	pods, karta, source := fixture(t, now)
+	cfg := testConfig()
+	cfg.node = "*"
+	// The same workload has two GPUs on each of two nodes.
+	p2 := pods[0].DeepCopy()
+	p2.Name = "worker2"
+	p2.UID = "pod2"
+	p2.Spec.NodeName = "node2"
+	pods = append(pods, *p2)
+	extra := metricFamilies(t, `# TYPE karta_pod_workload_info gauge
+karta_pod_workload_info{namespace="demo",workload="training",workload_group="example.io",workload_version="v1",workload_kind="Example",workload_uid="root-uid",pod="worker2",pod_uid="pod2",owner_resolution="resolved"} 1
+# TYPE fake_gpu_source_healthy gauge
+fake_gpu_source_healthy{node="node2",source="synthetic"} 1
+`)
+	karta["karta_pod_workload_info"].Metric = append(karta["karta_pod_workload_info"].Metric, extra["karta_pod_workload_info"].Metric...)
+	source["fake_gpu_source_healthy"].Metric = append(source["fake_gpu_source_healthy"].Metric, extra["fake_gpu_source_healthy"].Metric...)
+	for _, name := range []string{"DCGM_FI_DEV_GPU_UTIL", "fake_gpu_source_sample_timestamp_seconds"} {
+		originals := append([]*dto.Metric{}, source[name].Metric...)
+		for _, m := range originals {
+			clone := &dto.Metric{Gauge: m.Gauge}
+			for _, l := range m.Label {
+				k, v := l.GetName(), l.GetValue()
+				if k == "node" {
+					v = "node2"
+				}
+				if k == "pod" {
+					v = "worker2"
+				}
+				if k == "pod_uid" {
+					v = "pod2"
+				}
+				clone.Label = append(clone.Label, &dto.LabelPair{Name: &k, Value: &v})
+			}
+			source[name].Metric = append(source[name].Metric, clone)
+		}
+	}
+	r, err := evaluate(cfg, pods, karta, source, now)
+	if err != nil || len(r) != 1 || r[0].reason != "none" || r[0].devices != 4 {
+		t.Fatalf("multi-node: %+v %v", r, err)
+	}
+	setLabel(source["DCGM_FI_DEV_GPU_UTIL"].Metric[2], "pod_uid", "stale")
+	setLabel(source["fake_gpu_source_sample_timestamp_seconds"].Metric[2], "pod_uid", "stale")
+	r, err = evaluate(cfg, pods, karta, source, now)
+	if err != nil || r[0].reason == "none" {
+		t.Fatal("stale identity accepted")
+	}
+}

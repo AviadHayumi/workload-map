@@ -1,0 +1,18 @@
+[
+  {
+    "panel": 307,
+    "title": "Workload GPU utilization over time",
+    "error": null,
+    "frames": 5,
+    "time_fields": 5,
+    "points": 54
+  },
+  {
+    "panel": 308,
+    "title": "GPU workload activity over time",
+    "error": null,
+    "frames": 5,
+    "time_fields": 5,
+    "points": 54
+  }
+]

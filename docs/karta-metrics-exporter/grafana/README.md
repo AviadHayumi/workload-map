@@ -31,3 +31,6 @@ These panels require the separate GPU observers and randomizer; importing JSON
 alone does not install them. The workload creation CronJob runs independently.
 
 Grafana authentication settings and credentials are not included.
+
+The complete [demo handoff](demo/README.md) includes installation, GPU load generation,
+observer sources, verification results and the session record.
