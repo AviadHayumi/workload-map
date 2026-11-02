@@ -19,10 +19,15 @@ GPU requests are requested capacity. The normalized DCGM-to-Pod join uses Pod na
 name reuse remains a limitation. Simulated readings do not prove physical GPU work
 or application idleness.
 
-The restored activity-state panels require the separate GPU observers. Round panels
-require the old round simulator. Those components are absent from the current demo;
-missing inputs stay unavailable, never fabricated as zero activity. The workload
-creation CronJob runs independently of the old simulator. Hover over a panel's info
-icon for its input requirements, or expand Metrics & PromQL for its exact query.
+The demo GPU randomizer runs every minute and chooses new workload settings every
+10 minutes: 0-3% or 60-95% simulated utilization. The workload observer verifies
+Pod UIDs and complete device allocations. Low activity requires every assigned
+GPU to remain at or below 5% for 180 seconds. Missing evidence stays Unknown.
+
+The overview includes a utilization graph and activity timeline for each workload.
+Click a workload to open its structure, utilization history and simulation settings.
+The structure page places utilization and activity history directly below the graph.
+These panels require the separate GPU observers and randomizer; importing JSON
+alone does not install them. The workload creation CronJob runs independently.
 
 Grafana authentication settings and credentials are not included.
