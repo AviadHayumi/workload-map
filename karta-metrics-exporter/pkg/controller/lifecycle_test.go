@@ -116,10 +116,7 @@ func selectCatalog(t *testing.T, r *Runtime, names ...string) {
 	var err error
 	r.state.deps.Inventory, err = inventory.New(nil, inventory.Config{Catalog: inventory.SourceConfig{Enabled: true, Include: names}})
 	require.NoError(t, err)
-	r.state.stateMu.Lock()
-	err = r.state.refreshDefinitions()
-	r.state.stateMu.Unlock()
-	require.NoError(t, err)
+	require.NoError(t, refreshDefinitionSnapshot(r))
 }
 func emptyQueue[T comparable](queue workqueue.TypedRateLimitingInterface[T]) {
 	for queue.Len() > 0 {

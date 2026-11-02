@@ -45,10 +45,13 @@ func enableClusterDefinitions(t *testing.T, r *Runtime) {
 }
 func refreshSelection(t *testing.T, r *Runtime) {
 	t.Helper()
+	require.NoError(t, refreshDefinitionSnapshot(r))
+}
+func refreshDefinitionSnapshot(r *Runtime) error {
+	definitions, sourceErr := r.state.prepareDefinitions()
 	r.state.stateMu.Lock()
-	err := r.state.refreshDefinitions()
-	r.state.stateMu.Unlock()
-	require.NoError(t, err)
+	defer r.state.stateMu.Unlock()
+	return r.state.refreshDefinitions(definitions, sourceErr)
 }
 func definedPair(t *testing.T, r *Runtime) (*unstructured.Unstructured, *unstructured.Unstructured) {
 	t.Helper()
@@ -71,10 +74,8 @@ func TestDefinitionReadFailurePreservesSelectionAndCreation(t *testing.T) {
 	beforePod, beforeRoot := values.Pod(pod.GetUID()), values.Workload(root.GetUID())
 	require.Equal(t, "cluster-job", beforePod.Record.Karta)
 	require.Equal(t, "cluster-job", beforeRoot.Record.Karta)
-	r.state.stateMu.Lock()
 	definitions.setError(inventory.ErrUnavailable)
-	err := r.state.refreshDefinitions()
-	r.state.stateMu.Unlock()
+	err := refreshDefinitionSnapshot(r)
 	require.Error(t, err)
 	require.Error(t, r.reconcilePod(context.Background(), objectJobFor(refOf(pod))))
 	require.NoError(t, r.resolveSelectedObjectRoot(context.Background(), objectJobFor(refOf(root))))
@@ -195,10 +196,8 @@ func TestDefinitionFailureDuringRuntimeStillPublishesConfirmedRootCreation(t *te
 			if invalid {
 				refreshSelection(t, r)
 			} else {
-				r.state.stateMu.Lock()
 				definitions.setError(inventory.ErrPermissionDenied)
-				require.Error(t, r.state.refreshDefinitions())
-				r.state.stateMu.Unlock()
+				require.Error(t, refreshDefinitionSnapshot(r))
 			}
 			root, pod := simpleObject(jobKind, "root"), simpleObject(podGVK, "pod")
 			simpleOwner(pod, root)
