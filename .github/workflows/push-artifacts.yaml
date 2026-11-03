@@ -154,7 +154,8 @@ jobs:
       - name: Build and push exporter image
         if: steps.publication.outputs.published != 'true'
         run: |
-          make exporter-image-buildx-push VERSION="$PACKAGE_VERSION" IMAGE_REGISTRY="$REGISTRY_NAMESPACE"
+          make exporter-image-buildx-push VERSION="$PACKAGE_VERSION" IMAGE_REGISTRY="$REGISTRY_NAMESPACE" \
+            EXPORTER_IMAGE_REPOSITORY="$REGISTRY_NAMESPACE/karta-exporter"
 
       - name: Build helm chart
         if: steps.publication.outputs.published != 'true'
@@ -191,7 +192,7 @@ jobs:
         run: |
           # Run after GoReleaser because `release --clean` recreates dist/.
           make image-lock VERSION="$PACKAGE_VERSION" \
-            IMAGE_LOCK_SET="image.repository=$REGISTRY_NAMESPACE/karta-operator exporter.image.repository=$REGISTRY_NAMESPACE/dsx-workload-exporter"
+            IMAGE_LOCK_SET="image.repository=$REGISTRY_NAMESPACE/karta-operator exporter.image.repository=$REGISTRY_NAMESPACE/karta-exporter"
 
       - name: Attach chart and image locks to the release
         if: github.event_name == 'release'
