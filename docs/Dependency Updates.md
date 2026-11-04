@@ -50,21 +50,25 @@ operator pins in `hack/e2e/global.env` on `main`. Each operator group gets its
 own job, with at most two jobs running together. The workflow can also run one
 group manually through its `operator` input.
 
-The configuration reads release repositories, tag prefixes, channels, and
-retractions from the existing `check-updates.sh` wrappers. Knative/Kourier and
-Kubeflow/MPI stay grouped. Trainer v2 requires an API migration and is excluded.
-Tool pins, Ray runtime, and Gateway API are outside this operator update job.
+The Go tool in [`hack/renovate-operators`](../hack/renovate-operators/README.md)
+generates Renovate's JSON configuration from the existing `check-updates.sh`
+wrappers. Those wrappers own the release repositories, tag prefixes, channels,
+and retractions. Knative/Kourier and Kubeflow/MPI stay grouped. Trainer v2
+requires an API migration and is excluded. Tool pins, Ray runtime, and Gateway
+API are outside this operator update job.
 
-For each candidate, Renovate changes the pins and runs a post-upgrade hook:
+For each candidate, Renovate changes the pins and the workflow runs these steps:
 
-1. Create a fresh kind cluster and run the existing install/verify scripts.
+1. The Go recording hook creates a fresh kind cluster and runs the existing
+   install/verify scripts.
 2. Check provisioning metadata against the pins and discover every selected flow
    through Ginkgo.
 3. Record those flows and reject missing, skipped, failed, or stale fixtures.
 4. Replay the recordings, run `make check`, and remove the temporary cluster.
-5. Commit the pins and recordings with the Renovate App identity and DCO.
-6. Verify the pushed commit against the tested file hashes, then open or update
-   a draft PR with a link to the CI run. Nothing merges automatically.
+5. Renovate commits the pins and recordings with the bot identity and DCO.
+6. The Go launcher verifies the pushed commit against the tested file hashes,
+   then opens or updates a draft PR with a link to the CI run. Nothing merges
+   automatically.
 
 A Git pre-push hook is installed before Renovate starts. A failed post-upgrade
 command cannot publish an update without successful evidence. Evidence is
@@ -91,12 +95,14 @@ Forks use `GITHUB_TOKEN` and the `github-actions[bot]` identity. Enable GitHub
 Actions to create pull requests in the fork's Actions settings. Fork schedules
 are disabled, but manual and reusable workflow calls are supported. Their
 `base-branch` input can target a validation branch. Upstream always uses `main`.
-Recordings run in CI; the launcher rejects local invocation.
+The Go tool's `run` and `record` commands require GitHub Actions. Node runs
+Renovate itself; configuration generation, recording orchestration, and
+publication checks use the Go tool.
 
 ### Extending and testing operator automation
 
 Add the operator's pin variables and workload coverage to
-`hack/e2e/renovate/config.cjs`. Release rules still belong in its checker wrapper.
+`hack/renovate-operators/plan.go`. Release rules still belong in its checker wrapper.
 Add each recorded kind to `test/e2e/cmd/verify-operator-update`; flow names are
 discovered from the suite, so adding a flow does not require another list.
 Test a real update in a fork before enabling or changing its coverage.
@@ -107,8 +113,9 @@ make check
 make lint-shell
 ```
 
-The automation tests need Python 3.9+ and Node 18+. CI runs them separately from
-`make check`, which also includes the Go recording validator tests.
+`make check` includes the automation module and the Go recording validator.
+The standalone automation module uses only the Go standard library. Its offline
+tests need Go and Git; policy capture also exercises the existing Bash wrappers.
 
 ## Testing a configuration change
 
