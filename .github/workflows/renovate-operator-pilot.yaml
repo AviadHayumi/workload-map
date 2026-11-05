@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+name: Renovate operator validation
+on:
+  workflow_dispatch:
+    inputs:
+      operator:
+        description: Operator group to validate
+        type: string
+        default: jobset
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  statuses: write
+jobs:
+  validate:
+    uses: ./.github/workflows/renovate-operators.yaml
+    with:
+      operator: ${{ inputs.operator }}
+      base-branch: ${{ github.ref_name }}
