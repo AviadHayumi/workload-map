@@ -1,0 +1,214 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright (c) 2026 NVIDIA Corporation
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam shadowing true
+skinparam RoundCorner 8
+skinparam ParticipantPadding 25
+skinparam BoxPadding 15
+skinparam maxMessageSize 235
+skinparam DefaultFontName SansSerif
+skinparam TitleFontSize 20
+skinparam sequence {
+    ArrowColor #555555
+    ArrowFontName SansSerif
+    ArrowFontSize 11
+    LifeLineBorderColor #BDC3C7
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor transparent
+    ParticipantBackgroundColor #34495E
+    ParticipantFontName SansSerif
+    ParticipantFontSize 13
+    ParticipantFontColor white
+    BoxBorderColor transparent
+    BoxFontName SansSerif
+    BoxFontSize 11
+    BoxFontColor #6F8592
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+    FontName SansSerif
+    FontSize 11
+    FontColor #424242
+}
+
+title SkyPilot, Kueue and DSX: admission, attribution and logical job status
+
+box "Separate SkyPilot API deployment" #EAF0FC
+participant "SkyPilot API\ncluster and job control" as Sky
+end box
+box "Kubernetes control plane and node runtime" #EEF2F4
+participant "Kubernetes API\nPods and Workloads" as API
+participant "Kueue\nadmission controller" as Kueue
+participant "Scheduler + Pod runtime\nplacement and execution" as Runtime
+end box
+box "Separate observation deployments" #E6F4ED
+participant "DSX exporter\nPod roots and labels" as DSX
+participant "kube-state-metrics\nWorkload conditions" as KSM
+participant "UID adapter\nlab prototype only" as UID
+end box
+box "Proposed integration" #F4EDFC
+participant "Sky API reader\nlogical associations" as Reader
+end box
+box "Monitoring" #FFF4DD
+participant "Prometheus\nscrapes and joins" as Prom
+end box
+
+legend left
+|= Arrow |= Meaning |
+| <color:#555555>Solid gray</color> | Request, mutation or response |
+| <color:#3274A1>Blue dashed</color> | Independent observation delivery |
+| <color:#268354>Green</color> | Local evaluation or published metrics |
+Actual lab behavior is shown outside the proposed Sky API reader branch.
+The UID adapter is a tested lab prototype, not shipping DSX functionality.
+endlegend
+
+== A. Establish independent observations ==
+DSX -> API: Establish metadata observations\nfor configured Pod scope
+API --> DSX: Initial metadata and watch stream
+Kueue -> API: List / watch managed Pods
+API --> Kueue: Initial Pod objects and stream
+KSM -> API: List / watch Kueue v1beta2 Workloads\nwith custom resource metric configuration
+API --> KSM: Initial Workloads and stream
+note over API,Prom
+Each observer reads independently. This diagram shows one explanatory execution.
+Watch delivery, reads and scrapes have no shared ordering or atomic snapshot.
+end note
+
+== B. Create two bare Pods; CPU quota is zero ==
+[-> Sky: Launch a two-node task\nLocalQueue: research
+Sky -> API: Create head and worker Pods\nshared SkyPilot cluster and Kueue group labels
+API -> Kueue: Admission webhook for each Pod
+Kueue --> API: Add admission and topology scheduling gates
+API --> Sky: Pods persisted with UIDs p1 and p2\nphase Pending; no controller owner
+note over Sky,Kueue
+Both Pods use one group, train-a. Names and UIDs here are illustrative.
+The lab ClusterQueue starts with nominal CPU quota 0.
+end note
+
+== C. Pending Pods already have DSX identity ==
+par Kueue observes the Pod group
+  API --[#3274A1]> Kueue: Independent Pod watch events
+  Kueue -> API: Create group Workload w1\nordinary ownerReferences point TO p1 and p2
+  API --> Kueue: Workload created\nownerReferences.controller=false
+  Kueue -[#268354]> Kueue: Quota is insufficient\nkeep Pods gated; Admitted is false
+else DSX observes the same Pods
+  API --[#3274A1]> DSX: Independent Pod metadata events
+  DSX -> DSX: Resolve controller-owner chain\nno owner: each Pod is its own root
+  DSX -> API: Obtain full Pod objects for evaluation
+  API --> DSX: Pod metadata, spec and status
+  DSX -[#268354]> DSX: Evaluate Pod status and configured labelRules\nobject is the full Pod
+  Prom -> DSX: Scrape /metrics
+  DSX -[#268354]> Prom: dsx_workload_pod_info + Pending status\nPod UID and SkyPilot / Kueue labels
+end
+note over DSX,Prom
+Pod attribution does not wait for admission, scheduling, or application start.
+Adding labels changes query grouping. The DSX workload UID remains the Pod UID.
+end note
+
+== D. Raise CPU quota to 12; Kueue admits the group ==
+[-> API: Lab operator changes nominal CPU quota\n0 -> 12
+API --[#3274A1]> Kueue: Quota update observation
+Kueue -[#268354]> Kueue: Reserve quota; satisfy admission and topology requirements
+Kueue -> API: Mark Workload Admitted\nremove admission and topology gates
+API --> Kueue: Updated Workload and Pods
+API --[#3274A1]> Runtime: Ungated Pending Pods become schedulable
+Runtime -> API: Bind Pods; report Running after containers start
+API --> Runtime: Pod status accepted
+API --[#3274A1]> DSX: Independent Pod changes
+DSX -[#268354]> DSX: Refresh full objects; evaluate Running
+note over Kueue,Runtime
+Admission permits scheduling. It does not itself prove Running.
+The quota values and both gate types were observed in the lab.
+end note
+
+== E. A SkyPilot job succeeds while its Pods remain Running ==
+Sky -> Runtime: Run the task in existing cluster Pods
+Runtime --> Sky: Task result: SUCCEEDED
+Sky -[#268354]> Sky: Record logical job success
+note over Sky,DSX
+The cluster Pods continue Running after this job succeeds.
+SkyPilot job status, Pod phase and Kueue Finished are distinct observations.
+end note
+
+== F. Join labels and Kueue conditions without changing roots ==
+API --[#3274A1]> KSM: Independent Workload condition updates
+KSM -[#268354]> KSM: Build Admitted / Finished condition gauges\ninclude namespace, group, Workload UID and reason
+Prom -> KSM: Scrape configured custom resource metrics
+KSM -[#268354]> Prom: kube_customresource_kueue_workload_condition
+Prom -> DSX: Scrape current Pod identity and labels
+DSX -[#268354]> Prom: dsx_workload_pod_info\nworkload_kind=Pod; workload_uid=Pod UID
+Prom -[#268354]> Prom: Deduplicate valid Pod mappings\njoin conditions on cluster + namespace + group
+note over KSM,Prom
+The label join is current-state grouping by name, not immutable association.
+Preserve cluster and namespace. Condition reason is not SkyPilot job status.
+end note
+
+== G. Optional reverse UID association: tested lab adapter ==
+opt Separate read-only UID adapter, not shipping DSX
+  UID -> API: Poll namespaced Workloads, then current Pods\nevery 2 seconds; bounded request timeouts
+  API --> UID: Workload owner references and live Pod UIDs
+  UID -[#268354]> UID: Index (namespace, live Pod UID) -> Workload UID\naccept ordinary owners; ignore retained old UIDs
+  alt Exactly one Workload matches the live Pod UID
+    Prom -> UID: Scrape /metrics
+    UID -[#268354]> Prom: experimental_kueue_pod_info = 1\nPod UID + Workload UID
+  else Missing or ambiguous match
+    UID -[#268354]> UID: Omit association; report ambiguity when present
+  end
+  note over DSX,UID
+This association is a separate metric. No ownerReferences are edited.
+Existing DSX Pod roots and metrics remain unchanged.
+  end note
+end
+
+== H. Optional logical job association: proposed integration ==
+opt Proposed Sky API reader; not implemented in DSX
+  Reader -> Sky: Poll job / service records and their clusters
+  Sky --> Reader: Logical IDs, states and cluster relationships
+  Reader -[#268354]> Reader: Scope identity to API instance\nlocal job identity also includes its cluster
+  Reader -> API: Read the current Pods for those clusters
+  API --> Reader: Pod UIDs and cluster labels
+  Reader -[#268354]> Reader: Build proposed logical job -> Pod associations
+  Prom -> Reader: Proposed scrape
+  Reader -[#268354]> Prom: Proposed separate logical identity and job status metrics
+  note over Reader,Prom #F3E8FF
+Direct Sky API reads were tested. This integrated reader is a proposal.
+Two concurrent jobs sharing a Pod cannot split that Pod's resource usage.
+  end note
+end
+
+== I. Failed adapter reads clear only adapter associations ==
+opt UID adapter receives a denied or failed Kubernetes read
+  UID -> API: Poll Workloads or Pods
+  API --> UID: Permission failure or request error
+  UID -[#268354]> UID: Clear association and condition snapshot\ncollection_valid=0; log fixed diagnostic
+  Prom -> UID: Scrape diagnostic state
+  UID -[#268354]> Prom: No association series; collection_valid=0
+  Prom -> DSX: Independent normal DSX scrape
+  DSX -[#268354]> Prom: Existing Pod identity and status metrics
+  note over DSX,Prom #FFE5E5
+Failure is local to the optional adapter. It must not suppress DSX Pod metrics.
+A later complete successful poll rebuilds the adapter snapshot.
+  end note
+end
+
+== J. Delete a Pod; remove its current series ==
+[-> API: Delete Pod p1 in the disposable lab
+API --> API: Pod p1 no longer exists
+par DSX receives deletion independently
+  API --[#3274A1]> DSX: Pod deletion event
+  DSX -[#268354]> DSX: Remove current Pod attribution / root series
+else UID adapter completes its next successful poll
+  UID -> API: Read Workloads and current Pods
+  API --> UID: Live Pods exclude UID p1
+  UID -[#268354]> UID: Remove p1 association\neven if Workload retains its old owner reference
+end
+Prom -> DSX: Next scrape has no deleted Pod series
+Prom -> UID: Next successful adapter scrape has no p1 association
+note over DSX,Prom
+Prometheus retains historical samples. Current exporter series disappear.
+A replacement Pod with the same name has a different UID and must be matched again.
+end note
+@enduml
