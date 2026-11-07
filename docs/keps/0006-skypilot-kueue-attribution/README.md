@@ -215,10 +215,14 @@ can share the same running Pods. The live test ran jobs `2` and `3` concurrently
 on the same two-node cluster. All three test jobs later succeeded while those
 Pods stayed Running.
 
-A read-only collector can query `sky.status()` and `sky.queue(cluster)`. Match
-`handle.cluster_name_on_cloud` to the Pod label. Scope a local job ID by API
-instance and cluster. Polling introduces delay and API availability requirements.
-On a failed poll, report unknown collection rather than invent completion.
+A read-only collector can associate Pods with local jobs:
+
+1. Query `sky.status()` and `sky.queue(cluster)`.
+2. Match `handle.cluster_name_on_cloud` to the Pod label.
+3. Scope each local job ID by API instance and cluster.
+
+Polling introduces delay and API availability requirements. On a failed poll,
+report unknown collection rather than invent completion.
 
 | Shape | Association | Source of execution state |
 | --- | --- | --- |
