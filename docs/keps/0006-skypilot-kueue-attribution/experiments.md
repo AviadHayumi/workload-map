@@ -107,6 +107,16 @@ count as a successful Karta status test.
 
 </details>
 
+## Lab state after testing
+
+All ten scrape targets were healthy at the final check. The SkyPilot compute
+cluster and named test fixtures were removed. Their current Pod metrics disappeared.
+Only the separate SkyPilot API Pod remained in the workload namespace.
+
+Kueue, the separate SkyPilot API server, test queues, six exporters, association
+prototypes, KSM and test Prometheus remain installed for reuse. Existing platform
+workloads and configuration were left unchanged.
+
 ## Reproduce the useful parts
 
 Use an isolated namespace and explicit kubectl context. Install pinned Kueue

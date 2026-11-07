@@ -7,7 +7,7 @@
 - Authors: @AviadHayumi
 - Issue: [Label-based workload roots](https://github.com/dsx-ai-factory/workload-map/issues/463)
 - Created: 2026-11-07
-- Last updated: 2026-11-07
+- Last updated: 2026-11-08
 
 ## Problem
 
@@ -318,6 +318,7 @@ before changing discovery.
 
 - 2026-11-07: Proposed labels first, with optional Kueue and SkyPilot associations.
 - 2026-11-07: Compared eight approaches and tested six isolated exporter setups.
+- 2026-11-08: Clarified the flows and recorded cleanup results.
 
 [sky-template]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/templates/kubernetes-ray.yml.j2#L306-L330
 [pod-guide]: https://kueue.sigs.k8s.io/docs/tasks/run/plain_pods/

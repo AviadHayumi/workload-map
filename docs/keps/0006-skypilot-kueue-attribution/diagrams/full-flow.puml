@@ -101,7 +101,7 @@ else DSX observes the same Pods
   API --> DSX: Pod metadata, spec and status
   DSX -[#268354]> DSX: Evaluate Pod status and configured labelRules\nobject is the full Pod
   Prom -> DSX: Scrape /metrics
-  DSX -[#268354]> Prom: dsx_workload_pod_info + Pending status\nPod UID and SkyPilot / Kueue labels
+  DSX -[#268354]> Prom: dsx_workload_pod_info + Initializing status\nPod UID and SkyPilot / Kueue labels
 end
 note over DSX,Prom
 Pod attribution does not wait for admission, scheduling, or application start.
