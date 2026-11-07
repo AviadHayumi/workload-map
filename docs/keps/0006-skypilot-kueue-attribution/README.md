@@ -20,7 +20,8 @@ needs SkyPilot data: two jobs can share one running Pod.
 
 ![Optional Kueue admission flow and actual ownership direction](kueue-pod-group.png)
 
-SkyPilot optionally adds these fields to both Pods in cluster `train-a`:
+SkyPilot optionally adds these fields to both Pods. Here `train-a` is an example
+on-cloud cluster key; actual values normally include a user hash suffix.
 
 | Pod field | Value | Purpose |
 | --- | --- | --- |
