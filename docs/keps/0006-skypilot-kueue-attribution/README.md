@@ -200,10 +200,12 @@ Normal DSX Pod metrics remain independent. A real permission-removal test kept
 both Pod records while the association collector reported failure.
 
 This is simpler than replacing the exporter's root model. If the Workload must
-become the actual root, discovery, watches, requeueing and publication validation
-must change together. A matching name alone is insufficient. The resolver must
-handle a Pod arriving before its Workload and the Workload being recreated with
-a new UID. Fallback to a Pod root also needs an explicit identity-change policy.
+become the actual root:
+
+- Change discovery, watches, requeueing and publication validation together.
+- Verify identity beyond a matching name. Handle a Pod arriving before its
+  Workload and a Workload being recreated with a new UID.
+- Define an explicit identity-change policy for fallback to a Pod root.
 
 </details>
 
