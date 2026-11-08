@@ -13,5 +13,6 @@ with CPU, memory and GPU measurements from other exporters.
 - [Build and run the binary](../../dsx-workload-exporter/README.md).
 
 - [PromQL query examples](queries.md) for attribution and low observed GPU activity.
+- [Kyverno policy tutorial](../tutorials/kyverno-exporter/README.md) for a live kind lab with workload history, suspension and cleanup.
 
 Low activity alone does not prove idleness.
