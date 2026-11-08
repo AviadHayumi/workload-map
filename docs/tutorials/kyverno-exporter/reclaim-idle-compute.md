@@ -1,161 +1,289 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Reclaim GPU, CPU and memory capacity with workload policies
+# Reclaim idle compute with Kyverno and DSX
 
-A workload can hold four GPUs without making progress. Another can request
-eight CPU cores and 16 GiB of memory while barely using either. A third can
-stay in `Initializing` for hours. These are opportunities to return capacity
-to the queue, enforce runtime budgets and stop manual cleanup.
+A workload reserves GPUs or CPU but stops doing useful work. DSX identifies
+its owning workload, Prometheus evaluates the signals, and Kyverno acts on it.
 
-DSX identifies the workload behind each Pod. Prometheus combines that identity
-with status, utilization and resource requests. Kyverno applies the resulting
-decision to the owning workload: suspend it, change a supported field, or
-delete it after its retention period.
-
-[Value](#the-value-turn-observations-into-actions) | [Prerequisites](#what-you-need-for-each-scenario) | [Examples](#recipe-1-reclaim-a-workloads-idle-gpus) | [Run the lab](#run-the-verified-kind-lab) | [Live results](#live-verification-results)
-
-## The value: turn observations into actions
-
-Thresholds below are examples. Choose them for the application and its owners.
-
-| Opportunity | Example policy | What the team gets | Evidence |
-| --- | --- | --- | --- |
-| Reclaim idle GPU allocations | Every allocated GPU stays below 5% for an hour, the workload is Running, and no application work is queued. Suspend an opted-in Job that can restart safely. | GPU capacity becomes available after its Pods terminate. | Historical fake-GPU run; real-GPU recipe below. |
-| Release unused CPU and memory requests | A Job requests 8 cores and 16 GiB, but uses under 0.1 core and a small memory footprint for an hour. Confirm application idleness, then notify its owner or suspend it. | Capacity reserved in scheduler accounting becomes available to other workloads. | Proposed cAdvisor recipe below. |
-| Put a limit on time in status X | `Running` for 8 hours: suspend. `Initializing` for 90 minutes: investigate. `Degraded` for 10 minutes: notify and retain diagnostics. | Runtime budgets and stalled-work detection use workload state. | Running-Job suspension tested; other phases are extensions. |
-| Retire completed work | A Job stays Completed beyond its retention window. Delete the Job and its owned Pods. | Fewer stale objects and less manual cleanup. | Job and Pod deletion tested in the live lab. |
-| Warn before the limit | At 80% of the runtime or cost budget, notify the owner before a later action. | Owners can finish, checkpoint or request an exception. | Proposed; needs an alert delivery path. |
-
-![Four ways workload policies return capacity and reduce manual work](images/value-overview.png)
-
-Reclaimed requests create scheduling headroom. A lower cloud bill also needs
-node consolidation, scale-down or release of paid capacity. This guide does
-not claim measured financial savings.
-
-The [original runtime-rules proposal](https://github.com/AviadHayumi/workload-map/blob/1a90457bbdc349bdc1fb5c7f0924198f291e6a04/keps/0003-runtime-rules/README.md#2-the-goals)
-already described GPU idleness, time in a phase, completed-work retention and
-warnings before action. This guide keeps those goals and uses the current
-`dsx_*` metric contract. Its [CPU-only lab](#run-the-verified-kind-lab) proves the suspension and
-cleanup mechanism; the GPU and utilization recipes need the inputs below.
-
-## More policies to build from the same signals
-
-These are proposed extensions. Their additional inputs and actions need their
-own validation.
-
-| Policy | Value | Additional input and action |
+| Value | Example policy | Available today in this guide |
 | --- | --- | --- |
-| Stop a stalled training run | Avoid hours of compute without progress. | A progress counter and checkpoint confirmation; suspend an opted-in Job. |
-| Prefer queued priority work | Return idle capacity when important work is waiting. | Scheduler backlog, priority and verified idleness; suspend eligible low-priority Jobs. |
-| Scale an idle development service to zero | Release out-of-hours development requests. | No sessions or queued traffic, a restore owner, and coordination with any autoscaler; set Deployment replicas to zero. |
-| Retain results before cleanup | Avoid deleting the only copy of a result. | Completed history plus an artifact-retention signal; delete only after both qualify. |
-| Pause a repeatedly failing schedule | Stop producing another failed run every interval. | CronJob-to-Job history; set the CronJob's suspend field. Existing Jobs need separate handling. |
-| Adjust one quiet component | Reclaim excess workers without treating every component alike. | Verified component attribution, demand and supported scaling; for example, investigate quiet decode workers separately from busy prefill workers. |
-| Attribute cost to a team or workload | Make the owner and source of spend visible. | Join a cost source to DSX identity and configured team labels; alert on a defined budget before choosing an action. |
+| Return idle GPUs to the queue | Suspend a Job after every GPU stays below 5% for an hour, with no queued work and a safe restart path. | Historical fake-GPU evidence; real-GPU recipe below. |
+| Free unused CPU and memory requests | A Job requests 8 cores and 16 GiB but uses under 0.1 core and 300 MiB. Confirm application idleness before suspending it. | Proposed cAdvisor integration. |
+| Limit time in status X | Suspend after a Running budget; investigate a long Initializing or Degraded phase. | Running-Job policy tested live. |
+| Clean up finished work | Delete a Completed Job and its Pods after a retention window. | Tested live. |
+| Give owners time to act | Warn before a runtime or cost budget is exhausted. | Proposed; needs an alert delivery service. |
 
-The writes follow Kubernetes' [Job suspension](https://kubernetes.io/docs/concepts/workloads/controllers/job/#suspending-a-job),
-[Deployment scaling](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#replicas)
-and [CronJob suspension](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-suspension)
-semantics. The signal and eligibility rules are the additional policy work.
+Releasing requests creates scheduling headroom. Lower bills also need node
+scale-down or release of paid capacity; no financial savings were measured.
 
-## What you need for each scenario
+## Kyverno policies
 
-All scenarios need DSX workload attribution, a supported workload definition,
-Prometheus history, and Kyverno permissions for the selected target operation.
-DSX supplies identity, normalized status, creation time and observation
-diagnostics. Other sources supply utilization, requests, prices and application
-progress.
+These are the two complete policies from [policies.yaml](manifests/policies.yaml).
+Setup installs their required [Prometheus rules](manifests/prometheus-rules.yaml)
+and [RBAC](manifests/kyverno-rbac.yaml). Both act only on opted-in Jobs in `ai-lab`.
+Suspension terminates Pods; it does not create an application checkpoint.
 
-| Scenario | Additional prerequisites | What to verify first |
-| --- | --- | --- |
-| Time in status X and completed-Job cleanup | No GPU or utilization exporter. The included kind lab is enough. | The definition's phase means what the policy expects. For example, a CronJob's Running state is not proof that a child Job is executing. |
-| Real GPU idleness | A functional NVIDIA GPU on a supported Linux node, working driver and container access, device allocation, and DCGM Exporter. GPU Operator can manage this stack. | A real GPU workload runs. DCGM reports the expected device and Pod identity. Prometheus scrapes both DCGM and DSX. |
-| CPU and memory use versus requests | Authorized kubelet `/metrics/cadvisor` scrapes and request metrics from kube-state-metrics or kube-scheduler. | Usage and requests refer to the same current Pods and containers. Duplicate scrapes do not inflate totals. |
-| Confirm application idleness | Application progress, active sessions, queue depth or another owner-approved signal. | Low utilization is expected during neither useful waiting nor startup. A resume or restart path exists. |
-| Cost budgets | A cost source such as OpenCost, workload attribution, a budget and its accounting period. | Price, currency and attribution are defined. A sampled policy is not an exact financial cap. |
+<details>
+<summary>Suspend a Running Job: full MutatingPolicy YAML</summary>
 
-The included `up.sh` installs DSX, Prometheus and Kyverno. It does not install
-GPU drivers, DCGM, kube-state-metrics, cAdvisor scrapes or a notification service.
-For real GPUs, follow the [DCGM installation requirements](https://docs.nvidia.com/datacenter/dcgm/latest/installation/install-dcgm-exporter.html).
-For CPU and memory, configure the [Kubernetes metrics endpoints](https://kubernetes.io/docs/concepts/cluster-administration/system-metrics/).
+After two minutes of valid Running history, Kyverno matches the current Job's
+UID and namespace to Prometheus, then sets `spec.suspend=true`.
+Admission mutation is disabled; the background controller mutates existing Jobs.
 
-## Recipe 1: reclaim a workload's idle GPUs
+```yaml
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: tutorial-suspend-running
+spec:
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ai-lab
+    objectSelector:
+      matchLabels:
+        tutorial.karta.run.ai/action: suspend
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+  evaluation:
+    admission:
+      enabled: false
+    mutateExisting:
+      enabled: true
+  targetMatchConditions:
+    - name: current-target-is-opted-in
+      expression: >-
+        object.metadata.namespace == 'ai-lab' &&
+        has(object.metadata.labels) &&
+        'tutorial.karta.run.ai/action' in object.metadata.labels &&
+        object.metadata.labels['tutorial.karta.run.ai/action'] == 'suspend'
+    - name: still-running-and-not-suspended
+      expression: >-
+        !object.spec.?suspend.orValue(false) &&
+        object.status.?active.orValue(0) > 0 && object.status.?ready.orValue(0) > 0
+    - name: verified-running-history-for-this-uid
+      expression: >-
+        http.Get('http://prometheus.monitoring.svc:9090/api/v1/query?query=tutorial%3Ajob_running%3Aeligible%20and%20%28time%28%29%20-%20timestamp%28tutorial%3Ajob_running%3Aeligible%29%20%3C%2015%29').data.result.exists(r, r.metric.workload_uid == object.metadata.uid && r.metric.namespace == object.metadata.namespace)
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: "[JSONPatch{op: 'add', path: '/spec/suspend', value: true}]"
+```
 
-Example: `gpu-trainer` holds four dedicated GPUs. Every allocated device stays
-below 5% utilization for one hour. The workload is Running, has no queued work,
-and has a valid checkpoint. An opted-in policy can set `Job.spec.suspend=true`.
-The Job controller terminates its Pods and releases their GPU allocations.
-Suspension does not create a checkpoint; the application must support recovery.
+For a Job with UID `uid-A`, a fresh query result with `workload_uid="uid-A"`
+and the same namespace makes `exists(...)` true. A different UID cannot match,
+even when the Job name is reused. The Job must still have active and ready Pods.
 
-Measure the workload, not an average across the cluster:
+</details>
 
-1. Join each DCGM device measurement to DSX by namespace and Pod UID.
-2. Preserve device identity. Deduplicate measurements before aggregation.
-3. Check the highest utilization across every allocated device and the entire
-   observation window. A quiet device must not hide a busy one.
-4. Require complete allocation coverage, valid Running history and application
-   idleness before selecting the workload UID for a Kyverno action.
+<details>
+<summary>Delete a Completed Job and its Pods: full DeletingPolicy YAML</summary>
 
-Enable Kubernetes mapping in DCGM Exporter and
-`DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID=true`. Verify the actual `pod_uid`
-label in its output. The [current GPU queries](../../dsx-workload-exporter/queries.md#3-gpu-measurements-by-pod-uid)
-show the join and its prerequisites. Expected allocation counts and device IDs
-must come from the allocation system; observing only three of four GPUs is
-incomplete evidence. MIG, shared GPUs and DRA require their own attribution and
-supported utilization metrics.
+Once a minute, Kyverno checks `Complete=True` and two minutes of valid Completed
+history for that UID. `Background` propagation lets Kubernetes remove owned Pods.
 
-The original fork already demonstrated the policy loop with fake GPUs.
-`gpu-trainer` stayed untouched at 90% simulated utilization. After the input
-changed to 1% and the last busy sample left the two-minute window, Kyverno
-suspended the Job and its Pod disappeared. The
-[recorded run](https://github.com/AviadHayumi/workload-map/blob/f28da01bdf140355964fff5d450f867265371608/labs/exporter-kyverno-rr/captures/75-gpu-idle-fake-gpu.txt)
-used DCGM metric names with simulated values. It did not measure a physical GPU.
+```yaml
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: tutorial-delete-completed
+spec:
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ai-lab
+    objectSelector:
+      matchLabels:
+        tutorial.karta.run.ai/action: delete
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+  schedule: "*/1 * * * *"
+  deletionPropagationPolicy: Background
+  conditions:
+    - name: still-completed
+      expression: >-
+        object.status.?conditions.orValue([]).exists(c,
+          c.type == 'Complete' && c.status == 'True')
+    - name: verified-completed-history-for-this-uid
+      expression: >-
+        http.Get('http://prometheus.monitoring.svc:9090/api/v1/query?query=tutorial%3Ajob_completed%3Aeligible%20and%20%28time%28%29%20-%20timestamp%28tutorial%3Ajob_completed%3Aeligible%29%20%3C%2015%29').data.result.exists(r, r.metric.workload_uid == object.metadata.uid && r.metric.namespace == object.metadata.namespace)
+```
 
-## Recipe 2: act when a workload stays in status X too long
+</details>
 
-The rule is: the same workload UID has valid observations of phase X across
-the full window, and the target still qualifies when Kyverno evaluates it.
+## Run the lab
 
-| Phase and duration | Example response | Why |
-| --- | --- | --- |
-| `Running` for 8 hours | Suspend an opted-in Job. | Enforce a runtime budget. |
-| `Initializing` for 90 minutes | Notify the owner or annotate for investigation. | Expose a stalled start; check scheduler backlog before treating it as waste. |
-| `Degraded` for 10 minutes | Notify and retain diagnostic data. | Investigate persistent degradation. |
-| `Completed` for 24 hours | Delete after outputs and required logs are retained. | Apply a retention policy. |
+From the repository root, with Docker running and kind, kubectl, Helm, Bash,
+curl and Python 3 installed. No GPU is needed. Confirm the context is
+`kind-kyverno-exporter-tutorial` before applying the manifests.
 
-The [tested recording rules](manifests/prometheus-rules.yaml) implement the
-Running and Completed cases with two-minute windows. They check sample count,
-current and historical endpoints, creation age, scrape health and observation
-validity. Changing the phase or window requires changing the associated count,
-age and offset checks together. Workload age alone is not time in a phase.
+```sh
+bash docs/tutorials/kyverno-exporter/up.sh
+export KUBECONFIG="$PWD/.artifacts/kyverno-exporter-tutorial/kubeconfig"
+kubectl config current-context
+kubectl apply -f docs/tutorials/kyverno-exporter/manifests/workloads.yaml
+kubectl apply -f docs/tutorials/kyverno-exporter/manifests/policies.yaml
+kubectl -n ai-lab get jobs --watch
+```
 
-The meaning of X comes from the workload's Karta definition. A different kind
-also needs its own supported write operation and permissions. Shared status
-queries do not make `Job.spec.suspend` valid on every Kubernetes resource.
+After the observation window, `running-worker` is suspended and its Pods stop.
+`completed-report` and its Pods disappear. Unselected and failed Jobs remain.
+Press Ctrl-C to stop watching. Cleanup after a Prometheus outage may need the
+requeue documented under live results below.
 
-For a Job with a fixed active deadline or simple completion TTL, use the native
-`activeDeadlineSeconds` or `ttlSecondsAfterFinished` fields when they fit.
-The metric-based policy becomes useful when phase history, application signals
-or several conditions decide the action.
+<details>
+<summary>Inspect results, run verification, resume, and remove the lab</summary>
 
-## Recipe 3: find workloads that reserve resources but do little work
+The lab uses kind 0.30.0, Kubernetes 1.34.3, Kyverno 1.19.1 (chart 3.9.1),
+Prometheus 3.14.0 and busybox 1.37.0. The recorded host used Docker 29.0.1,
+Helm 4.0.1 and Linux arm64 nodes. The exporter is built from the checkout.
+Its bundled `batch-job-v1` definition needs no Karta operator or CRD.
 
-Consider a simple Job with one regular container, no init containers and no Pod
-overhead. The following numbers are illustrative, not a measurement from this
-lab:
+Inspect the actual API outcome:
 
-| Resource | Requested | Observed for one hour | Interpretation |
-| --- | --- | --- | --- |
-| CPU | 8 cores | Less than 0.1 core | Under 1.25% of the requested CPU is being used. |
-| Memory | 16 GiB | Working set below 300 MiB | Small memory footprint compared with the request. This is not a measure of memory activity. |
+```sh
+kubectl -n ai-lab get job running-worker -o jsonpath='{.spec.suspend}{"\n"}'
+kubectl -n ai-lab get pods -l batch.kubernetes.io/job-name=running-worker
+kubectl -n ai-lab wait --for=delete job/completed-report --timeout=5m
+kubectl -n ai-lab get pods -l batch.kubernetes.io/job-name=completed-report
+```
 
-Kubernetes schedules against requests even when actual use is low. Suspending
-this Job releases its 8-core and 16-GiB requests from scheduling accounting
-after its Pod terminates. It does not mean 16 GiB of physical RAM was in use.
-See [Kubernetes resource requests](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+The first command returns `true`; both Pod lists should be empty after reconciliation.
+To inspect metrics, run this in another terminal with the same kubeconfig:
 
-cAdvisor supplies the numerator:
+```sh
+kubectl -n monitoring port-forward service/prometheus 19090:9090
+```
+
+Open [Prometheus](http://127.0.0.1:19090/query) and query:
+
+```promql
+dsx_workload_status{namespace="ai-lab",workload_name="running-worker",phase="Running",observation_valid="true"}
+```
+
+Before suspension, a ready Job reports `1`. Its `workload_uid` matches the
+Job UID. A valid observation verifies exporter inputs, not application health.
+For policy decisions, inspect `tutorial:job_running:eligible`,
+`tutorial:job_completed:eligible` and `/api/v1/rules` for errors.
+
+Run the complete verifier:
+
+```sh
+python3 docs/tutorials/kyverno-exporter/verify.py
+```
+
+It resets its labelled Jobs and two policies, temporarily stops the lab exporter
+and Prometheus, then restores one replica each. Do not edit or rerun setup during
+the test. Results go to `.artifacts/kyverno-exporter-tutorial/verification.json`.
+
+Opt out and resume in one update:
+
+```sh
+kubectl -n ai-lab patch job running-worker --type=merge -p \
+  '{"metadata":{"labels":{"tutorial.karta.run.ai/action":"observe"}},"spec":{"suspend":false}}'
+```
+
+The Job creates a new Pod. Resuming without opting out can trigger suspension
+again. Re-enabling the label can use existing history for that UID.
+
+Rerunning setup clears Prometheus's ephemeral history; it retains only two hours.
+To remove this lab, stop the port-forward and run:
+
+```sh
+kind delete cluster --name kyverno-exporter-tutorial
+```
+
+</details>
+
+<details>
+<summary>How DSX, Prometheus and Kyverno decide when to act</summary>
+
+![Exporter observations become Kyverno actions](images/policy-flow.png)
+
+DSX publishes identity, status, creation time and observation diagnostics.
+Prometheus saves eligible workload UIDs in recording rules. Kyverno's `object`
+is the current Job; it compares that Job with the query result before writing.
+The exporter performs no writes. Kubernetes controllers remove the Pods.
+
+The full opt-in label is `tutorial.karta.run.ai/action`, with `suspend` or `delete`.
+The lab grants background update/patch and cleanup delete access in `ai-lab`.
+Cleanup also needs read-only cluster-wide Job listing. Kyverno keeps its chart's
+baseline permissions.
+
+Prometheus scrapes and evaluates every five seconds. Suspension scans run every
+30 seconds; cleanup runs once a minute. Two minutes is an observation window,
+not an exact action deadline. Each rule requires:
+
+- All available valid phase samples to equal `1`, with at least 23 samples.
+- The phase to equal `1` now and two minutes ago, with both samples under 15 seconds old.
+- Creation age over 120 seconds, no invalid status or workload-error observations,
+  and sufficient healthy exporter scrapes with a fresh successful current scrape.
+
+Kyverno also requires the recording sample to be under 15 seconds old.
+Empty results and query errors cannot supply a matching UID. A failed scrape
+blocks eligibility until it leaves the window and fresh history qualifies.
+
+![Evidence required before a policy acts](images/evidence-window.png)
+
+Samples cannot prove what happened between scrapes. Querying and writing are
+not atomic. Production use needs retained audit records, resource limits and
+an explicit policy for concurrent user changes.
+
+</details>
+
+## Extend the policies
+
+Real GPU idleness needs functional GPUs and DCGM. CPU/memory policies need
+cAdvisor usage plus request metrics. Neither integration is installed by this
+lab; the following recipes describe additional work to validate.
+
+<details>
+<summary>GPU idleness, CPU/memory use versus requests, and time in status X</summary>
+
+### Idle GPU allocations
+
+Example: a Job holds four dedicated GPUs. Every device stays below 5% for an
+hour, the workload is Running, no work is queued, and a checkpoint allows restart.
+A Kyverno suspension policy can then release the allocation by terminating Pods.
+
+Prerequisites: supported NVIDIA GPUs on Linux, working drivers and container
+access, device allocation, and [DCGM Exporter](https://docs.nvidia.com/datacenter/dcgm/latest/installation/install-dcgm-exporter.html).
+GPU Operator can manage this stack. First run a real GPU workload and verify
+that Prometheus scrapes both DCGM and DSX with the expected Pod/device labels.
+
+Enable DCGM Kubernetes mapping and `DCGM_EXPORTER_KUBERNETES_ENABLE_POD_UID=true`.
+Join by namespace and Pod UID, preserve device IDs, and deduplicate measurements.
+Use the highest utilization across all allocated devices and the whole window.
+Require complete allocation coverage, valid Running history and application
+idleness. Seeing only three of four devices is insufficient. MIG, shared GPUs
+and DRA need separate attribution validation. See the [GPU query examples](../../dsx-workload-exporter/queries.md#3-gpu-measurements-by-pod-uid).
+
+The fork's [historical fake-GPU run](https://github.com/AviadHayumi/workload-map/blob/f28da01bdf140355964fff5d450f867265371608/labs/exporter-kyverno-rr/captures/75-gpu-idle-fake-gpu.txt)
+kept a Job at 90% simulated utilization, then suspended it after a change to 1%
+and expiry of the last busy sample. It used a two-minute window and did not
+measure physical GPUs. The [original proposal](https://github.com/AviadHayumi/workload-map/blob/1a90457bbdc349bdc1fb5c7f0924198f291e6a04/keps/0003-runtime-rules/README.md#2-the-goals)
+also covers phase duration, retention and warnings. This lab uses current `dsx_*` metrics.
+
+### Unused CPU and memory requests
+
+Illustrative Job: one regular container, no init containers or Pod overhead,
+requesting 8 cores and 16 GiB. For an hour it uses under 0.1 core (1.25% of its
+CPU request) and has a working set under 300 MiB. Suspending it releases its
+requests from scheduler accounting after its Pod terminates. It does not mean
+16 GiB of physical memory was in use.
+
+Prerequisites: authorized kubelet `/metrics/cadvisor` scrapes, request metrics
+from kube-state-metrics or kube-scheduler, and DSX attribution. cAdvisor CPU use
+is measured in cores:
 
 ```promql
 rate(container_cpu_usage_seconds_total{
@@ -163,24 +291,9 @@ rate(container_cpu_usage_seconds_total{
 }[5m])
 ```
 
-This is CPU cores, not percent. For memory, use
-`container_memory_working_set_bytes` with the same container filters; it is a
-gauge in bytes, so do not apply `rate()` to it. The
-[CPU and memory attribution examples](../../dsx-workload-exporter/queries.md#2-cpu-and-memory-by-component-instance-and-group)
-join these measurements to DSX and sum them by workload or component.
-See the [cAdvisor metric definitions](https://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md)
-for the counter and gauge units.
-
-kube-state-metrics supplies declared container requests:
-
-```promql
-kube_pod_container_resource_requests{resource="cpu",unit="core"}
-```
-
-Use `resource="memory",unit="byte"` for memory. Its `uid` label is the Pod UID;
-copy it to `pod_uid` before joining DSX. With the
-[deduplicated DSX attribution rule](../../dsx-workload-exporter/queries.md#1-deduplicate-pod-attribution)
-installed, the CPU-request join is:
+Memory use is `container_memory_working_set_bytes`, a gauge in bytes; do not
+apply `rate()`. For requests, copy kube-state-metrics' Pod `uid` to `pod_uid`
+and join the [deduplicated DSX attribution rule](../../dsx-workload-exporter/queries.md#1-deduplicate-pod-attribution):
 
 ```promql
 label_replace(
@@ -192,307 +305,88 @@ label_replace(
   dsx:pod_attribution:unique{observation_valid="true"}
 ```
 
-These are diagnostic query fragments, not installed action rules. Deduplicate
-external scrapes and restrict both sides to the same current running Pods and
-regular containers before summing by namespace and workload UID. Divide used
-cores by requested cores only when the denominator is positive. Compare the
-memory working set with the matching memory request in the same way.
+For memory requests, use `resource="memory",unit="byte"`. These are diagnostic
+fragments, not installed action rules. Deduplicate scrapes; compare the same
+current running Pods and containers; require a positive request denominator.
+Record each workload's usage/request ratio and require its maximum to stay low
+for the full hour, with fresh, complete history and application-idle confirmation.
 
-For a one-hour decision, record the per-workload ratio at each evaluation and
-require its maximum to stay below the threshold for that hour. Also require
-complete, fresh observations throughout the window. A maximum preserves busy
-periods that a long-window average can hide.
+The [CPU/memory query examples](../../dsx-workload-exporter/queries.md#2-cpu-and-memory-by-component-instance-and-group)
+join usage by Pod name, so automatic actions need stronger identity checks across
+Pod replacement. Container-request sums omit init/overhead scheduling effects;
+use the scheduler's `kube_pod_resource_request` for effective Pod requests with a
+validated identity join. See the [request metric reference](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md).
 
-A container-request sum omits scheduling effects such as init containers and
-Pod overhead. For effective Pod scheduling requests, use the scheduler's
-`kube_pod_resource_request` metric with a validated Pod-identity join. The
-[kube-state-metrics reference](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md)
-documents the request fields and recommends that scheduler metric.
+Low CPU may mean useful I/O waiting. A small memory footprint does not prove
+inactivity. Choose between reporting oversized requests and suspending an idle
+Job; the latter needs a safe restart path.
 
-Policy choices differ by intent:
+### Time in status X
 
-- Reclaim idle batch capacity: require sustained low CPU, complete telemetry,
-  no application work and a safe restart path; then suspend an opted-in Job.
-- Reduce oversized requests: flag a workload whose CPU use or memory footprint
-  stays far below its request. Review peaks and startup behavior before changing
-  the next workload submission or deployment template.
-- Close abandoned development sessions: combine low activity with no active
-  sessions and an expiry rule. Use a supported stop operation and a named owner
-  for restoring it.
+Examples: `Running` for eight hours -> suspend; `Initializing` for 90 minutes ->
+investigate; `Degraded` for ten minutes -> notify; `Completed` for 24 hours ->
+delete after outputs are retained. Only Running and Completed are tested here.
 
-Low CPU can mean an application is waiting for useful I/O. Low or unchanged
-memory does not prove inactivity. The current cAdvisor example joins Pod names,
-so it is useful for diagnosis but is not sufficient for automatic suspension
-across Pod replacement. An action policy needs stable identity and complete
-history for every container it judges.
+Changing the phase or duration means updating the recording rule's window,
+sample count, age and offset checks together. Workload age is not phase duration.
+Check the definition's phase meaning and the target kind's supported operation;
+`Job.spec.suspend` does not apply to every resource. Native Job deadlines or TTL
+are simpler when `activeDeadlineSeconds` or `ttlSecondsAfterFinished` fit.
 
-## Keep the owner in control
+</details>
 
-Use an explicit opt-in, namespace scope, a tested operation and an opt-out path.
-The live lab verifies that unselected and failed Jobs remain untouched, a new
-UID does not inherit an old Job's eligibility, and missing telemetry blocks
-actions. Its [evidence-window checks](#5-understand-when-the-rule-waits)
-are the starting point for additional signals; each source also needs its own
-freshness and coverage checks. Prometheus observations and Kubernetes writes
-are not one atomic transaction.
+<details>
+<summary>More policy ideas: stalled training, priority queues, idle services and budgets</summary>
 
-Owner notifications need an alert delivery service. Checkpointing needs
-application support. Long-term action history needs retained audit records.
-Those responsibilities are separate from the exporter and the two lab policies.
+![Workload policies and their evidence](images/value-overview.png)
 
-## Run the verified kind lab
+These are proposed extensions, each needing its own inputs and validation:
 
-This CPU-only kind lab demonstrates the two implemented Job policies. Follow
-the steps below to see the API objects change and verify recovery.
+- Stalled training: require absent progress and checkpoint confirmation before suspension.
+- Priority queues: reclaim verified idle low-priority Jobs when important work waits.
+- Idle development services: require no sessions or traffic; scale to zero with a restore owner and autoscaler coordination.
+- Retain results: require artifact retention before deleting Completed workloads.
+- Repeated schedule failures: suspend the CronJob; handle existing Jobs separately.
+- Quiet components: check attributed demand before scaling, such as quiet decode workers alongside busy prefill workers.
+- Team budgets: join an attributed cost source, define price/currency/period, and warn before action. Sampling is not an exact financial cap.
 
-| Input in `ai-lab` | Policy operation | Result |
-| --- | --- | --- |
-| `running-worker`, labelled `action: suspend`, with Running observations across a two-minute window | Set `Job.spec.suspend: true` | The Job controller removes its active Pods. |
-| `completed-report`, labelled `action: delete`, with Completed observations across a two-minute window | Delete the Job | Kubernetes garbage collection removes its owned Pods. |
+Notifications need a delivery service; checkpointing needs application support.
+The exporter supplies neither. Actions follow the target's
+[Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/#suspending-a-job),
+[Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#replicas) or
+[CronJob](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-suspension) API.
 
-The full label key is `tutorial.karta.run.ai/action`. Jobs without an action's
-label are left alone. Failed Jobs are retained for inspection.
+</details>
 
-The two-minute windows make the result visible without a long wait. The GPU
-and cAdvisor recipes above require additional integrations.
+## Live results
 
-![Exporter observations become Kyverno actions](images/policy-flow.png)
+The kind verifier passed in 670 seconds on 2026-11-08. Suspension, completed-Job
+and Pod removal, UID isolation, controls and outage recovery were checked.
+Cleanup recovery included an explicit policy requeue.
 
-### 1. Create the lab
+<details>
+<summary>Test evidence, limitations, and cleanup recovery commands</summary>
 
-Run commands from this repository's root. Install Docker, kind, kubectl, Helm,
-Bash, curl and Python 3 first. Docker must be running. No GPU is required.
-
-```sh
-bash docs/tutorials/kyverno-exporter/up.sh
-export KUBECONFIG="$PWD/.artifacts/kyverno-exporter-tutorial/kubeconfig"
-kubectl config current-context
-```
-
-The context must be `kind-kyverno-exporter-tutorial`. The script creates that
-separate kind cluster and kubeconfig. The recorded run used these versions:
-
-| Component | Version or source |
+| Check | Result |
 | --- | --- |
-| kind | `0.30.0` |
-| Docker | `29.0.1` |
-| Helm | `4.0.1` |
-| Kubernetes | `kindest/node:v1.34.3`, Linux arm64 |
-| Kyverno | Helm chart `3.9.1`, application `1.19.1` |
-| Prometheus | `quay.io/prometheus/prometheus:v3.14.0` |
-| DSX workload exporter | Built from this checkout, loaded into kind |
-| Example Job image | `busybox:1.37.0` |
+| Suspension and cascading deletion | Both selected Jobs' Pods removed; initial actions checked by 189s. |
+| Controls and replacement | Unselected/failed Jobs retained; a new UID did not inherit eligibility. |
+| Exporter and Prometheus outages | Selected Jobs unchanged during the tested outages, including opt-in while exporter scrapes were unavailable. |
+| Recovery | Fresh history required; suspension recovered automatically; cleanup recovered after explicit requeue. |
+| Permissions and resume | Update/delete allowed in `ai-lab`, denied in `default`; combined opt-out/resume stayed active. |
 
-The exporter uses the bundled `batch-job-v1` definition. It watches `ai-lab`
-and discovers Jobs and their Pods. This installation does not need the Karta
-operator or Karta CRD. The [exporter values](manifests/exporter-values.yaml)
-show the selection and permissions.
+Exporter source was upstream `8370c0b5a720771dcb2e8c944d2e4bba39e7df3a`.
+The final check found all six deployments and both recording rules healthy.
+Local evidence is under `.artifacts/kyverno-exporter-tutorial/`, including
+`verification.json`, `final-health.json` and `inventory.json`.
 
-Prometheus scrapes every five seconds and evaluates the
-[recording rules](manifests/prometheus-rules.yaml) every five seconds. A recording
-rule saves a query result as a metric that another query can read.
-Kyverno's background scan runs every 30 seconds. Its cleanup schedule runs
-once a minute. Actions therefore happen after the window qualifies and a
-controller processes the Job, rather than at an exact two-minute deadline.
+Physical-GPU idleness and cAdvisor-driven actions were not tested. Neither were
+production scale, multiple clusters or fault-injected invalid observations.
+The historical runtime-rules proposal is not an installed controller.
 
-Rerunning `up.sh` rebuilds the exporter and restarts exporter and Prometheus
-Pods. Prometheus uses an `emptyDir` volume, so this clears the lab's metric
-history. The script does not apply the workload policies.
-
-### 2. Observe a workload
-
-```sh
-kubectl apply -f docs/tutorials/kyverno-exporter/manifests/workloads.yaml
-kubectl -n ai-lab get jobs
-kubectl -n ai-lab get job running-worker -o jsonpath='{.metadata.uid}{"\n"}'
-```
-
-The manifest also creates three controls: an unselected running Job, an
-unselected completed Job, and a failed Job selected for cleanup. None should
-be changed by these policies.
-
-In a second terminal, with the same kubeconfig:
-
-```sh
-kubectl -n monitoring port-forward service/prometheus 19090:9090
-```
-
-Open [the local Prometheus query page](http://127.0.0.1:19090/query), or query
-its API from the first terminal:
-
-```sh
-curl -fsSG http://127.0.0.1:19090/api/v1/query \
-  --data-urlencode 'query=dsx_workload_status{namespace="ai-lab",workload_name="running-worker",phase="Running",observation_valid="true"}'
-```
-
-Once the Job has a ready Pod, the result has value `1`. Its `workload_uid`
-label equals the Job's `metadata.uid`. The exporter reads the Job's active and
-ready counts through its bundled definition. `observation_valid="true"`
-means the exporter verified the inputs for that observation; it does not mean
-the application is healthy.
-
-The current exporter also publishes Pod attribution, creation timestamps and
-observation diagnostics. The [metric reference](../../keps/0001-metrics-exporter/README.md#metrics)
-describes these four families. Historical examples on the runtime-rules branch
-use older `karta_*` names; this tutorial uses the current `dsx_*` contract.
-
-### 3. Suspend an opted-in running Job
-
-```sh
-kubectl apply -f docs/tutorials/kyverno-exporter/manifests/policies.yaml
-kubectl -n ai-lab get jobs --watch
-```
-
-Wait until `running-worker` shows `Suspended`, then press Ctrl-C to stop the
-watch. The manifest installs both policies. `tutorial-suspend-running` is a
-`MutatingPolicy` with admission mutation disabled and mutation of existing
-resources enabled. It selects Jobs in `ai-lab` with the suspend label, then
-checks the current target's label, namespace, active Pods and suspension state.
-
-The policy's CEL expression receives the Job as `object`. Its relevant input
-fields look like this (`uid-A` is illustrative):
-
-```yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: running-worker
-  namespace: ai-lab
-  uid: uid-A
-  labels:
-    tutorial.karta.run.ai/action: suspend
-spec: {suspend: false}
-status: {active: 1, ready: 1}
-```
-
-Kyverno calls Prometheus's `/api/v1/query` endpoint. The query selects
-`tutorial:job_running:eligible` with a saved result less than 15 seconds old.
-For this example, one row in the response's `data.result` array is:
-
-```json
-{"metric":{"namespace":"ai-lab","workload_name":"running-worker","workload_uid":"uid-A"},"value":[1794141000,"1"]}
-```
-
-The expression compares `object.metadata.uid` and
-`object.metadata.namespace` with that row. Both match, so `exists(...)` returns
-`true`. The JSON patch adds `/spec/suspend` with value `true`. The
-[complete policy](manifests/policies.yaml) includes these checks and the patch.
-The exporter performs no writes.
-
-```sh
-kubectl -n ai-lab get job running-worker -o jsonpath='{.spec.suspend}{"\n"}'
-kubectl -n ai-lab get pods -l batch.kubernetes.io/job-name=running-worker
-```
-
-The first command should print `true`. After Job reconciliation, the second
-shows no Pods. Inspect the actual Job to establish that a mutation happened;
-a completed Kyverno work item alone is not proof of that result.
-
-### 4. Delete a completed Job after the observation window
-
-`tutorial-delete-completed` is a `DeletingPolicy`. Once a minute it selects
-Jobs with the delete label and checks two conditions: the current Job has
-`Complete=True`, and its UID is in `tutorial:job_completed:eligible` with a
-fresh recording sample.
-
-The policy sets `deletionPropagationPolicy: Background`. Kyverno deletes the
-Job, then Kubernetes garbage collection removes its Pods. The explicit setting
-prevents orphaned Pods; deleting only the Job did leave Pods behind in this lab.
-
-```sh
-kubectl -n ai-lab wait --for=delete job/completed-report --timeout=5m
-kubectl -n ai-lab get pods -l batch.kubernetes.io/job-name=completed-report
-kubectl -n ai-lab get jobs
-```
-
-`completed-report` and its Pods disappear. `unselected-report` and
-`failed-report` remain.
-The age check uses the object's creation time, while the phase window checks
-its completion history. Creation age by itself does not establish how long a
-Job has been completed.
-
-The [namespaced roles](manifests/kyverno-rbac.yaml) grant the background
-controller update and patch access to Jobs in `ai-lab`. The cleanup controller
-gets delete access there. Its DeletingPolicy controller also needs a ClusterRole
-to list Jobs before filtering namespaces. That grant is read-only; update and
-delete permissions remain confined to `ai-lab`. Kyverno retains its chart's
-baseline permissions.
-
-### 5. Understand when the rule waits
-
-![Evidence required before a policy acts](images/evidence-window.png)
-
-Each recording rule requires all of these checks for the same workload UID:
-
-- Every available valid phase sample in the two-minute range is `1`.
-- At least 23 phase samples exist. A five-second interval normally gives 24;
-  the floor allows one missing status sample.
-- The phase is also `1` now and at the two-minute anchor. Both endpoint samples
-  must be less than 15 seconds old relative to their evaluation time.
-- The Job is older than 120 seconds.
-- No invalid status sample or workload-error observation appears in the window.
-- Exporter scrapes have enough samples, all available `up` values in the window
-  are `1`, and the current scrape is fresh and successful.
-
-Kyverno also checks the recording sample's freshness. Empty query results do
-not match a target. An HTTP or evaluation error cannot supply a matching UID.
-Samples cannot establish what happened between scrapes. The rules are designed
-for this single exporter and single-cluster lab; they are not a distributed
-history or transactional action system.
-
-Deleting and recreating a Job with the same name gives it a new UID. Its old
-history cannot qualify the replacement. A failed scrape prevents action until
-it leaves the window and enough new observations exist.
-
-### 6. Resume a Job and opt out
-
-Opt out and resume in one update:
-
-```sh
-kubectl -n ai-lab patch job running-worker --type=merge -p \
-  '{"metadata":{"labels":{"tutorial.karta.run.ai/action":"observe"}},"spec":{"suspend":false}}'
-```
-
-The Job controller creates a new Pod. The suspension policy skips this Job.
-Changing only `spec.suspend` leaves the Job eligible for another suspension
-once its Running history qualifies again. Re-enabling the label can use
-existing history; this policy does not track a separate opt-in timestamp.
-
-### 7. Run the live verification
-
-```sh
-python3 docs/tutorials/kyverno-exporter/verify.py
-```
-
-The script resets only its labelled Jobs and its two named policies in the
-lab cluster. It checks effective permissions before creating fresh fixtures.
-It checks initial waiting, suspension, Pod removal, cleanup,
-negative controls, same-name replacement, exporter and Prometheus outages,
-recovery, and opt-out before resume. It also opts a previously eligible Job in
-while exporter telemetry is unavailable. Expect several minutes of real waiting.
-During the outage tests it scales the lab exporter and Prometheus to zero, then restores
-one replica of each. Do not run setup or edit policies while verification is running.
-
-After the query-service outage, suspension recovers automatically. The test
-explicitly requeues the cleanup policy using the recovery below. Its pass result
-includes that operator-assisted recovery; it does not establish automatic
-cleanup recovery.
-
-Results are written to `.artifacts/kyverno-exporter-tutorial/verification.json`.
-See [the recorded run](#live-verification-results) for the checked revision, verified outcomes
-and limitations. The final run passed in 670 seconds, including dependent Pod
-removal. The test checks API outcomes as well as Prometheus responses.
-
-### Recover cleanup after a Prometheus outage
-
-On the pinned Kyverno 1.19.1 release, repeated query errors can exhaust the
-cleanup controller's ten retries. The DeletingPolicy can leave the queue and
-stop being scheduled even after Prometheus recovers. The live outage test
-reproduced this behavior.
-Check `status.lastExecutionTime` if cleanup has stopped but Prometheus returns
-eligible Jobs.
-
-After Prometheus is healthy, requeue this policy by changing its spec:
+On Kyverno 1.19.1, repeated query failures can exhaust ten cleanup retries and
+leave the DeletingPolicy unscheduled. After Prometheus recovers, change the
+spec twice to requeue it and restore its original once-per-minute schedule:
 
 ```sh
 kubectl patch deletingpolicy tutorial-delete-completed --type=merge \
@@ -501,159 +395,13 @@ kubectl patch deletingpolicy tutorial-delete-completed --type=merge \
   -p '{"spec":{"schedule":"*/1 * * * *"}}'
 ```
 
-Both schedules mean once per minute. The spec changes requeue the policy and
-restore its original configuration. An annotation change or reapplying an
-unchanged manifest does not do that. Verify that `status.lastExecutionTime`
-advances and that the eligible Job disappears. See the
+Verify `status.lastExecutionTime` advances and the eligible Job and Pods disappear.
+Reapplying the same spec or changing an annotation does not requeue it. See the
 [pinned scheduler](https://github.com/kyverno/kyverno/blob/v1.19.1/pkg/controllers/deleting/controller.go#L264)
 and [retry handling](https://github.com/kyverno/kyverno/blob/v1.19.1/pkg/utils/controller/run.go#L66).
 
-### Inspect a problem
+The final Pod checks followed an earlier run that left orphaned completed Pods.
+Explicit `deletionPropagationPolicy: Background` fixed that path. Current
+verification checks dependent Pods by Job UID after deletion and recovery.
 
-```sh
-kubectl get mutatingpolicy tutorial-suspend-running -o yaml
-kubectl get deletingpolicy tutorial-delete-completed -o yaml
-kubectl -n kyverno get updaterequests
-kubectl -n kyverno logs deployment/kyverno-background-controller --tail=80
-kubectl -n kyverno logs deployment/kyverno-cleanup-controller --tail=80
-```
-
-In Prometheus, inspect `up{job="dsx-exporter"}`, the raw status, and the two
-`tutorial:job_*:eligible` recording rules in that order. Check `/api/v1/rules`
-for evaluation errors. Observe the Job and its Pods to confirm the result.
-
-### Operating limits
-
-Prometheus here retains two hours of samples in an ephemeral volume. It is
-not a durable action audit. Production deployment also needs suitable resource
-limits, retained audit records, and decisions about user overrides and action
-concurrency. Additional signals and workload kinds need separate validation.
-The historical runtime-rules proposal is not a controller installed by this lab.
-
-### Remove the lab
-
-```sh
-kind delete cluster --name kyverno-exporter-tutorial
-```
-
-Only the named lab cluster is removed. Stop the port-forward with Ctrl-C.
-The ignored artifact directory remains for inspecting results.
-
-## Live verification results
-
-Recorded on 2026-11-08.
-
-The complete live verifier passed in 670 seconds. It tested suspension,
-completed-Job deletion, dependent Pod removal, UID isolation, outage handling
-and recovery. Suspension recovered automatically. Cleanup recovered after an
-explicit policy requeue. That operator-assisted step is part of the pass result.
-
-### Test provenance
-
-The recorded run used the `kyverno-exporter-tutorial` worktree, based on fork branch
-`kep-runtime-rules` at `1a90457b`. Its 23 commits were rebased on upstream
-`8370c0b5a720771dcb2e8c944d2e4bba39e7df3a`, producing base HEAD
-`cba10f960b8d0dc8c938e23d8795579810e2c4c1`. Exporter code came from that
-upstream revision. The fork PR contains the tutorial commits on the tested
-upstream base; it omits the inherited KEP proposals.
-
-The [lab setup table](#1-create-the-lab) lists the tested tool and component
-versions.
-
-After recovery from a shared Docker storage failure, the setup script completed
-a full rerun with its recording rules and corrected cleanup permissions.
-The exporter was built from the checkout and loaded locally. Its image ID and
-deployed image names are in the ignored `inventory.json` artifact.
-
-Associated branch references consulted:
-
-| Reference | Purpose |
-| --- | --- |
-| `fork/kep-runtime-rules` | Runtime policy goals and historical examples. |
-| `fork/exporter-integration-lab` | Earlier policy manifests and observations. |
-| `fork/exporter-kind-e2e` | Current kind setup and exporter test conventions. |
-| `fork/exporter-dsx-naming` | Exporter naming and installation defaults. |
-| `fork/exporter-controller-runtime` | Exporter implementation context. |
-| `fork/grafana-dashboard` | GPU integration context. |
-| `fork/exporter-demo-release-9c14b074` | Historical image provenance. |
-
-### Observed outcomes
-
-The final run started at 13:50:44 UTC. Elapsed values are check completion times,
-not exact controller action timestamps. The verifier polls every five seconds.
-
-| Check | Elapsed | Observation |
-| --- | --- | --- |
-| Effective permissions | 0s | Background update and cleanup delete allowed in ai-lab and denied in default |
-| Verified workload observation | 6s | Current exporter reports a verified Running Job |
-| Fresh Jobs wait | 52s | Fresh Jobs survived 45 seconds after the first Running observation |
-| Suspension and cascading cleanup | 189s | Kyverno suspended running-worker and deleted completed-report; both Jobs' Pods disappeared |
-| Unselected and failed Jobs retained | 190s | Unselected Running/Completed Jobs and selected Failed Job remain untouched |
-| Same-name replacement with a new UID | 266s | Replacement was observed under its new UID and survived 65 seconds of healthy telemetry without inheriting eligibility |
-| Exporter outage | 433s | 145 seconds without exporter scrapes produced no eligible Jobs or policy actions |
-| Previously eligible Job during exporter outage | 433s | An already observed Running Job was opted in during the outage and remained active |
-| Prometheus outage | 506s | 65 seconds with Prometheus stopped left selected Jobs unchanged |
-| Recovery waits for fresh history | 578s | A fresh minute of recovered telemetry was insufficient for action |
-| Automatic suspension recovery | 639s | Suspension resumed after a new qualifying observation window |
-| Explicit cleanup recovery | 670s | Equivalent schedule changes resumed cleanup; eligible completed Jobs and their Pods disappeared |
-| Opt-out before manual resume | 670s | running-worker remained active beyond the policy window |
-| Complete verifier | 670s | All checks passed; exporter and Prometheus restored to one replica |
-
-### Recovery evidence
-
-An earlier outage run left `lastExecutionTime` unchanged after Prometheus
-recovered. The final verifier used the [explicit policy requeue](#recover-cleanup-after-a-prometheus-outage).
-It confirmed that execution advanced and that both eligible completed Jobs and
-their Pods disappeared. Automatic cleanup recovery is not part of the pass.
-
-### Dependent Pod cleanup
-
-A preceding 635-second run passed its Job-level assertions, but a separate Pod
-check found orphaned completed Pods. Kubernetes defaults this Job deletion path
-to orphaning dependents. See the
-[pinned Job strategy](https://github.com/kubernetes/kubernetes/blob/v1.34.3/pkg/registry/batch/job/strategy.go#L60).
-
-The policy now sets `deletionPropagationPolicy: Background`. The final run
-checked Pod removal by the Job UID after both initial deletion and recovery.
-This also detects orphaned Pods whose owner references have been removed.
-
-### Other validation
-
-- At 14:02:21 UTC, the API and all six deployments were healthy. The exporter
-  scrape was successful and 0.872 seconds old. Both recording rules were healthy.
-  A separate check confirmed the final Job and Pod outcomes.
-- Exporter image build and Helm rendering passed.
-- Bash syntax, ShellCheck, Python syntax, YAML parsing and Prometheus rule checks passed.
-- All three PNG diagrams were rendered and visually inspected. Their editable sources
-  are retained in the ignored local artifact directory.
-- Effective controller permissions were checked on the live cluster: update and
-  delete are allowed in `ai-lab` and denied in `default`. Cleanup additionally
-  has read-only cluster-wide Job listing.
-
-These checks do not establish physical-GPU idleness, cAdvisor-driven actions,
-multi-cluster behavior, production scale, or atomicity between a Prometheus
-query and a Kubernetes write. Invalid exporter observations were not
-fault-injected. Samples do not prove what happened between scrapes.
-
-### Local evidence
-
-Artifacts are under `.artifacts/kyverno-exporter-tutorial/`:
-
-- `up-recovered.log`: successful setup rerun after Docker recovery.
-- `verification.json` and `verify-cascading-cleanup.log`: final successful run.
-- `final-health.json`: nine final health and workload checks.
-- `verification-before-cascading-cleanup.json` and `verify-recovered.log`:
-  earlier Job-level pass before dependent Pod assertions were added.
-- `verification-query-recovery-failure.json` and
-  `verify-query-recovery-failure.log`: automatic cleanup recovery failure.
-- `inventory.json`: revisions and deployed images.
-- `pod-cleanup-finding.json`: orphaned Pod finding and correction.
-- `infra-failure.json` and `recovery.json`: shared Docker storage failure and recovery.
-- `diagrams/`: editable diagram sources.
-
-## References
-
-- [Kyverno MutatingPolicy](https://kyverno.io/docs/policy-types/mutating-policy/).
-- [Kyverno DeletingPolicy](https://kyverno.io/docs/policy-types/deleting-policy/).
-- [Prometheus range and timestamp functions](https://prometheus.io/docs/prometheus/latest/querying/functions/).
-- [Kubernetes Job termination and cleanup](https://kubernetes.io/docs/concepts/workloads/controllers/job/).
+</details>
