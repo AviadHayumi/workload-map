@@ -64,6 +64,12 @@ had no Kubernetes service-account token. No existing Pod owner reference changed
 | Native Kubernetes Job | Existing Job Karta produced `dsx_workload_status{phase="Completed"}=1`. |
 | One successful and two failed group Pods | Kueue reported Finished=True, reason=Succeeded, message="Pods succeeded: 1/3." |
 
+The mixed-terminal result used Kueue 0.20.5 with default feature gates. The
+inspected `DeclareWorkloadFailureOnUnretriablePodGroups` gate changes that result,
+but was not enabled in this lab. Kueue observes Pod termination, not a SkyPilot
+job finishing inside a running Pod. Do not map `Admitted` to Running or `Finished`
+to SkyPilot success. [Completion implementation](https://github.com/kubernetes-sigs/kueue/blob/v0.20.5/pkg/controller/jobs/pod/pod_controller.go#L420).
+
 The UID matcher also passed 16 fixture tests covering missing objects, stale
 references, namespace separation, ambiguity, deletion and read failures.
 These fixture tests are distinct from the live checks above.

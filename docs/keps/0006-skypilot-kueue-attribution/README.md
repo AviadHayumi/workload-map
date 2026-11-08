@@ -16,10 +16,61 @@ SkyPilot creates a head Pod and a worker Pod for cluster `train-a`. Both have
 two Pod roots. The customer wants to see one cluster, its resource usage and the
 jobs running on it.
 
-These are three different questions. Labels can group resource measurements.
-A Kubernetes object can give the group a UID. SkyPilot knows which jobs ran.
-Kueue is optional: SkyPilot uses it only when a LocalQueue is configured.
-It provides admission, not a SkyPilot job database.
+Labels group measurements; SkyPilot records job execution. Kueue optionally
+decides when the Pod group is allowed to start. This is called admission, and
+Kueue records it in a separate Kubernetes Workload object.
+
+## How SkyPilot uses Kueue
+
+![From SkyPilot cluster creation through Kueue admission to job execution](kueue-pod-group.png)
+
+Example: a two-node SkyPilot cluster in namespace `research`, with cloud key
+`train-a`. A SkyPilot cluster is a group of machines or Pods used to run tasks,
+not another Kubernetes cluster. This one has a head Pod and a worker Pod.
+
+An administrator installs Kueue with its Pod integration and creates LocalQueue
+`research` in that namespace. The LocalQueue points to a ClusterQueue, where
+quota and admission policy are configured. SkyPilot's API server selects it:
+
+```yaml
+kubernetes:
+  kueue:
+    local_queue_name: research
+```
+
+This is SkyPilot configuration, not an exporter setting. It selects an existing
+queue; it does not install Kueue or create the queue. [SkyPilot setup][sky-kueue].
+
+1. SkyPilot creates the head and worker Pods for a task with `num_nodes: 2`.
+   They are bare Pods, not children of a Kubernetes Job. Both receive the metadata below. [Pod creation](https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/provision/kubernetes/instance.py#L2515-L2520).
+2. Kueue's webhook adds scheduling gates before the API server saves each Pod.
+   A gate tells the scheduler to wait. The saved Pods remain visible while Pending.
+3. Kueue's Pod controller waits for both group members, then creates one Workload
+   named `research/train-a`. Its `spec.podSets` describes their resource requests.
+   SkyPilot does not create this Workload directly.
+4. Kueue routes the request through LocalQueue `research` to its ClusterQueue.
+   It waits for quota and required admission checks. Admission permits scheduling;
+   it does not mean the Pods are Running.
+5. Kueue removes its scheduling gates when the group can proceed. The Kubernetes
+   scheduler places the Pods on nodes, and kubelets start their containers.
+6. SkyPilot prepares its runtime and starts the task's commands inside those Pods.
+   SkyPilot tracks that execution as a job. Kueue tracks the Pod group's admission.
+7. A finished job can leave both Pods Running. `sky exec` reuses them for another
+   job without creating another Pod group or repeating Kueue admission. Teardown
+   or eviction releases cluster resources; job completion alone does not. [Execution stages](https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/execution.py#L1051-L1070).
+
+Both Pods carry these fields. The queue selects policy; the group selects members:
+
+| Pod field | Example | Meaning |
+| --- | --- | --- |
+| Label `kueue.x-k8s.io/queue-name` | `research` | Which namespaced LocalQueue receives the request. |
+| Label `kueue.x-k8s.io/pod-group-name` | `train-a` | Which Pods belong to the same admission group. |
+| Annotation `kueue.x-k8s.io/pod-group-total-count` | `"2"` | Expected number of Pods in this group. |
+
+The Workload's ordinary owner references point to the member Pods, not the other
+way around. It is an admission record, not their controller parent. DSX therefore
+still discovers each bare Pod as its own root. [Pod metadata][sky-template],
+[Pod integration][pod-guide], [owner references][group-refs].
 
 ## Recommendation
 
@@ -105,25 +156,8 @@ Custom labels do not change `workload_uid`, creation time or phase.
 <details>
 <summary>2. Kueue labels and existing state metrics</summary>
 
-SkyPilot adds a queue label, a Pod-group label and the expected member count:
-
-```yaml
-metadata:
-  labels:
-    kueue.x-k8s.io/queue-name: research
-    kueue.x-k8s.io/pod-group-name: train-a
-  annotations:
-    kueue.x-k8s.io/pod-group-total-count: "2"
-```
-
-Kueue's webhook gates the Pods. Its controller creates Workload `research/train-a`.
-Quota and admission checks permit Kueue to remove its gates. The Kubernetes
-scheduler then places the Pods. Admission alone does not prove they are running.
-[SkyPilot template][sky-template], [Kueue Pod integration][pod-guide].
-
-![Kueue admission and ownership direction](kueue-pod-group.png)
-
-Add `kueue_group` from the Pod-group label using the same label-rule pattern.
+Use the Pod-group label from the [admission flow](#how-skypilot-uses-kueue).
+Add `kueue_group` with the same label-rule pattern as option 1.
 Configure KSM to read the Workload's `status.conditions`. The tested config used
 `kueue.x-k8s.io/v1beta2` and produced:
 
@@ -152,6 +186,9 @@ use UID verification when that risk matters.
 Kueue's own queue metrics are also useful for pending and admitted demand.
 Their resource quantities describe requests or quota, not measured CPU/GPU use.
 They complement attribution; they do not replace a Pod measurement exporter.
+`Finished` describes the Pod group, not a SkyPilot command finishing inside it.
+The [mixed-terminal test](experiments.md#results) also shows why its reason must
+be interpreted with the Kueue version and feature gates in mind.
 
 </details>
 
@@ -161,9 +198,8 @@ They complement attribution; they do not replace a Pod measurement exporter.
 A Karta tells the SDK how to interpret an object. Discovery chooses the root
 before Karta lookup. It follows `controller: true` owner references.
 
-Kueue's group Workload has ordinary owner references pointing to its member
-Pods. The Pods do not point to the Workload. Watching that Workload can therefore
-create a separate workload record, while both Pod records remain Pod roots.
+Watching the Workload can create a separate record. Its references to the Pods
+do not connect the Pod owner chains to that record.
 
 A Workload Karta can interpret admission conditions. It cannot turn admission
 into SkyPilot task execution or reverse those references. Likewise, Karta
@@ -428,21 +464,6 @@ features.
 
 </details>
 
-## Status must keep its meaning
-
-In Kueue 0.20.5 with default feature gates, the live mixed-terminal test produced:
-
-```text
-Pod outcomes: 1 Succeeded, 2 Failed
-Finished=True, reason=Succeeded, message="Pods succeeded: 1/3."
-```
-
-The inspected `DeclareWorkloadFailureOnUnretriablePodGroups` feature gate changes
-that behavior, but was not enabled in this lab. Regardless of that setting,
-Kueue observes Pod termination, not a SkyPilot job finishing inside a running Pod.
-Do not map `Admitted` to Running or `Finished` to SkyPilot success.
-[Completion implementation][completion].
-
 ## Next decision
 
 Choose the required identity: query group, Kubernetes admission object, or
@@ -457,11 +478,12 @@ before changing discovery.
 - 2026-11-07: Compared eight approaches and tested six isolated exporter setups.
 - 2026-11-08: Clarified the flows and recorded cleanup results.
 - 2026-11-08: Researched Kyverno CEL lookups and proposed cached relationship rules.
+- 2026-11-08: Explained cluster creation, queue admission and job execution as one flow.
 
 [sky-template]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/templates/kubernetes-ray.yml.j2#L306-L330
+[sky-kueue]: https://docs.skypilot.ai/en/latest/reference/kubernetes/examples/kueue-example.html
 [pod-guide]: https://kueue.sigs.k8s.io/docs/tasks/run/plain_pods/
-[group-refs]: https://github.com/kubernetes-sigs/kueue/blob/bee9304a8aa9a83412b5d91516fdd3779ff1b331/pkg/controller/jobs/pod/pod_controller.go#L1140-L1164
-[completion]: https://github.com/kubernetes-sigs/kueue/blob/v0.20.5/pkg/controller/jobs/pod/pod_controller.go#L420
+[group-refs]: https://github.com/kubernetes-sigs/kueue/blob/v0.20.5/pkg/controller/jobs/pod/pod_controller.go#L1497
 [sky-jobs]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/server/requests/payloads.py#L479
 [sky-wire]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/server/requests/return_value_serializers.py#L128
 [discovery]: ../../../dsx-workload-exporter/pkg/discovery/resolve.go
