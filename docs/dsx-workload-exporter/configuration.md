@@ -29,6 +29,8 @@ reads it at startup.
 | `service.annotations` | `{}` | Additional Service annotations. |
 | `namespaceSelector` | Exclude `kube-system`, `kube-public`, `kube-node-lease` | Namespace label selection. Set `matchExpressions: []` to remove these exclusions. |
 | `objectSelector`, `podSelector` | `{}` | Root and Pod output selection. |
+| `workloadMetricSelector` | `{}` | Select roots that publish workload status and creation time. Pod info remains. |
+| `podWorkloadAssociation` | `null` | Optional Pod-to-workload metric identity, described below. |
 | `resourceRules` | `[]` | Allowed root API types; empty means unrestricted. |
 | `excludeResourceRules` | Core ConfigMaps and Secrets, all versions | Excluded root types. Set `[]` to remove these exclusions. |
 | `ignoredOwnerKinds`, `requiredKinds` | `[]` | Owner boundaries and additional watched kinds. |
@@ -112,6 +114,55 @@ Resource rules match group, version and plural resource. Entries are alternative
 all three fields must match within an entry. Each field needs a nonempty list.
 `"*"` is a wildcard and `""` is the core API group. Exclusions win. Selectors,
 malformed rules and unknown catalog names are validated before observation.
+
+### Workload metrics and Pod association
+
+`workloadMetricSelector` matches the resolved root's labels. A root that does
+not match publishes neither `dsx_workload_status` nor
+`dsx_workload_created_timestamp_seconds`. Its `dsx_workload_pod_info` rows remain
+subject to the existing root and Pod selectors. The default `{}` selects all
+roots.
+
+`podWorkloadAssociation` can give a bare Pod the metric identity of an existing
+workload. For example, Pod `research/train-a-head` carries
+`kueue.x-k8s.io/pod-group-name=train-a`. The exporter reads cached Workload
+`research/train-a`. It uses that Workload's UID only when an owner reference
+names this Pod and its current UID. Both objects must have no controller owner.
+
+```yaml
+exporter:
+  kartaDefinitionSource:
+    catalog:
+      enabled: true
+  workloadMetricSelector:
+    matchExpressions:
+      - key: kueue.x-k8s.io/pod-group-name
+        operator: DoesNotExist
+  podWorkloadAssociation:
+    podSelector:
+      matchExpressions:
+        - key: kueue.x-k8s.io/pod-group-name
+          operator: Exists
+    targetKind: kueue.x-k8s.io/v1beta2/Workload
+    targetNameLabel: kueue.x-k8s.io/pod-group-name
+```
+
+The target kind needs a selected Karta definition and must pass resource and
+object selection. The exporter uses its existing full-object LIST/WATCH cache.
+It performs no per-Pod GET and changes no Kubernetes owner references. The
+target namespace always comes from the Pod; the label supplies only its name.
+Pod and target updates re-evaluate the association.
+
+An associated row keeps the actual Pod identity and its Pod Karta component.
+The workload identity and `sources: [workload]` label expressions use the target
+Workload. `sources: [pod]` expressions still receive the Pod.
+
+Filtering and association are independent. If the target is missing or its
+owner UID does not match, Pod info keeps the original Pod root UID. The selector
+still suppresses that root's workload metrics. A Job-owned Pod continues to use
+its ordinary Job root. Omitting `podWorkloadAssociation` disables association.
+See the [Kueue attribution design](../keps/0006-skypilot-kueue-attribution/README.md#recommendation)
+for the admission flow and status limits.
 
 ### Definition sources and owner boundaries
 

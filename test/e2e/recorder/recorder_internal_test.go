@@ -4,6 +4,7 @@
 package recorder
 
 import (
+	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -62,6 +63,27 @@ var _ = Describe("Save", func() {
 		path, err := New(Config{OutputDir: "out"}).Save(fx, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(path).To(BeEmpty())
+	})
+})
+
+var _ = Describe("Observe", func() {
+	It("records a terminal initial object without creating or deleting it", func() {
+		r := New(Config{OutputDir: "out"}).AddState(running, intAtLeast(1, "status", "active"))
+		object := objWithStatus(map[string]any{"active": int64(1)})
+		out, err := NewFlow(r, "existing", "").Through(Reaches(running)).Observe(context.Background(), object)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out.Result.Succeeded).To(BeTrue())
+		Expect(out.Events).To(HaveLen(1))
+		Expect(out.Events[0].State).To(Equal(string(running)))
+		Expect(out.Events[0].Object["status"]).To(Equal(object.Object["status"]))
+	})
+
+	It("rejects a missing object or journey", func() {
+		r := New(Config{OutputDir: "out"})
+		_, err := NewFlow(r, "existing", "").Observe(context.Background(), objWithStatus(nil))
+		Expect(err).To(MatchError("flow existing declares no steps"))
+		_, err = NewFlow(r, "existing", "").Through(Reaches(running)).Observe(context.Background(), nil)
+		Expect(err).To(MatchError("flow existing has no workload to observe"))
 	})
 })
 

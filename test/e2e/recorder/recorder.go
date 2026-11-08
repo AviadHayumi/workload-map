@@ -122,12 +122,23 @@ func (f *Flow) Run(ctx context.Context) (out *Recording, err error) {
 			err = errors.New(msg)
 		}
 	}()
+	return f.Observe(ctx, workload)
+}
 
+// Observe records an existing workload from its current resourceVersion. The
+// caller creates and cleans up the workload and any objects that produce it.
+func (f *Flow) Observe(ctx context.Context, workload *unstructured.Unstructured) (*Recording, error) {
+	if len(f.journey) == 0 {
+		return nil, fmt.Errorf("flow %s declares no steps", f.name)
+	}
+	if workload == nil {
+		return nil, fmt.Errorf("flow %s has no workload to observe", f.name)
+	}
 	flowCtx, cancel := context.WithTimeout(ctx, f.rec.timeout)
 	defer cancel()
 
 	obs := f.observe(flowCtx, workload)
-	out = f.buildRecording(obs)
+	out := f.buildRecording(obs)
 	if obs.failure != "" {
 		out.Result = Result{Failures: []string{obs.failure}}
 		return out, errors.New(obs.failure)
@@ -180,12 +191,9 @@ func (f *Flow) deleteWorkload(ctx context.Context, workload *unstructured.Unstru
 func (f *Flow) observe(ctx context.Context, workload *unstructured.Unstructured) *observation {
 	o := &observation{flow: f, workload: workload, pending: actionSteps(f.journey)}
 
-	// A workload whose terminal state is already visible in the create response may never produce a watch
-	// event at all: a suspended CronJob never schedules, so its controller never writes status, and a watch
-	// (which replays only events after the create) would wait for the timeout. Record the create response
-	// directly instead.
-	if hasObservedCurrentGeneration(workload) && o.hasReachedTerminal(Strongest(judge(workload, f.rec.states))) {
-		o.record(ctx, workload)
+	// Preserve the initial frame before watching subsequent versions. It can
+	// already satisfy a step or be terminal without any further status writes.
+	if o.record(ctx, workload) {
 		return o
 	}
 	o.watchAndAct(ctx)

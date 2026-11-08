@@ -74,21 +74,46 @@ still discovers each bare Pod as its own root. [Pod metadata][sky-template],
 
 ## Recommendation
 
-Start with existing Pod labels and Prometheus grouping. If the customer already
-uses Kueue, add its Workload conditions through kube-state-metrics (KSM).
-Neither needs exporter code changes.
+Use the Kueue Workload as the metric identity for its bare Pod group:
 
-If a real group UID is needed, add a separate, read-only association to the
-Kueue Workload. Keep the original Pod identity. Read SkyPilot's API only when
-job or service identity is required. Do not change Pod ownership for monitoring.
+1. Select the catalog Karta for `kueue.x-k8s.io/v1beta2/Workload`. The exporter
+   watches these objects and publishes their admission and readiness status.
+2. Set `workloadMetricSelector` to exclude roots with the Pod-group label.
+   This removes the individual Pod roots' status and creation-time metrics
+   while keeping their Pod info rows.
+3. Enable `podWorkloadAssociation` for those bare Pods. Read the target name
+   from the group label and find the Workload in the same namespace. Associate
+   it only when its owner references contain the Pod's name and current UID.
 
-![Three useful levels of attribution](options.png)
+For `research/train-a-head`, the group label selects Workload
+`research/train-a`. The Pod info row keeps the Pod UID and component but uses
+the Workload UID. The head and worker then share one workload identity. A
+Job-owned Pod keeps its existing Job root. Kubernetes ownership is unchanged.
+
+Association uses the existing watched-object cache. It performs no per-Pod GET.
+If the Workload is absent or its owner UID does not match, Pod info keeps the
+original Pod root UID. The workload-metric selector still applies independently.
+Both settings preserve existing behavior when omitted.
+
+The Karta maps `Admitted=False` to Initializing and requires both
+`Admitted=True` and `PodsReady=True` for Running. Finished, evicted and
+replacement-waiting Workloads cannot remain Running through stale readiness.
+Other states remain Undefined. `Finished` is not mapped to Completed: a Pod
+group can report reason `Succeeded` even when some Pods failed. These conditions
+also cannot describe a SkyPilot command finishing inside long-lived Pods.
+
+The [configuration guide](../../dsx-workload-exporter/configuration.md#workload-metrics-and-pod-association)
+contains the settings, defaults and fallback behavior. SkyPilot job identity and
+execution status still require its API.
 
 ## Alternatives and what was tested
 
-Each live comparison used its own exporter namespace. All observed the same
+The earlier comparisons below predate the implementation above. Each used its
+own exporter namespace. All observed the same
 small workload namespace. The exporter image stayed unchanged.
 [Versions, assertions and limits](experiments.md).
+
+![Three useful levels of attribution](options.png)
 
 | Approach | Result | Change needed | Evidence |
 | --- | --- | --- | --- |
@@ -452,8 +477,8 @@ split one Pod's measurements between concurrent jobs.
 ## End-to-end flow
 
 [Open the zoomable sequence](full-flow.html) or [view the SVG](full-flow.svg).
-The optional association paths are lab prototypes. They are not shipping DSX
-features.
+This diagram records the earlier lab prototypes. The current association path
+is described in [Recommendation](#recommendation).
 
 <details>
 <summary>Show the complete sequence from submission to cleanup</summary>
@@ -466,11 +491,9 @@ features.
 
 ## Next decision
 
-Choose the required identity: query group, Kubernetes admission object, or
-SkyPilot job. Labels plus KSM solve the first two display needs with existing
-components. A separate UID association is the smallest next implementation when
-name-based joins are insufficient. Agree its metric schema and freshness behavior
-before changing discovery.
+Decide whether SkyPilot job identity and execution status are also required.
+The Workload association provides admission identity. A SkyPilot API reader
+would supply job IDs and task status separately.
 
 ## History
 
@@ -479,6 +502,7 @@ before changing discovery.
 - 2026-11-08: Clarified the flows and recorded cleanup results.
 - 2026-11-08: Researched Kyverno CEL lookups and proposed cached relationship rules.
 - 2026-11-08: Explained cluster creation, queue admission and job execution as one flow.
+- 2026-11-08: Selected the Kueue catalog, workload-metric filtering and verified Pod association.
 
 [sky-template]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/templates/kubernetes-ray.yml.j2#L306-L330
 [sky-kueue]: https://docs.skypilot.ai/en/latest/reference/kubernetes/examples/kueue-example.html
