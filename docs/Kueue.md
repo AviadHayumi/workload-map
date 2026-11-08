@@ -30,7 +30,7 @@ running inside long-lived Pods.
 
 The built-in catalog supports `kueue.x-k8s.io/v1beta2/Workload`. The local e2e
 environment pins Kueue v0.20.5, whose CRD does not serve v1beta1. The CLI loads
-the catalog automatically.
+the catalog automatically. The exporter can use the built-in catalog directly.
 
 The Helm chart installs Karta's controller and CRD. Apply the YAML when using
 cluster Karta definitions:
@@ -39,6 +39,9 @@ cluster Karta definitions:
 kubectl apply -f docs/catalog/kueue-x-k8s-io-workload-v1beta2.yaml
 kubectl wait karta/kueue-x-k8s-io-workload-v1beta2 --for=condition=Ready --timeout=60s
 ```
+
+A selected cluster definition overrides the catalog for the same group/kind.
+See [definition sources and precedence](dsx-workload-exporter/configuration.md#definition-sources-and-owner-boundaries).
 
 ## Status and operations
 
@@ -70,11 +73,17 @@ Pods, and reactivation cannot recreate them without an owning controller.
 Workload PodSets describe admission requests, not the execution templates to
 edit when changing an owning job.
 
-## Pod ownership
+## Pod association
 
 Workload objects do not own the job's Pods. The CLI cannot discover those Pods
 by following owner references from a Workload. Use the owning Job or workload
 definition to inspect its Pod tree.
+
+For bare Pod groups, the exporter can associate Pods with a same-namespace
+Workload using the group label and verified Pod owner references on the
+Workload. See [workload metrics and Pod association](dsx-workload-exporter/configuration.md#workload-metrics-and-pod-association)
+for configuration and fallback behavior. Association changes metric identity;
+it does not change Kubernetes ownership or these status rules.
 
 ## Local verification
 
