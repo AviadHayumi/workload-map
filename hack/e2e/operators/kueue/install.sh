@@ -10,4 +10,4 @@ source "${MODULE_DIR}/../_common.sh"
 helm upgrade --install kueue oci://registry.k8s.io/kueue/charts/kueue \
   --version "${KUEUE_VERSION#v}" --namespace kueue-system --create-namespace \
   --values "${MODULE_DIR}/values.yaml" --wait --timeout 5m
-kubectl apply --server-side -f "${MODULE_DIR}/queue.yaml"
+apply_with_retry "${MODULE_DIR}/queue.yaml" --server-side
