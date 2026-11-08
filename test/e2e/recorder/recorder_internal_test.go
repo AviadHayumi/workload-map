@@ -5,11 +5,22 @@ package recorder
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	clienttesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 
 	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
@@ -86,6 +97,58 @@ var _ = Describe("Observe", func() {
 		Expect(err).To(MatchError("flow existing has no workload to observe"))
 	})
 })
+
+var _ = DescribeTable("initial nonterminal frames",
+	func(ctx SpecContext, observeExisting bool) {
+		scheme := runtime.NewScheme()
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		gvk := corev1.SchemeGroupVersion.WithKind("Pod")
+		mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{corev1.SchemeGroupVersion})
+		mapper.Add(gvk, meta.RESTScopeNamespace)
+		clusterClient := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).Build()
+		dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
+		initial := objWithStatus(map[string]any{"active": int64(0)})
+		initial.SetGroupVersionKind(gvk)
+		initial.SetName("initial-frame")
+		initial.SetNamespace("default")
+		initial.SetResourceVersion("1")
+		ready := initial.DeepCopy()
+		ready.SetResourceVersion("2")
+		Expect(unstructured.SetNestedField(ready.Object, int64(1), "status", "active")).To(Succeed())
+		dynamicClient.PrependWatchReactor("pods", func(clienttesting.Action) (bool, watch.Interface, error) {
+			watcher := watch.NewRaceFreeFake()
+			watcher.Modify(ready)
+			return true, watcher, nil
+		})
+		rec := New(Config{
+			OutputDir: "out", Timeout: time.Second,
+			Cluster: Cluster{Client: clusterClient, Dynamic: dynamicClient, Namespace: "default"},
+		}).AddState(initializing, func(object *unstructured.Unstructured) bool {
+			return !intAtLeast(1, "status", "active")(object)
+		}).AddState(running, intAtLeast(1, "status", "active"))
+		var out *Recording
+		var err error
+		if observeExisting {
+			out, err = NewFlow(rec, "existing", "").Through(Reaches(initializing), Reaches(running)).Observe(ctx, initial)
+		} else {
+			initial.SetResourceVersion("")
+			data, marshalErr := yaml.Marshal(initial.Object)
+			Expect(marshalErr).NotTo(HaveOccurred())
+			manifest := filepath.Join(GinkgoT().TempDir(), "pod.yaml")
+			Expect(os.WriteFile(manifest, data, 0o600)).To(Succeed())
+			out, err = NewFlow(rec, "created", manifest).Through(Reaches(running)).Run(ctx)
+		}
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out.Result.Succeeded).To(BeTrue())
+		if observeExisting {
+			Expect(out.states()).To(Equal([]string{string(initializing), string(running)}))
+		} else {
+			Expect(out.states()).To(Equal([]string{string(running)}))
+		}
+	},
+	Entry("Run ignores the initial queued frame", false),
+	Entry("Observe includes the initial queued frame", true),
+)
 
 var _ = Describe("judge", func() {
 	states := []namedState{

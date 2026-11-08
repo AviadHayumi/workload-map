@@ -161,6 +161,12 @@ Filtering and association are independent. If the target is missing or its
 owner UID does not match, Pod info keeps the original Pod root UID. The selector
 still suppresses that root's workload metrics. A Job-owned Pod continues to use
 its ordinary Job root. Omitting `podWorkloadAssociation` disables association.
+
+If an established target watch fails, the exporter immediately marks the last
+known association invalid. It can still carry the target UID until the next
+Pod reconciliation falls back to the original Pod root UID. Watch recovery
+requeues affected Pods so the association can be restored.
+
 See the [Kueue attribution design](../keps/0006-skypilot-kueue-attribution/README.md#recommendation)
 for the admission flow and status limits.
 
