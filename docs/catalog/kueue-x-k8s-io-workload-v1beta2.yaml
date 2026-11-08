@@ -25,7 +25,7 @@ spec:
                 - type: Admitted
                   status: "False"
               byExpression:
-                expression: (.status.conditions // []) | any(.type == "Finished" and .status == "True") | not
+                expression: .spec.active != false and ((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not)
                 expectedResult: "true"
           running:
             - byConditions:
@@ -34,6 +34,23 @@ spec:
                 - type: PodsReady
                   status: "True"
               byExpression:
-                expression: (.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not
+                expression: .spec.active != false and ((.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not)
+                expectedResult: "true"
+          failed:
+            - byConditions:
+                - type: Finished
+                  status: "True"
+                  reason: Failed
+            - byConditions:
+                - type: Finished
+                  status: "True"
+                  reason: FailedToStart
+          suspended:
+            - byExpression:
+                expression: .spec.active == false and ((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not) and (((.status.conditions // []) | any(.type == "QuotaReserved" and .status == "True")) | not)
+                expectedResult: "true"
+          suspending:
+            - byExpression:
+                expression: .spec.active == false and ((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not) and ((.status.conditions // []) | any(.type == "QuotaReserved" and .status == "True"))
                 expectedResult: "true"
   optimizationInstructions: {}

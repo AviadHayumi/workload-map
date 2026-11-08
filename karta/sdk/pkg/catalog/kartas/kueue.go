@@ -10,17 +10,21 @@ import (
 	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
 )
 
-// KueueWorkload returns the admission and readiness view of a Kueue Workload.
+// KueueWorkload returns the admission, readiness and activity view of a Kueue Workload.
 // Running requires Kueue to report PodsReady, through waitForPodsReady or its
 // workload-level readiness feature. Admission alone does not mean that Pods
 // have started. Missing readiness remains Undefined.
 //
-// Finished is deliberately unmapped: a Pod group can report Succeeded even
+// Finished/Succeeded is deliberately unmapped: a Pod group can report Succeeded even
 // when some Pods failed, and a task inside long-lived Pods can finish while
 // the Workload remains running. The original conditions remain available.
+// Failed maps only explicit execution or permanent start failures.
+// FailedToStart is source-verified but has no live recording.
 // Workload podSets describe admission requests. They are not mutable templates
 // for the Pods, and the Workload does not own those Pods.
 func KueueWorkload() *v1alpha1.Karta {
+	const unfinished = `((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not)`
+	const reserved = `((.status.conditions // []) | any(.type == "QuotaReserved" and .status == "True"))`
 	return &v1alpha1.Karta{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"},
 		ObjectMeta: metav1.ObjectMeta{Name: "kueue-x-k8s-io-workload-v1beta2"},
@@ -41,7 +45,7 @@ func KueueWorkload() *v1alpha1.Karta {
 							Initializing: []v1alpha1.StatusMatcher{{
 								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Admitted", Status: ptr.To("False")}},
 								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `(.status.conditions // []) | any(.type == "Finished" and .status == "True") | not`,
+									Expression:     `.spec.active != false and ` + unfinished,
 									ExpectedResult: "true",
 								},
 							}},
@@ -51,10 +55,26 @@ func KueueWorkload() *v1alpha1.Karta {
 									{Type: "PodsReady", Status: ptr.To("True")},
 								},
 								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `(.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not`,
+									Expression:     `.spec.active != false and ((.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not)`,
 									ExpectedResult: "true",
 								},
 							}},
+							Suspending: []v1alpha1.StatusMatcher{{
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     `.spec.active == false and ` + unfinished + ` and ` + reserved,
+									ExpectedResult: "true",
+								},
+							}},
+							Suspended: []v1alpha1.StatusMatcher{{
+								ByExpression: &v1alpha1.ExpressionMatcher{
+									Expression:     `.spec.active == false and ` + unfinished + ` and (` + reserved + ` | not)`,
+									ExpectedResult: "true",
+								},
+							}},
+							Failed: []v1alpha1.StatusMatcher{
+								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Finished", Status: ptr.To("True"), Reason: ptr.To("Failed")}}},
+								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Finished", Status: ptr.To("True"), Reason: ptr.To("FailedToStart")}}},
+							},
 						},
 					},
 				},
