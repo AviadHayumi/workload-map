@@ -39,6 +39,8 @@ type Config struct {
 	IgnoredOwnerKinds                              []schema.GroupVersionKind
 	ResourceRules, ExcludeResourceRules            []ResourceRule
 	NamespaceSelector, ObjectSelector, PodSelector *metav1.LabelSelector
+	WorkloadMetricSelector                         *metav1.LabelSelector
+	PodWorkloadAssociation                         *PodWorkloadAssociation
 	ClusterDefinitions                             bool
 	RequiredKinds                                  []schema.GroupVersionKind
 	Workers, LeafWorkers, RootWorkers              int
@@ -92,6 +94,9 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if err := ValidateResourceRules(slices.Concat(config.ResourceRules, config.ExcludeResourceRules)); err != nil {
 		return nil, err
 	}
+	if err := ValidatePodWorkloadAssociation(config.PodWorkloadAssociation); err != nil {
+		return nil, err
+	}
 	if config.Workers == 0 {
 		config.Workers = defaultAmountOfWorkers
 	}
@@ -135,6 +140,20 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	r.podSelector, err = selector(config.PodSelector)
 	if err != nil {
 		return nil, err
+	}
+	r.workloadMetricSelector, err = selector(config.WorkloadMetricSelector)
+	if err != nil {
+		return nil, err
+	}
+	if config.PodWorkloadAssociation != nil {
+		r.associationSelector, err = selector(config.PodWorkloadAssociation.PodSelector)
+		if err != nil {
+			return nil, err
+		}
+		r.associationTarget, err = parseAssociationTarget(config.PodWorkloadAssociation.TargetKind)
+		if err != nil {
+			return nil, err
+		}
 	}
 	reader.ensure = r.ensureWatch
 	return &Runtime{state: r}, nil
@@ -312,7 +331,7 @@ func (r *controllerState) refreshDefinitions(next map[schema.GroupKind]selectedD
 		return sourceErr
 	}
 	r.definitionVersion++
-	if healthChanged {
+	if healthChanged || changedKinds[r.associationTarget.GroupKind()] {
 		r.enqueueScopeRefresh("")
 	} else {
 		for _, entry := range r.objects {
