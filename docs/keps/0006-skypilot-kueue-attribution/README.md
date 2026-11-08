@@ -24,13 +24,13 @@ Kueue records it in a separate Kubernetes Workload object.
 
 ![From SkyPilot cluster creation through Kueue admission to job execution](kueue-pod-group.png)
 
-Example: a two-node SkyPilot cluster in namespace `research`, with cloud key
+Example: a two-node SkyPilot cluster in namespace `research`, with cloud cluster name
 `train-a`. A SkyPilot cluster is a group of machines or Pods used to run tasks,
 not another Kubernetes cluster. This one has a head Pod and a worker Pod.
 
 An administrator installs Kueue with its Pod integration and creates LocalQueue
 `research` in that namespace. The LocalQueue points to a ClusterQueue, where
-quota and admission policy are configured. SkyPilot's API server selects it:
+quota and admission policy are configured. SkyPilot's API server selects the LocalQueue:
 
 ```yaml
 kubernetes:
