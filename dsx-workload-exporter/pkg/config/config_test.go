@@ -18,6 +18,44 @@ import (
 )
 
 var _ = Describe("config defaults and rules", func() {
+	It("loads independent workload metric selection and an optional Pod association", func() {
+		defaults, err := loadConfig("", nil)
+		Expect(err).To(Succeed())
+		Expect(defaults.WorkloadMetricSelector).To(BeNil())
+		Expect(defaults.PodWorkloadAssociation).To(BeNil())
+		cfg, err := loadConfig(`workloadMetricSelector:
+  matchExpressions:
+  - key: example.org/group
+    operator: DoesNotExist
+podWorkloadAssociation:
+  podSelector:
+    matchLabels:
+      example.org/managed: "true"
+  targetKind: scheduling.example.org/v1/Workload
+  targetNameLabel: example.org/group
+`, nil)
+		Expect(err).To(Succeed())
+		Expect(cfg.WorkloadMetricSelector.MatchExpressions).To(HaveLen(1))
+		Expect(cfg.PodWorkloadAssociation.TargetKind).To(Equal("scheduling.example.org/v1/Workload"))
+		Expect(cfg.PodWorkloadAssociation.TargetNameLabel).To(Equal("example.org/group"))
+		Expect(cfg.PodWorkloadAssociation.PodSelector.MatchLabels).To(HaveKeyWithValue("example.org/managed", "true"))
+	})
+
+	for _, invalid := range []string{
+		`workloadMetricSelector: {matchExpressions: [{key: group, operator: Invalid}]}`,
+		`podWorkloadAssociation: {targetKind: Workload, targetNameLabel: group}`,
+		`podWorkloadAssociation: {targetKind: example.org//Workload, targetNameLabel: group}`,
+		`podWorkloadAssociation: {targetKind: example.org/v1/*, targetNameLabel: group}`,
+		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: ""}`,
+		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: "bad key"}`,
+		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: group, podSelector: {matchExpressions: [{key: group, operator: Invalid}]}}`,
+	} {
+		It("rejects invalid association and metric selection configuration: "+invalid, func() {
+			_, err := loadConfig(invalid, nil)
+			Expect(err).To(HaveOccurred())
+		})
+	}
+
 	It("preserves flat configuration keys when encoding embedded resolver settings", func() {
 		cfg, err := loadConfig("labelRules: []\ngenericLabelEvaluationLimits:\n  maxResultBytes: 32\n", nil)
 		Expect(err).To(Succeed())
