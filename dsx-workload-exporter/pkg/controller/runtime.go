@@ -40,6 +40,7 @@ type Config struct {
 	ResourceRules, ExcludeResourceRules            []ResourceRule
 	NamespaceSelector, ObjectSelector, PodSelector *metav1.LabelSelector
 	WorkloadMetricSelector                         *metav1.LabelSelector
+	ObjectSelectors                                []ObjectSelector
 	PodWorkloadAssociation                         *PodWorkloadAssociation
 	ClusterDefinitions                             bool
 	RequiredKinds                                  []schema.GroupVersionKind
@@ -137,6 +138,10 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	r.objectSelectors, err = compileObjectSelectors(config.ObjectSelectors)
+	if err != nil {
+		return nil, err
+	}
 	r.podSelector, err = selector(config.PodSelector)
 	if err != nil {
 		return nil, err
@@ -150,7 +155,7 @@ func New(config Config, deps Dependencies, reader *Reader) (*Runtime, error) {
 		if err != nil {
 			return nil, err
 		}
-		r.associationTarget, err = parseAssociationTarget(config.PodWorkloadAssociation.TargetKind)
+		r.associationTarget, err = parseAssociationTarget(config.PodWorkloadAssociation.Target.APIVersion + "/" + config.PodWorkloadAssociation.Target.Kind)
 		if err != nil {
 			return nil, err
 		}

@@ -57,7 +57,7 @@ var _ = Describe("chart label configuration", func() {
 				"--set", "exporter.enabled=true",
 				"--set-json", "exporter.labelRules=" + string(raw),
 				"--set-json", `exporter.workloadMetricSelector={"matchExpressions":[{"key":"example.org/group","operator":"DoesNotExist"}]}`,
-				"--set-json", `exporter.podWorkloadAssociation={"targetKind":"scheduling.example.org/v1/Workload","targetNameLabel":"example.org/group"}`,
+				"--set-json", `exporter.podWorkloadAssociation={"target":{"apiVersion":"scheduling.example.org/v1","kind":"Workload","nameFromLabel":"example.org/group"}}`,
 			}
 			out, err := exec.Command(helm, append(args, tc.args...)...).CombinedOutput()
 			Expect(err).To(Succeed(), string(out))
@@ -82,7 +82,7 @@ var _ = Describe("chart label configuration", func() {
 				Expect(cfg.Rules).To(Equal(rules))
 				Expect(cfg.Limits).To(Equal(tc.limits))
 				Expect(cfg.WorkloadMetricSelector).To(Equal(&metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "example.org/group", Operator: metav1.LabelSelectorOpDoesNotExist}}}))
-				Expect(cfg.PodWorkloadAssociation).To(Equal(&controller.PodWorkloadAssociation{TargetKind: "scheduling.example.org/v1/Workload", TargetNameLabel: "example.org/group"}))
+				Expect(cfg.PodWorkloadAssociation).To(Equal(&controller.PodWorkloadAssociation{Target: controller.AssociationTarget{APIVersion: "scheduling.example.org/v1", Kind: "Workload", NameFromLabel: "example.org/group"}}))
 				for _, rule := range cfg.Rules {
 					_, err = labelevaluator.NewCompiler().Compile(labelevaluator.Config{Expression: rule.Expression, Limits: cfg.Limits})
 					Expect(err).To(Succeed())

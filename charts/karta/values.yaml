@@ -57,6 +57,8 @@ exporter:
           - kube-node-lease
   # Select which objects the publication controller observes.
   objectSelector: {}
+  # Additional label filters for exact apiVersion/kind pairs.
+  objectSelectors: []
   podSelector: {}
   # Select roots that publish workload status and creation time. Pod info remains.
   workloadMetricSelector: {}

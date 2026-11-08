@@ -237,7 +237,7 @@ func ValidateResourceRules(rules []ResourceRule) error {
 }
 
 func (r *controllerState) isRootSelected(ctx context.Context, object *unstructured.Unstructured) (bool, error) {
-	if !r.objectSelector.Matches(labelsFor(object)) {
+	if !r.matchesObjectSelectors(object) {
 		return false, nil
 	}
 	return r.isResourceSelected(ctx, object.GroupVersionKind())

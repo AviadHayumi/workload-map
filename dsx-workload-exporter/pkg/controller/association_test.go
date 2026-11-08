@@ -69,7 +69,11 @@ func TestPodWorkloadAssociationLifecycle(t *testing.T) {
 		result := r.state.deps.Publications.Pod(pod.GetUID())
 		require.NotNil(t, result)
 		require.True(t, result.HasValue)
-		require.Empty(t, result.Error)
+		if want == pod.GetUID() {
+			require.Equal(t, store.ReasonUnresolvedOwner, result.Error)
+		} else {
+			require.Empty(t, result.Error)
+		}
 		require.Equal(t, want, result.Record.Workload.UID)
 	}
 	assertIdentity(pod.GetUID()) // A named target can be created after the Pod.
@@ -241,7 +245,7 @@ func TestPodWorkloadAssociationRejectsStalePublicationAndOldIdentityRetention(t 
 	path := []discovery.ObjectRef{refOf(pod)}
 	workload := &discovery.GenericWorkload{Root: refOf(pod), Path: path, Resolution: discovery.Resolved}
 	_, missing, _, err := r.resolvePodAssociation(t.Context(), pod, pod, workload)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrInvalidPodAssociation)
 	fallback := *r.state.deps.Publications.Pod(pod.GetUID())
 	require.NoError(t, r.state.applyWatchEvent(targetWatch, target, false))
 	require.ErrorIs(t, r.state.publishPod(path, refOf(pod), selection, fallback, false, missing), discovery.ErrStale)
@@ -259,13 +263,13 @@ func TestPodWorkloadAssociationRejectsStalePublicationAndOldIdentityRetention(t 
 	result := r.state.deps.Publications.Pod(pod.GetUID())
 	require.True(t, result.HasValue)
 	require.Equal(t, pod.GetUID(), result.Record.Workload.UID, "label failure must not restore a removed association")
-	require.Equal(t, store.ReasonEvaluationFailed, result.Error)
+	require.Equal(t, store.ReasonUnresolvedOwner, result.Error)
 }
 
 func newAssociationRuntime(t *testing.T) (*Runtime, *resourceWatch, *resourceWatch) {
 	t.Helper()
 	r := newRootLifetimeRuntime(t, Config{PodWorkloadAssociation: &PodWorkloadAssociation{
-		TargetKind: associationTestGVK.GroupVersion().String() + "/" + associationTestGVK.Kind, TargetNameLabel: "example.org/group",
+		Target: AssociationTarget{APIVersion: associationTestGVK.GroupVersion().String(), Kind: associationTestGVK.Kind, NameFromLabel: "example.org/group"},
 	}})
 	podDefinition, err := catalog.Get(podGVK)
 	require.NoError(t, err)

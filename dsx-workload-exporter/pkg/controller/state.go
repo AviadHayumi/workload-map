@@ -53,6 +53,7 @@ type controllerState struct {
 	definitionVersion      uint64
 	namespaceSelector      labels.Selector
 	objectSelector         labels.Selector
+	objectSelectors        map[schema.GroupVersionKind]labels.Selector
 	podSelector            labels.Selector
 	workloadMetricSelector labels.Selector
 	associationSelector    labels.Selector

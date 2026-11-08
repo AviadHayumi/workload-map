@@ -43,6 +43,7 @@ type Config struct {
 	ResourceRules          []controller.ResourceRule          `yaml:"resourceRules" json:"resourceRules"`
 	ExcludeResourceRules   []controller.ResourceRule          `yaml:"excludeResourceRules" json:"excludeResourceRules"`
 	NamespaceSelector      *metav1.LabelSelector              `yaml:"namespaceSelector" json:"namespaceSelector"`
+	ObjectSelectors        []controller.ObjectSelector        `yaml:"objectSelectors" json:"objectSelectors"`
 	ObjectSelector         *metav1.LabelSelector              `yaml:"objectSelector" json:"objectSelector"`
 	PodSelector            *metav1.LabelSelector              `yaml:"podSelector" json:"podSelector"`
 	WorkloadMetricSelector *metav1.LabelSelector              `yaml:"workloadMetricSelector" json:"workloadMetricSelector"`
@@ -282,6 +283,9 @@ func (cfg Config) Validate() error {
 		}
 	}
 	if err := controller.ValidateResourceRules(slices.Concat(cfg.ResourceRules, cfg.ExcludeResourceRules)); err != nil {
+		return err
+	}
+	if err := controller.ValidateObjectSelectors(cfg.ObjectSelectors); err != nil {
 		return err
 	}
 	if err := controller.ValidatePodWorkloadAssociation(cfg.PodWorkloadAssociation); err != nil {

@@ -31,24 +31,26 @@ podWorkloadAssociation:
   podSelector:
     matchLabels:
       example.org/managed: "true"
-  targetKind: scheduling.example.org/v1/Workload
-  targetNameLabel: example.org/group
+  target:
+    apiVersion: scheduling.example.org/v1
+    kind: Workload
+    nameFromLabel: example.org/group
 `, nil)
 		Expect(err).To(Succeed())
 		Expect(cfg.WorkloadMetricSelector.MatchExpressions).To(HaveLen(1))
-		Expect(cfg.PodWorkloadAssociation.TargetKind).To(Equal("scheduling.example.org/v1/Workload"))
-		Expect(cfg.PodWorkloadAssociation.TargetNameLabel).To(Equal("example.org/group"))
+		Expect(cfg.PodWorkloadAssociation.Target.APIVersion).To(Equal("scheduling.example.org/v1"))
+		Expect(cfg.PodWorkloadAssociation.Target.NameFromLabel).To(Equal("example.org/group"))
 		Expect(cfg.PodWorkloadAssociation.PodSelector.MatchLabels).To(HaveKeyWithValue("example.org/managed", "true"))
 	})
 
 	for _, invalid := range []string{
 		`workloadMetricSelector: {matchExpressions: [{key: group, operator: Invalid}]}`,
-		`podWorkloadAssociation: {targetKind: Workload, targetNameLabel: group}`,
-		`podWorkloadAssociation: {targetKind: example.org//Workload, targetNameLabel: group}`,
-		`podWorkloadAssociation: {targetKind: example.org/v1/*, targetNameLabel: group}`,
-		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: ""}`,
-		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: "bad key"}`,
-		`podWorkloadAssociation: {targetKind: example.org/v1/Workload, targetNameLabel: group, podSelector: {matchExpressions: [{key: group, operator: Invalid}]}}`,
+		`podWorkloadAssociation: {target: {apiVersion: "", kind: Workload, nameFromLabel: group}}`,
+		`podWorkloadAssociation: {target: {apiVersion: example.org/, kind: Workload, nameFromLabel: group}}`,
+		`podWorkloadAssociation: {target: {apiVersion: example.org/v1, kind: *, nameFromLabel: group}}`,
+		`podWorkloadAssociation: {target: {apiVersion: example.org/v1, kind: Workload, nameFromLabel: ""}}`,
+		`podWorkloadAssociation: {target: {apiVersion: example.org/v1, kind: Workload, nameFromLabel: "bad key"}}`,
+		`podWorkloadAssociation: {target: {apiVersion: example.org/v1, kind: Workload, nameFromLabel: group}, podSelector: {matchExpressions: [{key: group, operator: Invalid}]}}`,
 	} {
 		It("rejects invalid association and metric selection configuration: "+invalid, func() {
 			_, err := loadConfig(invalid, nil)
