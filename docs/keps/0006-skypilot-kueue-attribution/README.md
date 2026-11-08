@@ -49,6 +49,7 @@ small workload namespace. The exporter image stayed unchanged.
 | 6. Virtual root from labels | One exporter root without a CRD | Discovery, store and lifecycle changes | Query grouping tested; exporter virtual roots are not implemented. |
 | 7. Synthetic root CR | A real object with its own UID | CRD, adapter and relation resolver | Live prototype: recreation changes group UID without deleting Pods. |
 | 8. Producer creates native Jobs | Existing Job -> Pod ownership | SkyPilot backend change | Native Job control passed; unchanged SkyPilot does not produce it. |
+| 9. Configurable CEL associations | Customer-defined relationships, including options 4 and 5 | Read-only lookup provider, dependency tracking and association publication | SDK source research and local expression probe; no exporter integration. |
 
 <details>
 <summary>1. Labels: the smallest change</summary>
@@ -276,6 +277,141 @@ Workload-to-Pod references. Monitoring should not take over workload lifecycle.
 
 </details>
 
+## 9. Configurable relationships with CEL
+
+![Proposed cached lookups, Pod queue and separate association publication](cel-relationships.png)
+
+A customer could describe the Kueue relationship instead of adding a dedicated
+Kueue adapter. Pod `research/train-a-head`, UID `p1`, names group `train-a`.
+The rule reads Workload `research/train-a`, UID `w1`, and checks whether its
+owner references contain Pod UID `p1`. The result is a separate association
+`p1 -> w1`. It does not change either object's ownership or the DSX Pod root.
+
+Kyverno's CEL libraries provide Kubernetes `Get`/`List` and HTTP functions.
+They can supply the lookup operation. They do not define which object becomes
+a DSX workload, how its status is calculated, or when DSX should evaluate again.
+Current exporter CEL rules return label strings after discovery has chosen the
+root. Karta component matching also happens after discovery and uses JQ.
+This needs a new relationship rule, not an extra function in today's label rule.
+[Kyverno functions][kyverno-functions], [current label evaluator][label-cel].
+
+<details>
+<summary>Rule inputs, refresh and required code changes</summary>
+
+### Start with one named Kubernetes lookup
+
+Keep the first rule contract small. These are proposed inputs, not available
+Helm values:
+
+| Input | Kueue example |
+| --- | --- |
+| Pod filter | Has a nonempty `kueue.x-k8s.io/pod-group-name` label. |
+| Target resource | `kueue.x-k8s.io/v1beta2`, `workloads`. |
+| Target name | Value of that Pod-group label. |
+| Target namespace | Always the input Pod's namespace. |
+| Match expression | Target has an ordinary owner reference to the current Pod UID. |
+
+The local probe supplied the Pod above as `object` and evaluated this lookup
+using the real SDK binding and an in-memory read provider:
+
+```cel
+resource.get("kueue.x-k8s.io/v1beta2", "workloads", object.metadata.namespace,
+  object.metadata.labels["kueue.x-k8s.io/pod-group-name"])
+```
+
+Its result became `related`, a dynamic CEL variable, for this second expression:
+
+```cel
+related != null &&
+  related.metadata.namespace == object.metadata.namespace &&
+  has(related.metadata.ownerReferences) &&
+  related.metadata.ownerReferences.exists(r,
+    r.apiVersion == "v1" && r.kind == "Pod" && r.uid == object.metadata.uid)
+```
+
+For Workload `w1` referencing Pod `p1`, the result was `true`. A missing target
+returned `null` and matched `false`. A stale Pod UID also matched `false`.
+Denied reads returned an error, not a normal no-match. [Probe results](experiments.md#local-kyverno-cel-probe).
+
+The runtime supplies the full Pod and cached target to CEL. A match returns a
+boolean. The runtime builds the association from their actual UIDs; an expression
+cannot invent a Kubernetes UID. No match produces no association. A read or
+evaluation failure clears that association and reports invalid observation.
+Normal DSX Pod and workload metrics continue independently.
+An unsynced cache is unavailable, not proof that the target is absent.
+
+### What makes an unchanged Pod refresh
+
+The controller registers each declared resource watch once per scope. Before a
+lookup, it records the target key and dependent Pod UID, including a missing
+target. This is a reverse index: target key -> Pods that need another evaluation.
+
+1. A Pod event computes its target key and queues evaluation.
+2. Target creation, update or deletion requeues its dependent Pods.
+3. Pod deletion or a filter that no longer matches removes its associations and
+   index entries. A changed target label replaces the Pod's old dependency.
+4. Before publishing, verify that the Pod and target versions still match the
+   evaluated snapshot. Retry if either changed.
+
+Load rules at startup initially. Changing rules requires a restart, which rebuilds
+the index. Dynamic rule updates can be added separately.
+
+For example, a Pod can arrive before its Kueue Workload. Recording the missing
+target key lets Workload creation trigger the successful match without a Pod
+update. Recreating that Workload replaces `w1` with its new UID. A failed watch
+invalidates dependent associations until the source has recovered and resynced.
+
+An arbitrary `List` expression needs more machinery. A newly matching object
+was not in the previous result, so tracking only returned UIDs misses it. Track
+the queried resource scope and requeue on relevant changes, or maintain a query
+index. Set result limits and reject ambiguous matches. Start with named reads
+to avoid a namespace scan for every Pod event.
+
+### HTTP needs a separate refresh path
+
+For SkyPilot, a shared background reader should fetch a snapshot, then queue
+affected Pods when it changes. Rules evaluate that snapshot. Do not make HTTP
+calls from a Prometheus scrape or repeat the same API request for every Pod.
+Define a refresh interval and maximum age; failed or expired snapshots invalidate
+their associations. Local jobs still need API-instance and cluster scope.
+They need an external-job identity contract rather than a Kubernetes object UID.
+
+Kyverno's GlobalContext controller already separates resource watches from HTTP
+polling. Importing its CEL library does not import those controllers into DSX.
+SkyPilot's asynchronous request protocol may still need an API adapter. A generic
+HTTP GET is not a substitute for `sky.queue()` or its complete request lifecycle.
+[Resource cache][kyverno-cache], [HTTP poller][kyverno-poller].
+
+### Reuse the expression functions, keep the runtime explicit
+
+| Component | Proposed change |
+| --- | --- |
+| Configuration and compiler | Compile Pod filter, target-name and match expressions. Declare allowed targets before evaluating Pods. |
+| Read provider | Serve scoped, read-only cached objects. Track missing keys and reject undeclared reads. |
+| Controller | Maintain target-to-Pod dependencies and refresh associations on Pod or target changes. |
+| Association store and collector | Publish validated UID pairs separately; remove stale pairs and expose failures. Agree the metric schema before implementation. |
+| Discovery and Karta inventory | Keep existing root discovery and definition lookup for association-only mode. Actual root replacement still needs the changes in options 4 and 6-8. |
+
+The inspected SDK registers `Post` alongside reads. Its provider decides what
+operations actually run. Use restricted bindings or reject writes in the provider;
+installing the library alone does not make it read-only. Kyverno's own resource
+provider performs client calls rather than automatically using DSX's cache.
+[Provider interface][kyverno-provider], [Kyverno client calls][kyverno-client].
+
+For HTTP, restrict destinations and methods, set request deadlines and response
+size limits, and keep credentials outside expressions. CEL evaluation limits do
+not bound blocking network calls. A first implementation can omit HTTP entirely.
+The pinned SDK also has a broader Go dependency graph than these small function
+interfaces suggest; compare importing it with a thin CEL binding over the
+existing exporter cache before choosing a dependency.
+[HTTP implementation][kyverno-http], [SDK module][kyverno-module].
+
+Configurable rules can express an observable relationship. They cannot recover
+a missing job identifier, infer SkyPilot execution status from admission, or
+split one Pod's measurements between concurrent jobs.
+
+</details>
+
 ## End-to-end flow
 
 [Open the zoomable sequence](full-flow.html) or [view the SVG](full-flow.svg).
@@ -319,6 +455,7 @@ before changing discovery.
 - 2026-11-07: Proposed labels first, with optional Kueue and SkyPilot associations.
 - 2026-11-07: Compared eight approaches and tested six isolated exporter setups.
 - 2026-11-08: Clarified the flows and recorded cleanup results.
+- 2026-11-08: Researched Kyverno CEL lookups and proposed cached relationship rules.
 
 [sky-template]: https://github.com/skypilot-org/skypilot/blob/39b151e11075f1d0029f8fc411a42334775fb3e7/sky/templates/kubernetes-ray.yml.j2#L306-L330
 [pod-guide]: https://kueue.sigs.k8s.io/docs/tasks/run/plain_pods/
@@ -329,3 +466,11 @@ before changing discovery.
 [discovery]: ../../../dsx-workload-exporter/pkg/discovery/resolve.go
 [leaf]: ../../../dsx-workload-exporter/pkg/controller/leaf.go
 [queries]: ../../dsx-workload-exporter/queries.md
+[label-cel]: ../../../dsx-workload-exporter/pkg/labelevaluator/cel.go
+[kyverno-functions]: https://kyverno.io/docs/policy-types/cel-libraries/
+[kyverno-provider]: https://github.com/kyverno/sdk/blob/68d74afcb07a4ad8c941e8bc43e9da31d9f703b0/extensions/cel/libs/resource/types.go#L13-L22
+[kyverno-client]: https://github.com/kyverno/kyverno/blob/3bb926936656bfb14ae1a6306a6d9208a4b77613/pkg/cel/libs/context.go#L156-L184
+[kyverno-cache]: https://github.com/kyverno/kyverno/blob/3bb926936656bfb14ae1a6306a6d9208a4b77613/pkg/globalcontext/k8sresource/entry.go#L63-L181
+[kyverno-poller]: https://github.com/kyverno/kyverno/blob/3bb926936656bfb14ae1a6306a6d9208a4b77613/pkg/globalcontext/externalapi/entry.go#L82-L166
+[kyverno-http]: https://github.com/kyverno/sdk/blob/68d74afcb07a4ad8c941e8bc43e9da31d9f703b0/extensions/cel/libs/http/http.go#L441-L495
+[kyverno-module]: https://github.com/kyverno/sdk/blob/68d74afcb07a4ad8c941e8bc43e9da31d9f703b0/go.mod

@@ -107,6 +107,41 @@ count as a successful Karta status test.
 
 </details>
 
+## Local Kyverno CEL probe
+
+The additional CEL experiment used the real Kyverno SDK resource library with
+an in-memory provider. It did not install Kyverno or change the exporter or lab.
+The [named lookup and predicate](README.md#9-configurable-relationships-with-cel)
+compiled and ran with Go 1.27.3, cel-go 0.29.2 and apimachinery 0.37.2, matching
+the exporter's direct versions. The SDK was pinned to
+`v0.0.0-20260825082632-68d74afcb07a`; its library compatibility argument was 1.18.
+`go test -mod=readonly -count=1 -v ./...` passed in the isolated probe module.
+
+| Input or operation | Observed result |
+| --- | --- |
+| Workload `w1` has an ordinary owner reference to Pod `p1` | Named lookup plus match returned true. No controller owner was required. |
+| Wrong namespace, stale Pod UID or missing owner references | Named match returned false. |
+| Missing named Workload | Get returned null; the guarded predicate returned false. |
+| Provider denies Get or List | CEL returned an error. This simulated denial did not test cluster RBAC. |
+| Two Workloads reference the Pod | The List expression returned both. The caller must reject ambiguity if it requires one target. |
+| Target appears, disappears, then is recreated with UID `w2` | Explicit evaluations returned the new state. No evaluation was triggered automatically. |
+| Pod is recreated with UID `p2` | The old reference to `p1` did not match. |
+| Expression calls `post` or `Post` | Both compiled and reached the provider, which rejected writes. |
+
+The List capability check needed `dyn(resource.list(...).items)` before its CEL
+filter. Direct `.items.filter(...)` did not compile with the inspected binding.
+The recommended named-Get rule avoids that list scan.
+
+These checks prove expression and provider behavior, not exporter integration.
+No real HTTP call, watch/index implementation, publication race test, scale test
+or full exporter dependency integration was run. Missing group-label handling
+remains part of the proposed Pod filter. The production test must also cover an
+initially unsynced cache and target creation without any Pod update.
+
+Source research used Kyverno commit `3bb926936656bfb14ae1a6306a6d9208a4b77613`
+and SDK commit `68d74afcb07a4ad8c941e8bc43e9da31d9f703b0`.
+The proposal links the inspected provider, cache and polling implementations.
+
 ## Lab state after testing
 
 All ten scrape targets were healthy at the final check. The SkyPilot compute
