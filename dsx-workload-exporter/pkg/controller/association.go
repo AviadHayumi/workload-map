@@ -32,7 +32,7 @@ type AssociationTarget struct {
 	NameFromLabel string `json:"nameFromLabel" yaml:"nameFromLabel"`
 }
 
-var ErrInvalidPodAssociation = errors.New("Pod workload association cannot be verified")
+var ErrInvalidPodAssociation = errors.New("pod workload association cannot be verified")
 
 type podAssociationSnapshot struct {
 	eligible   bool
