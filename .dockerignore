@@ -5,3 +5,6 @@
 bin/
 operator/bin/
 operator/cover-*.out
+
+/.artifacts/
+/.omx/
