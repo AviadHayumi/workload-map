@@ -346,12 +346,13 @@ The controller registers each declared resource watch once per scope. Before a
 lookup, it records the target key and dependent Pod UID, including a missing
 target. This is a reverse index: target key -> Pods that need another evaluation.
 
-1. A Pod event computes its target key and queues evaluation.
+1. A Pod event queues that Pod. The worker reads it and computes the target key.
 2. Target creation, update or deletion requeues its dependent Pods.
 3. Pod deletion or a filter that no longer matches removes its associations and
    index entries. A changed target label replaces the Pod's old dependency.
-4. Before publishing, verify that the Pod and target versions still match the
-   evaluated snapshot. Retry if either changed.
+4. Validate source health and the evaluated Pod and target versions as part of
+   the association write. A cache change or invalidation must not happen between
+   that check and the write. Include missing-target results; retry stale work.
 
 Load rules at startup initially. Changing rules requires a restart, which rebuilds
 the index. Dynamic rule updates can be added separately.
