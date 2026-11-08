@@ -167,9 +167,6 @@ known association invalid. It can still carry the target UID until the next
 Pod reconciliation falls back to the original Pod root UID. Watch recovery
 requeues affected Pods so the association can be restored.
 
-See the [Kueue attribution design](../keps/0006-skypilot-kueue-attribution/README.md#recommendation)
-for the admission flow and status limits.
-
 ### Definition sources and owner boundaries
 
 Source filters apply before precedence. Empty includes select all definition
