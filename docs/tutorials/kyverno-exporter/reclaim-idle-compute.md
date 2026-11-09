@@ -17,7 +17,35 @@ its owning workload, Prometheus evaluates the signals, and Kyverno acts on it.
 Releasing requests creates scheduling headroom. Lower bills also need node
 scale-down or release of paid capacity; no financial savings were measured.
 
-## Kyverno policies
+## Create and run the demo
+
+This no-GPU lab demonstrates Running-Job suspension and Completed-Job cleanup.
+It does not measure GPU idleness or CPU/memory usage.
+
+### 1. Create the lab
+
+Run from the repository root, with Docker running and kind, kubectl, Helm, Bash,
+curl and Python 3 installed:
+
+```sh
+bash docs/tutorials/kyverno-exporter/up.sh
+export KUBECONFIG="$PWD/.artifacts/kyverno-exporter-tutorial/kubeconfig"
+kubectl config current-context
+```
+
+The context must be `kind-kyverno-exporter-tutorial` before applying manifests.
+Setup installs the exporter, Prometheus and Kyverno, but no demo Jobs or policies.
+
+### 2. Create the example Jobs
+
+```sh
+kubectl apply -f docs/tutorials/kyverno-exporter/manifests/workloads.yaml
+```
+
+This creates `running-worker` and `completed-report` for the policies to act on.
+Unselected and failed Jobs serve as controls and must remain.
+
+### 3. Activate the policies
 
 These are the two complete policies from [policies.yaml](manifests/policies.yaml).
 Setup installs their required [Prometheus rules](manifests/prometheus-rules.yaml)
@@ -120,33 +148,23 @@ spec:
 
 </details>
 
-## Run the lab
-
-From the repository root, with Docker running and kind, kubectl, Helm, Bash,
-curl and Python 3 installed. No GPU is needed. Confirm the context is
-`kind-kyverno-exporter-tutorial` before applying the manifests.
+Apply both policies:
 
 ```sh
-bash docs/tutorials/kyverno-exporter/up.sh
-export KUBECONFIG="$PWD/.artifacts/kyverno-exporter-tutorial/kubeconfig"
-kubectl config current-context
-kubectl apply -f docs/tutorials/kyverno-exporter/manifests/workloads.yaml
 kubectl apply -f docs/tutorials/kyverno-exporter/manifests/policies.yaml
+```
+
+### 4. Observe suspension and cleanup
+
+```sh
 kubectl -n ai-lab get jobs --watch
 ```
 
 After the observation window, `running-worker` is suspended and its Pods stop.
 `completed-report` and its Pods disappear. Unselected and failed Jobs remain.
+Two minutes is an observation window, not an exact action deadline.
 Press Ctrl-C to stop watching. Cleanup after a Prometheus outage may need the
-requeue documented under live results below.
-
-<details>
-<summary>Inspect results, run verification, resume, and remove the lab</summary>
-
-The lab uses kind 0.30.0, Kubernetes 1.34.3, Kyverno 1.19.1 (chart 3.9.1),
-Prometheus 3.14.0 and busybox 1.37.0. The recorded host used Docker 29.0.1,
-Helm 4.0.1 and Linux arm64 nodes. The exporter is built from the checkout.
-Its bundled `batch-job-v1` definition needs no Karta operator or CRD.
+[requeue documented under live results](#live-results).
 
 Inspect the actual API outcome:
 
@@ -158,6 +176,36 @@ kubectl -n ai-lab get pods -l batch.kubernetes.io/job-name=completed-report
 ```
 
 The first command returns `true`; both Pod lists should be empty after reconciliation.
+
+### 5. Opt out and resume
+
+Opt out and resume in one update:
+
+```sh
+kubectl -n ai-lab patch job running-worker --type=merge -p \
+  '{"metadata":{"labels":{"tutorial.karta.run.ai/action":"observe"}},"spec":{"suspend":false}}'
+```
+
+The Job creates a new Pod. Resuming without opting out can trigger suspension
+again. Re-enabling the label can use existing history for that UID.
+
+### 6. Remove the lab
+
+Finish any [optional inspection or verification](#optional-inspection-and-verification)
+before removing the cluster. Stop any port-forward, then run:
+
+```sh
+kind delete cluster --name kyverno-exporter-tutorial
+```
+
+This removes the dedicated lab cluster. Rerunning setup clears Prometheus's
+ephemeral history; it retains only two hours.
+
+## Optional inspection and verification
+
+<details>
+<summary>Inspect metrics and run the disruptive verifier</summary>
+
 To inspect metrics, run this in another terminal with the same kubeconfig:
 
 ```sh
@@ -175,32 +223,24 @@ Job UID. A valid observation verifies exporter inputs, not application health.
 For policy decisions, inspect `tutorial:job_running:eligible`,
 `tutorial:job_completed:eligible` and `/api/v1/rules` for errors.
 
-Run the complete verifier:
+The complete verifier resets its labelled Jobs and two policies, temporarily
+stops the lab exporter and Prometheus, then restores one replica each. Do not
+edit or rerun setup during the test. Results go to
+`.artifacts/kyverno-exporter-tutorial/verification.json`.
 
 ```sh
 python3 docs/tutorials/kyverno-exporter/verify.py
 ```
 
-It resets its labelled Jobs and two policies, temporarily stops the lab exporter
-and Prometheus, then restores one replica each. Do not edit or rerun setup during
-the test. Results go to `.artifacts/kyverno-exporter-tutorial/verification.json`.
+</details>
 
-Opt out and resume in one update:
+<details>
+<summary>Lab versions and exporter setup</summary>
 
-```sh
-kubectl -n ai-lab patch job running-worker --type=merge -p \
-  '{"metadata":{"labels":{"tutorial.karta.run.ai/action":"observe"}},"spec":{"suspend":false}}'
-```
-
-The Job creates a new Pod. Resuming without opting out can trigger suspension
-again. Re-enabling the label can use existing history for that UID.
-
-Rerunning setup clears Prometheus's ephemeral history; it retains only two hours.
-To remove this lab, stop the port-forward and run:
-
-```sh
-kind delete cluster --name kyverno-exporter-tutorial
-```
+The lab uses kind 0.30.0, Kubernetes 1.34.3, Kyverno 1.19.1 (chart 3.9.1),
+Prometheus 3.14.0 and busybox 1.37.0. The recorded host used Docker 29.0.1,
+Helm 4.0.1 and Linux arm64 nodes. The exporter is built from the checkout.
+Its bundled `batch-job-v1` definition needs no Karta operator or CRD.
 
 </details>
 
