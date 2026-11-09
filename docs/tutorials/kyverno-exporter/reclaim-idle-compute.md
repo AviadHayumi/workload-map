@@ -3,19 +3,22 @@
 
 # Reclaim idle compute with Kyverno and DSX
 
-A workload reserves GPUs or CPU but stops doing useful work. DSX identifies
-its owning workload, Prometheus evaluates the signals, and Kyverno acts on it.
+An idle Job can hold resources that other workloads need. Suspending it stops
+its Pods and releases their requests so other work can be scheduled. DSX links
+signals to the owning workload, Prometheus evaluates them, and Kyverno acts.
 
-| Value | Example policy | Available today in this guide |
+| Benefit | Example policy | Evidence |
 | --- | --- | --- |
-| Return idle GPUs to the queue | Suspend a Job after every GPU stays below 5% for an hour, with no queued work and a safe restart path. | Historical fake-GPU evidence; real-GPU recipe below. |
-| Free unused CPU and memory requests | A Job requests 8 cores and 16 GiB but uses under 0.1 core and 300 MiB. Confirm application idleness before suspending it. | Proposed cAdvisor integration. |
+| Release idle GPUs | Suspend a safely restartable Job after every GPU stays below 5% for an hour and no work is queued. | Historical fake-GPU test; real-GPU recipe below. |
+| Free CPU and memory requests | Suspend a confirmed-idle Job that requests 8 cores and 16 GiB but uses under 0.1 core and 300 MiB. | Proposed cAdvisor integration. |
 | Limit time in status X | Suspend after a Running budget; investigate a long Initializing or Degraded phase. | Running-Job policy tested live. |
-| Clean up finished work | Delete a Completed Job and its Pods after a retention window. | Tested live. |
-| Give owners time to act | Warn before a runtime or cost budget is exhausted. | Proposed; needs an alert delivery service. |
+| Remove Completed Jobs and Pods | Delete after a retention window. | Tested live. |
+| Warn before a budget is exhausted | Notify owners before a runtime or cost limit. | Proposed; needs an alert delivery service. |
 
-Releasing requests creates scheduling headroom. Lower bills also need node
-scale-down or release of paid capacity; no financial savings were measured.
+The lab demonstrates Running-time limits and Completed-Job cleanup, not idle
+detection. The GPU and CPU/memory recipes below describe how to add idle signals.
+Lower bills also need node scale-down or release of paid capacity; no financial
+savings were measured.
 
 ## Create and run the demo
 
