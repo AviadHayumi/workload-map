@@ -117,7 +117,8 @@ even when the Job name is reused. The Job must still have active and ready Pods.
 <summary>Delete a Completed Job and its Pods: full DeletingPolicy YAML</summary>
 
 Once a minute, Kyverno checks `Complete=True` and two minutes of valid Completed
-history for that UID. `Background` propagation lets Kubernetes remove owned Pods.
+history for that UID. Kyverno deletes the Job, not its Pods. With `Background`
+propagation, Kubernetes garbage collection removes Pods owned by that Job.
 
 ```yaml
 apiVersion: policies.kyverno.io/v1
