@@ -263,9 +263,10 @@ The lab grants background update/patch and cleanup delete access in `ai-lab`.
 Cleanup also needs read-only cluster-wide Job listing. Kyverno keeps its chart's
 baseline permissions.
 
-Prometheus scrapes and evaluates every five seconds. Suspension scans run every
-30 seconds; cleanup runs once a minute. Two minutes is an observation window,
-not an exact action deadline. Each rule requires:
+Prometheus scrapes and evaluates every five seconds. Kyverno's background
+controller scans for suspension every 30 seconds. Its DeletingPolicy runs
+once a minute. Two minutes is an observation window, not an exact action
+deadline. Each rule requires:
 
 - All available valid phase samples to equal `1`, with at least 23 samples.
 - The phase to equal `1` now and two minutes ago, with both samples under 15 seconds old.
