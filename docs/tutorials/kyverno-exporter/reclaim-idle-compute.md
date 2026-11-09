@@ -15,19 +15,17 @@ signals to the owning workload, Prometheus evaluates them, and Kyverno acts.
 | Remove Completed Jobs and Pods | Delete after a retention window. | Tested live. |
 | Warn before a budget is exhausted | Notify owners before a runtime or cost limit. | Proposed; needs an alert delivery service. |
 
-The lab demonstrates Running-time limits and Completed-Job cleanup, not idle
-detection. The GPU and CPU/memory recipes below describe how to add idle signals.
-Lower bills also need node scale-down or release of paid capacity; no financial
-savings were measured.
+Lower bills also need node scale-down or release of paid capacity.
+No financial savings were measured.
 
 ## Create and run the demo
 
-This no-GPU lab demonstrates Running-Job suspension and Completed-Job cleanup.
-It does not measure GPU idleness or CPU/memory usage.
+The demo enforces a two-minute Running budget and Completed retention window.
+No GPU is needed. The [GPU and cAdvisor recipes](#extend-the-policies) add usage signals.
 
 ### 1. Create the lab
 
-Run from the repository root, with Docker running and kind, kubectl, Helm, Bash,
+From the repository root, with Docker running and kind, kubectl, Helm, Bash,
 curl and Python 3 installed:
 
 ```sh
@@ -43,9 +41,10 @@ Setup installs the exporter, Prometheus and Kyverno, but no demo Jobs or policie
 
 ```sh
 kubectl apply -f docs/tutorials/kyverno-exporter/manifests/workloads.yaml
+kubectl -n ai-lab get jobs
 ```
 
-This creates `running-worker` and `completed-report` for the policies to act on.
+Five Jobs appear. The policies target `running-worker` and `completed-report`.
 Unselected and failed Jobs serve as controls and must remain.
 
 ### 3. Activate the policies
@@ -117,8 +116,8 @@ even when the Job name is reused. The Job must still have active and ready Pods.
 <summary>Delete a Completed Job and its Pods: full DeletingPolicy YAML</summary>
 
 Once a minute, Kyverno checks `Complete=True` and two minutes of valid Completed
-history for that UID. Kyverno deletes the Job, not its Pods. With `Background`
-propagation, Kubernetes garbage collection removes Pods owned by that Job.
+history for that UID. Kyverno deletes the Job. With `Background` propagation,
+Kubernetes garbage collection removes Pods owned by that Job.
 
 ```yaml
 apiVersion: policies.kyverno.io/v1
@@ -190,22 +189,8 @@ kubectl -n ai-lab patch job running-worker --type=merge -p \
   '{"metadata":{"labels":{"tutorial.karta.run.ai/action":"observe"}},"spec":{"suspend":false}}'
 ```
 
-The Job creates a new Pod. Resuming without opting out can trigger suspension
-again. Re-enabling the label can use existing history for that UID.
-
-### 6. Remove the lab
-
-Finish any [optional inspection or verification](#optional-inspection-and-verification)
-before removing the cluster. Stop any port-forward, then run:
-
-```sh
-kind delete cluster --name kyverno-exporter-tutorial
-```
-
-This removes the dedicated lab cluster. Rerunning setup clears Prometheus's
-ephemeral history; it retains only two hours.
-
-## Optional inspection and verification
+The Job controller creates a new Pod. Resuming without opting out can trigger
+suspension again. Re-enabling the label can use existing history for that UID.
 
 <details>
 <summary>Inspect metrics and run the disruptive verifier</summary>
@@ -237,6 +222,18 @@ python3 docs/tutorials/kyverno-exporter/verify.py
 ```
 
 </details>
+
+### 6. Remove the lab
+
+Stop any port-forward, then remove the dedicated cluster:
+
+```sh
+kind delete cluster --name kyverno-exporter-tutorial
+```
+
+Rerunning setup clears Prometheus's ephemeral history; it retains only two hours.
+
+## How the demo works
 
 <details>
 <summary>Lab versions and exporter setup</summary>
