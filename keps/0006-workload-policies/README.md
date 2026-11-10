@@ -13,13 +13,11 @@
 
 ![One policy, two native workload types, three useful results](kep-plugins-value.png)
 
-A workload asks for storage, a node pool and a Service through annotations.
-Karta finds its Pod template; the same CEL programs compute the requested
-configuration for a Deployment or CronJob. A small Go controller applies that
-configuration and reconciles later changes. This KEP proposes the reusable
-CEL package and a three-plugin example, with Kubernetes writes owned by the
-controller. The result is a way to share policy logic across workload types
-without making every policy author learn each type's template path.
+Write a policy against a Pod template once and use it for both Deployments
+and CronJobs. Karta supplies that template; CEL computes the requested values;
+a Go controller applies them and reconciles changes. This KEP proposes the
+reusable CEL package and three plugins: storage, node placement and Services.
+Workload authors request them through annotations on their existing objects.
 
 | What the platform gains | What the workload author does |
 | --- | --- |
@@ -98,10 +96,9 @@ activate it. `Applied` means configuration converged, not that Pods are ready.
 
 ### 2. Write the policy once
 
-The CEL input has two names. `object` is the complete native workload.
-`template` is its root Pod template, copied without losing unrelated fields
-or integer values. Absent workload annotations become an empty map in the
-snapshot. The input object in Kubernetes is unchanged by evaluation.
+The CEL input has two names: `object`, the complete native workload, and
+`template`, its root Pod template. Absent workload annotations become an empty
+map in this detached snapshot. Evaluation leaves the Kubernetes object alone.
 
 #### Use case: provision storage and keep the data
 
@@ -145,11 +142,10 @@ or a deleted Service triggers convergence again. Other Service ports,
 allocated addresses and unrelated metadata are preserved. A CronJob Service
 has endpoints only while its matching Pods run.
 
-The three programs are embedded and compiled once when the controller starts.
-An annotation supplies data, never executable CEL. `{}` disables one plugin.
-A malformed present value is an error. All three results are validated before
-managed-resource changes; reporting an error can still write a diagnostic
-annotation. Changing a program requires rebuilding the example.
+The controller compiles the three embedded programs once at startup.
+Annotations supply data; changing a program requires rebuilding. `{}` disables
+one plugin. Malformed input fails before managed-resource changes, although
+reporting an error can still write a diagnostic annotation.
 
 ### 3. Try it and use the SDK
 
@@ -160,21 +156,25 @@ make check-cel-plugins
 KEEP_CLUSTER=1 make test-cel-plugins-e2e
 ```
 
-The second command builds the controller and creates a three-node kind cluster.
-It runs the storage, placement and Service scenarios, then removes successful
-test fixtures. The cluster remains available. It requires Go, Docker, kind,
-kubectl and make. GPU hardware is not needed for these three plugins.
-An existing cluster requires explicit `REUSE_CLUSTER=1`.
+The second command builds the controller, creates a three-node kind cluster
+and runs all nine scenarios. Successful test fixtures are removed; the cluster
+remains available. Prerequisites are Go, Docker, kind, kubectl and make.
+No GPU is needed. Reusing a cluster requires explicit `REUSE_CLUSTER=1`.
 
 The [runnable walkthrough](https://github.com/AviadHayumi/workload-map/blob/652abc46a31d081cde1a922cedf1d60c79fc2e22/docs/examples/cel-plugins/README.md)
 contains the install manifests, mounted-volume example and port-change commands.
 The KEP checkout contains the proposal; run the commands in the prototype.
-The controller requires `--namespace`; `--storage-class` defaults to an explicit
-empty class. The walkthrough selects kind's `standard` class before requests
-arrive. The e2e fixtures instead bind static local volumes.
+The controller requires `--namespace`. Its storage class defaults to explicitly
+empty; the walkthrough selects kind's `standard` class. Tests use static PVs.
+After following the walkthrough, this single edit changes the exposed port:
 
-A consumer can use the proposed SDK without installing that controller.
-This different rule lists container images from either workload type:
+```sh
+kubectl -n karta-cel-demo annotate deployment web \
+  plugins.karta.dev/service-port=82 --overwrite
+```
+
+The proposed SDK also works without the controller. This rule lists images
+from either workload type:
 
 ```go
 package example
