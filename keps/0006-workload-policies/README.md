@@ -370,5 +370,4 @@ or elapsed-time observations. The current example supplies neither.
   All nine kind scenarios, the mounted-volume walkthrough, race tests and
   `make check` passed. These results validate that prototype, not a released API.
 
-Diagram sources sit next to this file as `.excalidraw`; open them at
-excalidraw.com to edit.
+Diagram sources accompany this document as `.excalidraw` files.
