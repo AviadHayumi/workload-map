@@ -39,10 +39,10 @@ func Compile(expression string) (*Program, error) {
 		return nil, fmt.Errorf("create CEL environment: %w", err)
 	}
 	ast, issues := env.Parse(expression)
-	if issues != nil && issues.Err() != nil {
+	if issues.Err() != nil {
 		return nil, fmt.Errorf("compile CEL source: %w", issues.Err())
 	}
-	if _, issues := env.Check(ast); issues != nil && issues.Err() != nil {
+	if _, issues := env.Check(ast); issues.Err() != nil {
 		return nil, fmt.Errorf("check CEL source: %w", issues.Err())
 	}
 	// cel-go v0.30.0 can narrow indexed dyn values to the wrong conversion overload.
