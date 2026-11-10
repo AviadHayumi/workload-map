@@ -121,14 +121,14 @@ func editTemplate(object *unstructured.Unstructured, path []string, previous sta
 	next.Service = desired.Service != nil
 	fields := []struct {
 		path                []string
-		key, old, new       string
+		old, new            string
 		wasOwned, wantOwned bool
 	}{
-		{append(append([]string{}, path...), "spec", "nodeSelector"), poolKey, previous.Pool, next.Pool, previous.Pool != "", desired.Placement != nil},
-		{append(append([]string{}, path...), "metadata", "labels"), workloadUIDKey, string(object.GetUID()), string(object.GetUID()), previous.Service, desired.Service != nil},
+		{append(append([]string{}, path...), "spec", "nodeSelector", poolKey), previous.Pool, next.Pool, previous.Pool != "", desired.Placement != nil},
+		{append(append([]string{}, path...), "metadata", "labels", workloadUIDKey), string(object.GetUID()), string(object.GetUID()), previous.Service, desired.Service != nil},
 	}
 	for _, field := range fields {
-		current, present, err := unstructured.NestedFieldNoCopy(object.Object, append(field.path, field.key)...)
+		current, present, err := unstructured.NestedFieldNoCopy(object.Object, field.path...)
 		if err != nil {
 			return failure("FieldConflict", "reserved template field has an incompatible parent map")
 		}
@@ -140,11 +140,11 @@ func editTemplate(object *unstructured.Unstructured, path []string, previous sta
 			return failure("FieldConflict", "a reserved template key already exists")
 		}
 		if field.wantOwned {
-			if err := unstructured.SetNestedField(object.Object, field.new, append(field.path, field.key)...); err != nil {
+			if err := unstructured.SetNestedField(object.Object, field.new, field.path...); err != nil {
 				return failure("FieldConflict", "cannot write reserved template field")
 			}
 		} else if field.wasOwned {
-			unstructured.RemoveNestedField(object.Object, append(field.path, field.key)...)
+			unstructured.RemoveNestedField(object.Object, field.path...)
 		}
 	}
 	return nil
