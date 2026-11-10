@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cel-plugins
+  namespace: karta-cel-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cel-plugins
+  namespace: karta-cel-demo
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [batch]
+    resources: [cronjobs]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, create]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, create, patch, delete]
+  - apiGroups: ["", events.k8s.io]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cel-plugins
+  namespace: karta-cel-demo
+subjects:
+  - kind: ServiceAccount
+    name: cel-plugins
+    namespace: karta-cel-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cel-plugins

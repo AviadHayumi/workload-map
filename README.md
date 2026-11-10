@@ -276,10 +276,11 @@ The [Dynamo Karta](docs/catalog/nvidia-com-dynamographdeployment-v1alpha1.yaml) 
 
 ## Runnable examples
 
-Two runnable examples live under [`docs/examples/`](docs/examples/):
+Runnable examples live under [`docs/examples/`](docs/examples/):
 
 - [quickstart](docs/examples/quickstart/) - reads and mutates a JobSet and a LeaderWorkerSet offline, no cluster required. The fastest way to see the uniform API in action.
 - [controller-runtime](docs/examples/controller-runtime/) - a controller-runtime manager you install into a Kind cluster. It watches live LeaderWorkerSet workloads, then inspects and mutates them through Karta with no per-CRD code. Adding more workload types is a flag change, not a rebuild.
+- [CEL plugins](docs/examples/cel-plugins/) - three CEL programs provision storage, select a node pool and expose a Service for Deployments and CronJobs. Includes an installable controller and kind end-to-end tests.
 
 ## Who Uses Karta?
 
@@ -299,7 +300,7 @@ See [ADOPTERS.md](ADOPTERS.md) for the full list of adopters. If you use Karta, 
 - [FIPS 140-3](docs/FIPS.md) - Running the operator with Go's FIPS 140-3 crypto module
 - [Dependency Updates](docs/Dependency%20Updates.md) - How Renovate keeps dependencies current and how to test a configuration change
 - [Karta definitions](docs/catalog/) - Real-world Karta definitions for common workload types
-- [Runnable examples](docs/examples/) - Offline quickstart and an installable controller-runtime example
+- [Runnable examples](docs/examples/) - Offline quickstart, controller-runtime and CEL plugins
 - [API Reference](https://pkg.go.dev/github.com/dsx-ai-factory/workload-map) - Go package documentation
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute (DCO required)
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards and expectations

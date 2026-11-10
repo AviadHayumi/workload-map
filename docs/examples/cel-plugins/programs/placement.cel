@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+'plugins.karta.dev/node-pool' in object.metadata.annotations
+? {'pool': object.metadata.annotations['plugins.karta.dev/node-pool']}
+: {}

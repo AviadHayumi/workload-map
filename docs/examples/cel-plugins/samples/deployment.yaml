@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: karta-cel-demo
+  annotations:
+    plugins.karta.dev/storage: 1Gi
+    plugins.karta.dev/node-pool: blue
+    plugins.karta.dev/service-port: "80"
+spec:
+  replicas: 0
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+    spec:
+      containers:
+        - name: web
+          image: busybox:1.37.0
+          command: [sh, -ec]
+          args:
+            - |
+              test -f /data/marker || echo retained-data > /data/marker
+              exec httpd -f -p 8080 -h /data
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            httpGet: {path: /marker, port: http}

@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+'plugins.karta.dev/service-port' in object.metadata.annotations
+? {'port': int(object.metadata.annotations['plugins.karta.dev/service-port']),
+   'targetPort': template.spec.containers[0].ports[0].containerPort}
+: {}

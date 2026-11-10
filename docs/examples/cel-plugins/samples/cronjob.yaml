@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scheduled
+  namespace: karta-cel-demo
+  annotations:
+    plugins.karta.dev/node-pool: blue
+    plugins.karta.dev/service-port: "80"
+spec:
+  schedule: "0 0 * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: web
+              image: busybox:1.37.0
+              command: [sh, -ec]
+              args:
+                - |
+                  mkdir -p /tmp/www
+                  echo cronjob-template > /tmp/www/marker
+                  exec httpd -f -p 8080 -h /tmp/www
+              ports: [{name: http, containerPort: 8080}]
+              readinessProbe:
+                httpGet: {path: /marker, port: http}

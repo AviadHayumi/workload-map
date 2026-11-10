@@ -22,13 +22,13 @@ GO_LDFLAGS  := -X $(VERSION_PKG).version=$(VERSION)
 LDFLAGS     := -ldflags "$(GO_LDFLAGS)"
 
 # The component inventory every aggregate fans out over.
-COMPONENTS := lib cli operator exporter karta-wasm release-helper operator-updates
+COMPONENTS := lib cli operator exporter karta-wasm release-helper operator-updates cel-plugins
 
 # Every Go module in the repo. The tidy target fans out over this rather than
 # COMPONENTS because an untidy manifest in a module that ships no
 # binary (the examples, the e2e fixtures) still breaks a downstream `go get`.
 GO_MODULES := karta/sdk cli karta-wasm operator dsx-workload-exporter dsx-workload-exporter/test/integration test/e2e hack/imagelock hack/operator-updates \
-	docs/examples/quickstart docs/examples/controller-runtime \
+	docs/examples/quickstart docs/examples/controller-runtime docs/examples/cel-plugins \
 	hack/e2e/operators/nim/image
 
 KARTA_CHART_DIR := $(PROJECT_DIR)/charts/karta
@@ -128,7 +128,7 @@ clean: ## Remove build outputs, coverage profiles, and release and plugin artifa
 		echo "refusing to clean $$dir: not a directory inside $(PROJECT_DIR)" >&2; \
 		exit 1; \
 	done
-	rm -fv "$(LOCALBIN)/kli" "$(LOCALBIN)/karta-operator" "$(LOCALBIN)/karta-operator-amd64" "$(LOCALBIN)/karta-operator-arm64" "$(LOCALBIN)/dsx-workload-exporter" "$(LOCALBIN)/operator-updates"
+	rm -fv "$(LOCALBIN)/kli" "$(LOCALBIN)/karta-operator" "$(LOCALBIN)/karta-operator-amd64" "$(LOCALBIN)/karta-operator-arm64" "$(LOCALBIN)/dsx-workload-exporter" "$(LOCALBIN)/operator-updates" "$(LOCALBIN)/cel-plugins"
 	rm -fv "$(LOCALBIN)"/*-tidy.mod "$(LOCALBIN)"/*-tidy.sum "$(LOCALBIN)"/*-license.mod "$(LOCALBIN)"/*-license.sum "$(LOCALBIN)"/*deps.json
 	rm -fv operator/cover-unit.out operator/cover-integration.out
 	rm -fv karta-wasm/karta.wasm karta-wasm/wasm_exec.js
@@ -296,6 +296,60 @@ modules-check-operator-updates: ## Verify operator update checker module metadat
 
 .PHONY: check-operator-updates
 check-operator-updates: fmt-check-operator-updates vet-operator-updates lint-operator-updates modules-check-operator-updates test-operator-updates ## Full operator update checker presubmit
+
+##@ CEL plugins example
+
+CEL_PLUGINS_IMAGE ?= karta-cel-plugins:local
+CEL_PLUGINS_ARCH ?= $(shell go env GOARCH)
+
+.PHONY: fmt-cel-plugins
+fmt-cel-plugins: ## Format the CEL plugins example
+	cd docs/examples/cel-plugins && go fmt ./...
+
+.PHONY: fmt-check-cel-plugins
+fmt-check-cel-plugins: ## Check CEL example formatting, including live tests
+	@set -e; \
+	unformatted="$$(gofmt -l docs/examples/cel-plugins/*.go)"; \
+	test -z "$$unformatted" || { echo "go fmt required:"; echo "$$unformatted"; exit 1; }
+
+.PHONY: vet-cel-plugins
+vet-cel-plugins: ## Vet the CEL example and live tests
+	cd docs/examples/cel-plugins && go vet -tags=e2e ./...
+
+.PHONY: lint-cel-plugins
+lint-cel-plugins: golangci-lint ## Lint the CEL example and live tests
+	cd docs/examples/cel-plugins && $(GOLANGCI_LINT) run $(GOLANGCI_LINT_FLAGS) --build-tags=e2e -c $(PROJECT_DIR)/.golangci.yml
+
+.PHONY: test-cel-plugins
+test-cel-plugins: ## Test the CEL SDK and example with the race detector
+	cd karta/sdk && go test -race ./pkg/cel
+	cd docs/examples/cel-plugins && go test -race ./...
+
+.PHONY: modules-check-cel-plugins
+modules-check-cel-plugins: ## Verify CEL example module metadata
+	cd docs/examples/cel-plugins && go mod tidy -diff
+	cd docs/examples/cel-plugins && go mod verify
+
+.PHONY: check-cel-plugins
+check-cel-plugins: fmt-check-cel-plugins vet-cel-plugins lint-cel-plugins modules-check-cel-plugins test-cel-plugins ## Full CEL example presubmit, without a cluster
+
+.PHONY: build-cel-plugins
+build-cel-plugins: ## Build the CEL example for a local Linux kind node
+	mkdir -p $(LOCALBIN)
+	cd docs/examples/cel-plugins && CGO_ENABLED=0 GOOS=linux GOARCH=$(CEL_PLUGINS_ARCH) go build -trimpath -o $(LOCALBIN)/cel-plugins .
+
+.PHONY: cel-plugins-image
+cel-plugins-image: build-cel-plugins ## Build a local CEL example image from a minimal context
+	@set -eu; \
+	build_dir="$$(mktemp -d)"; \
+	trap 'rm -rf "$$build_dir"' EXIT; \
+	mkdir "$$build_dir/bin"; \
+	cp $(LOCALBIN)/cel-plugins "$$build_dir/bin/cel-plugins"; \
+	$(CONTAINER_TOOL) build -f $(PROJECT_DIR)/docs/examples/cel-plugins/Dockerfile -t $(CEL_PLUGINS_IMAGE) "$$build_dir"
+
+.PHONY: test-cel-plugins-e2e
+test-cel-plugins-e2e: ## Build and test the three plugins in an isolated kind cluster
+	docs/examples/cel-plugins/scripts/e2e.sh
 
 ##@ CLI
 
@@ -624,7 +678,8 @@ generate-licenses: tidy go-licence-detector ## Regenerate NOTICE and THIRD_PARTY
 	(cd cli && go mod download -json) > $(LOCALBIN)/cli-deps.json; \
 	(cd karta-wasm && go mod download -json) > $(LOCALBIN)/karta-wasm-deps.json; \
 	(cd dsx-workload-exporter && go mod download -json) > $(LOCALBIN)/exporter-deps.json; \
-	python3 hack/merge-go-deps.py $(LOCALBIN)/karta-deps.json $(LOCALBIN)/cli-deps.json $(LOCALBIN)/karta-wasm-deps.json $(LOCALBIN)/exporter-deps.json > $(LOCALBIN)/deps.json; \
+	(cd docs/examples/cel-plugins && go mod download -json) > $(LOCALBIN)/cel-plugins-deps.json; \
+	python3 hack/merge-go-deps.py $(LOCALBIN)/karta-deps.json $(LOCALBIN)/cli-deps.json $(LOCALBIN)/karta-wasm-deps.json $(LOCALBIN)/exporter-deps.json $(LOCALBIN)/cel-plugins-deps.json > $(LOCALBIN)/deps.json; \
 	$(GO_LICENCE_DETECTOR) -in $(LOCALBIN)/deps.json \
 		-noticeTemplate=hack/licenses/notice.tpl \
 		-noticeOut=NOTICE \
@@ -834,6 +889,7 @@ E2E_SHELL := hack/e2e/up.sh hack/e2e/down.sh hack/e2e/check-updates.sh \
 	$(wildcard hack/e2e/infra/*/*.sh) \
 	$(wildcard hack/e2e/operators/*/check-updates.sh) \
 	$(wildcard hack/e2e/dsx-workload-exporter/*.sh) \
+	$(wildcard docs/examples/cel-plugins/scripts/*.sh) \
 	$(wildcard hack/e2e/karta-operator/*.sh) \
 	hack/e2e/operators/_common.sh \
 	$(wildcard hack/e2e/operators/*/install.sh) \

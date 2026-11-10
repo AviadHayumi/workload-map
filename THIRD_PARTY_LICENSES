@@ -6,6 +6,11 @@ For complete license texts, please refer to the source repositories or the LICEN
 
 ## Dependencies
 
+### github.com/google/cel-go
+- Name: github.com/google/cel-go
+- Version: v0.30.0
+- License: Apache-2.0
+
 ### github.com/itchyny/gojq
 - Name: github.com/itchyny/gojq
 - Version: v0.12.20
@@ -56,10 +61,20 @@ For complete license texts, please refer to the source repositories or the LICEN
 - Version: v1.6.0
 - License: Apache-2.0
 
+### cel.dev/expr
+- Name: cel.dev/expr
+- Version: v0.25.1
+- License: Apache-2.0
+
 ### github.com/Masterminds/semver/v3
 - Name: github.com/Masterminds/semver/v3
 - Version: v3.4.0
 - License: MIT
+
+### github.com/antlr4-go/antlr/v4
+- Name: github.com/antlr4-go/antlr/v4
+- Version: v4.13.1
+- License: BSD-3-Clause
 
 ### github.com/fxamacker/cbor/v2
 - Name: github.com/fxamacker/cbor/v2
@@ -116,6 +131,11 @@ For complete license texts, please refer to the source repositories or the LICEN
 - Version: v2.4.4
 - License: Apache-2.0
 
+### golang.org/x/exp
+- Name: golang.org/x/exp
+- Version: v0.0.0-20260410095643-746e56fc9e2f
+- License: BSD-3-Clause
+
 ### golang.org/x/mod
 - Name: golang.org/x/mod
 - Version: v0.41.0
@@ -144,6 +164,21 @@ For complete license texts, please refer to the source repositories or the LICEN
 ### golang.org/x/tools
 - Name: golang.org/x/tools
 - Version: v0.51.0
+- License: BSD-3-Clause
+
+### google.golang.org/genproto/googleapis/api
+- Name: google.golang.org/genproto/googleapis/api
+- Version: v0.0.0-20260526163538-3dc84a4a5aaa
+- License: Apache-2.0
+
+### google.golang.org/genproto/googleapis/rpc
+- Name: google.golang.org/genproto/googleapis/rpc
+- Version: v0.0.0-20260526163538-3dc84a4a5aaa
+- License: Apache-2.0
+
+### google.golang.org/protobuf
+- Name: google.golang.org/protobuf
+- Version: v1.36.12-0.20260120151049-f2248ac996af
 - License: BSD-3-Clause
 
 ### gopkg.in/inf.v0
@@ -401,11 +436,6 @@ For complete license texts, please refer to the source repositories or the LICEN
 - Version: v0.15.0
 - License: BSD-3-Clause
 
-### google.golang.org/protobuf
-- Name: google.golang.org/protobuf
-- Version: v1.36.12-0.20260120151049-f2248ac996af
-- License: BSD-3-Clause
-
 ### gopkg.in/evanphx/json-patch.v4
 - Name: gopkg.in/evanphx/json-patch.v4
 - Version: v4.13.0
@@ -419,11 +449,6 @@ For complete license texts, please refer to the source repositories or the LICEN
 ### sigs.k8s.io/kustomize/kyaml
 - Name: sigs.k8s.io/kustomize/kyaml
 - Version: v0.21.1
-- License: Apache-2.0
-
-### github.com/google/cel-go
-- Name: github.com/google/cel-go
-- Version: v0.30.0
 - License: Apache-2.0
 
 ### github.com/prometheus/client_golang
@@ -470,16 +495,6 @@ For complete license texts, please refer to the source repositories or the LICEN
 - Name: go.opentelemetry.io/otel/sdk/metric
 - Version: v1.47.0
 - License: Apache-2.0
-
-### cel.dev/expr
-- Name: cel.dev/expr
-- Version: v0.25.1
-- License: Apache-2.0
-
-### github.com/antlr4-go/antlr/v4
-- Name: github.com/antlr4-go/antlr/v4
-- Version: v4.13.1
-- License: BSD-3-Clause
 
 ### github.com/beorn7/perks
 - Name: github.com/beorn7/perks
@@ -531,19 +546,39 @@ For complete license texts, please refer to the source repositories or the LICEN
 - Version: v1.47.0
 - License: Apache-2.0
 
-### golang.org/x/exp
-- Name: golang.org/x/exp
-- Version: v0.0.0-20260410095643-746e56fc9e2f
-- License: BSD-3-Clause
-
-### google.golang.org/genproto/googleapis/api
-- Name: google.golang.org/genproto/googleapis/api
-- Version: v0.0.0-20240826202546-f6391c0de4c7
+### sigs.k8s.io/controller-runtime
+- Name: sigs.k8s.io/controller-runtime
+- Version: v0.25.2
 - License: Apache-2.0
 
-### google.golang.org/genproto/googleapis/rpc
-- Name: google.golang.org/genproto/googleapis/rpc
-- Version: v0.0.0-20240826202546-f6391c0de4c7
+### github.com/evanphx/json-patch/v5
+- Name: github.com/evanphx/json-patch/v5
+- Version: v5.9.11
+- License: BSD-3-Clause
+
+### github.com/go-logr/zapr
+- Name: github.com/go-logr/zapr
+- Version: v1.3.0
+- License: Apache-2.0
+
+### go.uber.org/multierr
+- Name: go.uber.org/multierr
+- Version: v1.11.0
+- License: MIT
+
+### go.uber.org/zap
+- Name: go.uber.org/zap
+- Version: v1.27.1
+- License: MIT
+
+### gomodules.xyz/jsonpatch/v2
+- Name: gomodules.xyz/jsonpatch/v2
+- Version: v2.4.0
+- License: Apache-2.0
+
+### k8s.io/apiextensions-apiserver
+- Name: k8s.io/apiextensions-apiserver
+- Version: v0.37.1
 - License: Apache-2.0
 
 
