@@ -100,22 +100,54 @@ The CEL input has two names: `object`, the complete native workload, and
 `template`, its root Pod template. Absent workload annotations become an empty
 map in this detached snapshot. Evaluation leaves the Kubernetes object alone.
 
-#### Use case: provision storage and keep the data
+Each block below is a complete `.cel` file. The first three are the controller's
+embedded policies under `docs/examples/cel-plugins/programs/`. There is no
+policy YAML wrapper. The controller wires these three files to Go handlers
+that validate and apply their results. `{}` disables that plugin.
+
+#### Expose an endpoint and repair its Service
+
+Complete `programs/service.cel`:
 
 ```cel
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+'plugins.karta.dev/service-port' in object.metadata.annotations
+? {'port': int(object.metadata.annotations['plugins.karta.dev/service-port']),
+   'targetPort': template.spec.containers[0].ports[0].containerPort}
+: {}
+```
+
+For the Deployment in section 1, the result is `{"port":80,"targetPort":8080}`.
+Go creates a Service with an `http` port and the workload UID selector. A port
+change, an edited selector or a deleted Service triggers convergence again.
+Other Service ports, allocated addresses and unrelated metadata are preserved.
+A CronJob Service has endpoints only while its matching Pods run.
+
+<details>
+<summary>Provision storage and keep the data: complete storage.cel</summary>
+
+```cel
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
 'plugins.karta.dev/storage' in object.metadata.annotations
 ? {'size': object.metadata.annotations['plugins.karta.dev/storage']}
 : {}
 ```
 
-For the workload above, the result is `{"size":"1Gi"}`. Go validates the
+For the same workload, the result is `{"size":"1Gi"}`. Go validates the
 quantity and creates the claim. The user attaches that claim with normal
 `volumes` and `volumeMounts` fields. Removing the annotation or deleting the
 workload retains the PVC. Provisioning is separate from mounting and binding.
 
-#### Use case: move a stateless service to another node pool
+</details>
+
+<details>
+<summary>Move a stateless service to another node pool: complete placement.cel</summary>
 
 ```cel
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
 'plugins.karta.dev/node-pool' in object.metadata.annotations
 ? {'pool': object.metadata.annotations['plugins.karta.dev/node-pool']}
 : {}
@@ -127,25 +159,76 @@ annotation to `green` triggers another reconciliation; the Deployment's own
 controller rolls out the changed template. A CronJob passes it to future
 Jobs. Existing Jobs are unchanged. Nodes need the corresponding pool label.
 
-#### Use case: expose an endpoint and repair its Service
+</details>
+
+The controller compiles these three programs once at startup. Annotations
+supply data; changing a program requires rebuilding. Malformed input fails
+before managed-resource changes, although reporting an error can still write
+a diagnostic annotation.
+
+The following complete policies run through the SDK shown in section 3.
+Pass their text to `kartacel.Compile`, then evaluate a workload snapshot.
+They return findings for a consumer to act on; the example controller does
+not load or enforce them. Each inspects regular containers in `template`.
+Init containers need an additional check.
+
+<details>
+<summary>Find images outside an approved registry: approved_images.cel</summary>
 
 ```cel
-'plugins.karta.dev/service-port' in object.metadata.annotations
-? {'port': int(object.metadata.annotations['plugins.karta.dev/service-port']),
-   'targetPort': template.spec.containers[0].ports[0].containerPort}
-: {}
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+{'unapprovedImages': template.spec.containers
+  .filter(c, !c.image.startsWith('ghcr.io/example/'))
+  .map(c, c.image)}
 ```
 
-The result is `{"port":80,"targetPort":8080}`. Go creates a Service with an
-`http` port and the workload UID selector. A port change, an edited selector
-or a deleted Service triggers convergence again. Other Service ports,
-allocated addresses and unrelated metadata are preserved. A CronJob Service
-has endpoints only while its matching Pods run.
+The section 1 workload returns `{"unapprovedImages":["busybox:1.37.0"]}`.
+Changing its image to `ghcr.io/example/web:v1.2.3` returns
+`{"unapprovedImages":[]}`. A submission client could reject a nonempty list.
 
-The controller compiles the three embedded programs once at startup.
-Annotations supply data; changing a program requires rebuilding. `{}` disables
-one plugin. Malformed input fails before managed-resource changes, although
-reporting an error can still write a diagnostic annotation.
+</details>
+
+<details>
+<summary>Find containers missing CPU or memory requests: resource_requests.cel</summary>
+
+```cel
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+{'missingRequests': template.spec.containers.filter(c,
+  !has(c.resources) || !has(c.resources.requests) ||
+  !('cpu' in c.resources.requests) ||
+  !('memory' in c.resources.requests)).map(c, c.name)}
+```
+
+The section 1 workload returns `{"missingRequests":["web"]}`. Adding
+`resources: {requests: {cpu: "250m", memory: "128Mi"}}` to its container
+returns `{"missingRequests":[]}`. This checks field presence; quantity bounds
+and actual usage need separate checks. A consumer could report the names
+before submitting the workload.
+
+</details>
+
+<details>
+<summary>Find containers declaring GPUs: gpu_containers.cel</summary>
+
+```cel
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 NVIDIA Corporation
+{'gpuContainers': template.spec.containers.filter(c,
+  has(c.resources) && (
+    (has(c.resources.requests) && 'nvidia.com/gpu' in c.resources.requests) ||
+    (has(c.resources.limits) && 'nvidia.com/gpu' in c.resources.limits)
+  )).map(c, c.name)}
+```
+
+The section 1 workload returns `{"gpuContainers":[]}`. Adding
+`resources: {limits: {"nvidia.com/gpu": "1"}}` to its container returns
+`{"gpuContainers":["web"]}`. A consumer could use this list to select workloads
+for a GPU report. It detects declarations, including zero values; it does not
+observe GPU utilization.
+
+</details>
 
 ### 3. Try it and use the SDK
 
