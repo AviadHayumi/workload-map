@@ -267,10 +267,11 @@ reservation and storage input before doing so. The storage POST disables
 client retries and redirects. Unrelated status changes do not revoke it.
 
 After an interrupted request, a later reconcile can find the matching claim
-and record its UID. If the reservation exists but the claim is absent, it
-reports `StorageCreationUncertain`. It cannot tell whether creation never
+and record its UID. While storage is enabled, an existing reservation with an absent claim
+produces `StorageCreationUncertain`. It cannot tell whether creation never
 happened or the claim was created and then deleted. Guessing would risk
-replacing retained data with empty storage.
+replacing retained data with empty storage. Opt-out skips availability checks
+but keeps the storage record. Re-enabling storage never resets the reservation.
 
 The state annotation also records owned template values. A separate
 `plugins.karta.dev/result` annotation records `Applied` or `Error`, an input
@@ -286,7 +287,7 @@ against users who can edit the same workload.
 | Service deletion held by a finalizer | Keep the label and saved ownership until actual deletion |
 | Workload deletion | Stop changes; Kubernetes collects its Service; PVC remains |
 | Same workload name, new UID | Use different child names; do not adopt the old claim |
-| Committed PVC missing or replaced | Report an error; never create a replacement |
+| Committed PVC missing or replaced while storage is enabled | Report an error; never create a replacement |
 | Capacity or storage-class change | Report `StorageChangeUnsupported` |
 | Controller restart | Relist workloads and recover from persisted state |
 
@@ -297,7 +298,7 @@ Storage recovery has no reset API; a fresh request uses a new workload UID.
 
 ## Prior art
 
-- [CEL](https://cel.dev/overview/cel-overview): compile once, evaluate repeatedly, and return structured values to a host.
+- [CEL](https://cel.dev/overview/cel-overview): compile once and evaluate repeatedly against different inputs.
 - [Kubernetes controllers](https://kubernetes.io/docs/concepts/architecture/controller/): keep observed resources moving toward desired state through a control loop.
 - [controller-runtime conditional patches](https://github.com/kubernetes-sigs/controller-runtime/blob/v0.25.2/pkg/client/patch.go): include resourceVersion so a stale patch becomes a conflict.
 
