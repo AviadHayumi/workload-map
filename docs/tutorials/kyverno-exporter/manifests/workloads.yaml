@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: running-worker
+  namespace: ai-lab
+  labels:
+    tutorial.karta.run.ai/test: "true"
+    tutorial.karta.run.ai/action: suspend
+spec:
+  suspend: false
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 86400"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: completed-report
+  namespace: ai-lab
+  labels:
+    tutorial.karta.run.ai/test: "true"
+    tutorial.karta.run.ai/action: delete
+spec:
+  suspend: false
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: busybox:1.37.0
+          command: [sh, -c, "echo report-complete"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: unselected-worker
+  namespace: ai-lab
+  labels:
+    tutorial.karta.run.ai/test: "true"
+    tutorial.karta.run.ai/action: observe
+spec:
+  suspend: false
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: busybox:1.37.0
+          command: [sh, -c, "sleep 86400"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: unselected-report
+  namespace: ai-lab
+  labels:
+    tutorial.karta.run.ai/test: "true"
+    tutorial.karta.run.ai/action: observe
+spec:
+  suspend: false
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: busybox:1.37.0
+          command: [sh, -c, "echo keep-this-report"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: failed-report
+  namespace: ai-lab
+  labels:
+    tutorial.karta.run.ai/test: "true"
+    tutorial.karta.run.ai/action: delete
+spec:
+  suspend: false
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: busybox:1.37.0
+          command: [sh, -c, "exit 1"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

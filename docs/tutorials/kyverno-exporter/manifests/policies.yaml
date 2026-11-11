@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: tutorial-suspend-running
+spec:
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ai-lab
+    objectSelector:
+      matchLabels:
+        tutorial.karta.run.ai/action: suspend
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+  evaluation:
+    admission:
+      enabled: false
+    mutateExisting:
+      enabled: true
+  targetMatchConditions:
+    - name: current-target-is-opted-in
+      expression: >-
+        object.metadata.namespace == 'ai-lab' &&
+        has(object.metadata.labels) &&
+        'tutorial.karta.run.ai/action' in object.metadata.labels &&
+        object.metadata.labels['tutorial.karta.run.ai/action'] == 'suspend'
+    - name: still-running-and-not-suspended
+      expression: >-
+        !object.spec.?suspend.orValue(false) &&
+        object.status.?active.orValue(0) > 0 && object.status.?ready.orValue(0) > 0
+    - name: verified-running-history-for-this-uid
+      expression: >-
+        http.Get('http://prometheus.monitoring.svc:9090/api/v1/query?query=tutorial%3Ajob_running%3Aeligible%20and%20%28time%28%29%20-%20timestamp%28tutorial%3Ajob_running%3Aeligible%29%20%3C%2015%29').data.result.exists(r, r.metric.workload_uid == object.metadata.uid && r.metric.namespace == object.metadata.namespace)
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: "[JSONPatch{op: 'add', path: '/spec/suspend', value: true}]"
+---
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: tutorial-delete-completed
+spec:
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ai-lab
+    objectSelector:
+      matchLabels:
+        tutorial.karta.run.ai/action: delete
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+  schedule: "*/1 * * * *"
+  deletionPropagationPolicy: Background
+  conditions:
+    - name: still-completed
+      expression: >-
+        object.status.?conditions.orValue([]).exists(c,
+          c.type == 'Complete' && c.status == 'True')
+    - name: verified-completed-history-for-this-uid
+      expression: >-
+        http.Get('http://prometheus.monitoring.svc:9090/api/v1/query?query=tutorial%3Ajob_completed%3Aeligible%20and%20%28time%28%29%20-%20timestamp%28tutorial%3Ajob_completed%3Aeligible%29%20%3C%2015%29').data.result.exists(r, r.metric.workload_uid == object.metadata.uid && r.metric.namespace == object.metadata.namespace)
