@@ -102,7 +102,7 @@ def scale_exporter(replicas):
 
 STARTED_UTC = datetime.datetime.now(datetime.timezone.utc).isoformat()
 if __name__ == '__main__':
-    assert KUBECONFIG.is_file(), 'Run up.sh first'
+    assert KUBECONFIG.is_file(), 'Create the tutorial cluster and its kubeconfig first'
     # Only this tutorial context and its explicitly labelled Jobs are changed.
     assert kubectl('config', 'current-context').strip() == CONTEXT
     for controller, verb in [('background', 'update'), ('cleanup', 'delete')]:
