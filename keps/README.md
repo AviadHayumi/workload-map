@@ -70,4 +70,4 @@ Every KEP has the same skeleton, defined in `TEMPLATE.md`:
 | [0003](0003-runtime-rules/README.md) | Runtime rules | provisional |
 | [0004](0004-metrics-exporter/README.md) | Metrics exporter | provisional |
 | [0005](0005-explicit-mutations/README.md) | Explicit workload mutations | provisional |
-| [0006](0006-workload-policies/README.md) | Write workload policies once | provisional |
+| [0006](0006-workload-policies/README.md) | Karta workload operations in CEL | provisional |
