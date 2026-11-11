@@ -1,344 +1,331 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# Replace Dromos plugin rules with Karta CEL policies
+# Write Dromos behavior with the Karta CEL SDK
 
-Submit a native workload with annotations. CEL turns those requests into
-workload patches, desired resources and controlled operations. Karta resolves
-the workload's components and templates. One controller executes the plans,
-tracks their resources and evaluates them again when inputs change.
+Keep workload differences in Karta's catalog. Write the plugin's decisions
+in CEL: select workers, inspect their containers, choose resources and return
+changes. The same building blocks work with PyTorch components and named Ray
+groups. Users submit native workloads with annotations.
 
-This can replace plugin-specific validation, decisions and object-building
-code. It still needs a reconciliation host. That host can be independent of
-Dromos and WorkloadRunner, provided it preserves their lifecycle guarantees.
+This follows the [Karta CEL proposal in Kyverno](https://github.com/kyverno/kyverno/issues/18547).
+For a PyTorchJob named `trainer` with two workers, the entire scheduler policy is:
 
-The current application registers five plugins and conditionally adds restart
-rules. Storage, node affinity and MNNVL live under Dromos. Networking, personal
-credentials and restart rules live under its anyworkload-controller consumer.
-[Registration](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/cmd/main.go#L56).
-
-| Plugin | What becomes a policy | What the host or another controller still does |
-| --- | --- | --- |
-| Storage | Desired PVCs, configuration precedence, readiness and terminal-cleanup decisions | Read/apply/watch/delete PVCs with ownership and lifecycle checks |
-| Node affinity | Validate requested affinity and merge it into all supported Pod instances | Apply patches, preserve owned-field history and handle immutable workloads |
-| Networking | Build Services, authenticated proxies and exposure resources from endpoint requests | Verify live ownership, apply/watch objects and observe endpoint conditions |
-| Personal credentials | Validate source references and request destination copies | Authorize, read, decrypt and write Secrets; keep values outside CEL |
-| MNNVL | Select GPU instances, plan claim references, affinity and ComputeDomain | Reconcile the domain; NVIDIA DRA controllers and drivers allocate resources |
-| Restart rules | Validate takeover and request-reference changes | Persist restart state, dry-run overrides, delete/wait/recreate and recover |
-
-## One input and one plan contract
-
-`object` is the complete native workload, such as a PyTorchJob. Requests come
-from its annotations. For example:
-
-```yaml
-metadata:
-  annotations:
-    plugins.example.com/node-affinity: >-
-      {"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"NotIn","values":["worker-a"]}]}]}}
-    plugins.example.com/credential-sources: '["registry-reader"]'
+```cel
+karta.setScheduler(object, 'worker', '', 'batch-scheduler')
 ```
 
-For each policy, the host decodes and validates the named annotation into
-`config`. It supplies trusted `settings`, non-secret `observed` state and
-host-verified dependency facts, plus admission identity where needed.
-Secret observations contain references and metadata only.
-Missing requests disable their policy.
-The example annotation names and helper functions below are a proposed API.
+`object` is the complete PyTorchJob. The result changes only its worker template:
 
-A generation policy returns `resources`, a list of desired-object records.
-A mutation policy returns `patches`. Privileged host work is described through
-`operations`. An admission policy returns a boolean. Helpers construct values
-or patches; none performs Kubernetes requests from inside CEL.
+```json
+[{"op":"add","path":"/spec/pytorchReplicaSpecs/Worker/template/spec/schedulerName","value":"batch-scheduler"}]
+```
 
-`observed.run.owner` is an owner-reference map for a durable controller record.
-That record stores the original desired workload and resource identities.
-It survives replacement of the native workload during restart. Users still
-submit the native workload; this record is internal recovery state.
-User cancellation must be recorded before deletion and prevent recreation.
-Only an authorized restart deletion retains the record. On cancellation,
-remove the durable owner so its dependents follow the declared collection
-rules. Object absence alone cannot distinguish these two intentions.
+For a RayCluster, select `('worker', 'gpu-workers')` instead. Karta resolves
+that group's native path. CEL still describes the operation.
 
-## Six replacements
+| Dromos behavior | What the policy expresses |
+| --- | --- |
+| Storage | Declare PVCs; use common workload states to decide cleanup |
+| Node affinity | Read each Pod template and combine placement restrictions |
+| Networking | Build a Service from a selected component's labels |
+| Personal credentials | Copy the credentials referenced by selected Pod templates |
+| MNNVL GPU fabric | Find GPU containers, build a ComputeDomain and attach claims |
+| Restart rules | Validate a request, check workload state and prepare replacement edits |
+
+## The language used below
+
+The issue proposes `karta.statuses`, `karta.podTemplate`, `karta.setScheduler`,
+`karta.suspend` and `karta.resume`. Their signatures stay unchanged.
+These examples add three reusable SDK operations:
+
+| Proposed addition | Result |
+| --- | --- |
+| `karta.podInstances(object)` | List of `{component, instance}` selectors |
+| `karta.scale(object, component, instance)` | Map with optional integer `replicas`, `minReplicas`, `maxReplicas` |
+| `karta.patchPodTemplate(object, component, instance, edits)` | Native workload JSONPatch list from template-relative JSONPatch edits |
+
+For example, `/spec/resourceClaims` refers to the selected Pod template.
+Karta translates it to the PyTorch or Ray path. The binding edits a private
+copy of the raw template, preserves unrelated fields and returns `[]` when
+unchanged. Missing parents and invalid edits fail before any patch is returned.
+The examples cover complete Pod templates. Unsupported or fragmented shapes
+must fail explicitly; silently skipping them would leave a workload partly changed.
+
+The [Go SDK](https://github.com/AviadHayumi/workload-map/blob/435dcb58615a35a5136e9bc4f4864ff0909e8a6e/karta/sdk/pkg/resource/component.go)
+already exposes component instances, templates and replica reads. These CEL
+bindings are proposed. The host enables CEL-Go's `cel.bind`, `lists.range`
+and `.flatten()` extensions. One additional pure utility,
+`affinity.and(existing, requested)`, combines Kubernetes NodeAffinity values.
+It ANDs required selectors, preserves their OR terms and matchFields, and
+deduplicates preferred terms. It rejects excessive term expansion.
+
+`request` contains validated values decoded from the workload's annotations.
+`observed` contains host-resolved facts and references, never secret values.
+The host enables each policy only when its annotation is present. Expressions
+return values, manifests or patches. The host performs Kubernetes operations;
+none of the functions below sends a request during CEL evaluation.
+
+## Six plugin examples
 
 <details>
-<summary>1. Storage: declare PVCs and retain the existing lifetime rules</summary>
+<summary>1. Storage: create claims and clean up using Karta's common states</summary>
 
-The storage annotation contains `claims`, a list of complete PVC manifests,
-and optional `cleanupOnCompletion`. The host fills the namespace, validates
-unique names and normalizes the flag using the controller default. It rejects
-a different explicit namespace and requires access modes and a storage request.
-The policy is:
+Input: the storage annotation supplies complete PVC manifests as
+`request.claims`, plus `cleanupOnCompletion`. For example, one manifest names
+`data` in namespace `demo`, with access mode `ReadWriteOnce` and request `10Gi`.
+The host supplies its aggregate phase as `observed.aggregatePhase`.
 
 ```cel
 {
-  'resources': config.claims.map(claim, {
-    'manifest': claim,
-    'owner': observed.run.owner,
-    'deleteAfterCompletion': config.cleanupOnCompletion
+  'resources': request.claims,
+  'deleteClaims': request.cleanupOnCompletion &&
+    observed.aggregatePhase in ['Completed', 'Failed'] &&
+    karta.statuses(object).exists(s, s == observed.aggregatePhase)
+}
+```
+
+If both the aggregate phase and mapped workload state are `Completed`, the
+cleanup flag is true. If the workload still maps to `Running`, it is false.
+PVC generation is ordinary CEL data; Karta supplies the workload-state mapping.
+
+The host validates namespace and ownership, tracks PVC readiness and persists
+terminal cleanup before deletion. It suppresses provisioning after that decision.
+Claims survive replacement of the native workload during restart. Removing a
+claim request alone does not delete stored data. Volumes and mounts remain
+explicit fields in the submitted workload.
+
+Source: [storage plugin](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/storage/plugin.go#L132).
+
+</details>
+
+<details>
+<summary>2. Node affinity: apply one restriction to every Pod component</summary>
+
+Input: `request.affinity` excludes `worker-a`:
+
+```json
+{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"NotIn","values":["worker-a"]}]}]}}
+```
+
+The policy reads every template, combines its existing affinity with the
+request, then returns a patch for that template:
+
+```cel
+karta.podInstances(object).map(p,
+  cel.bind(t, karta.podTemplate(object, p.component, p.instance),
+    cel.bind(a, affinity.and(
+      has(t.spec.affinity) && has(t.spec.affinity.nodeAffinity)
+        ? t.spec.affinity.nodeAffinity : {},
+      request.affinity),
+      karta.patchPodTemplate(object, p.component, p.instance, [{
+        'op': 'add',
+        'path': has(t.spec.affinity)
+          ? '/spec/affinity/nodeAffinity' : '/spec/affinity',
+        'value': has(t.spec.affinity) ? a : {'nodeAffinity': a}
+      }])
+    )
+  )
+).flatten()
+```
+
+A PyTorch master and its workers both exclude `worker-a`. Existing zone
+requirements, preferred terms and Pod affinity remain. To target only workers,
+insert `.filter(p, p.component == 'worker')` before `.map`.
+The host retains the original fields so removing the request can undo only
+this policy's contribution. Applying affinity does not prove schedulability.
+
+Source: [affinity composition](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/pkg/affinity/node_affinity.go#L34).
+
+</details>
+
+<details>
+<summary>3. Networking: expose the selected worker group</summary>
+
+Input: `request.component='worker'`, `request.instance='gpu-workers'` and
+`request.port=8080`. The selected Ray template has labels
+`app=trainer` and `role=gpu-workers`.
+
+```cel
+cel.bind(t, karta.podTemplate(object, request.component, request.instance),
+  [{
+    'apiVersion': 'v1',
+    'kind': 'Service',
+    'metadata': {
+      'name': object.metadata.name + '-workers',
+      'namespace': object.metadata.namespace
+    },
+    'spec': {
+      'selector': t.metadata.labels,
+      'ports': [{'port': request.port, 'targetPort': request.port}]
+    }
+  }]
+)
+```
+
+Result: a Service selecting `app=trainer,role=gpu-workers` on port 8080.
+Karta finds the template; the manifest and port choice are visible in CEL.
+The host rejects missing or empty labels and verifies live workload ownership
+before exposing endpoints. Labels alone are not ownership proof.
+
+The full plugin also manages authenticated proxy Deployments, proxy Services
+and Ingress, Route or HTTPRoute objects. Those need explicit resource templates
+and dependency checks too. The Service example covers internal exposure;
+it does not implement the authenticated endpoint flow.
+
+Source: [networking plugin](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/networking/additional_resources_endpoints.go#L157).
+
+</details>
+
+<details>
+<summary>4. Personal credentials: copy what the selected template references</summary>
+
+Input: the PyTorch worker template has
+`imagePullSecrets: [{name: registry-reader}]`. The host resolves that name to
+an authorized source reference in `observed.credentials`.
+
+```cel
+cel.bind(t, karta.podTemplate(object, 'worker', ''),
+  (has(t.spec.imagePullSecrets) ? t.spec.imagePullSecrets : []).map(ref, {
+    'source': observed.credentials[ref.name],
+    'target': {
+      'namespace': object.metadata.namespace,
+      'name': ref.name
+    }
   })
-}
+)
 ```
 
-For one claim named `data` requesting `10Gi`, the host converges that PVC in
-the workload namespace. It rejects a same-name claim with different ownership.
-This reproduces provisioning; Pod volumes and mounts remain ordinary workload
-fields. The existing storage plugin does not inject them.
+Result: a request to materialize `registry-reader` in the workload namespace.
+Karta reads the selected template; CEL chooses the copies. The host authorizes
+and performs them, rejecting foreign destinations. Secret data and decryption
+keys stay outside the evaluator.
 
-Readiness uses observations: missing means Creating, unbound means
-Initializing, Lost means Failed, and all Bound means Ready. Terminal cleanup
-requires the aggregate and workload phases to agree on Completed or Failed.
-The host persists that decision before deleting and must not recreate claims
-while it holds. Removing a declaration currently does not prune its PVC.
+This example derives demand from image-pull references. The existing plugin
+accepts explicit personal-credential instructions and also supports other
+credential uses. Retaining that request shape needs no Karta call: CEL can map
+the annotation's source references directly. Copying is a host operation.
 
-Keep that lifetime distinct from the earlier demo, which retains PVCs even
-when the workload is deleted. Current Dromos PVCs are runner-owned and can be
-garbage-collected when the runner is deleted. Replacing only its child workload
-during restart leaves those claims in place.
-
-[Provisioning and ownership](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/storage/plugin.go#L132),
-[status](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/storage/plugin.go#L212),
-[terminal cleanup](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/storage/plugin.go#L374).
+Source: [credential copy](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/personalcreds/copy.go#L27).
 
 </details>
 
 <details>
-<summary>2. Node affinity: one policy across every supported Pod component</summary>
+<summary>5. MNNVL: find GPU containers and attach a ComputeDomain claim</summary>
 
-The node-affinity annotation contains a Kubernetes `NodeAffinity` object.
-For the input above, the complete mutation policy is:
+Input: a PyTorch worker template with two replicas and a container requesting
+`nvidia.com/gpu: "1"` in its limits. This example accepts integer GPU quantities.
+`request.domain` and `request.claimTemplate` are stable names such as
+`trainer-domain` and `trainer-channel`. The policy owns the claim name
+`compute-domain`; other claims and container fields must remain intact.
 
 ```cel
-{
-  'patches': karta.mergeNodeAffinity(object, config)
-}
+cel.bind(t, karta.podTemplate(object, 'worker', ''),
+cel.bind(gpu, lists.range(t.spec.containers.size()).filter(i,
+  has(t.spec.containers[i].resources) &&
+  has(t.spec.containers[i].resources.limits) &&
+  'nvidia.com/gpu' in t.spec.containers[i].resources.limits &&
+  int(t.spec.containers[i].resources.limits['nvidia.com/gpu']) > 0),
+size(gpu) == 0 ? {'resources': [], 'patches': []} :
+cel.bind(c, t.spec.containers[gpu[0]], {
+  'resources': [{
+    'apiVersion': 'resource.nvidia.com/v1beta1',
+    'kind': 'ComputeDomain',
+    'metadata': {
+      'name': request.domain,
+      'namespace': object.metadata.namespace
+    },
+    'spec': {
+      'numNodes': karta.scale(object, 'worker', '').replicas,
+      'channel': {'resourceClaimTemplate': {'name': request.claimTemplate}}
+    }
+  }],
+  'patches': karta.patchPodTemplate(object, 'worker', '', [
+    {
+      'op': 'add', 'path': '/spec/resourceClaims',
+      'value': (has(t.spec.resourceClaims)
+        ? t.spec.resourceClaims.filter(r, r.name != 'compute-domain') : []) +
+        [{'name': 'compute-domain', 'resourceClaimTemplateName': request.claimTemplate}]
+    },
+    {
+      'op': 'add',
+      'path': '/spec/containers/' + string(gpu[0]) + '/resources/claims',
+      'value': (has(c.resources.claims)
+        ? c.resources.claims.filter(r, r.name != 'compute-domain') : []) +
+        [{'name': 'compute-domain'}]
+    }
+  ])
+})))
 ```
 
-The proposed helper resolves all Pod instances through Karta and returns
-native patches excluding `worker-a`. A PyTorchJob receives the restriction
-on its master and workers; a RayCluster receives it on its head and groups.
-Existing restrictions stay in force.
+Result: a ComputeDomain with `numNodes: 2`, a Pod claim reference and a claim
+on the first GPU container. Its image, arguments, environment, mounts and other
+claims remain. A CPU-only worker produces no resources or patches.
 
-This helper needs the current merge semantics: AND existing and requested
-required selectors, preserve OR terms, deduplicate preferred terms, and
-produce the same result when evaluated twice. The current merge limits the
-required-term product to 256. A shallow JSON merge is not equivalent.
-Admission also limits requested required/preferred terms to 16 each and
-In/NotIn values to 256 per requirement. Preferred weights must be 1 through 100.
+This shows one component's fixed-size domain. Full parity also needs selection
+across GPU-bearing components, minimum-replica fallback, elastic mode, topology
+affinity and stable grouping. Those are policy choices over instance/template
+reads. NVIDIA DRA controllers, drivers and compatible GPU hardware still
+perform allocation. Creating the domain alone does not establish readiness.
 
-The host validates supported catalog shapes and applies the patch. Applied
-means the desired workload was applied, not that Pods found a schedulable
-node. Removing an annotation must undo only the policy's contribution. Dromos can rebuild from
-its stored template; a direct-native host needs equivalent field history.
-
-[Mutation](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/nodeaffinity/mutate_resource.go#L35),
-[merge semantics](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/pkg/affinity/node_affinity.go#L34),
-[status](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/nodeaffinity/status_resource.go#L45).
+Sources: [ComputeDomain fields](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/mnnvl/compute_domain_builder.go#L99),
+[template changes](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/mnnvl/mutate_resource.go#L145).
 
 </details>
 
 <details>
-<summary>3. Networking: generate an endpoint without a workload-specific adapter</summary>
+<summary>6. Restart rules: authorize the request and use mapped workload state</summary>
 
-This example's networking annotation names a component and instance, a port,
-and an `external` flag. The full plugin also supports endpoint lists and
-references to existing Services. For one endpoint:
+A proposed failure-restart policy receives decoded takeover markers and a
+restart reference in `request`. `previous.restartRef` is the prior reference
+or an empty string. `observed.requester` is authenticated identity retained
+with the request. `settings.restartUsers` is a trusted exact allowlist.
 
 ```cel
-{
-  'resources': [
-    networking.service(
-      object,
-      karta.podSelector(object, config.component, config.instance),
-      config.port)
-  ] + (config.external
-    ? networking.authenticatedExposure(object, config, settings.networking)
-    : [])
-}
+request.takeover == 'restart-controller' &&
+request.restartRef != '' &&
+(previous.restartRef == '' || request.restartRef == previous.restartRef) &&
+observed.requester in settings.restartUsers &&
+karta.statuses(object).exists(s, s in ['Failed', 'Degraded'])
 ```
 
-For component `worker`, instance `gpu-workers`, port 8080 and `external=false`,
-the plan contains a Service selecting that Ray worker group. With external
-access enabled, the second constructor adds the proxy Deployment, proxy
-Service and selected Ingress, Route or HTTPRoute. These constructors return
-desired-object records, including their dependency and ownership metadata.
+For an authorized request and a failed PyTorchJob, the result is true.
+A changed request reference or a running workload returns false. Ordinary CEL
+checks the request; Karta supplies the common status names.
 
-The host must prove that selected Pods and EndpointSlices belong to the
-workload. A selector returned by Karta is not that proof. Referenced Services
-must not be adopted or modified. The proxy uses a configured Secret reference;
-this policy neither issues credentials nor reads their values.
+This is a proposed trigger, not a copy of the existing admission gate.
+The current restart-rules plugin validates takeover/reference changes; a
+separate executor performs the restart. Its admitted overrides are node affinity.
+The placement expression above can prepare those edits for a replacement.
 
-Current readiness combines resource presence and relevant conditions. It is
-not a connectivity probe. Existing cleanup includes ownership-denial handling
-and metrics-Service pruning, but not complete pruning of every removed endpoint.
-A replacement must state any broader cleanup behavior as a separate change.
+Before deletion, the host persists the desired workload, old UID, edits and
+child identities. It then dry-runs, deletes, waits and recreates. PVCs must
+survive that sequence. Cancellation must stop recreation. Suspend/resume
+changes lifecycle fields; it does not substitute for this restart sequence.
 
-[Endpoint reconciliation](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/networking/additional_resources_endpoints.go#L157),
-[live ownership checks](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/networking/service_ownership.go#L42),
-[readiness](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/networking/status_probe.go#L49).
+Source: [restart admission](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/restartrules/plugin.go#L63).
 
 </details>
 
-<details>
-<summary>4. Personal credentials: request copies while keeping secret values out of CEL</summary>
+## How it runs
 
-The credential-sources annotation is a list of authorized source names.
-The host resolves those names to metadata-only references in `observed.sources`:
+The host compiles each policy with the Karta CEL library. On submission or
+update, it supplies the native `object`, decoded annotations and fresh
+observations. Karta resolves catalog paths while CEL evaluates the decisions.
+The host validates the result and applies the patches or reconciles children.
+Child changes trigger another evaluation. No-op results converge without writes.
 
-```cel
-{
-  'operations': config.map(name, {
-    'type': 'CopyCredential',
-    'source': observed.sources[name].reference,
-    'namespace': object.metadata.namespace,
-    'name': 'pc-' + object.metadata.name + '-' + name,
-    'owner': observed.run.owner
-  })
-}
-```
+A controller can host this without Kyverno or a user-facing WorkloadRunner.
+It still needs ownership, watches, retries, field history and durable restart
+state. Prepare immutable Pod fields before creation. Do not wait for every PVC
+to bind before allowing a consumer to run.
 
-For `registry-reader`, the plan requests a destination Secret named
-`pc-trainer-registry-reader` in the native workload's namespace. The host
-checks authorization and ownership, reads the encrypted source, decrypts it,
-and applies the copy. Secret values and encryption keys never enter CEL.
-Pod references to the destination Secret remain explicit workload fields.
+## Scope and verification
 
-The current plugin copies existing credentials; it does not mint them.
-It watches destination Secrets, not source Secrets. Rotation is refreshed
-when another reconcile happens. Removing a request does not prune its copy.
-Source-rotation watches and explicit removal cleanup would be additional work.
-
-[Validation](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/personalcreds/validate.go#L20),
-[copy and ownership](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/personalcreds/copy.go#L27),
-[watches and status](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/personalcreds/status.go#L31).
-
-</details>
-
-<details>
-<summary>5. MNNVL: plan GPU fabric resources and mutate only GPU templates</summary>
-
-The GPU-fabric annotation opts in. Trusted settings supply the topology keys,
-grouping policy and elastic mode. `observed.names` contains stable child names.
-The proposed helpers expose the current selection and replica-count rules:
-
-```cel
-{
-  'resources': karta.gpuReplicaCount(object) == 0 ? [] : [
-    gpu.computeDomain(
-      object,
-      observed.names.domain,
-      settings.elastic ? 0 : karta.gpuReplicaCount(object),
-      observed.names.claimTemplate,
-      observed.run.owner)
-  ],
-  'patches': karta.bindComputeDomain(
-    object, observed.names.claimTemplate,
-    settings.topologyKeys, settings.grouping)
-}
-```
-
-The count sums nonzero replicas, otherwise nonzero minimum replicas, otherwise
-one per GPU-bearing instance. It does not divide GPU demand by node capacity.
-The patch helper skips CPU instances,
-adds the Pod resource-claim reference, attaches it to the first GPU container,
-and merges the required node and configured Pod affinity. It must preserve
-the shared affinity merge rules and avoid duplicate claim entries.
-
-The host applies a ComputeDomain. NVIDIA DRA controllers and drivers provide
-the claim-template materialization and allocation. Those components and GPU
-hardware remain necessary. The current plugin reports Ready when the domain
-object exists; it does not verify domain status or usable GPU networking.
-Disabling the request does not currently delete the domain.
-
-Actual application wiring replaces the plugin's default grouping behavior.
-A replacement must carry that provider behavior into `settings.grouping`;
-copying only the plugin's default affinity would change placement.
-Its fallback grouping identity must remain stable across restart, using the
-durable run identity rather than the replacement workload's new UID.
-
-[Resource plan](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/mnnvl/additional_resources.go#L31),
-[template mutation](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/mnnvl/mutate_resource.go#L145),
-[status](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/plugins/mnnvl/status_resource.go#L41),
-[application grouping](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/internal/mnnvlconv/provider.go#L19).
-
-</details>
-
-<details>
-<summary>6. Restart rules: replace the admission policy, retain a durable restart executor</summary>
-
-The existing plugin validates takeover and request-reference changes. It does
-not execute a restart. The direct-native design can represent those markers
-as protected annotations. This policy preserves the current requester gate:
-
-```cel
-restart.owner(object) in ['', 'restart-controller'] &&
-(
-  (restart.owner(object) == '' &&
-   restart.owner(object) == restart.owner(oldObject)) ||
-  admission.userInfo.username.startsWith('system:serviceaccount:') ||
-  settings.extraAllowedPatterns.exists(p,
-    admission.userInfo.username.contains(p))
-) &&
-(admission.operation == 'CREATE' ||
- restart.validReferenceChange(oldObject, object))
-```
-
-`restart.owner` is null-safe and reads the protected takeover annotation.
-`restart.validReferenceChange` requires a request reference while takeover is
-active, forbids one otherwise, and prevents changing an existing reference.
-The CREATE/UPDATE distinction and broad service-account allowance reflect
-current behavior. Narrowing the requester set is a separate policy change.
-
-The executor still needs a persisted request and exclusive ownership. Its
-sequence is: acquire takeover, dry-run overrides, delete the old workload,
-persist overrides, wait for deletion, then release takeover for recreation.
-Current production admission permits only node-affinity overrides. Helper
-unit tests covering other fields do not expand that admitted contract.
-
-When replacing a native workload directly, first persist its desired object,
-old UID, override and child identities outside that object. Otherwise deleting
-it also deletes the only input needed to recreate it. Claim retention and
-child ownership must survive this step. A CEL expression cannot supply that
-crash-recovery state by itself.
-
-[Admission rules](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/plugins/restartrules/plugin.go#L63),
-[allowed override](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/internal/restart/restartrequest_validator.go#L177),
-[restart sequence](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/internal/restart/restart_reconciler.go#L232).
-
-</details>
-
-## What replaces the framework
-
-The proposed runtime needs five responsibilities around the policies:
-
-1. Validate requests and resolve trusted observations. Keep credential values
-   outside the evaluator. Preserve per-plugin enablement and takeover rules.
-2. Compose mutations on a private copy in deterministic order. Bound repeated
-   evaluation and reject nonconvergent or conflicting policies before writes.
-3. Reconcile resource plans using stable identities, ownership checks, watches
-   and retries. Preserve data-dependent cleanup rules and record status first.
-4. Track original fields and child identities so opt-out and restart can recover.
-   A live object already containing policy edits is not a clean desired template.
-5. Prepare immutable workload templates before creation, using admission or a
-   controlled submission path. Do not impose a universal wait-for-Bound gate:
-   some volumes need a scheduled consumer before binding.
-
-A sensible migration starts with node-affinity planning and restart admission
-validation. Then replace PVC and endpoint planning while retaining proven
-executors. Credential materialization and GPU-driver integration stay behind
-explicit host operations. Move restart execution only after durable recovery
-and ownership have equivalent tests.
-
-[Current additional-resource-before-workload ordering](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/pkg/controller/reconcile_spec.go#L148),
-[bounded mutation rounds](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/pkg/plugin/framework/framework.go#L223),
-[status-before-cleanup ordering](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/dromos/pkg/controller/reconcile_status.go#L38).
-
-## Evidence
-
-Source reviewed at public commit `7add034fd` on 2026-11-11.
-All six plugin implementations and their relevant framework/controller paths
-were inspected. Existing tests were read; they were not run in this audit.
-All six CEL examples passed the real CEL parser. They describe a proposed
-plan API; its helpers were not compiled or executed. No live-cluster or GPU
-behavior is claimed by this comparison.
+The [six registered plugin families](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/cmd/main.go#L56)
+were audited at `7add034fd`. These examples show their policy decisions using
+the proposed Karta language. They are not complete production replacements.
+All seven expressions parse and type-check against the declared signatures.
+Those checks do not execute the proposed bindings or prove live-cluster behavior.
+The [KEP's implementation history](README.md#implementation-history)
+separates the existing controller demo from this language proposal.
