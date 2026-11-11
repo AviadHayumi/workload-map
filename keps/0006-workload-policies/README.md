@@ -96,9 +96,37 @@ activate it. `Applied` means configuration converged, not that Pods are ready.
 
 ### 2. Write the policy once
 
-The CEL input has two names: `object`, the complete native workload, and
-`template`, its root Pod template. Absent workload annotations become an empty
-map in this detached snapshot. Evaluation leaves the Kubernetes object alone.
+#### Where Karta enters the language
+
+The prototype uses standard CEL with Karta-backed inputs.
+`kartacel.NewInput(ctx, workload)` uses the Karta catalog and component API
+to supply `template`, the root Pod template. `object` is the complete native
+workload. Absent workload annotations
+become an empty map in this detached snapshot.
+
+Inside [Compile](https://github.com/AviadHayumi/workload-map/blob/435dcb58615a35a5136e9bc4f4864ff0909e8a6e/karta/sdk/pkg/cel/program.go#L37),
+`celgo.NewEnv` declares only `object` and `template` as CEL variables.
+It registers no Karta functions.
+
+An SDK language extension would expose Karta operations as CEL functions.
+For example, this is proposed syntax; it is not implemented by the prototype:
+
+```text
+{'images': karta.podTemplate(object).spec.containers.map(c, c.image)}
+```
+
+Here `object` is the Deployment in section 1. The proposed Karta function
+would return its Pod template, yielding `{"images":["busybox:1.37.0"]}`.
+For a CronJob, the same function would resolve `spec.jobTemplate.spec.template`.
+The SDK would register the function's CEL signature and bind its implementation
+to Karta's catalog and component API. CEL syntax itself would stay unchanged.
+
+Suspend, resume and component operations need their own bindings and contracts.
+Mutation bindings would use [KEP-0005](../0005-explicit-mutations/README.md)'s
+explicit write rules. Karta would prepare the changed workload locally.
+The Go host would validate the result and persist it. Those bindings are
+still missing. The working policies below use the existing `object` and
+`template` inputs.
 
 Each block below is a complete `.cel` file. The first three are the controller's
 embedded policies under `docs/examples/cel-plugins/programs/`. There is no
