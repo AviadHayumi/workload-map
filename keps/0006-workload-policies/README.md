@@ -28,6 +28,10 @@ The same library can serve the Karta example controller or another CEL host.
 | Change only PyTorch workers or one Ray group | `karta.setScheduler(object, component, instance, name)` |
 | Test decisions without a cluster | Evaluate snapshots and inspect returned values or patches |
 
+See [six Dromos plugin replacements](dromos-plugin-replacements.md) for complete
+CEL examples covering storage, placement, networking, credentials, GPU fabric
+and restart rules.
+
 ## Motivation
 
 A Job pauses through `spec.suspend`. A PyTorchJob uses
