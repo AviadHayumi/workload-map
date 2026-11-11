@@ -54,16 +54,21 @@ must fail explicitly; silently skipping them would leave a workload partly chang
 
 The [Go SDK](https://github.com/AviadHayumi/workload-map/blob/435dcb58615a35a5136e9bc4f4864ff0909e8a6e/karta/sdk/pkg/resource/component.go)
 already exposes component instances, templates and replica reads. These CEL
-bindings are proposed. The host enables CEL-Go's `cel.bind`, `lists.range`
-and `.flatten()` extensions. One additional pure utility,
+bindings are proposed. The host enables CEL-Go's `lists.range` and `.flatten()`
+extensions. One additional pure utility,
 `affinity.and(existing, requested)`, combines Kubernetes NodeAffinity values.
 It ANDs required selectors, preserves their OR terms and matchFields, and
 deduplicates preferred terms. It rejects excessive term expansion.
 
 `request` contains validated values decoded from the workload's annotations.
 `observed` contains host-resolved facts and references, never secret values.
-The host enables each policy only when its annotation is present. Expressions
-return values, manifests or patches. The host performs Kubernetes operations;
+The examples use the issue's named-variable style. The host evaluates
+`variables` in declaration order against one input snapshot, then evaluates
+`expression`. Later expressions read earlier results as `variables.name`.
+These are proposed policy snippets, not an installed CRD format.
+
+The host enables each policy only when its annotation is present. It applies
+returned patches and reconciles resources. Evaluation errors prevent writes;
 none of the functions below sends a request during CEL evaluation.
 
 ## Six plugin examples
@@ -76,13 +81,17 @@ Input: the storage annotation supplies complete PVC manifests as
 `data` in namespace `demo`, with access mode `ReadWriteOnce` and request `10Gi`.
 The host supplies its aggregate phase as `observed.aggregatePhase`.
 
-```cel
-{
-  'resources': request.claims,
-  'deleteClaims': request.cleanupOnCompletion &&
-    observed.aggregatePhase in ['Completed', 'Failed'] &&
-    karta.statuses(object).exists(s, s == observed.aggregatePhase)
-}
+```yaml
+variables:
+  - name: states
+    expression: karta.statuses(object)
+expression: >-
+  {
+    'resources': request.claims,
+    'deleteClaims': request.cleanupOnCompletion &&
+      observed.aggregatePhase in ['Completed', 'Failed'] &&
+      variables.states.exists(s, s == observed.aggregatePhase)
+  }
 ```
 
 If both the aggregate phase and mapped workload state are `Completed`, the
@@ -108,30 +117,42 @@ Input: `request.affinity` excludes `worker-a`:
 {"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"NotIn","values":["worker-a"]}]}]}}
 ```
 
-The policy reads every template, combines its existing affinity with the
-request, then returns a patch for that template:
+`pods` selects the templates. `placements` combines their existing affinity
+with the request. The final expression returns their patches:
 
-```cel
-karta.podInstances(object).map(p,
-  cel.bind(t, karta.podTemplate(object, p.component, p.instance),
-    cel.bind(a, affinity.and(
-      has(t.spec.affinity) && has(t.spec.affinity.nodeAffinity)
-        ? t.spec.affinity.nodeAffinity : {},
-      request.affinity),
-      karta.patchPodTemplate(object, p.component, p.instance, [{
-        'op': 'add',
-        'path': has(t.spec.affinity)
-          ? '/spec/affinity/nodeAffinity' : '/spec/affinity',
-        'value': has(t.spec.affinity) ? a : {'nodeAffinity': a}
-      }])
-    )
-  )
-).flatten()
+```yaml
+variables:
+  - name: pods
+    expression: >-
+      karta.podInstances(object).map(p, {
+        'component': p.component,
+        'instance': p.instance,
+        'template': karta.podTemplate(object, p.component, p.instance)
+      })
+  - name: placements
+    expression: >-
+      variables.pods.map(p, {
+        'component': p.component,
+        'instance': p.instance,
+        'hasAffinity': has(p.template.spec.affinity),
+        'nodeAffinity': affinity.and(
+          has(p.template.spec.affinity) && has(p.template.spec.affinity.nodeAffinity)
+            ? p.template.spec.affinity.nodeAffinity : {},
+          request.affinity)
+      })
+expression: >-
+  variables.placements.map(p,
+    karta.patchPodTemplate(object, p.component, p.instance, [{
+      'op': 'add',
+      'path': p.hasAffinity ? '/spec/affinity/nodeAffinity' : '/spec/affinity',
+      'value': p.hasAffinity ? p.nodeAffinity : {'nodeAffinity': p.nodeAffinity}
+    }])
+  ).flatten()
 ```
 
 A PyTorch master and its workers both exclude `worker-a`. Existing zone
 requirements, preferred terms and Pod affinity remain. To target only workers,
-insert `.filter(p, p.component == 'worker')` before `.map`.
+filter `karta.podInstances(object)` by `p.component == 'worker'` before its `.map`.
 The host retains the original fields so removing the request can undo only
 this policy's contribution. Applying affinity does not prove schedulability.
 
@@ -146,8 +167,11 @@ Input: `request.component='worker'`, `request.instance='gpu-workers'` and
 `request.port=8080`. The selected Ray template has labels
 `app=trainer` and `role=gpu-workers`.
 
-```cel
-cel.bind(t, karta.podTemplate(object, request.component, request.instance),
+```yaml
+variables:
+  - name: worker
+    expression: karta.podTemplate(object, request.component, request.instance)
+expression: >-
   [{
     'apiVersion': 'v1',
     'kind': 'Service',
@@ -156,11 +180,10 @@ cel.bind(t, karta.podTemplate(object, request.component, request.instance),
       'namespace': object.metadata.namespace
     },
     'spec': {
-      'selector': t.metadata.labels,
+      'selector': variables.worker.metadata.labels,
       'ports': [{'port': request.port, 'targetPort': request.port}]
     }
   }]
-)
 ```
 
 Result: a Service selecting `app=trainer,role=gpu-workers` on port 8080.
@@ -184,16 +207,22 @@ Input: the PyTorch worker template has
 `imagePullSecrets: [{name: registry-reader}]`. The host resolves that name to
 an authorized source reference in `observed.credentials`.
 
-```cel
-cel.bind(t, karta.podTemplate(object, 'worker', ''),
-  (has(t.spec.imagePullSecrets) ? t.spec.imagePullSecrets : []).map(ref, {
+```yaml
+variables:
+  - name: worker
+    expression: karta.podTemplate(object, 'worker', '')
+  - name: pullSecrets
+    expression: >-
+      has(variables.worker.spec.imagePullSecrets)
+        ? variables.worker.spec.imagePullSecrets : []
+expression: >-
+  variables.pullSecrets.map(ref, {
     'source': observed.credentials[ref.name],
     'target': {
       'namespace': object.metadata.namespace,
       'name': ref.name
     }
   })
-)
 ```
 
 Result: a request to materialize `registry-reader` in the workload namespace.
@@ -219,43 +248,51 @@ Input: a PyTorch worker template with two replicas and a container requesting
 `trainer-domain` and `trainer-channel`. The policy owns the claim name
 `compute-domain`; other claims and container fields must remain intact.
 
-```cel
-cel.bind(t, karta.podTemplate(object, 'worker', ''),
-cel.bind(gpu, lists.range(t.spec.containers.size()).filter(i,
-  has(t.spec.containers[i].resources) &&
-  has(t.spec.containers[i].resources.limits) &&
-  'nvidia.com/gpu' in t.spec.containers[i].resources.limits &&
-  int(t.spec.containers[i].resources.limits['nvidia.com/gpu']) > 0),
-size(gpu) == 0 ? {'resources': [], 'patches': []} :
-cel.bind(c, t.spec.containers[gpu[0]], {
-  'resources': [{
-    'apiVersion': 'resource.nvidia.com/v1beta1',
-    'kind': 'ComputeDomain',
-    'metadata': {
-      'name': request.domain,
-      'namespace': object.metadata.namespace
-    },
-    'spec': {
-      'numNodes': karta.scale(object, 'worker', '').replicas,
-      'channel': {'resourceClaimTemplate': {'name': request.claimTemplate}}
-    }
-  }],
-  'patches': karta.patchPodTemplate(object, 'worker', '', [
-    {
-      'op': 'add', 'path': '/spec/resourceClaims',
-      'value': (has(t.spec.resourceClaims)
-        ? t.spec.resourceClaims.filter(r, r.name != 'compute-domain') : []) +
-        [{'name': 'compute-domain', 'resourceClaimTemplateName': request.claimTemplate}]
-    },
-    {
-      'op': 'add',
-      'path': '/spec/containers/' + string(gpu[0]) + '/resources/claims',
-      'value': (has(c.resources.claims)
-        ? c.resources.claims.filter(r, r.name != 'compute-domain') : []) +
-        [{'name': 'compute-domain'}]
-    }
-  ])
-})))
+```yaml
+variables:
+  - name: worker
+    expression: karta.podTemplate(object, 'worker', '')
+  - name: gpuIndexes
+    expression: >-
+      lists.range(variables.worker.spec.containers.size()).filter(i,
+        has(variables.worker.spec.containers[i].resources) &&
+        has(variables.worker.spec.containers[i].resources.limits) &&
+        'nvidia.com/gpu' in variables.worker.spec.containers[i].resources.limits &&
+        int(variables.worker.spec.containers[i].resources.limits['nvidia.com/gpu']) > 0)
+  - name: firstGpu
+    expression: >-
+      variables.gpuIndexes.size() == 0
+        ? {} : variables.worker.spec.containers[variables.gpuIndexes[0]]
+expression: >-
+  variables.gpuIndexes.size() == 0 ? {'resources': [], 'patches': []} : {
+    'resources': [{
+      'apiVersion': 'resource.nvidia.com/v1beta1',
+      'kind': 'ComputeDomain',
+      'metadata': {
+        'name': request.domain,
+        'namespace': object.metadata.namespace
+      },
+      'spec': {
+        'numNodes': karta.scale(object, 'worker', '').replicas,
+        'channel': {'resourceClaimTemplate': {'name': request.claimTemplate}}
+      }
+    }],
+    'patches': karta.patchPodTemplate(object, 'worker', '', [
+      {
+        'op': 'add', 'path': '/spec/resourceClaims',
+        'value': (has(variables.worker.spec.resourceClaims)
+          ? variables.worker.spec.resourceClaims.filter(r, r.name != 'compute-domain') : []) +
+          [{'name': 'compute-domain', 'resourceClaimTemplateName': request.claimTemplate}]
+      },
+      {
+        'op': 'add',
+        'path': '/spec/containers/' + string(variables.gpuIndexes[0]) + '/resources/claims',
+        'value': (has(variables.firstGpu.resources.claims)
+          ? variables.firstGpu.resources.claims.filter(r, r.name != 'compute-domain') : []) +
+          [{'name': 'compute-domain'}]
+      }
+    ])
+  }
 ```
 
 Result: a ComputeDomain with `numNodes: 2`, a Pod claim reference and a claim
@@ -281,12 +318,16 @@ restart reference in `request`. `previous.restartRef` is the prior reference
 or an empty string. `observed.requester` is authenticated identity retained
 with the request. `settings.restartUsers` is a trusted exact allowlist.
 
-```cel
-request.takeover == 'restart-controller' &&
-request.restartRef != '' &&
-(previous.restartRef == '' || request.restartRef == previous.restartRef) &&
-observed.requester in settings.restartUsers &&
-karta.statuses(object).exists(s, s in ['Failed', 'Degraded'])
+```yaml
+variables:
+  - name: states
+    expression: karta.statuses(object)
+expression: >-
+  request.takeover == 'restart-controller' &&
+  request.restartRef != '' &&
+  (previous.restartRef == '' || request.restartRef == previous.restartRef) &&
+  observed.requester in settings.restartUsers &&
+  variables.states.exists(s, s in ['Failed', 'Degraded'])
 ```
 
 For an authorized request and a failed PyTorchJob, the result is true.
@@ -325,7 +366,8 @@ to bind before allowing a consumer to run.
 The [six registered plugin families](https://github.com/dsx-ai-factory/run-ai/blob/7add034fd350afbebdfafc4213afd4e29071e6a6/runai-cluster/cluster/anyworkload-controller/cmd/main.go#L56)
 were audited at `7add034fd`. These examples show their policy decisions using
 the proposed Karta language. They are not complete production replacements.
-All seven expressions parse and type-check against the declared signatures.
-Those checks do not execute the proposed bindings or prove live-cluster behavior.
+The direct SDK example and all six policy snippets parse and type-check
+against the declared signatures, including every named variable. These checks
+do not execute the proposed bindings or prove live-cluster behavior.
 The [KEP's implementation history](README.md#implementation-history)
 separates the existing controller demo from this language proposal.
