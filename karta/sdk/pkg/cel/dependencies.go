@@ -25,15 +25,21 @@ type Dependencies struct {
 
 // Analyze uses the CEL AST, so strings, object fields and local iteration names
 // do not create dependencies. Dynamic variable selection conservatively uses all variables.
-func Analyze(source string) (Dependencies, error) {
-	env, err := environment(ReadScope)
+func Analyze(source string, opts ...Option) (Dependencies, error) {
+	p := settings(opts).programs
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s, err := p.sourceLocked(source)
 	if err != nil {
 		return Dependencies{}, err
 	}
-	parsed, issues := env.Parse(source)
-	if issues != nil && issues.Err() != nil {
-		return Dependencies{}, ErrCompile
-	}
+	d := s.deps
+	d.Variables = slices.Clone(d.Variables)
+	d.References = slices.Clone(d.References)
+	return d, nil
+}
+
+func dependencies(root celast.Expr) Dependencies {
 	var result Dependencies
 	variables, refs := map[string]bool{}, map[string]bool{}
 	var walk func(celast.Expr, map[string]bool)
@@ -118,16 +124,16 @@ func Analyze(source string) (Dependencies, error) {
 			walk(c.Result(), resultScope)
 		}
 	}
-	walk(parsed.NativeRep().Expr(), map[string]bool{})
+	walk(root, map[string]bool{})
 	result.Variables = slices.Sorted(maps.Keys(variables))
 	result.References = slices.Sorted(maps.Keys(refs))
-	return result, nil
+	return result
 }
 
 var identifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // ValidateVariables checks unique names, expression scopes and dependency cycles.
-func ValidateVariables(variables []expression.NamedExpression) error {
+func ValidateVariables(variables []expression.NamedExpression, opts ...Option) error {
 	names := map[string]string{}
 	for _, v := range variables {
 		if !identifier.MatchString(v.Name) {
@@ -137,7 +143,7 @@ func ValidateVariables(variables []expression.NamedExpression) error {
 			return fmt.Errorf("duplicate variable %q", v.Name)
 		}
 		names[v.Name] = v.Expression
-		if err := Validate(v.Expression); err != nil {
+		if err := ValidateScope(ReadScope, v.Expression, opts...); err != nil {
 			return fmt.Errorf("variable %q: %w", v.Name, err)
 		}
 	}
@@ -155,7 +161,7 @@ func ValidateVariables(variables []expression.NamedExpression) error {
 			return fmt.Errorf("unknown variable %q", name)
 		}
 		visiting[name] = true
-		deps, err := Analyze(source)
+		deps, err := Analyze(source, opts...)
 		if err != nil {
 			return err
 		}

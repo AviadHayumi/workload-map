@@ -30,7 +30,7 @@ var _ = Describe("Workload metric selector", func() {
 		pod.SetResourceVersion("2")
 		pod.SetLabels(map[string]string{"example.org/group": "missing-target"})
 		Expect(r.state.applyWatchEvent(podWatch, pod, false)).To(Succeed())
-		err = r.state.publishWorkload(pod.GetUID(), oldRef, selection, previous)
+		err = r.state.publishWorkload(&referenceReader{state: r.state, root: oldRef, selection: selection}, previous)
 		Expect(errors.Is(err, discovery.ErrStale)).To(BeTrue(), "expected ErrStale, got %v", err)
 		err = r.state.failWorkload(pod.GetUID(), refOf(pod), discovery.ErrPermissionDenied)
 		Expect(errors.Is(err, discovery.ErrPermissionDenied)).To(BeTrue(), "expected ErrPermissionDenied, got %v", err)

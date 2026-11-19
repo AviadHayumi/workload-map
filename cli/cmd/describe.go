@@ -19,14 +19,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	kubejson "k8s.io/apimachinery/pkg/util/json"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
-	"sigs.k8s.io/yaml"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/generator"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/workload"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 const (
@@ -75,6 +77,9 @@ It answers what a workload would look like before it is submitted.`
   # Preview a manifest before submitting it, no cluster needed
   kli describe -f jobset.yaml
 
+  # Preview a TrainJob using a saved ClusterTrainingRuntime
+  kli describe -f trainjob.yaml --references runtime-results.yaml
+
   # Machine output for scripting or agents
   kli describe pytorchjob/llama-finetune -o json`
 
@@ -99,6 +104,7 @@ type describeOptions struct {
 	podLimit       int
 	componentLimit int
 	file           string
+	referencesFile string
 }
 
 // machineError is the shape a failure takes in the machine formats. Only the
@@ -156,7 +162,9 @@ func newDescribeCommand() *cobra.Command {
 			return completeWorkloads(cmd, args, toComplete)
 		},
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			// A negative limit collides with the ShowAllPods sentinel.
+			if opts.referencesFile != "" && (opts.file == "" || opts.noReferences) {
+				return usageError(cmd, errors.New("--references requires --file and enabled references"))
+			}
 			if opts.podLimit < 0 {
 				return usageError(cmd, fmt.Errorf("--%s must not be negative", flagPodLimit))
 			}
@@ -177,6 +185,8 @@ func newDescribeCommand() *cobra.Command {
 	// zero keeps pflag from advertising a value the flag then rejects.
 	cmd.Flags().IntVar(&opts.podLimit, flagPodLimit, 0, usagePodLimit)
 	cmd.Flags().IntVar(&opts.componentLimit, flagComponentLimit, 0, usageComponentLimit)
+	cmd.Flags().BoolVar(&opts.noReferences, "no-references", false, "Skip declared reference reads and dependent Pod attribution")
+	cmd.Flags().StringVar(&opts.referencesFile, "references", "", "Read named reference results from YAML or JSON for --file")
 	cmd.Flags().StringVarP(&opts.file, flagFile, "f", "", usageFile)
 
 	return cmd
@@ -243,15 +253,18 @@ func describeLive(
 
 	reader := workload.NewReferenceReader(look.dyn, look.mapper)
 	describeOptions := []workload.DescribeOption{workload.WithDescribeReader(reader)}
-	assigned, membershipWarnings, err := describeComponentMembership(ctx, look, obj)
-	warnings = append(warnings, membershipWarnings...)
-	if err != nil {
-		return nil, warnings, err
+	if opts.noReferences {
+		describeOptions = []workload.DescribeOption{workload.WithDescribeFactoryOptions(resource.WithReferencesEnabled(false))}
+	} else {
+		assigned, membershipWarnings, err := describeComponentMembership(ctx, look, obj)
+		warnings = append(warnings, membershipWarnings...)
+		if err != nil {
+			return nil, warnings, err
+		}
+		if assigned != nil {
+			describeOptions = append(describeOptions, workload.WithComponentPods(assigned))
+		}
 	}
-	if assigned != nil {
-		describeOptions = append(describeOptions, workload.WithComponentPods(assigned))
-	}
-
 	view, err := workload.ResolveDescribe(ctx, obj, look.definition, owned, describeOptions...)
 	if err != nil {
 		return nil, warnings, fmt.Errorf("describe %s %q: %w", obj.GetKind(), obj.GetName(), err)
@@ -306,7 +319,19 @@ func describeManifest(
 
 	// No pods: a manifest that never reached the cluster has none, and inventing
 	// zeroes would read as a workload whose pods have all gone.
-	view, err := workload.ResolveDescribe(ctx, obj, target, nil)
+	factory := []resource.FactoryOption{resource.WithReferencesEnabled(!opts.noReferences)}
+	if opts.referencesFile != "" {
+		data, err := os.ReadFile(opts.referencesFile)
+		if err != nil {
+			return nil, warnings, err
+		}
+		refs, err := references.DecodeSnapshot(data)
+		if err != nil {
+			return nil, warnings, err
+		}
+		factory = append(factory, resource.WithReferences(refs))
+	}
+	view, err := workload.ResolveDescribe(ctx, obj, target, nil, workload.WithDescribeFactoryOptions(factory...))
 	if err != nil {
 		return nil, warnings, fmt.Errorf("describe %s: %w", opts.file, err)
 	}
@@ -345,7 +370,11 @@ func readManifest(cmd *cobra.Command, path string) (*unstructured.Unstructured, 
 		// A plain map, not Unstructured: its unmarshal rejects a missing kind
 		// with a message about JSON internals rather than the field that is absent.
 		var next map[string]any
-		if err := yaml.Unmarshal(doc, &next); err != nil {
+		rawJSON, err := utilyaml.ToJSON(doc)
+		if err == nil && len(bytes.TrimSpace(rawJSON)) > 0 {
+			err = kubejson.Unmarshal(rawJSON, &next)
+		}
+		if err != nil {
 			return nil, usageError(cmd, fmt.Errorf("parse %s: %w", path, err))
 		}
 		switch {

@@ -23,6 +23,7 @@ var bindingName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 type expressionValidator struct {
 	variables, references map[string]bool
 	errors                []error
+	opts                  []engine.Option
 }
 
 func (v *expressionValidator) add(path string, err error) {
@@ -37,15 +38,15 @@ func (v *expressionValidator) check(path, source string, scope engine.Scope, pre
 	}
 	var err error
 	if predicate {
-		err = engine.ValidateBool(scope, source)
+		err = engine.ValidateBool(scope, source, v.opts...)
 	} else {
-		err = engine.ValidateScope(scope, source)
+		err = engine.ValidateScope(scope, source, v.opts...)
 	}
 	v.add(path, err)
 	if err != nil || scope == engine.ObjectScope || scope == engine.TargetScope {
 		return
 	}
-	deps, err := engine.Analyze(source)
+	deps, err := engine.Analyze(source, v.opts...)
 	v.add(path, err)
 	for _, name := range deps.Variables {
 		if !v.variables[name] {
@@ -242,13 +243,17 @@ func (v *expressionValidator) reference(r Reference) {
 	}
 }
 func (v *KartaValidator) validateExpressions() []error {
-	e := expressionValidator{variables: map[string]bool{}, references: map[string]bool{}}
+	programs, err := ProgramsFor(v.karta)
+	if err != nil {
+		return []error{err}
+	}
+	e := expressionValidator{opts: []engine.Option{engine.WithPrograms(programs)}, variables: map[string]bool{}, references: map[string]bool{}}
 	vars := make([]expression.NamedExpression, 0, len(v.karta.Spec.Variables))
 	for _, variable := range v.karta.Spec.Variables {
 		vars = append(vars, expression.NamedExpression{Name: variable.Name, Expression: variable.Expression})
 		e.variables[variable.Name] = true
 	}
-	e.add("variables", engine.ValidateVariables(vars))
+	e.add("variables", engine.ValidateVariables(vars, e.opts...))
 	for _, ref := range v.karta.Spec.StructureDefinition.References {
 		if !bindingName.MatchString(ref.Name) {
 			e.add("references", errors.New("name must be a CEL identifier"))

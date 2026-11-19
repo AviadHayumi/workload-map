@@ -227,3 +227,16 @@ func TestDescribeCollectsCompetingParents(t *testing.T) {
 		}
 	}
 }
+
+func TestDisabledReferenceFoldingKeepsBothWorkloads(t *testing.T) {
+	look, client := membershipCluster(t, false, true)
+	views, _, err := collectAllTypes(t.Context(), look, &getOptions{allTypes: true, noReferences: true})
+	if err != nil || len(views) != 2 {
+		t.Fatalf("rows=%v, want both workloads: %v", views, err)
+	}
+	for _, action := range client.Actions() {
+		if action.GetResource().Resource == "pods" {
+			t.Fatalf("disabled membership issued %s Pods", action.GetVerb())
+		}
+	}
+}

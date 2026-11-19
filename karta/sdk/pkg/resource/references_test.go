@@ -7,15 +7,20 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	api "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	celpkg "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/cel"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/expression"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
 )
@@ -187,5 +192,40 @@ func TestFactoryEvaluationLimitReachesRunner(t *testing.T) {
 	factory := NewComponentFactoryFromObject(definition, workload, WithEvaluationLimits(1, time.Second))
 	if _, err := extractFactoryImage(t, factory); err == nil {
 		t.Fatal("factory ignored CEL cost limit")
+	}
+}
+
+func TestReferenceRecipeUsesFactoryBudgetBeforeLookup(t *testing.T) {
+	definition, workload := referenceReadFixture(`"runtime" in references ? "found" : "missing"`)
+	definition.Spec.StructureDefinition.References[0].Lookup.NameExpression = `[1,2,3,4,5].map(x, x*x).size() == 5 ? "runtime" : "other"`
+	reader := &factoryReader{found: true}
+	for _, src := range []FactoryOption{WithReferenceReader(reader), WithReferences(references.ResolvedReferences{})} {
+		for _, limit := range []struct {
+			option FactoryOption
+			want   error
+		}{
+			{WithEvaluationLimits(5, 0), celpkg.ErrCostLimit},
+			{WithEvaluationLimits(0, time.Nanosecond), context.DeadlineExceeded},
+		} {
+			factory := NewComponentFactoryFromObject(definition, workload, src, limit.option)
+			_, err := extractFactoryImage(t, factory)
+			if !errors.Is(err, limit.want) || !strings.Contains(err.Error(), "lookup") || reader.calls != 0 {
+				t.Fatalf("reference recipe error=%v calls=%d; want lookup %v before any GET", err, reader.calls, limit.want)
+			}
+		}
+	}
+}
+
+func TestPodGroupingUsesFactoryBudget(t *testing.T) {
+	definition, workload := referenceReadFixture("object.spec.image")
+	member := api.PodGroupMemberDefinition{GroupByExpressions: []string{`[1,2,3].map(i,i*i).size() == 3 ? object.metadata.name : "other"`}}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "worker"}}
+	factory := NewComponentFactoryFromObject(definition, workload, WithEvaluationLimits(2, 0))
+	if _, err := factory.NewPodQuerier(pod).ExtractGroupKeysFor(t.Context(), member); !errors.Is(err, celpkg.ErrCostLimit) {
+		t.Fatalf("grouping ignored configured budget: %v", err)
+	}
+	factory = NewComponentFactoryFromObject(definition, workload)
+	if keys, err := factory.NewPodQuerier(pod).ExtractGroupKeysFor(t.Context(), member); err != nil || !slices.Equal(keys, []string{"worker"}) {
+		t.Fatalf("grouping keys=%v err=%v", keys, err)
 	}
 }

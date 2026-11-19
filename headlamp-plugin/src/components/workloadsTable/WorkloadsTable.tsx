@@ -2,10 +2,11 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { WorkloadRow } from '../../hooks/useWorkloadRows/workloadRow.types';
 import { DataTable } from '../dataTable/DataTable';
 import { buildWorkloadColumns, OPTIONAL_COLUMN_IDS } from './columns';
+import { RootValuesDialog } from './RootValuesDialog';
 
 export interface WorkloadsTableProps {
   rows: WorkloadRow[] | null;
@@ -18,21 +19,32 @@ export function WorkloadsTable({ rows, loading, errorMessage }: WorkloadsTablePr
   const clusters = K8s.useSelectedClusters();
   const showCluster = clusters.length > 1;
 
-  const columns = useMemo(() => buildWorkloadColumns(showCluster), [showCluster]);
+  const [selected, setSelected] = useState<string>();
+  const row = rows?.find(item => item.id === selected);
+  const columns = useMemo(() => buildWorkloadColumns(showCluster, setSelected), [showCluster]);
 
   return (
-    <DataTable
-      id="karta-workloads"
-      data={rows}
-      columns={columns}
-      initialSortColumnId="age"
-      // The age accessor is negated so that ascending is newest first, which
-      // is how Headlamp's own resource tables sort it.
-      initialSortDesc={false}
-      hiddenColumnIds={[...OPTIONAL_COLUMN_IDS]}
-      loading={loading}
-      errorMessage={errorMessage}
-      emptyMessage="No workloads found."
-    />
+    <>
+      <DataTable
+        id="karta-workloads"
+        data={rows}
+        columns={columns}
+        initialSortColumnId="age"
+        // The age accessor is negated so that ascending is newest first, which
+        // is how Headlamp's own resource tables sort it.
+        initialSortDesc={false}
+        hiddenColumnIds={[...OPTIONAL_COLUMN_IDS]}
+        loading={loading}
+        errorMessage={errorMessage}
+        emptyMessage="No workloads found."
+      />
+      {row?.readRoot && (
+        <RootValuesDialog
+          name={row.name}
+          read={row.readRoot}
+          onClose={() => setSelected(undefined)}
+        />
+      )}
+    </>
   );
 }

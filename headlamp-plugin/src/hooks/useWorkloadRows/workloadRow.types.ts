@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
+import type { ExtractedInstance } from '../../lib/karta/karta.types';
+
 // One row of the workloads table: a live workload projected through its Karta
 // definition. Not a KubeObject, so ResourceTable cannot render it.
 export interface WorkloadRow {
@@ -19,4 +21,5 @@ export interface WorkloadRow {
   statusError?: string;
 
   componentsCount: number;
+  readRoot?: (signal: AbortSignal) => Promise<Record<string, ExtractedInstance>>;
 }

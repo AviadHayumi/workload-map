@@ -119,14 +119,15 @@ var newMetadataClient = func(rcg genericclioptions.RESTClientGetter) (metadata.I
 
 // getOptions holds the resolved inputs for one run of the get command.
 type getOptions struct {
-	typeToken string
-	name      string
-	phases    []string
-	selector  string
-	chunkSize int64
-	allTypes  bool
-	noHeaders bool
-	sortBy    sortKey
+	typeToken    string
+	name         string
+	phases       []string
+	selector     string
+	chunkSize    int64
+	noReferences bool
+	allTypes     bool
+	noHeaders    bool
+	sortBy       sortKey
 }
 
 // newGetCommand builds the "kli get" command: one row per workload root.
@@ -176,6 +177,7 @@ func newGetCommand() *cobra.Command {
 	}
 
 	output = withOutput(cmd, cmd.Flags(), true)
+	cmd.Flags().BoolVar(&opts.noReferences, "no-references", false, "Skip declared reference reads and dependent Pod attribution")
 	phase = withPhase(cmd, cmd.Flags())
 	cmd.Flags().StringVarP(&opts.selector, flagSelector, "l", "", usageSelector)
 	cmd.Flags().Int64Var(&opts.chunkSize, flagChunkSize, defaultChunkSize, usageChunkSize)
@@ -537,7 +539,7 @@ func collect(
 
 	for i := range objects {
 		object := &objects[i]
-		view, err := workload.Resolve(ctx, object, def, resource.WithReferenceReader(workload.NewReferenceReader(dyn, mapper)))
+		view, err := workload.Resolve(ctx, object, def, resource.WithReferenceReader(workload.NewReferenceReader(dyn, mapper)), resource.WithReferencesEnabled(!opts.noReferences))
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("could not resolve %s/%s: %v",
 				gvk.Kind, object.GetName(), err))

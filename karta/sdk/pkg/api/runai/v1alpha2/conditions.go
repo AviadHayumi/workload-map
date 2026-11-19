@@ -9,8 +9,7 @@ type ConditionType string
 const (
 	// ConditionValidated indicates that the Karta spec was validated by the
 	// operator. When True, the spec is structurally valid (component
-	// hierarchy, ownership graph, instructions) and all JQ expressions parse
-	// successfully.
+	// hierarchy, ownership graph, instructions) and each CEL expression compiles in its scope.
 	ConditionValidated ConditionType = "Validated"
 
 	// ConditionCRDExists indicates that the CustomResourceDefinition for the

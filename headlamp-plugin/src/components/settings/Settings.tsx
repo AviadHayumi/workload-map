@@ -7,16 +7,25 @@ import Switch from '@mui/material/Switch';
 
 export function Settings({ data, onDataChange }: PluginSettingsDetailsProps) {
   return (
-    <FormControlLabel
-      label="Enable experimental definitions"
-      control={
-        <Switch
-          checked={data?.enableExperimental === true}
-          onChange={(_event, checked) =>
-            onDataChange?.({ ...data, enableExperimental: checked })
-          }
-        />
-      }
-    />
+    <>
+      <FormControlLabel
+        label="Enable experimental definitions"
+        control={
+          <Switch
+            checked={data?.enableExperimental === true}
+            onChange={(_event, checked) => onDataChange?.({ ...data, enableExperimental: checked })}
+          />
+        }
+      />
+      <FormControlLabel
+        label="Read Kubernetes references"
+        control={
+          <Switch
+            checked={data?.referencesEnabled !== false}
+            onChange={(_event, checked) => onDataChange?.({ ...data, referencesEnabled: checked })}
+          />
+        }
+      />
+    </>
   );
 }

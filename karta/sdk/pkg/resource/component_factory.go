@@ -89,6 +89,7 @@ type factoryOptions struct {
 	enabled     bool
 	costLimit   uint64
 	timeout     time.Duration
+	evaluation  []celpkg.Option
 }
 
 func WithReferences(resolved references.ResolvedReferences) FactoryOption {
@@ -138,6 +139,13 @@ func newObjectFactory(karta *v1alpha1.Karta, object KubernetesObject, options fa
 		}
 		options.resolved = copied
 	}
+	if options.evaluation == nil {
+		plan, err := v1alpha1.ProgramsFor(karta)
+		if err != nil {
+			return fail(err)
+		}
+		options.evaluation = []celpkg.Option{celpkg.WithPrograms(plan), celpkg.WithLimits(options.costLimit, options.timeout)}
+	}
 	reader := references.NewCachingReader(options.reader)
 	var mu sync.Mutex
 	var cached map[string]any
@@ -157,7 +165,7 @@ func newObjectFactory(karta *v1alpha1.Karta, object KubernetesObject, options fa
 		var bindings map[string]any
 		switch {
 		case options.hasResolved:
-			resolved, err := references.ResolveSupplied(ctx, definition.Spec.StructureDefinition.References, source, options.resolved)
+			resolved, err := references.ResolveSupplied(ctx, definition.Spec.StructureDefinition.References, source, options.resolved, options.evaluation...)
 			if err != nil {
 				return nil, err
 			}
@@ -166,7 +174,7 @@ func newObjectFactory(karta *v1alpha1.Karta, object KubernetesObject, options fa
 				return nil, err
 			}
 		case options.reader != nil:
-			resolved, err := references.ResolveDefinitions(ctx, reader, definition.Spec.StructureDefinition.References, source)
+			resolved, err := references.ResolveDefinitions(ctx, reader, definition.Spec.StructureDefinition.References, source, options.evaluation...)
 			if err != nil {
 				return nil, err
 			}
@@ -190,13 +198,7 @@ func newObjectFactory(karta *v1alpha1.Karta, object KubernetesObject, options fa
 		}
 		return copy.(map[string]any), nil
 	}
-	runnerOptions := []celpkg.Option{celpkg.WithReferenceProvider(provider)}
-	if options.costLimit > 0 {
-		runnerOptions = append(runnerOptions, celpkg.WithCostLimit(options.costLimit))
-	}
-	if options.timeout > 0 {
-		runnerOptions = append(runnerOptions, celpkg.WithTimeout(options.timeout))
-	}
+	runnerOptions := append(options.evaluation[:len(options.evaluation):len(options.evaluation)], celpkg.WithReferenceProvider(provider))
 	runner, err := celpkg.NewRunnerWithVariables(source, namedExpressions(definition), runnerOptions...)
 	if err != nil {
 		return fail(err)
@@ -240,11 +242,11 @@ func (f *ComponentFactory) mutated(ctx context.Context, targets []WriteTarget, v
 	}
 	if f.settings.enabled && f.settings.hasResolved {
 		for _, ref := range f.karta.Spec.StructureDefinition.References {
-			before, err := references.Plan(ctx, ref, object)
+			before, err := references.Plan(ctx, ref, object, f.settings.evaluation...)
 			if err != nil {
 				return nil, err
 			}
-			after, err := references.Plan(ctx, ref, updated)
+			after, err := references.Plan(ctx, ref, updated, f.settings.evaluation...)
 			if err != nil {
 				return nil, err
 			}

@@ -18,7 +18,7 @@ shared runtime does not make its users one workload.
 | Requirement | Implementation and executable evidence |
 | --- | --- |
 | Separate read/write guards, pointers, boolean statuses | `v1alpha2` API, common validator and generated CRD; API contract tests |
-| Optional values, lazy variables, bounded CEL | `pkg/cel`; scope, dependency, precision, cancellation and cost tests |
+| Optional values, lazy variables, bounded CEL | `pkg/cel`; compiled programs shared by definition revision, with scope, precision, cancellation and cost tests |
 | Atomic JSON Merge Patch | `tree.Open` and `Mutate`; real editor tests for identity, overlap, unknown fields and failed re-extraction |
 | Live or supplied references | `pkg/references` and factory options; missing/empty/error, cache, eligibility and fresh-observation tests |
 | Kubernetes client interface | CLI dynamic adapter and runnable controller-runtime `ctrlreader` example; scope and pagination tests |
@@ -47,6 +47,16 @@ The six operator recipes and monitoring extension live in
 They are tested against the real SDK. They are small membership examples, not
 complete catalog replacements.
 
+## Consumers
+
+| Consumer | What it does |
+| --- | --- |
+| `kli get` and `describe` | Live reads use the caller's Kubernetes permissions. `describe -f trainjob.yaml --references runtime-results.yaml` uses a supplied snapshot. `--no-references` disables reads and extra attribution. |
+| Headlamp and WebAssembly | Status rows evaluate status alone. Opening a workload shows its mapped root values, including the Trainer image and replicas. The live view uses the selected cluster and supports disabling references. |
+| Workload exporter | The exporter reads references from its synchronized watches. A changed target requeues its dependent workloads and Pods. Metric workload identity follows the exporter's ownership and association settings. |
+| Controller-runtime example | A reader maps kind and scope. The example rechecks workloads with references once a minute. |
+| Offline verifier and replay | The verifier accepts named lookup or list results and can check root images and scale. Replay reads the references saved with each workload event. |
+
 ## Source history
 
 The branch starts at upstream `145d2a7725b7d4c93d2bae95277e653e50ad0ba4`.
@@ -74,10 +84,24 @@ inputs. Synthetic inputs cover catalog modes absent from the recordings and
 are labeled separately. jq is a test dependency only; the
 SDK has one runtime expression engine.
 
-Membership tests use synthetic ownership inventories. Strimzi, Flink and the
-monitoring extension are not newly certified builtin operator integrations.
-No cluster was deployed by constructing this branch. Live RBAC, operator
-refreshes and coordinated upgrade/rollback still require release e2e testing.
+The Job grouping replay uses two Jobs and three controller-created Pods recorded
+on Kubernetes v1.34.0. It checks ownership, group keys and the required group
+sizes of two and one. To refresh it, run:
+
+```bash
+python3 hack/e2e/record-job-groups.py --context "$CONTEXT" \
+  --output test/e2e/replay_tests/testdata/grouping/jobs.json
+```
+
+A live CLI check used the Trainer v2.3.0 CRDs. A TrainJob with only a runtime
+name returned one replica, 10m CPU and 16 MiB through both live and supplied
+inputs. The verifier read the image `busybox:1.36`. A user without permission
+to get the runtime received a forbidden error. After granting that permission
+and changing only the runtime, the next live read returned three replicas.
+
+The Milvus, Strimzi, Flink and monitoring membership examples use synthetic
+ownership inventories. They exercise the SDK rules. Live operator lifecycle
+coverage is limited to the recordings present in the repository.
 
 A complete supplied snapshot is the caller's promise. The SDK checks local
 identity and selectors but cannot prove freshness or discover undeclared shared
@@ -102,8 +126,7 @@ CEL replacements locally before the upgrade. Kubernetes also tracks stored CRD
 versions: simply removing a stored `v1alpha1` from the CRD is not a migration.
 For a disposable PoC cluster, back up and remove the old Karta CRD before
 installing the generated `v1alpha2` CRD. This deletes its Karta objects, so restore
-only the reviewed CEL definitions afterward. A production storage migration
-needs a separately rehearsed procedure.
+only the reviewed CEL definitions afterward. A production rollout needs a rehearsal with its custom definitions and consumers.
 
 Set `catalogInstaller.enabled: true` to install the bundled CEL catalog after
 the new CRD and admission webhook are ready. The default is false. Custom
@@ -113,3 +136,13 @@ when intentionally supplying custom replacements for those types.
 Rollback is the reverse coordinated replacement: stop CEL consumers, preserve
 any new custom definitions, restore the old CRD and backed-up jq definitions,
 and start the old consumers. Helm rollback alone cannot restore definition data.
+
+The kind rehearsal installs the legacy chart, saves its Job Karta, installs
+all 28 CEL definitions, retries with one definition missing, then restores the
+legacy CRD and saved Karta. It checks the native Job UID across both changes.
+Run it with locally built operator images from the base revision above and the
+current PoC:
+
+```bash
+LEGACY_IMAGE=karta:jq CEL_IMAGE=karta:cel bash hack/e2e/test-cel-migration.sh
+```

@@ -351,6 +351,9 @@ func (r *controllerState) refreshDefinitions(next map[schema.GroupKind]selectedD
 		}
 	}
 	for uid, root := range r.roots {
+		if changedKinds[root.ref.GVK.GroupKind()] {
+			r.releaseReferenceWatches(uid)
+		}
 		if healthChanged || changedKinds[root.ref.GVK.GroupKind()] {
 			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 			r.enqueueMembers(root)

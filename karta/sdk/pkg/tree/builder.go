@@ -19,6 +19,9 @@ func Build(
 	ctx context.Context,
 	factory *resource.ComponentFactory,
 ) (*WorkloadTree, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := v1alpha1.NewKartaValidator(factory.GetKarta()).Validate(); err != nil {
 		return nil, fmt.Errorf("invalid karta: %w", err)
 	}
@@ -28,27 +31,52 @@ func Build(
 		return nil, fmt.Errorf("failed to get root component: %w", err)
 	}
 
-	// Build the root as a node; the root is not exposed, only its hoisted children are used.
 	rootNodes, err := buildComponentNodes(ctx, []*resource.Component{rootComponent}, factory)
 	if err != nil {
 		return nil, err
 	}
 	rootNode := rootNodes[0]
 
-	tree := &WorkloadTree{}
+	tree := &WorkloadTree{Root: &rootNode}
 	if len(rootNode.Instances) > 0 {
 		tree.Children = rootNode.Instances[0].Children
+		for i := range rootNode.Instances {
+			rootNode.Instances[i].Children = nil
+		}
 	}
 
-	status, err := rootComponent.GetStatus(ctx)
+	tree.Status, err = rootStatus(ctx, rootComponent)
+	if err != nil {
+		return nil, err
+	}
+	return tree, nil
+}
+
+// ReadStatus evaluates only the root status. Fields such as a trainer image
+// can depend on additional permissions that a status view does not need.
+func ReadStatus(ctx context.Context, factory *resource.ComponentFactory) (*WorkloadStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := v1alpha1.NewKartaValidator(factory.GetKarta()).Validate(); err != nil {
+		return nil, fmt.Errorf("invalid karta: %w", err)
+	}
+	root, err := factory.GetRootComponent()
+	if err != nil {
+		return nil, err
+	}
+	return rootStatus(ctx, root)
+}
+
+func rootStatus(ctx context.Context, root *resource.Component) (*WorkloadStatus, error) {
+	status, err := root.GetStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root status: %w", err)
 	}
-	if status != nil {
-		tree.Status = &WorkloadStatus{Phases: matchedStatusStrings(status)}
+	if status == nil {
+		return nil, nil
 	}
-
-	return tree, nil
+	return &WorkloadStatus{Phases: matchedStatusStrings(status)}, nil
 }
 
 func buildComponentNodes(

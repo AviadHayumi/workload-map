@@ -43,6 +43,10 @@ func collectAllTypes(ctx context.Context, look lookup, opts *getOptions) ([]work
 	if err != nil {
 		return nil, warnings, err
 	}
+	if opts.noReferences {
+		views, viewWarnings := topLevelViews(ctx, look, opts, versions, listed)
+		return views, append(warnings, viewWarnings...), nil
+	}
 	results, membershipWarnings, err := observeMembership(ctx, look, listed, len(warnings) == 0)
 	warnings = append(warnings, membershipWarnings...)
 	if err != nil {
@@ -250,7 +254,7 @@ func topLevelViews(
 			if !top {
 				continue
 			}
-			view, err := workload.Resolve(ctx, object, kind.def, resource.WithReferenceReader(workload.NewReferenceReader(look.dyn, look.mapper)))
+			view, err := workload.Resolve(ctx, object, kind.def, resource.WithReferenceReader(workload.NewReferenceReader(look.dyn, look.mapper)), resource.WithReferencesEnabled(!opts.noReferences))
 			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("could not resolve %s/%s: %v", kind.gk.Kind, object.GetName(), err))
 				continue

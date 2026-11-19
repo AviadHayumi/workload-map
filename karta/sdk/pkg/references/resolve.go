@@ -17,18 +17,26 @@ import (
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/cel"
 )
 
-// Query is the evaluated reference recipe. Namespace is the workload namespace;
-// a reader with a REST mapper removes it for cluster-scoped kinds.
 type resolutionError struct {
 	name, operation string
 	cause           error
 }
 
 func (e resolutionError) Error() string {
-	return fmt.Sprintf("reference %q %s failed", e.name, e.operation)
+	message := fmt.Sprintf("reference %q %s failed", e.name, e.operation)
+	// Do not expose raw server messages, which can contain workload fields.
+	switch {
+	case apierrors.IsForbidden(e.cause):
+		return message + ": forbidden"
+	case apierrors.IsUnauthorized(e.cause):
+		return message + ": unauthorized"
+	default:
+		return message
+	}
 }
 func (e resolutionError) Unwrap() error { return e.cause }
 
+// Query describes one lookup or list. The reader removes Namespace for cluster-scoped kinds.
 type Query struct {
 	Active          bool
 	GVK             schema.GroupVersionKind
@@ -53,14 +61,17 @@ func (q Query) Equal(other Query) bool {
 }
 
 // Plan evaluates only this reference's eligibility and selector, never a client call.
-func Plan(ctx context.Context, definition api.Reference, workload any) (Query, error) {
+func Plan(ctx context.Context, definition api.Reference, workload any, opts ...cel.Option) (Query, error) {
+	if err := ctx.Err(); err != nil {
+		return Query{}, err
+	}
 	object, err := cel.CopyJSON(workload)
 	if err != nil {
 		return Query{}, err
 	}
 	bindings := map[string]any{"object": object}
 	if definition.MatchExpression != "" {
-		active, err := cel.EvaluateBool(ctx, cel.ObjectScope, definition.MatchExpression, bindings)
+		active, err := cel.EvaluateBool(ctx, cel.ObjectScope, definition.MatchExpression, bindings, opts...)
 		if err != nil {
 			return Query{}, fmt.Errorf("reference %q eligibility: %w", definition.Name, err)
 		}
@@ -82,7 +93,7 @@ func Plan(ctx context.Context, definition api.Reference, workload any) (Query, e
 		}
 	}
 	text := func(source string) (string, error) {
-		value, err := cel.Evaluate(ctx, cel.ObjectScope, source, bindings)
+		value, err := cel.Evaluate(ctx, cel.ObjectScope, source, bindings, opts...)
 		if err != nil {
 			return "", err
 		}
@@ -151,10 +162,13 @@ func Plan(ctx context.Context, definition api.Reference, workload any) (Query, e
 }
 
 // ResolveDefinitions resolves only the supplied declarations. Failed calls are not cached.
-func ResolveDefinitions(ctx context.Context, reader ResourceReader, definitions []api.Reference, workload any) (ResolvedReferences, error) {
+func ResolveDefinitions(ctx context.Context, reader ResourceReader, definitions []api.Reference, workload any, opts ...cel.Option) (ResolvedReferences, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	result := ResolvedReferences{}
 	for _, definition := range definitions {
-		q, err := Plan(ctx, definition, workload)
+		q, err := Plan(ctx, definition, workload, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -184,15 +198,25 @@ func ResolveDefinitions(ctx context.Context, reader ResourceReader, definitions 
 	}
 	return result, nil
 }
-func Resolve(ctx context.Context, reader ResourceReader, karta *api.Karta, workload any) (ResolvedReferences, error) {
+func Resolve(ctx context.Context, reader ResourceReader, karta *api.Karta, workload any, opts ...cel.Option) (ResolvedReferences, error) {
 	if karta == nil {
 		return nil, errors.New("karta is nil")
 	}
-	return ResolveDefinitions(ctx, reader, karta.Spec.StructureDefinition.References, workload)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	programs, err := api.ProgramsFor(karta)
+	if err != nil {
+		return nil, err
+	}
+	return ResolveDefinitions(ctx, reader, karta.Spec.StructureDefinition.References, workload, append([]cel.Option{cel.WithPrograms(programs)}, opts...)...)
 }
 
 // ResolveSupplied applies eligibility before exposing a copied supplied snapshot.
-func ResolveSupplied(ctx context.Context, definitions []api.Reference, workload any, supplied ResolvedReferences) (ResolvedReferences, error) {
+func ResolveSupplied(ctx context.Context, definitions []api.Reference, workload any, supplied ResolvedReferences, opts ...cel.Option) (ResolvedReferences, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	declared := map[string]bool{}
 	for _, definition := range definitions {
 		declared[definition.Name] = true
@@ -204,7 +228,7 @@ func ResolveSupplied(ctx context.Context, definitions []api.Reference, workload 
 	}
 	result := ResolvedReferences{}
 	for _, definition := range definitions {
-		q, err := Plan(ctx, definition, workload)
+		q, err := Plan(ctx, definition, workload, opts...)
 		if err != nil {
 			return nil, err
 		}

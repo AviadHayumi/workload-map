@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -310,5 +311,20 @@ func TestZeroPodTargetCannotCrossIndependentNativeOwner(t *testing.T) {
 	}
 	if _, exists := result.Targets[target.GetUID()]; exists {
 		t.Fatal("zero-Pod target crossed independent workload boundary")
+	}
+}
+
+func TestTargetMatchHonorsEvaluationBudget(t *testing.T) {
+	input, snapshot, reader := fixture()
+	input.Workloads[0].Definition.Spec.StructureDefinition.ChildComponents[0].PodSelector.FromReferences[0].MatchExpression = `[1,2,3,4,5].map(x,x*x).size()==5 && target.metadata.name=="target"`
+	for _, source := range []Option{WithReader(reader), WithSnapshot(snapshot)} {
+		result, err := Resolve(t.Context(), input, source, WithEvaluationLimits(5, 0))
+		if err != nil || result.Complete || len(result.Targets) != 0 || !strings.Contains(strings.Join(result.Diagnostics, " "), "cost limit") {
+			t.Fatalf("bounded target match: result=%+v err=%v", result, err)
+		}
+		result, err = Resolve(t.Context(), input, source)
+		if err != nil || !result.Complete || !result.Targets["target"].Foldable {
+			t.Fatalf("default target match: result=%+v err=%v", result, err)
+		}
 	}
 }

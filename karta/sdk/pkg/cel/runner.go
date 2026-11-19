@@ -28,7 +28,7 @@ func NewRunner(source any, opts ...Option) (expression.Runner, error) {
 	return NewRunnerWithVariables(source, nil, opts...)
 }
 func NewRunnerWithVariables(source any, variables []NamedExpression, opts ...Option) (expression.Runner, error) {
-	if err := ValidateVariables(variables); err != nil {
+	if err := ValidateVariables(variables, opts...); err != nil {
 		return nil, err
 	}
 	object, err := CopyJSON(source)
@@ -66,6 +66,9 @@ func (r *runner) Assign(ctx context.Context, path string, value any) error {
 	return nil
 }
 func (r *runner) resolveReferences(ctx context.Context) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if r.provider == nil {
 		return nil, expression.ErrReferencesNotSupported
 	}
@@ -75,6 +78,9 @@ func (r *runner) resolveReferences(ctx context.Context) (map[string]any, error) 
 		return r.references, nil
 	}
 	refs, err := r.provider(ctx)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +94,7 @@ func (r *runner) resolveReferences(ctx context.Context) (map[string]any, error) 
 	r.references = copied.(map[string]any)
 	return r.references, nil
 }
-func (r *runner) needed(sources []string) (map[string]bool, bool, error) {
+func (r *runner) needed(ctx context.Context, sources []string) (map[string]bool, bool, error) {
 	byName := map[string]string{}
 	for _, v := range r.variables {
 		byName[v.Name] = v.Expression
@@ -108,7 +114,10 @@ func (r *runner) needed(sources []string) (map[string]bool, bool, error) {
 		return scan(source)
 	}
 	scan = func(source string) error {
-		deps, err := Analyze(source)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		deps, err := Analyze(source, r.options...)
 		if err != nil {
 			return err
 		}
@@ -151,10 +160,13 @@ func (r *runner) variablesFor(ctx context.Context, needed map[string]bool, refs 
 	resolved := map[string]any{}
 	var resolve func(string) error
 	resolve = func(name string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if _, ok := resolved[name]; ok {
 			return nil
 		}
-		deps, err := Analyze(byName[name])
+		deps, err := Analyze(byName[name], r.options...)
 		if err != nil {
 			return err
 		}
@@ -180,7 +192,10 @@ func (r *runner) variablesFor(ctx context.Context, needed map[string]bool, refs 
 	return resolved, nil
 }
 func (r *runner) ResolveVariables(ctx context.Context, sources ...string) (map[string]any, error) {
-	needed, usesRefs, err := r.needed(sources)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	needed, usesRefs, err := r.needed(ctx, sources)
 	if err != nil {
 		return nil, err
 	}
@@ -194,18 +209,21 @@ func (r *runner) ResolveVariables(ctx context.Context, sources ...string) (map[s
 	return r.variablesFor(ctx, needed, refs)
 }
 func (r *runner) evaluate(ctx context.Context, scope Scope, source string, extra map[string]any) ([]any, error) {
-	if err := ValidateScope(scope, source); err != nil {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := ValidateScope(scope, source, r.options...); err != nil {
 		return nil, err
 	}
 	bindings := map[string]any{"object": r.object}
 	if scope == ReadScope || scope == WriteScope {
-		needed, usesRefs, err := r.needed([]string{source})
+		needed, usesRefs, err := r.needed(ctx, []string{source})
 		if err != nil {
 			return nil, err
 		}
 		vars, frozen := extra["variables"]
 		if frozen {
-			deps, err := Analyze(source)
+			deps, err := Analyze(source, r.options...)
 			if err != nil {
 				return nil, err
 			}

@@ -70,6 +70,7 @@ Different keys can run concurrently.
 | --- | --- |
 | Pod create, update or delete | That Pod's identity |
 | Tracked root update | Root UID and its Pods |
+| Change to a collection read by a Karta reference | Dependent roots and their Pods in the matching scope |
 | Karta create, update or delete | Refresh sources; requeue workloads and Pods when the selected definition, spec or health changes |
 | Namespace labels change (with namespace selection configured) | Sources refresh to recompute watched namespaces |
 | Intermediate owner references or root-selector membership change | Namespace rescan |
@@ -83,6 +84,20 @@ The cache holds Kubernetes objects. Pods, selected/required kinds and evaluated
 roots use full objects. Other ancestors start with metadata. `Reader` reads the
 cache; discovery does not GET every owner. A full-object replacement watch must
 accept its initial snapshot before replacing a metadata watch.
+
+When a workload status or Pod mapping first reads a reference, its factory asks
+the exporter for a full-object watch. Lookups and selector lists use the
+synchronized cache under the exporter service account's LIST/WATCH permissions.
+The REST mapper resolves cluster scope for types such as ClusterTrainingRuntime.
+A namespaced reference reads only the workload namespace, including when the
+watch spans several namespaces.
+
+Target creation, updates, deletion and watch health changes requeue the
+dependent roots and their Pods. An empty synchronized list is a valid result.
+A denied or unsynchronized read marks the observation invalid. A collection
+opened only for references does not create workload rows of its own. The
+exporter releases that watch after its last dependent root or definition goes
+away.
 
 Store holds evaluated results, source health and discovery errors. Before saving
 an evaluated result, shared controller state checks the object versions, UIDs,

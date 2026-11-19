@@ -35,11 +35,11 @@ var (
 	ErrCostLimit  = errors.New("CEL evaluation cost limit exceeded")
 	ErrAbsent     = errors.New("CEL optional value is absent")
 	environments  sync.Map
-	programMu     sync.Mutex
-	programs      = map[programKey]celgo.Program{}
+	standalone    = &Programs{limit: 1024}
 )
 
 type configuration struct {
+	programs *Programs
 	cost     uint64
 	timeout  time.Duration
 	provider func(context.Context) (map[string]any, error)
@@ -54,17 +54,51 @@ func WithReferenceProvider(provider func(context.Context) (map[string]any, error
 	return func(c *configuration) { c.provider = provider }
 }
 func settings(opts []Option) configuration {
-	c := configuration{cost: MaxCost, timeout: time.Second}
+	c := configuration{programs: standalone, cost: MaxCost, timeout: time.Second}
 	for _, o := range opts {
 		o(&c)
 	}
 	return c
 }
 
-type programKey struct {
-	scope      Scope
-	expression string
-	cost       uint64
+// Programs retains checked expressions for one definition revision. A zero value
+// is ready to use. Programs never stores workload objects or reference values.
+type Programs struct {
+	mu      sync.Mutex
+	sources map[string]*parsedSource
+	limit   int // only standalone expressions lack a definition to bound their lifetime
+}
+type parsedSource struct {
+	parsed  *celgo.Ast
+	deps    Dependencies
+	checked map[Scope]*checkedExpression
+}
+type checkedExpression struct {
+	env       *celgo.Env
+	ast       *celgo.Ast
+	programMu sync.Mutex
+	// Each caller-selected budget has its own interpreter, built from the same AST.
+	executables map[uint64]celgo.Program
+}
+
+func WithPrograms(p *Programs) Option {
+	return func(c *configuration) {
+		if p != nil {
+			c.programs = p
+		}
+	}
+}
+
+// WithLimits overrides each nonzero limit, leaving the other setting at its default.
+func WithLimits(cost uint64, timeout time.Duration) Option {
+	return func(c *configuration) {
+		if cost > 0 {
+			c.cost = cost
+		}
+		if timeout > 0 {
+			c.timeout = timeout
+		}
+	}
 }
 
 func environment(scope Scope) (*celgo.Env, error) {
@@ -91,83 +125,126 @@ func environment(scope Scope) (*celgo.Env, error) {
 	actual, _ := environments.LoadOrStore(scope, env)
 	return actual.(*celgo.Env), nil
 }
-func program(scope Scope, source string, cost uint64) (celgo.Program, error) {
-	key := programKey{scope, source, cost}
-	programMu.Lock()
-	cached, ok := programs[key]
-	programMu.Unlock()
-	if ok {
-		return cached, nil
+
+// sourceLocked parses one source for all scopes. The parser environment has
+// the same extensions and macros as the environments used for type checking.
+func (p *Programs) sourceLocked(source string) (*parsedSource, error) {
+	if s := p.sources[source]; s != nil {
+		return s, nil
+	}
+	env, err := environment(ReadScope)
+	if err != nil {
+		return nil, err
+	}
+	ast, issues := env.Parse(source)
+	if issues != nil && issues.Err() != nil {
+		return nil, ErrCompile
+	}
+	s := &parsedSource{parsed: ast, deps: dependencies(ast.NativeRep().Expr()), checked: make(map[Scope]*checkedExpression)}
+	if p.sources == nil {
+		p.sources = make(map[string]*parsedSource)
+	}
+	if p.limit > 0 && len(p.sources) >= p.limit {
+		clear(p.sources)
+	}
+	p.sources[source] = s
+	return s, nil
+}
+
+func (p *Programs) check(scope Scope, source string) (*checkedExpression, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s, err := p.sourceLocked(source)
+	if err != nil {
+		return nil, err
+	}
+	if e := s.checked[scope]; e != nil {
+		return e, nil
 	}
 	env, err := environment(scope)
 	if err != nil {
 		return nil, err
 	}
-	ast, issues := env.Compile(source)
+	ast, issues := env.Check(s.parsed)
 	if issues != nil && issues.Err() != nil {
 		return nil, ErrCompile
 	}
-	p, err := env.Program(ast, celgo.CostLimit(cost), celgo.InterruptCheckFrequency(100))
+	e := &checkedExpression{env: env, ast: ast}
+	s.checked[scope] = e
+	return e, nil
+}
+func (e *checkedExpression) program(cost uint64) (celgo.Program, error) {
+	e.programMu.Lock()
+	defer e.programMu.Unlock()
+	if prog := e.executables[cost]; prog != nil {
+		return prog, nil
+	}
+	prog, err := e.env.Program(e.ast, celgo.CostLimit(cost), celgo.InterruptCheckFrequency(100))
 	if err != nil {
 		return nil, ErrCompile
 	}
-	programMu.Lock()
-	defer programMu.Unlock()
-	if cached, ok := programs[key]; ok {
-		return cached, nil
+	if e.executables == nil {
+		e.executables = make(map[uint64]celgo.Program)
 	}
-	// Bound retention when applications observe many definition revisions.
-	if len(programs) >= 1024 {
-		clear(programs)
-	}
-	programs[key] = p
-	return p, nil
+	e.executables[cost] = prog
+	return prog, nil
 }
 
 // Validate compiles a workload read expression.
 func Validate(source string) error { return ValidateScope(ReadScope, source) }
-func ValidateScope(scope Scope, source string) error {
-	_, err := program(scope, source, MaxCost)
+func ValidateScope(scope Scope, source string, opts ...Option) error {
+	c := settings(opts)
+	e, err := c.programs.check(scope, source)
+	if err != nil {
+		return err
+	}
+	_, err = e.program(c.cost)
 	return err
 }
 
 // ValidateBool also rejects statically known non-boolean results.
-func ValidateBool(scope Scope, source string) error {
-	env, err := environment(scope)
+func ValidateBool(scope Scope, source string, opts ...Option) error {
+	c := settings(opts)
+	checked, err := c.programs.check(scope, source)
 	if err != nil {
 		return err
 	}
-	ast, issues := env.Compile(source)
-	if issues != nil && issues.Err() != nil {
-		return ErrCompile
-	}
-	t := ast.OutputType()
+	t := checked.ast.OutputType()
 	if t != celgo.BoolType && t != celgo.DynType {
 		return errors.New("CEL predicate must return a boolean")
 	}
-	return nil
+	_, err = checked.program(c.cost)
+	return err
 }
 
 // Evaluate returns plain JSON-compatible values. Errors never include object data.
 func Evaluate(ctx context.Context, scope Scope, source string, bindings map[string]any, opts ...Option) (any, error) {
 	c := settings(opts)
-	p, err := program(scope, source, c.cost)
+	if c.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	checked, err := c.programs.check(scope, source)
+	if err != nil {
+		return nil, err
+	}
+	p, err := checked.program(c.cost)
 	if err != nil {
 		return nil, err
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if c.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.timeout)
-		defer cancel()
-	}
+
 	out, details, err := p.ContextEval(ctx, bindings)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
 		if details != nil && details.ActualCost() != nil && *details.ActualCost() > c.cost {
 			return nil, ErrCostLimit
 		}
@@ -176,7 +253,11 @@ func Evaluate(ctx context.Context, scope Scope, source string, bindings map[stri
 	if types.IsError(out) || types.IsUnknown(out) {
 		return nil, ErrEvaluation
 	}
-	return native(out)
+	result, err := native(ctx, out)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return result, err
 }
 func EvaluateBool(ctx context.Context, scope Scope, source string, bindings map[string]any, opts ...Option) (bool, error) {
 	v, err := Evaluate(ctx, scope, source, bindings, opts...)
@@ -189,13 +270,16 @@ func EvaluateBool(ctx context.Context, scope Scope, source string, bindings map[
 	}
 	return b, nil
 }
-func native(v ref.Val) (any, error) {
+func native(ctx context.Context, v ref.Val) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	switch value := v.(type) {
 	case *types.Optional:
 		if !value.HasValue() {
 			return nil, ErrAbsent
 		}
-		return native(value.GetValue())
+		return native(ctx, value.GetValue())
 	case types.Null:
 		return nil, nil
 	case types.Bool:
@@ -215,7 +299,7 @@ func native(v ref.Val) (any, error) {
 		list := make([]any, 0)
 		it := value.Iterator()
 		for it.HasNext() == types.True {
-			item, err := native(it.Next())
+			item, err := native(ctx, it.Next())
 			if err != nil {
 				return nil, err
 			}
@@ -231,7 +315,7 @@ func native(v ref.Val) (any, error) {
 			if !ok {
 				return nil, errors.New("CEL map keys must be strings")
 			}
-			item, err := native(value.Get(key))
+			item, err := native(ctx, value.Get(key))
 			if err != nil {
 				return nil, err
 			}

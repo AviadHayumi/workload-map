@@ -46,6 +46,7 @@ export function ClusterFetcher({
 }: ClusterFetcherProps) {
   const {
     definitions,
+    referencesEnabled,
     loading: definitionsLoading,
     error: definitionsError,
   } = useKartaDefinitions(cluster, attempt);
@@ -165,6 +166,7 @@ export function ClusterFetcher({
           cluster={cluster}
           plural={plural}
           namespaced={namespaced}
+          referencesEnabled={referencesEnabled}
           namespaces={visibleNamespaces}
           onRows={handleRows}
           onError={handleError}

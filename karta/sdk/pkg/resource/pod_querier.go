@@ -24,7 +24,8 @@ func (e InstanceNotFoundError) Error() string {
 
 // PodQuerier evaluates selector expressions against a pod, bound as `object`.
 type PodQuerier struct {
-	pod *corev1.Pod
+	pod     *corev1.Pod
+	options []celpkg.Option
 
 	celOnce      sync.Once
 	celEvaluator expression.Runner
@@ -34,7 +35,7 @@ type PodQuerier struct {
 // celOnPod returns a CEL runner bound to the pod, built once on first use.
 func (pq *PodQuerier) celOnPod() (expression.Runner, error) {
 	pq.celOnce.Do(func() {
-		pq.celEvaluator, pq.celErr = celpkg.NewPodRunner(pq.pod)
+		pq.celEvaluator, pq.celErr = celpkg.NewPodRunner(pq.pod, pq.options...)
 	})
 
 	return pq.celEvaluator, pq.celErr
@@ -50,8 +51,16 @@ func (pq *PodQuerier) evaluateSelectorField(ctx context.Context, expr string) (s
 	return evaluateStringWith(ctx, evaluator, expr)
 }
 
-func NewPodQuerier(pod *corev1.Pod) *PodQuerier {
-	return &PodQuerier{pod: pod}
+func NewPodQuerier(pod *corev1.Pod, opts ...celpkg.Option) *PodQuerier {
+	return &PodQuerier{pod: pod, options: opts}
+}
+
+// NewPodQuerier evaluates Pod expressions with the workload definition's programs and limits.
+func (f *ComponentFactory) NewPodQuerier(pod *corev1.Pod) *PodQuerier {
+	if f.settings == nil {
+		return NewPodQuerier(pod)
+	}
+	return NewPodQuerier(pod, f.settings.evaluation...)
 }
 
 func (pq *PodQuerier) GetPodName() string {

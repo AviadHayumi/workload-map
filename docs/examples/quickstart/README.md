@@ -124,7 +124,7 @@ Default expected output:
 | Step | How | What it shows |
 |------|-----|---------------|
 | 1 | `tree.Build()` → `wt.Status.Phases` | Unified `Running/Initializing/Failed` — no per-CRD condition parsing |
-| 2 | `tree.Build()` → walk `wt.Children` | Replica counts regardless of where the CRD stores them; LWS worker total computed via a JQ formula; virtual components labelled |
+| 2 | `tree.Build()` → walk `wt.Children` | Replica counts regardless of where the CRD stores them; LWS worker total computed via a CEL expression; virtual components labelled |
 | 3 | `inst.ExtractedInstance.PodTemplateSpec` | Resource requests per container — GPUs for JobSet, CPU for LWS — same traversal, different CRDs |
 | 4 | `comp.GetPodTemplateSpec` → mutate → `UpdatePodTemplateSpec` | Inject scheduler name and a pod label in one pass via real `corev1` types |
 | 5 | `comp.GetPodTemplateSpec` read-back + `factory.GetResource()` | Confirm both mutations landed at the right paths; retrieve the object for `k8sClient.Update` |
@@ -141,27 +141,21 @@ Default expected output:
 
 ## How Karta works
 
-A Karta YAML describes the structure of a CRD using JQ paths:
+The JobSet definition reads one ID and one pod template per replicated Job.
+Both expressions receive the JobSet as `object`. The SDK selects the same
+index in each result when the caller asks for a component instance.
 
 ```yaml
-# JobSet child component — one entry per replicatedJob, identified by name
-childComponents:
-  - name: replicatedjob
-    specDefinition:
-      podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
-    scaleDefinition:
-      replicasPath: .spec.replicatedJobs[].replicas
-    instanceIdPath: .spec.replicatedJobs[].name
-
-# LWS worker total computed directly in JQ
-  - name: worker
-    specDefinition:
-      podTemplateSpecPath: .spec.leaderWorkerTemplate.workerTemplate
-    scaleDefinition:
-      replicasPath: (.spec.replicas // 1) * ((.spec.leaderWorkerTemplate.size // 1) - 1)
+instanceIds:
+  read:
+    expression: object.spec.replicatedJobs.map(j, j.name)
+specDefinition:
+  podTemplateSpec:
+    read:
+      expression: object.spec.replicatedJobs.map(j, j.template.spec.template)
+    write:
+      pathExpression: '"/spec/replicatedJobs/" + string(index) + "/template/spec/template"'
 ```
-
-Your Go code never references these paths directly — Karta handles the navigation. Adding support for a new CRD means writing a new YAML definition; existing code is untouched.
 
 ## Next steps
 

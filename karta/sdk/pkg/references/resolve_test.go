@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
@@ -79,6 +80,11 @@ func TestLiveLookupAndMissing(t *testing.T) {
 	_, err = ResolveDefinitions(ctx, r, []api.Reference{lookup()}, workload())
 	if err == nil || strings.Contains(err.Error(), "DO_NOT_LEAK") || !errors.Is(err, r.err) {
 		t.Fatalf("reader error: %v", err)
+	}
+	r.err = apierrors.NewForbidden(schema.GroupResource{Resource: "runtimes"}, "private-name", errors.New("private server detail"))
+	_, err = ResolveDefinitions(ctx, r, []api.Reference{lookup()}, workload())
+	if !apierrors.IsForbidden(err) || err.Error() != `reference "runtime" lookup failed: forbidden` {
+		t.Fatalf("expected a redacted permission error: %v", err)
 	}
 }
 func TestListsAreSortedAndEmptyIsBound(t *testing.T) {
@@ -214,5 +220,19 @@ func TestObservationCacheCopiesSuccessAndRetriesErrors(t *testing.T) {
 	}
 	if NewCachingReader(nil) != nil {
 		t.Fatal("nil reader wrapped")
+	}
+}
+
+func TestDecodeSnapshotPreservesIntegersAndEmptyLists(t *testing.T) {
+	got, err := DecodeSnapshot([]byte("runtime:\n  object:\n    apiVersion: example.com/v1\n    kind: Runtime\n    spec:\n      count: 9007199254740993\npods:\n  list: []\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, found, err := unstructured.NestedInt64(got["runtime"].Object.Object, "spec", "count")
+	if err != nil || !found || count != 9007199254740993 || got["pods"].List == nil {
+		t.Fatalf("count=%d found=%v pods=%v err=%v", count, found, got["pods"], err)
+	}
+	if _, err := DecodeSnapshot([]byte("pods: {items: []}")); err == nil {
+		t.Fatal("accepted a misspelled list field")
 	}
 }

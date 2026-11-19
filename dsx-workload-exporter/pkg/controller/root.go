@@ -155,6 +155,7 @@ func (r *Runtime) reconcileWorkload(ctx context.Context, uid types.UID) error {
 	if owner.UID != "" {
 		record.OwnerResolution = store.IgnoredOwner
 	}
+	observed := &referenceReader{state: r.state, root: ref, selection: selection}
 	statusErr := selectionErr
 	if statusErr == nil {
 		if selection.Definition == nil {
@@ -163,7 +164,7 @@ func (r *Runtime) reconcileWorkload(ctx context.Context, uid types.UID) error {
 		} else {
 			record.Karta = selection.Origin.Name
 			record.KartaSource = string(selection.Origin.Source)
-			factory := resource.NewComponentFactoryFromObject(selection.Definition, workloadObject)
+			factory := resource.NewComponentFactoryFromObject(selection.Definition, workloadObject, resource.WithReferenceReader(observed))
 			statusErr = evaluateWorkloadStatus(ctx, factory, &record)
 		}
 		statusErr = errors.Join(statusErr, r.evaluateWorkloadStatusLabels(ctx, workloadObject, &record))
@@ -176,10 +177,10 @@ func (r *Runtime) reconcileWorkload(ctx context.Context, uid types.UID) error {
 		Record:          record,
 		HasValue:        true,
 		StatusError:     failureReason(statusErr),
-		Sources:         sources,
+		Sources:         appendSources(sources, observed.sources),
 		CreationSources: creationSources,
 	}
-	return r.state.publishWorkload(uid, ref, selection, workloadResult)
+	return r.state.publishWorkload(observed, workloadResult)
 }
 
 func evaluateWorkloadStatus(ctx context.Context, factory *resource.ComponentFactory, record *store.WorkloadRecord) error {

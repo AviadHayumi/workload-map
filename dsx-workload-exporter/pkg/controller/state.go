@@ -84,9 +84,10 @@ type objectCache struct {
 }
 
 type rootState struct {
-	ref             discovery.ObjectRef
-	pods            map[types.UID]objectJobKey
-	selectedObjects map[objectJobKey]struct{}
+	ref                 discovery.ObjectRef
+	pods                map[types.UID]objectJobKey
+	selectedObjects     map[objectJobKey]struct{}
+	referenceGeneration uint64
 }
 
 func newControllerState(objects *objectCache) *controllerState {
@@ -141,11 +142,12 @@ func (r *controllerState) failPod(key objectJobKey, path []discovery.ObjectRef, 
 	return r.publishPodFailure(key, sources, cause, root...)
 }
 
-func (r *controllerState) failPodEvaluation(key objectJobKey, path []discovery.ObjectRef, cause error, root discovery.ObjectRef, selection selectedDefinition) error {
-	sources := r.sourcesFor(path)
+func (r *controllerState) failPodEvaluation(key objectJobKey, path []discovery.ObjectRef, cause error, observed *referenceReader) error {
+	root := observed.root
+	sources := appendSources(r.sourcesFor(path), observed.sources)
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
-	if !r.isDefinitionCurrent(root, selection) || !r.isPathCurrent(path) {
+	if !observed.isCurrent() || !r.isDefinitionCurrent(root, observed.selection) || !r.isPathCurrent(path) {
 		return discovery.ErrStale
 	}
 	if _, _, err := r.lookupObject(root, false); err != nil || !r.hasRootOwnership(root) {
@@ -224,10 +226,11 @@ func (r *controllerState) watchFailed(ref discovery.ObjectRef) bool {
 	return failed
 }
 
-func (r *controllerState) publishPod(path []discovery.ObjectRef, rootRef discovery.ObjectRef, selection selectedDefinition, next store.PodResult, labelFailed bool, association ...podAssociationSnapshot) error {
+func (r *controllerState) publishPod(path []discovery.ObjectRef, observed *referenceReader, next store.PodResult, labelFailed bool, association ...podAssociationSnapshot) error {
+	rootRef, selection := observed.root, observed.selection
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
-	if !r.isPathCurrent(path) || !r.hasRootOwnership(rootRef) || !r.isDefinitionCurrent(rootRef, selection) {
+	if !observed.isCurrent() || !r.isPathCurrent(path) || !r.hasRootOwnership(rootRef) || !r.isDefinitionCurrent(rootRef, selection) {
 		return discovery.ErrStale
 	}
 	if current, _, err := r.lookupObject(rootRef, false); err != nil || current.GetResourceVersion() != rootRef.ResourceVersion {
@@ -390,11 +393,13 @@ func (r *controllerState) isRoot(ref discovery.ObjectRef) bool {
 	return r.hasRootOwnership(ref)
 }
 
-func (r *controllerState) publishWorkload(uid types.UID, ref discovery.ObjectRef, selection selectedDefinition, next store.WorkloadResult) error {
+func (r *controllerState) publishWorkload(observed *referenceReader, next store.WorkloadResult) error {
+	ref, selection := observed.root, observed.selection
+	uid := ref.UID
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 	root := r.roots[uid]
-	if root == nil || !r.isNamespaceInScope(ref.Namespace) {
+	if root == nil || !observed.isCurrent() || !r.isNamespaceInScope(ref.Namespace) {
 		return discovery.ErrStale
 	}
 	if !r.isPathCurrent([]discovery.ObjectRef{ref}) || !r.hasRootOwnership(ref) {
@@ -445,6 +450,7 @@ func (r *controllerState) isNamespaceInScope(namespace string) bool {
 }
 
 func (r *controllerState) removeRoot(uid types.UID) {
+	r.releaseReferenceWatches(uid)
 	if root := r.roots[uid]; root != nil {
 		r.enqueueMembers(root)
 		for podUID := range root.pods {
@@ -463,6 +469,9 @@ func (r *controllerState) enqueueScopeRefresh(namespace string) {
 }
 
 func (r *controllerState) enqueueObject(object *unstructured.Unstructured) {
+	if w := r.watches[r.objects[keyOf(refOf(object))].source]; w != nil && w.referenceOnly {
+		return
+	}
 	r.enqueuePod(object)
 	if r.shouldDiscoverObject(object.GroupVersionKind()) {
 		r.workloadQueue.Add(workloadJobKey{SelectedObject: objectJobFor(refOf(object))})

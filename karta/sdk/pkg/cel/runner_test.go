@@ -8,9 +8,24 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
 )
+
+type cancelOnItem struct {
+	cancel context.CancelFunc
+	read   int
+}
+
+func (a *cancelOnItem) NativeToValue(value any) ref.Val {
+	a.read++
+	a.cancel()
+	return types.DefaultTypeAdapter.NativeToValue(value)
+}
 
 func TestScopes(t *testing.T) {
 	for _, tc := range []struct {
@@ -159,5 +174,63 @@ func TestLimitsAndSafeErrors(t *testing.T) {
 	}
 	if _, err := EvaluateBool(context.Background(), ObjectScope, "1", bindings); err == nil {
 		t.Fatal("numeric predicate accepted")
+	}
+}
+
+func TestCancellationStopsReadingCELResult(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	adapter := &cancelOnItem{cancel: cancel}
+	list := types.NewDynamicList(adapter, []string{"first", "second", "third"})
+	bindings := map[string]any{"references": map[string]any{"pods": list}}
+	if _, err := Evaluate(ctx, ReadScope, "references.pods", bindings); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation while reading the result, got %v", err)
+	}
+	if adapter.read != 1 {
+		t.Fatalf("read %d items after the first item triggered cancellation", adapter.read)
+	}
+}
+
+func TestDefinitionReusesValidationAndEvaluationPrograms(t *testing.T) {
+	plan := new(Programs)
+	opts := []Option{WithPrograms(plan)}
+	const read = "variables.replicas > 0"
+	const variable = "object.spec.replicas"
+	if err := ValidateBool(ReadScope, read, opts...); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Analyze(read, opts...); err != nil {
+		t.Fatal(err)
+	}
+	checked := plan.sources[read].checked[ReadScope]
+	executable := checked.executables[MaxCost]
+	if executable == nil {
+		t.Fatal("predicate validation did not compile the executable")
+	}
+	run, err := NewRunnerWithVariables(map[string]any{"spec": map[string]any{"replicas": int64(2)}}, []NamedExpression{{Name: "replicas", Expression: variable}}, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var group sync.WaitGroup
+	for range 12 {
+		group.Go(func() {
+			if got, err := run.EvaluateWithVariables(t.Context(), read, nil); err != nil || !reflect.DeepEqual(got, []any{true}) {
+				t.Errorf("read=%v err=%v", got, err)
+			}
+		})
+	}
+	group.Wait()
+	if plan.sources[read].checked[ReadScope] != checked || checked.executables[MaxCost] != executable || len(plan.sources) != 2 {
+		t.Fatalf("validation, analysis or runner lost the shared plan (sources=%d)", len(plan.sources))
+	}
+	// Returned dependency lists must not let a caller change how the next
+	// observation resolves variables.
+	deps, err := Analyze(read, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.Variables[0] = "other"
+	if got, err := run.EvaluateWithVariables(t.Context(), read, nil); err != nil || !reflect.DeepEqual(got, []any{true}) {
+		t.Fatalf("edited dependencies leaked: %v, %v", got, err)
 	}
 }

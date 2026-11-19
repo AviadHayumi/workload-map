@@ -62,7 +62,16 @@ func WaitReady(ctx context.Context, c client.Client, webhookName string, probe *
 			if hook.ClientConfig.Service == nil || hook.ClientConfig.Service.Path == nil || *hook.ClientConfig.Service.Path != "/validate-run-ai-v1alpha2-karta" {
 				continue
 			}
+			// A successful dry run cannot prove readiness if the webhook can
+			// skip catalog objects. Namespace selectors do not filter cluster Kartas.
+			selector := hook.ObjectSelector
+			if len(hook.MatchConditions) > 0 || (selector != nil && (len(selector.MatchLabels) > 0 || len(selector.MatchExpressions) > 0)) {
+				continue
+			}
 			for _, rule := range hook.Rules {
+				if rule.Scope != nil && *rule.Scope != admissionv1.ClusterScope && *rule.Scope != admissionv1.AllScopes {
+					continue
+				}
 				if !slices.Contains(rule.APIGroups, "run.ai") || !slices.Contains(rule.APIVersions, "v1alpha2") || !slices.Contains(rule.Resources, "kartas") {
 					continue
 				}

@@ -112,24 +112,51 @@ func TestAdmissionReadiness(t *testing.T) {
 	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "kartas.run.ai"}, Spec: extv1.CustomResourceDefinitionSpec{Versions: []extv1.CustomResourceDefinitionVersion{{Name: "v1alpha2", Served: true}}}, Status: extv1.CustomResourceDefinitionStatus{Conditions: []extv1.CustomResourceDefinitionCondition{{Type: extv1.Established, Status: extv1.ConditionTrue}}}}
 	webhook := &admissionv1.ValidatingWebhookConfiguration{ObjectMeta: metav1.ObjectMeta{Name: "validation"}, Webhooks: []admissionv1.ValidatingWebhook{{Name: "vkarta.run.ai", FailurePolicy: ptr.To(admissionv1.Fail), ClientConfig: admissionv1.WebhookClientConfig{CABundle: []byte("test"), Service: &admissionv1.ServiceReference{Path: ptr.To("/validate-run-ai-v1alpha2-karta")}}, Rules: []admissionv1.RuleWithOperations{{Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update}, Rule: admissionv1.Rule{APIGroups: []string{"run.ai"}, APIVersions: []string{"v1alpha2"}, Resources: []string{"kartas"}}}}}}}
 	for _, tc := range []struct {
-		name       string
-		version    string
-		operations [][]admissionv1.OperationType // one list per rule
-		ready      bool
+		name   string
+		change func(*admissionv1.ValidatingWebhook)
+		ready  bool
 	}{
-		{"ready", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.Create, admissionv1.Update}}, true},
-		{"all operations", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.OperationAll}}, true},
-		{"operations in separate rules", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.Create}, {admissionv1.Update}}, false},
-		{"wrong API version", "v1alpha1", [][]admissionv1.OperationType{{admissionv1.Create, admissionv1.Update}}, false},
+		{"ready", nil, true},
+		{"all operations", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules[0].Operations = []admissionv1.OperationType{admissionv1.OperationAll}
+		}, true},
+		{"operations in separate rules", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules = append(h.Rules, h.Rules[0])
+			h.Rules[0].Operations = []admissionv1.OperationType{admissionv1.Create}
+			h.Rules[1].Operations = []admissionv1.OperationType{admissionv1.Update}
+		}, false},
+		{"wrong API version", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules[0].APIVersions = []string{"v1alpha1"}
+		}, false},
+		{"all scopes", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules[0].Scope = ptr.To(admissionv1.AllScopes)
+		}, true},
+		{"cluster scope", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules[0].Scope = ptr.To(admissionv1.ClusterScope)
+		}, true},
+		{"namespaced scope skips Kartas", func(h *admissionv1.ValidatingWebhook) {
+			h.Rules[0].Scope = ptr.To(admissionv1.NamespacedScope)
+		}, false},
+		{"empty object selector", func(h *admissionv1.ValidatingWebhook) {
+			h.ObjectSelector = &metav1.LabelSelector{}
+		}, true},
+		{"object selector matches a subset", func(h *admissionv1.ValidatingWebhook) {
+			h.ObjectSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"validate": "true"}}
+		}, false},
+		{"object expression matches a subset", func(h *admissionv1.ValidatingWebhook) {
+			h.ObjectSelector = &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "validate", Operator: metav1.LabelSelectorOpExists}}}
+		}, false},
+		{"match condition skips dry run", func(h *admissionv1.ValidatingWebhook) {
+			h.MatchConditions = []admissionv1.MatchCondition{{Name: "skip-dry-run", Expression: "!request.dryRun"}}
+		}, false},
+		{"namespace selector does not apply to Kartas", func(h *admissionv1.ValidatingWebhook) {
+			h.NamespaceSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"validate": "true"}}
+		}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			hook := webhook.DeepCopy()
-			rule := hook.Webhooks[0].Rules[0]
-			rule.APIVersions = []string{tc.version}
-			hook.Webhooks[0].Rules = nil
-			for _, ops := range tc.operations {
-				rule.Operations = ops
-				hook.Webhooks[0].Rules = append(hook.Webhooks[0].Rules, rule)
+			if tc.change != nil {
+				tc.change(&hook.Webhooks[0])
 			}
 			base := testClient(t, crd, hook)
 			dryRuns := 0

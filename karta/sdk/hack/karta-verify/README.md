@@ -22,13 +22,19 @@ with the validator's message otherwise.
 
 ## Prove it against a real CR
 
-Validation says nothing about whether a jq path resolves against a real object,
+Validation says nothing about whether a CEL expression resolves against a real object,
 so a definition can pass it and still extract nothing. Adding `--workload` runs
 the definition against a real custom resource and reports what came out.
 
 ```bash
 go run ./hack/karta-verify --karta ./mydef.yaml --workload ./real-cr.yaml
 ```
+
+For a definition that reads another object, add `--references runtime.yaml`.
+The file maps each reference name to an `object` or a `list`. For Trainer,
+`trainingRuntime.object` holds the ClusterTrainingRuntime named by the TrainJob.
+A supplied empty list is `list: []`. Omit a missing lookup from the map.
+Use `--no-references` to exercise a definition's fallback.
 
 ## Predict first
 
@@ -41,9 +47,8 @@ go run ./hack/karta-verify --karta ./mydef.yaml --workload ./real-cr.yaml --pred
 ```
 
 Predictions are partial. Only the fields present are compared, so a prediction
-may cover one component or one field. Component keys cover child components
-only. The root reports its status and nothing else, so check its scale and spec
-paths with jq against the manifest.
+may cover one component or one field. The root has its own row when it defines scale or Pod fields. For Trainer,
+check the `trainjob` row for the expected `replicas` and `images`.
 
 ```yaml
 status: [Running]
@@ -64,11 +69,13 @@ components:
 |---|---|
 | `--karta` | Path to the Karta definition. Required. |
 | `--workload` | Path to a real workload manifest. Without it, validation only. |
+| `--references` | File of supplied lookup or list results. Requires `--workload`. |
+| `--no-references` | Disable references, including supplied inputs. Requires `--workload`. |
 | `--predict` | Predictions file to check the extraction against. Requires `--workload`. |
 | `--dump` | Write the observed extraction, in predictions format. Requires `--workload`. |
 | `--strict` | Exit non-zero when the run reports warnings. Requires `--workload`. |
 
-The three extraction flags cannot do anything without a workload, so passing one
+The extraction flags cannot do anything without a workload, so passing one
 without it is an error rather than a pass. A dropped `--workload` must not look
 like success.
 
@@ -86,7 +93,7 @@ validator cannot see:
 - A component declares a `specDefinition` but extracted no pod spec, so the spec
   path missed.
 - A component extracted a pod spec with no containers.
-- A component produced no instances, so `instanceIdPath` matched nothing.
+- A component produced no instances, so `instanceIds.read.expression` matched nothing.
 
 ## Example
 

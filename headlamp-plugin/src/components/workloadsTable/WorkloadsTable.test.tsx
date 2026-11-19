@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { dataTableProps, clustersRef } = vi.hoisted(() => ({
@@ -15,7 +15,14 @@ vi.mock('@kinvolk/headlamp-plugin/lib', () => ({
 vi.mock('../dataTable/DataTable', () => ({
   DataTable: (props: any) => {
     dataTableProps.push(props);
-    return null;
+    const cell = props.columns.find((c: any) => c.id === 'workload').Cell;
+    return (
+      <>
+        {props.data?.map((row: any) => (
+          <span key={row.id}>{cell({ row: { original: row } })}</span>
+        ))}
+      </>
+    );
   },
 }));
 
@@ -44,6 +51,39 @@ beforeEach(() => {
 });
 
 describe('WorkloadsTable', () => {
+  it('reads effective root values only when the workload opens and cancels on close', async () => {
+    const readRoot = vi
+      .fn()
+      .mockResolvedValue({
+        '': { fragmentedPodSpec: { image: 'trainer:v2' }, scale: { replicas: 2 } },
+      });
+    render(
+      <WorkloadsTable
+        rows={[
+          {
+            id: 'job',
+            name: 'training',
+            namespace: 'demo',
+            cluster: 'cluster-a',
+            kind: 'TrainJob',
+            apiGroup: 'trainer.kubeflow.org',
+            creationTimestamp: '',
+            phases: ['Running'],
+            componentsCount: 1,
+            readRoot,
+          },
+        ]}
+      />
+    );
+    expect(readRoot).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'training' }));
+    expect(await screen.findByText('trainer:v2')).toBeTruthy();
+    expect(screen.getByText('Replicas')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(readRoot.mock.calls[0][0].aborted).toBe(true);
+  });
+
   // The age accessor is negated, so ascending is newest first. Sorting it
   // descending would open the table on the oldest workload.
   it('opens sorted newest first', () => {

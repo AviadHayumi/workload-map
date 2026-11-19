@@ -39,7 +39,7 @@ var _ = Describe("Deployment", Serial, func() {
 		waitForWorkloadPhases("empty", "Completed")
 
 		By("break phase evaluation without discarding the last valid phase")
-		command("", "patch", "karta", "exporter-e2e-deployment", "--type=merge", "-p", `{"spec":{"structureDefinition":{"rootComponent":{"statusDefinition":{"phaseDefinition":{"path":"error(\"e2e evaluation failure\")"}}}}}}`)
+		command("", "patch", "karta", "exporter-e2e-deployment", "--type=merge", "-p", `{"spec":{"structureDefinition":{"rootComponent":{"statusDefinition":{"phaseDefinition":{"read":{"expression":"object.metadata.labels.missing"}}}}}}}`)
 
 		By("verify evaluation failure retains Completed with invalid observation")
 		waitForMetrics("workload evaluation failure retains Completed", "a", func(fs map[string]*dto.MetricFamily) bool {
@@ -48,7 +48,7 @@ var _ = Describe("Deployment", Serial, func() {
 		})
 
 		By("repair phase evaluation and wait for Completed")
-		command("", "patch", "karta", "exporter-e2e-deployment", "--type=merge", "-p", `{"spec":{"structureDefinition":{"rootComponent":{"statusDefinition":{"phaseDefinition":{"path":".metadata.labels.phase"}}}}}}`)
+		command("", "patch", "karta", "exporter-e2e-deployment", "--type=merge", "-p", `{"spec":{"structureDefinition":{"rootComponent":{"statusDefinition":{"phaseDefinition":{"read":{"expression":"object.metadata.labels.phase"}}}}}}}`)
 		waitForWorkloadPhases("empty", "Completed")
 
 		By("verify repair clears evaluation health")

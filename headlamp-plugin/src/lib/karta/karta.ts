@@ -9,6 +9,7 @@ const WASM_EXPORTS_TIMEOUT_MS = 3000;
 export interface Envelope {
   data: string | null;
   error: string | null;
+  needsReferences?: boolean;
 }
 
 /**
@@ -17,7 +18,10 @@ export interface Envelope {
  */
 export interface KartaWasm {
   /** Builds the workload tree. Returns a WorkloadTree, including the root status. */
-  buildTree(definitionJSON: string, workloadJSON: string): Envelope;
+  buildTree(definitionJSON: string, workloadJSON: string, optionsJSON?: string): Envelope;
+  rootInstances(definitionJSON: string, workloadJSON: string, optionsJSON?: string): Envelope;
+  evaluatePhases(definitionJSON: string, workloadJSON: string, optionsJSON?: string): Envelope;
+  referenceQueries(definitionJSON: string, workloadJSON: string): Envelope;
   /** Returns the definitions built into the module, as Karta[]. */
   listCatalog(): Envelope;
 }

@@ -56,7 +56,7 @@ Karta is a Kubernetes CRD and tooling that lets controllers and platforms inspec
 
 This software operates primarily at the Kubernetes controller level, with additional CLI and library components. Its primary security responsibilities are:
 
-- Safe evaluation of user-authored definitions: Karta resources embed jq queries and path expressions that are evaluated against arbitrary workload objects.
+- Safe evaluation of user-authored definitions: Karta resources embed CEL read, match and write-path expressions that are evaluated against arbitrary workload objects.
 - Correct admission control: the operator's validating and mutating webhooks accept or reject Karta resources and must not be bypassable or a source of denial of service for the API server.
 - Least-privilege access to the cluster: the operator reads workload custom resources and writes only Karta resources, status, events, and its own webhook configuration, and, in auto certificate mode, its webhook certificate Secret.
 - Integrity of the published artifacts: the module, container images, and Helm chart that users install.
@@ -69,7 +69,7 @@ Repository exposure classification: Public. The project is Apache-2.0 licensed w
 
 2. API server to admission webhooks. The API server calls the operator's validating and mutating webhooks over TLS. Certificates are managed through one of the documented certificate modes (see `docs/Webhook Certificates.md`). The webhook is a trust boundary for every Karta create and update.
 
-3. Author to Karta definition. Anyone allowed to create or update a Karta resource controls the jq paths and queries the operator and any consuming controller will evaluate. Definitions are configuration, but the data they are evaluated against comes from other tenants' workloads.
+3. Author to Karta definition. Anyone allowed to create or update a Karta resource controls the CEL expressions and write destinations the operator and any consuming controller will evaluate. Definitions are configuration, but the data they are evaluated against comes from other tenants' workloads.
 
 4. Consumer to library. Controllers and platforms that import the Go library, the CLI, or the WebAssembly build pass untrusted workload objects and definitions into Karta's evaluation and tree-building code.
 
@@ -79,7 +79,7 @@ Repository exposure classification: Public. The project is Apache-2.0 licensed w
 
 The following are the primary security concerns for this project, ordered roughly by combined severity and likelihood.
 
-1. Resource exhaustion through expressions. jq queries and path expressions in a Karta definition run inside the operator, the library, the CLI, and the WebAssembly build. Expressions that loop, recurse, or build very large values can consume CPU and memory in a long-running controller or in a consumer that evaluates definitions on a hot path. Limits on evaluation cost and output size are the control.
+1. Resource exhaustion through expressions. CEL runs in the SDK and its consumers, including the CLI and WebAssembly build. Scanning large workload fields or reference lists can consume CPU and memory. Evaluation has a cost limit and a timeout. Consumers control the objects they supply and the Kubernetes permissions used to read them.
 
 2. Webhook bypass or weakening. A validating webhook that accepts malformed or unsafe definitions, a webhook configuration that fails open, or a webhook certificate that is not verified lets invalid definitions reach consumers. Weakening webhook TLS or RBAC defaults for convenience widens this exposure.
 

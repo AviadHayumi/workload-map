@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -140,8 +141,14 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 	// annotations are always mutable, so this persists on any workload.
 	annotationsChanged := applyAnnotations(obj, summary)
 
+	// The example watches workloads and definitions. A referenced resource can
+	// change without either of those watches firing.
+	var next reconcile.Result
+	if len(karta.Spec.StructureDefinition.References) > 0 {
+		next.RequeueAfter = time.Minute
+	}
 	if !annotationsChanged && !labelChanged {
-		return reconcile.Result{}, nil // idempotent: nothing to write
+		return next, nil // idempotent: nothing to write
 	}
 
 	if err := r.Update(ctx, obj); err != nil {
@@ -167,7 +174,7 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 				summary[annotationCPU], summary[annotationMemory], summary[annotationGPU])
 		}
 	}
-	return reconcile.Result{}, nil
+	return next, nil
 }
 
 // allComponents returns every component of the workload (children plus root),

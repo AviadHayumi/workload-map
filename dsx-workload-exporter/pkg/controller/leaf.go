@@ -105,8 +105,9 @@ func (r *Runtime) reconcilePod(ctx context.Context, key objectJobKey) error {
 	if previous := r.state.deps.Publications.Pod(key.UID); previous != nil {
 		associationChanged = !r.state.associationTarget.Empty() && previous.Record.Workload.GVK == r.state.associationTarget && previous.Record.Workload.UID != metricWorkload.GetUID()
 	}
+	observed := &referenceReader{state: r.state, root: rootRef, selection: selection}
 	if selectionErr != nil && !association.eligible && !associationChanged {
-		return r.state.failPodEvaluation(key, workload.Path, selectionErr, rootRef, selection)
+		return r.state.failPodEvaluation(key, workload.Path, selectionErr, observed)
 	}
 	record := store.PodRecord{
 		UID:             key.UID,
@@ -120,26 +121,28 @@ func (r *Runtime) reconcilePod(ctx context.Context, key objectJobKey) error {
 	hasLabelErrors := false
 	err = selectionErr
 	if err == nil {
-		hasLabelErrors, err = r.evaluatePodRecord(ctx, selection, podObject, rootObject, metricWorkload, &record)
+		hasLabelErrors, err = r.evaluatePodRecord(ctx, observed, podObject, rootObject, metricWorkload, &record)
 	}
 	if err != nil {
+		err = fmt.Errorf("%w: %w", discovery.ErrEvaluation, err)
 		if !association.eligible && !associationChanged {
-			return r.state.failPodEvaluation(key, workload.Path, fmt.Errorf("%w: %w", discovery.ErrEvaluation, err), rootRef, selection)
+			return r.state.failPodEvaluation(key, workload.Path, err, observed)
 		}
 		hasLabelErrors = true
 	}
-	sources := r.state.sourcesFor(workload.Path)
+	sources := appendSources(r.state.sourcesFor(workload.Path), observed.sources)
 	if !slices.Contains(sources, rootSource) {
 		sources = append(sources, rootSource)
 	}
 	if associationSource.Resource.Resource != "" && !slices.Contains(sources, associationSource) {
 		sources = append(sources, associationSource)
 	}
-	podResult := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources, Error: failureReason(errors.Join(associationErr, selectionErr))}
-	return r.state.publishPod(workload.Path, rootRef, selection, podResult, hasLabelErrors, association)
+	podResult := store.PodResult{Record: record, Input: storedRef(ref), HasValue: true, Sources: sources, Error: failureReason(errors.Join(associationErr, err))}
+	return r.state.publishPod(workload.Path, observed, podResult, hasLabelErrors, association)
 }
 
-func (r *Runtime) evaluatePodRecord(ctx context.Context, selection selectedDefinition, podObject, rootObject, metricWorkload *unstructured.Unstructured, record *store.PodRecord) (hasLabelErrors bool, err error) {
+func (r *Runtime) evaluatePodRecord(ctx context.Context, observed *referenceReader, podObject, rootObject, metricWorkload *unstructured.Unstructured, record *store.PodRecord) (hasLabelErrors bool, err error) {
+	selection := observed.selection
 	if selection.Definition != nil {
 		pod := &corev1.Pod{}
 		if err := kruntime.DefaultUnstructuredConverter.FromUnstructured(podObject.Object, pod); err != nil {
@@ -147,7 +150,7 @@ func (r *Runtime) evaluatePodRecord(ctx context.Context, selection selectedDefin
 		}
 		record.Karta = selection.Origin.Name
 		record.KartaSource = string(selection.Origin.Source)
-		factory := resource.NewComponentFactoryFromObject(selection.Definition, rootObject)
+		factory := resource.NewComponentFactoryFromObject(selection.Definition, rootObject, resource.WithReferenceReader(observed))
 		record.Component, record.Instance, record.Group, err = evaluatePodComponent(ctx, factory, selection.summary, pod)
 		if err != nil {
 			return false, err
@@ -163,7 +166,7 @@ func (r *Runtime) evaluatePodRecord(ctx context.Context, selection selectedDefin
 }
 
 func evaluatePodComponent(ctx context.Context, factory *resource.ComponentFactory, summary *instructions.StructureSummary, pod *corev1.Pod) (string, string, string, error) {
-	query := resource.NewPodQuerier(pod)
+	query := factory.NewPodQuerier(pod)
 	componentName, err := instructions.InferPodComponent(ctx, query, summary)
 	if err != nil {
 		return "", "", "", err

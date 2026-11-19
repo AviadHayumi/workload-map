@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,9 +73,10 @@ type Result struct {
 }
 
 type options struct {
-	reader   references.ResourceReader
-	snapshot *Snapshot
-	enabled  bool
+	reader     references.ResourceReader
+	snapshot   *Snapshot
+	enabled    bool
+	evaluation []celpkg.Option
 }
 
 // Option configures the source of this observation.
@@ -85,6 +87,11 @@ func WithReader(reader references.ResourceReader) Option {
 }
 func WithSnapshot(snapshot Snapshot) Option     { return func(o *options) { o.snapshot = &snapshot } }
 func WithReferencesEnabled(enabled bool) Option { return func(o *options) { o.enabled = enabled } }
+
+// WithEvaluationLimits sets the CEL budget for reference recipes, targets and Pod selectors.
+func WithEvaluationLimits(cost uint64, timeout time.Duration) Option {
+	return func(o *options) { o.evaluation = []celpkg.Option{celpkg.WithLimits(cost, timeout)} }
+}
 
 type identity struct {
 	gvk             schema.GroupVersionKind
@@ -123,13 +130,22 @@ func Resolve(ctx context.Context, input Input, opts ...Option) (*Result, error) 
 	obs := observation{reader: o.reader, objects: map[identity]*unstructured.Unstructured{}, known: map[types.UID]*unstructured.Unstructured{}}
 	namespace := ""
 	roots := map[types.UID]WorkloadInput{}
+	evaluation := map[types.UID][]celpkg.Option{}
 	for _, w := range input.Workloads {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if w.Object == nil || w.Definition == nil || w.Object.GetUID() == "" {
 			return nil, errors.New("membership requires workload objects, definitions and UIDs")
 		}
 		if err := api.NewKartaValidator(w.Definition).Validate(); err != nil {
 			return nil, fmt.Errorf("invalid membership definition: %w", err)
 		}
+		programs, err := api.ProgramsFor(w.Definition)
+		if err != nil {
+			return nil, err
+		}
+		evaluation[w.Object.GetUID()] = append(o.evaluation[:len(o.evaluation):len(o.evaluation)], celpkg.WithPrograms(programs))
 		if namespace == "" {
 			namespace = w.Object.GetNamespace()
 		}
@@ -158,7 +174,7 @@ func Resolve(ctx context.Context, input Input, opts ...Option) (*Result, error) 
 		if !o.enabled {
 			break
 		}
-		cc, err := resolveClaims(ctx, w, o, &obs)
+		cc, err := resolveClaims(ctx, w, o, &obs, evaluation[w.Object.GetUID()]...)
 		if err != nil {
 			result.Diagnostics = append(result.Diagnostics, "reference membership unavailable: "+err.Error())
 			result.Complete = false
@@ -190,7 +206,7 @@ func Resolve(ctx context.Context, input Input, opts ...Option) (*Result, error) 
 				if c.PodSelector != nil && len(c.PodSelector.FromReferences) > 0 {
 					continue
 				}
-				matches, err := matchesPod(ctx, c, p, sole)
+				matches, err := matchesPod(ctx, c, p, sole, evaluation[w.Object.GetUID()]...)
 				if err != nil {
 					result.Complete = false
 					result.Diagnostics = append(result.Diagnostics, "native component selector failed")
@@ -283,7 +299,7 @@ func Resolve(ctx context.Context, input Input, opts ...Option) (*Result, error) 
 				descendants[uid] = map[types.UID]bool{}
 			}
 			descendants[uid][p.UID] = true
-			matched, err := matchesPod(ctx, component, p, false)
+			matched, err := matchesPod(ctx, component, p, false, evaluation[c.key.Workload]...)
 			if err != nil {
 				result.Complete = false
 				result.Diagnostics = append(result.Diagnostics, "reference component selector failed")
@@ -421,14 +437,14 @@ func podOwnerCount(components []api.ComponentDefinition) int {
 	}
 	return n
 }
-func matchesPod(ctx context.Context, c api.ComponentDefinition, p *corev1.Pod, sole bool) (bool, error) {
+func matchesPod(ctx context.Context, c api.ComponentDefinition, p *corev1.Pod, sole bool, opts ...celpkg.Option) (bool, error) {
 	if c.PodSelector == nil || c.PodSelector.ComponentTypeSelector == nil {
 		return sole && c.SpecDefinition != nil, nil
 	}
-	return resource.NewPodQuerier(p).MatchesComponentType(ctx, c.PodSelector.ComponentTypeSelector)
+	return resource.NewPodQuerier(p, opts...).MatchesComponentType(ctx, c.PodSelector.ComponentTypeSelector)
 }
 
-func resolveClaims(ctx context.Context, w WorkloadInput, o options, obs *observation) ([]claim, error) {
+func resolveClaims(ctx context.Context, w WorkloadInput, o options, obs *observation, opts ...celpkg.Option) ([]claim, error) {
 	needed := map[string]bool{}
 	for _, c := range componentsOf(w.Definition) {
 		if c.PodSelector != nil {
@@ -444,7 +460,7 @@ func resolveClaims(ctx context.Context, w WorkloadInput, o options, obs *observa
 	plans := map[string]references.Query{}
 	for _, r := range w.Definition.Spec.StructureDefinition.References {
 		if needed[r.Name] {
-			q, err := references.Plan(ctx, r, w.Object.Object)
+			q, err := references.Plan(ctx, r, w.Object.Object, opts...)
 			if err != nil {
 				return nil, err
 			}
@@ -478,7 +494,7 @@ func resolveClaims(ctx context.Context, w WorkloadInput, o options, obs *observa
 			return nil, nil
 		}
 		var err error
-		values, err = references.ResolveDefinitions(ctx, o.reader, declarations, w.Object.Object)
+		values, err = references.ResolveDefinitions(ctx, o.reader, declarations, w.Object.Object, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -521,7 +537,7 @@ func resolveClaims(ctx context.Context, w WorkloadInput, o options, obs *observa
 					return nil, errors.New("membership target does not match selector")
 				}
 				if ref.MatchExpression != "" {
-					match, err := celpkg.EvaluateBool(ctx, celpkg.TargetScope, ref.MatchExpression, map[string]any{"object": w.Object.Object, "target": target.Object})
+					match, err := celpkg.EvaluateBool(ctx, celpkg.TargetScope, ref.MatchExpression, map[string]any{"object": w.Object.Object, "target": target.Object}, opts...)
 					if err != nil {
 						return nil, err
 					}
