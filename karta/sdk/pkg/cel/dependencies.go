@@ -36,8 +36,8 @@ func Analyze(source string) (Dependencies, error) {
 	}
 	var result Dependencies
 	variables, refs := map[string]bool{}, map[string]bool{}
-	var walk func(celast.Expr, map[string]bool, bool)
-	walk = func(e celast.Expr, bound map[string]bool, selected bool) {
+	var walk func(celast.Expr, map[string]bool)
+	walk = func(e celast.Expr, bound map[string]bool) {
 		if e == nil {
 			return
 		}
@@ -58,7 +58,7 @@ func Analyze(source string) (Dependencies, error) {
 				if e.AsIdent() == "references" {
 					result.UsesReferences = true
 				}
-				if e.AsIdent() == "variables" && !selected {
+				if e.AsIdent() == "variables" {
 					result.AllVariables = true
 				}
 			}
@@ -67,11 +67,10 @@ func Analyze(source string) (Dependencies, error) {
 			for _, name := range []string{"variables", "references"} {
 				if root(s.Operand(), name) {
 					add(name, s.FieldName())
-					walk(s.Operand(), bound, true)
 					return
 				}
 			}
-			walk(s.Operand(), bound, false)
+			walk(s.Operand(), bound)
 		case celast.CallKind:
 			c := e.AsCall()
 			args := c.Args()
@@ -80,47 +79,46 @@ func Analyze(source string) (Dependencies, error) {
 					if root(args[0], name) && args[1].Kind() == celast.LiteralKind {
 						if key, ok := args[1].AsLiteral().(types.String); ok {
 							add(name, string(key))
-							walk(args[0], bound, true)
 							return
 						}
 					}
 				}
 			}
 			if c.IsMemberFunction() {
-				walk(c.Target(), bound, false)
+				walk(c.Target(), bound)
 			}
 			for _, a := range args {
-				walk(a, bound, false)
+				walk(a, bound)
 			}
 		case celast.ListKind:
 			for _, a := range e.AsList().Elements() {
-				walk(a, bound, false)
+				walk(a, bound)
 			}
 		case celast.MapKind:
 			for _, a := range e.AsMap().Entries() {
-				walk(a.AsMapEntry().Key(), bound, false)
-				walk(a.AsMapEntry().Value(), bound, false)
+				walk(a.AsMapEntry().Key(), bound)
+				walk(a.AsMapEntry().Value(), bound)
 			}
 		case celast.StructKind:
 			for _, a := range e.AsStruct().Fields() {
-				walk(a.AsStructField().Value(), bound, false)
+				walk(a.AsStructField().Value(), bound)
 			}
 		case celast.ComprehensionKind:
 			c := e.AsComprehension()
-			walk(c.IterRange(), bound, false)
-			walk(c.AccuInit(), bound, false)
+			walk(c.IterRange(), bound)
+			walk(c.AccuInit(), bound)
 			nested := maps.Clone(bound)
 			nested[c.AccuVar()] = true
 			nested[c.IterVar()] = true
 			nested[c.IterVar2()] = true
-			walk(c.LoopCondition(), nested, false)
-			walk(c.LoopStep(), nested, false)
+			walk(c.LoopCondition(), nested)
+			walk(c.LoopStep(), nested)
 			resultScope := maps.Clone(bound)
 			resultScope[c.AccuVar()] = true
-			walk(c.Result(), resultScope, false)
+			walk(c.Result(), resultScope)
 		}
 	}
-	walk(parsed.NativeRep().Expr(), map[string]bool{}, false)
+	walk(parsed.NativeRep().Expr(), map[string]bool{})
 	result.Variables = slices.Sorted(maps.Keys(variables))
 	result.References = slices.Sorted(maps.Keys(refs))
 	return result, nil
