@@ -99,6 +99,13 @@ inputs. The verifier read the image `busybox:1.36`. A user without permission
 to get the runtime received a forbidden error. After granting that permission
 and changing only the runtime, the next live read returned three replicas.
 
+The [optional Pod health example](../../examples/optional-pod-health.yaml) was
+also exercised on kind. Two Ready Pods gave `Running`. An extra matching Pod
+made the count differ from the desired two, so the rule returned `Undefined`.
+With `--no-references`, the same Deployment returned `Running` from its own
+status. The example assumes the full Deployment selector is the single
+label `app`.
+
 The Milvus, Strimzi, Flink and monitoring membership examples use synthetic
 ownership inventories. They exercise the SDK rules. Live operator lifecycle
 coverage is limited to the recordings present in the repository.

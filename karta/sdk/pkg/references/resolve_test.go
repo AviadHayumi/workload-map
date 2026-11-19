@@ -25,16 +25,23 @@ type fakeReader struct {
 	err             error
 	namespace, name string
 	query           ListQuery
+	cancel          context.CancelFunc
 }
 
 func (r *fakeReader) Get(_ context.Context, _ schema.GroupVersionKind, namespace, name string) (*unstructured.Unstructured, error) {
 	r.gets++
 	r.namespace, r.name = namespace, name
+	if r.cancel != nil {
+		r.cancel()
+	}
 	return r.object, r.err
 }
 func (r *fakeReader) List(_ context.Context, _ schema.GroupVersionKind, q ListQuery) ([]unstructured.Unstructured, error) {
 	r.lists++
 	r.query = q
+	if r.cancel != nil {
+		r.cancel()
+	}
 	return r.objects, r.err
 }
 func workload() any {
@@ -85,6 +92,24 @@ func TestLiveLookupAndMissing(t *testing.T) {
 	_, err = ResolveDefinitions(ctx, r, []api.Reference{lookup()}, workload())
 	if !apierrors.IsForbidden(err) || err.Error() != `reference "runtime" lookup failed: forbidden` {
 		t.Fatalf("expected a redacted permission error: %v", err)
+	}
+}
+
+func TestCancellationDuringLastReferenceRead(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ref  api.Reference
+		err  error
+	}{{"lookup", lookup(), nil}, {"missing lookup", lookup(), ErrNotFound}, {"list", list(), nil}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			r := &fakeReader{object: runtime("torch"), err: tc.err, cancel: cancel}
+			got, err := ResolveDefinitions(ctx, r, []api.Reference{tc.ref}, workload())
+			if got != nil || !errors.Is(err, context.Canceled) {
+				t.Fatalf("got snapshot %v, error %v", got, err)
+			}
+		})
 	}
 }
 func TestListsAreSortedAndEmptyIsBound(t *testing.T) {

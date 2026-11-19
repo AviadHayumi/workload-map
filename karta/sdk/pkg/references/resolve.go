@@ -196,6 +196,9 @@ func ResolveDefinitions(ctx context.Context, reader ResourceReader, definitions 
 			result[definition.Name] = NewListValue(objects)
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 func Resolve(ctx context.Context, reader ResourceReader, karta *api.Karta, workload any, opts ...cel.Option) (ResolvedReferences, error) {
