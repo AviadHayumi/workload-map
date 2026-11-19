@@ -215,7 +215,7 @@ func ResolveSupplied(ctx context.Context, definitions []api.Reference, workload 
 		if !exists {
 			continue
 		}
-		if err := ValidateSupplied([]api.Reference{definition}, ResolvedReferences{definition.Name: value}); err != nil {
+		if err := validateSuppliedValue(definition, value); err != nil {
 			return nil, err
 		}
 		objects := value.List

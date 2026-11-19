@@ -111,23 +111,30 @@ func ValidateSupplied(definitions []api.Reference, supplied ResolvedReferences) 
 		if !ok {
 			return fmt.Errorf("unknown supplied reference %q", name)
 		}
-		if value.Object != nil && value.List != nil {
-			return fmt.Errorf("reference %q has both object and list", name)
+		if err := validateSuppliedValue(d, value); err != nil {
+			return err
 		}
-		if d.Lookup != nil && value.List != nil {
-			return fmt.Errorf("reference %q requires a lookup result", name)
-		}
-		if d.List != nil && value.List == nil {
-			return fmt.Errorf("reference %q requires a list result", name)
-		}
-		objects := value.List
-		if value.Object != nil {
-			objects = []unstructured.Unstructured{*value.Object}
-		}
-		for _, object := range objects {
-			if object.GetAPIVersion() != d.APIVersion || object.GetKind() != d.Kind {
-				return fmt.Errorf("reference %q has an unexpected object kind", name)
-			}
+	}
+	return nil
+}
+
+func validateSuppliedValue(definition api.Reference, value ReferenceValue) error {
+	if value.Object != nil && value.List != nil {
+		return fmt.Errorf("reference %q has both object and list", definition.Name)
+	}
+	if definition.Lookup != nil && value.List != nil {
+		return fmt.Errorf("reference %q requires a lookup result", definition.Name)
+	}
+	if definition.List != nil && value.List == nil {
+		return fmt.Errorf("reference %q requires a list result", definition.Name)
+	}
+	objects := value.List
+	if value.Object != nil {
+		objects = []unstructured.Unstructured{*value.Object}
+	}
+	for _, object := range objects {
+		if object.GetAPIVersion() != definition.APIVersion || object.GetKind() != definition.Kind {
+			return fmt.Errorf("reference %q has an unexpected object kind", definition.Name)
 		}
 	}
 	return nil
