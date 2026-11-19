@@ -1,580 +1,212 @@
-# Karta Anatomy
-## Root Component
-Every Karta must define a root component:
-- Must use full Kubernetes GVK (Group, Version, Kind)
-- Must include a `statusDefinition`
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-```YAML
-rootComponent:
-  name: "pytorchjob"
-  kind:
-    group: "kubeflow.org"
-    version: "v1"
-    kind: "PyTorchJob"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Running"
-          status: "True"
-```
+# Karta technical guide
 
-## Child Components
-For resources owned by the root component:
-- Must include `ownerRef` (points to parent component)
-- Usually include a `specDefinition`
-- All paths must be absolute from the CRD root
+This guide describes the local `run.ai/v1alpha2` CEL PoC. These APIs are not in
+released packages. Build from this checkout using the [PoC guide](design/cel-expressions/POC.md).
 
-```YAML
-childComponents:
-- name: "worker"
-  ownerRef: "pytorchjob"
-  kind:
-    group: "apps"
-    version: "v1"
-    kind: "StatefulSet"
-  specDefinition:
-    podTemplateSpecPath: ".spec.pytorchReplicaSpecs.Worker.template"
-```
+A Karta tells the SDK where a workload stores its pod specs, scale and status.
+For example, a Job stores its template in `spec.template`. Given the Job as
+`object`, `object.spec.template` returns that template. A write to `/spec/template`
+changes that location in a private copy of the same Job.
 
-## Paths
-All paths provided in a Karta are written in [jq](https://jqlang.org/) syntax. The jq query language provides both path navigation and various query capabilities, and is widely used in the k8s ecosystem. 
-Make sure to provide a matching jq query type for every property (path/query), and to provide default values where necessary.
+## Components and ownership
 
+Every definition has a root component with a full Kubernetes group, version and
+kind, plus a `statusDefinition`. Core types use an empty group. Each child has a
+unique name and an `ownerRef` naming its parent component. The owner graph must
+reach the root without a cycle.
 
-## Spec Definitions
+Components describe roles or repeated templates. Their value expressions always
+read the original root workload. A child kind does not change that input into a
+live child object. Use `additionalChildKinds` for generated resources needed by
+an ownership walk but carrying no separate mapped values.
 
-There are multiple, mutually exclusive,  types of specDefinitions:
+See [JobSet](catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml) for a generated Job
+component and [PyTorchJob](catalog/kubeflow-org-pytorchjob-v1.yaml) for Pod roles.
 
-| Pattern | Use Case | Example |
-| ------- | -------- | ------- |
-| PodTemplateSpecPath | CRD embeds a full pod template | .spec.pytorchReplicaSpecs.Master.template |
-| PodSpecPath & MetadataPath | CRD directly embeds a podSpec and/or an objectMeta | .spec.jobTemplate.spec .spec.jobTemplate.metadata |
-| FragmentedPodSpecDefinition | Pod fields scattered across CRD | See below |
+## Read and write accessors
 
-```YAML
+```yaml
 specDefinition:
-  fragmentedPodDefinition:
-    labelsPath: ".spec.labels"
-    annotationsPath: ".spec.annotations"
-    resourcesPath: ".spec.resources"
-    schedulerNamePath: ".spec.schedulerName"
+  podTemplateSpec:
+    read:
+      expression: object.spec.template
+    write:
+      path: /spec/template
+scaleDefinition:
+  replicas:
+    read:
+      expression: object.?spec.?parallelism.orValue(1)
+    write:
+      path: /spec/parallelism
 ```
 
-## Component Instances
+`read.expression` returns a value. `write` declares where the caller may change
+it. An accessor can have either side or both. Omit `write` for a projection,
+computed total, immutable field or shared runtime value.
 
-Component’s spec definition might point to multiple instances specs (in map/array format). In those cases it’s crucial to be able to distinguish between each instance of that component.
-In order to do so, users must define an instanceIdPath - the location in the spec where we can find the name of each instance.
-For example:
+A write has exactly one of `path` and `pathExpression`. The fixed path is a JSON
+Pointer. An empty path selects the workload root. A path expression returns one
+pointer. Escape `~` as `~0` and `/` as `~1` inside each pointer segment.
 
-1. Array of specs:
+Each side can have its own boolean `matchExpression`. Omission means true. A
+false read match returns `resource.ErrValueNotFound`; whole-workload extraction
+skips that field. A false write match rejects the batch before it changes the
+object. Evaluation errors are errors, not false matches.
 
-```YAML
-instanceIdPath: ".spec.jobs[].name"
-```
+[KServe](catalog/serving-kserve-io-inferenceservice-v1beta1.yaml) uses different
+matches: reading accepts a nonempty model selection, while writing requires
+exactly one selected model. Its typed container read rejects multiple models.
 
-2. Map of specs: (extract the map keys that represent the instance id)
+## Expression inputs
 
-```YAML
-instanceIdPath: ".spec.jobs | to_entries[] | .key"
-```
+| Expression | Inputs |
+| --- | --- |
+| Workload read, status and shared variable | `object`, `variables`, `references` |
+| Write match and computed path | The read inputs, plus `instance` and `index` |
+| Pod selector, filter and group key | One Pod as `object` |
+| Reference lookup, label selector and eligibility match | Root workload as `object` |
+| `fromReferences` target match | Root workload as `object`, referenced object as `target` |
 
+The write value is never a CEL input. Expressions choose locations and read
+values; they do not mutate objects or call Kubernetes.
 
-## Pod Selectors
-PodSelector defines how to identify pods belonging to a component / an instance of a component.
-A component can define both type and instance selectors.
-All selectors of each kind (component, instance) must be mutually exclusive within themselves.
+Use optional access when a field can be missing:
+`object.?status.?ready.orValue(0)`. A default applies to a missing field; it does
+not automatically replace an explicitly stored null. Use a deliberate null
+check when the workload schema allows null. For optional JSON values,
+`orValue(dyn(null))` keeps the result dynamically typed.
 
-**Paths in pod selectors are referring to paths on the pod’s manifest**
+Declare reusable workload expressions in `spec.variables` as `{name, expression}`
+entries. The SDK validates references to variable names and rejects cycles.
+Pod expressions cannot access workload variables or references.
 
-1. Component type selector - key (and value) selector that associates pod to the current component.
-```YAML
-podSelector:
-  componentTypeSelector:
-    keyPath: '.metadata.labels["training.kubeflow.org/replica-type"]'
-    value: "master"
-```
-If value is not provided, only key existence is checked.
+## Pod specifications and instances
 
-2. Component instance selector - a path on the pod that holds its matching instance id.
+Choose one representation per component:
 
-```YAML
+| Representation | Use |
+| --- | --- |
+| `podTemplateSpec` | A full template with metadata and spec |
+| `podSpec`, with optional `metadata` | A bare Pod spec and separate metadata |
+| `fragmentedPodSpecDefinition` | Separate accessors for resources, containers, labels or other fields |
+
+For a repeated role, `instanceIds.read.expression` returns unique, nonempty IDs.
+It is read-only. Every mapped field must return values in the same order and
+with the same cardinality as the IDs. Do not filter one field independently.
+A `componentInstanceSelector` reads the matching ID from each live Pod.
+
+```yaml
+instanceIds:
+  read:
+    expression: object.spec.replicatedJobs.map(job, job.name)
 podSelector:
   componentInstanceSelector:
-    idPath: '.metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]'
+    read:
+      expression: object.metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]
 ```
 
-## Status Definitions
-- Mapping the described CRD’s conditions or phases to the Karta generic statuses. Must be based on the actual conditions/phases used by the described CRD.
-- For each generic status, the user can provide a definition based on conditions or phases. If both are provided, both are validated when evaluating the status.
-- If using definition by conditions/phase, you first must include `conditionsDefinition` / `phaseDefinition`
-- Multiple, separate, definitions can be provided for each generic status.
-- When providing a definition `byConditions`, all must exist (AND logic)
-- Required for the root component
+In the first expression, `object` is the JobSet. In the second, it is one Pod.
+For an instance write, the SDK resolves its current `index` from the original
+workload. JobSet uses that index in its template write pointer.
 
-```YAML
-statusDefinition:
-        conditionsDefinition:
-          path: ".status.conditions"
-          typeFieldName: "type"
-          statusFieldName: "status"
-        statusMappings:
-          initializing:
-          - byConditions:
-            - type: "Created"
-              status: "True"
-            - type: "Running"
-              status: "False"
-          running:
-          - byConditions:
-            - type: "Running"
-              status: "True"
-            - type: "Succeeded"
-              status: "False"
-            - type: "Failed"
-              status: "False"
-          completed:
-          - byConditions:
-            - type: "Succeeded"
-              status: "True"
-          failed:
-          - byConditions:
-            - type: "Failed"
-              status: "True"
+A `componentTypeSelector` distinguishes roles. Its `read` must produce a
+nonempty selector value. When `value` is set, the extracted value must equal
+it. A `replicaSelector` identifies repeated copies within a component.
+Selectors classify Pods already associated with a workload; labels alone do
+not prove workload ownership.
+
+## Status and suspension
+
+`conditionsDefinition.read` reads the root's conditions. The field-name settings
+identify type, status, reason and message. `phaseDefinition.read` reads a phase
+string. Status mappings can use `byConditions`, `byPhase` and `byExpression`.
+
+Within one matcher, all supplied tests must pass. Matchers under a status are
+alternatives. `byExpression.expression` must return a boolean; there is no
+`expectedResult`. Several statuses may match. No match yields `Undefined`.
+
+Only map states supported by controller source and observed objects. Check
+stale conditions, `observedGeneration`, scale-to-zero and suspension transitions.
+A successful schema check does not prove a status mapping. Record real state
+transitions and retain replay tests. Mark synthetic fixtures as synthetic.
+
+Suspend and resume use ordered actions with `write` and a JSON-encoded `value`:
+
+```yaml
+suspendDefinition:
+  suspendActions:
+    - write: {path: /spec/suspend}
+      value: "true"
+  resumeActions:
+    - write: {path: /spec/suspend}
+      value: "false"
 ```
 
-## Additional child kinds
-List any GVK of objects created or managed by the CRD that are not mentioned explicitly by any child component.
-This is essential for permission management so that your CRD can be managed correctly.
+The application calls `Suspend` or `Resume`. The SDK edits its private workload;
+the application owns the Kubernetes update and its conflict handling.
 
-```YAML
-  additionalChildKinds:
-   - group: apps
-     version: v1
-     kind: Deployment
-   - group: leaderworkerset.x-k8s.io
-     version: v1
-     kind: LeaderWorkerSet
-```
+## References and Pod membership
 
-## Optimization Instructions
-Used for scheduling.
+`spec.structureDefinition.references` declares a lookup or label-selected list
+by `apiVersion`, `kind` and name. Namespaced lookups stay in the workload's
+namespace. A reader adapter uses API discovery to handle cluster-scoped types.
+The SDK can use a supplied `ResourceReader` or manually supplied reference
+objects. These sources are mutually exclusive. `resource.WithReferencesEnabled(false)`
+disables both for that factory.
 
-**Paths in the instruction are referring to paths on the pod’s yaml/json**
+[Trainer v2](catalog/trainer-kubeflow-org-trainjob-v1alpha1.yaml) reads an override
+from the TrainJob and falls back to its ClusterTrainingRuntime. It selects the
+trainer job by its label and the container by name. Runtime values stay
+read-only. The [design](design/cel-expressions/README.md#references) shows both
+reader and manual-object calls, including the defaulting snapshot limits.
 
-Currently supported instructions:
+A value reference does not assign Pods to a workload. A component opts into
+additional ownership through `podSelector.fromReferences`. The membership SDK
+checks target identity and owner chains across all claimants in one namespace.
+It returns per-component Pods and accepted targets. Consumers retain native
+results when collection is incomplete and fold targets only when the result is
+complete, the target is foldable and its parent is displayed. See the
+[Milvus definition](catalog/milvus-io-milvus-v1beta1.yaml) and [PoC guide](design/cel-expressions/POC.md).
 
-- `gangScheduling`: instruct the scheduler how to group pods. Each pod-group definition contains a list of the included members.
-Each defined member can provide a list of distinct keys to group pods by and a list of filters to determine which pods should be included.
+## Scheduling instructions
 
-```YAML
-optimizationInstructions:
-  gangScheduling:
-    podGroups:
-    - name: "job"
-        members:
-        - componentName: "master"
-          groupByKeyPaths: 
-          - '.metadata.labels["training.kubeflow.org/job-name"]'
-        - componentName: "worker"
-          groupByKeyPaths:
-          - '.metadata.labels["training.kubeflow.org/job-name"]'
-```
+`optimizationInstructions.gangScheduling` describes grouping for a consuming
+scheduler. It does not create scheduler resources. The existing `podGroups`
+format has members with `componentName`, ordered `groupByExpressions` and
+boolean `filters`. Every expression evaluates one Pod. Group keys must be
+nonempty scalar values. Filters are ANDed.
 
-Grouping examples:
+The `podGroup` form maps components to subgroups and can add topology constraints.
+Keep the format used by the definition being extended. A format migration is a
+separate change. Do not create a gang that requires executor Pods before the
+creator Pod can run.
 
-1. Different hierarchy: The following are equivalent (given that master and worker has the same value for that label)
+## SDK writes
 
-```YAML
-optimizationInstructions:
-  gangScheduling:
-    podGroups:
-    - name: "job"
-        members:
-        - componentName: "master"
-          groupByKeyPaths: 
-          - '.metadata.labels["training.kubeflow.org/job-name"]'
-        - componentName: "worker"
-          groupByKeyPaths:
-          - '.metadata.labels["training.kubeflow.org/job-name"]'
+Use `tree.Open`, then `Mutate(ctx, tree.Write{...})`. Each write names a component,
+instance, built-in field and raw JSON Merge Patch value. Maps preserve unspecified
+fields. Null map members delete. Arrays replace. A top-level null is rejected.
 
-optimizationInstructions:
-  gangScheduling:
-    podGroups:
-    - name: "job"
-        members:
-        - componentName: "job"
-          groupByKeyPaths: 
-          - '.metadata.labels["training.kubeflow.org/job-name"]'
-```
+The editor resolves all destinations against the original object, rejects
+overlapping targets, applies the batch to a private copy and rebuilds the tree.
+It publishes the result only if every step succeeds. `GetResource` returns the
+edited object. It does not write to Kubernetes.
 
-2. Using default values: when multiple groups are possible, use default value to cover cases where single group is used (the used pattern: <prefix>-{name}-{index})
+The [README example](../README.md#update-workload-specs) and
+[offline quickstart](examples/quickstart/) show a template patch that preserves
+existing containers. Avoid converting a partial typed view back into a whole
+workload subtree; that can lose operator-specific fields.
 
-```YAML
-optimizationInstructions:
-   gangScheduling:
-     podGroups:
-     - name: "group"
-       members:
-       - componentName: "group"
-         groupByKeyPaths:
-         - '.metadata.labels["leaderworkerset.sigs.k8s.io/name"]'
-         - '.metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] // "0"'
+## Validation
 
+From this checkout, run `kli validate definition.yaml` or the
+[verification tool](../karta/sdk/hack/karta-verify/README.md). Validation checks
+structure, accessor shape and expression scope. Then exercise the definition
+against a real root object and its Pods. Check multiple instances, absent
+optional fields, ambiguous selections and denied references.
 
-3. Filters: when different components are not named components (array/map of specs in the same component) you can use filters to form different pod groups.
-In this example, for a CRD that defines multiple jobs but all under the “job” component, we use jq query as filter to identify pods that use Nvidia GPUs, and queries with hard-coded values as grouping keys.
-
-optimizationInstructions:
-  gangScheduling:
-    podGroups:
-    - name: "gpu-jobs"
-        members:
-        - componentName: "job"
-          filters:
-          - 'any(.spec.jobs[].spec.containers[]; (.resources.limits["nvidia.com/gpu"] // 0) > 0)'
-          groupByKeyPaths: 
-          - 'gpu'
-    - name: "no-gpu-jobs"
-        members:
-        - componentName: "job"
-          filters:
-          - 'any(.spec.jobs[].spec.containers[]; (.resources.limits["nvidia.com/gpu"] // 0) == 0)'
-          groupByKeyPaths: 
-          - 'no-gpu'
-```
-
-## Best Practices
-- Always use full GVK for kinds (group, version, kind)
-- Absolute paths only in spec definitions
-- Avoid duplication: don’t list explicitly defined components in `additionalChildKinds`
-- Mutually exclusive pod selectors in multi-component workloads
-- Null-safe JQ expressions (e.g. `// 0` defaults)
-- Target actual components in optimization instructions, not just the root CRD
-
-## Examples
-Example 1: Kserve inference service
-```YAML
-{
-  "spec": {
-    "structureDefinition": {
-      "rootComponent": {
-        "name": "inferenceservice",
-        "kind": {
-          "group": "serving.kserve.io",
-          "version": "v1beta1",
-          "kind": "InferenceService"
-        },
-        "specDefinition": {
-          "fragmentedPodSpecDefinition": {
-            "resourcesPath": ".spec.domain.resources",
-            "priorityClassNamePath": ".spec.priorityClassName",
-            "nodeAffinityPath": ".spec.affinity.nodeAffinity"
-          }
-        },
-        "statusDefinition": {
-          "conditionsDefinition": {
-            "path": ".status.conditions",
-            "typeFieldName": "type",
-            "statusFieldName": "status"
-          },
-          "statusMappings": {
-            "running": [
-              {
-                "byConditions": [
-                  {
-                    "type": "PredictorReady",
-                    "status": "True"
-                  },
-                  {
-                    "type": "RoutesReady",
-                    "status": "True"
-                  },
-                  {
-                    "type": "LatestDeploymentReady",
-                    "status": "True"
-                  }
-                ]
-              }
-            ],
-            "failed": [
-              {
-                "byConditions": [
-                  {
-                    "type": "PredictorReady",
-                    "status": "False"
-                  },
-                  {
-                    "type": "PredictorConfigurationReady",
-                    "status": "False"
-                  },
-                  {
-                    "type": "RoutesReady",
-                    "status": "False"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "childComponents": [
-        {
-          "name": "predictor",
-          "kind": {
-            "group": "apps",
-            "version": "v1",
-            "kind": "Deployment"
-          },
-          "ownerRef": "inferenceservice",
-          "specDefinition": {
-            "podSpecPath": ".spec.predictor",
-            "metadataPath": ".spec.predictor",
-            "fragmentedPodSpecDefinition": {
-              "containerPath": ".spec.predictor.model"
-            }
-          },
-          "scaleDefinition": {
-            "minReplicasPath": ".spec.predictor.minReplicas",
-            "maxReplicasPath": ".spec.predictor.maxReplicas"
-          },
-          "podSelector": {
-            "componentTypeSelector": {
-              "keyPath": ".metadata.labels[\"component\"]",
-              "value": "predictor"
-            }
-          }
-        },
-        {
-          "name": "transformer",
-          "kind": {
-            "group": "apps",
-            "version": "v1",
-            "kind": "Deployment"
-          },
-          "ownerRef": "inferenceservice",
-          "specDefinition": {
-            "podSpecPath": ".spec.transformer",
-            "metadataPath": ".spec.transformer"
-          },
-          "scaleDefinition": {
-            "minReplicasPath": ".spec.transformer.minReplicas",
-            "maxReplicasPath": ".spec.transformer.maxReplicas"
-          },
-          "podSelector": {
-            "componentTypeSelector": {
-              "keyPath": ".metadata.labels[\"component\"]",
-              "value": "transformer"
-            }
-          }
-        }
-      ]
-    },
-    "optimizationInstructions": {
-      "gangScheduling": {
-        "podGroups": [
-          {
-            "name": "service",
-            "members": [
-              {
-                "componentName": "predictor",
-                "groupByKeyPaths": [
-                  ".metadata.labels[\"serving.kserve.io/inferenceservice\"]"
-                ]
-              },
-              {
-                "componentName": "transformer",
-                "groupByKeyPaths": [
-                  ".metadata.labels[\"serving.kserve.io/inferenceservice\"]"
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-## Validation Checklist
-Before submitting, confirm:
-
-- All kinds use full GVK
-- root component has statusDefinition
-- All JQ paths are absolute and null-safe (and are paths in the correct resource - root CRD/pod)
-- No duplicated child kinds
-- Pod selectors are mutually exclusive
-- Status conditions match real framework APIs
-- All child component has ownerRef directed to existing components and there are no ownership cycles
-
-
-## Quick-Start Templates
-Use these as starting points when creating new workload type definitions.
-👉 With these templates, you can register new workload types by simply filling in the blanks instead of starting from scratch.
-
-### Template: Generic Job
-A single-component workload with pods defined directly in its spec.
-
-```YAML
-rootComponent:
-  name: "job"
-  kind:
-    group: "batch"
-    version: "v1"
-    kind: "Job"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Running"
-          status: "True"
-      completed:
-      - byConditions:
-        - type: "Complete"
-          status: "True"
-      failed:
-      - byConditions:
-        - type: "Failed"
-          status: "True"
-
-  specDefinition:
-    podTemplateSpecPath: ".spec.template"
-```
-
-### Template: Deployment
-A controlling resource with generated ReplicaSets.
-
-```YAML
-rootComponent:
-  name: "deployment"
-  kind:
-    group: "apps"
-    version: "v1"
-    kind: "Deployment"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Available"
-          status: "True"
-
-childComponents:
-- name: "replicaset"
-  ownerRef: "deployment"
-  kind:
-    group: "apps"
-    version: "v1"
-    kind: "ReplicaSet"
-  specDefinition:
-    podTemplateSpecPath: ".spec.template"
-```
-
-### Template: Distributed Training (PyTorchJob)
-Multi-component workload with role-based pods.
-```YAML
-rootComponent:
-  name: "pytorchjob"
-  kind:
-    group: "kubeflow.org"
-    version: "v1"
-    kind: "PyTorchJob"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Running"
-          status: "True"
-      completed:
-      - byConditions:
-        - type: "Succeeded"
-          status: "True"
-      failed:
-      - byConditions:
-        - type: "Failed"
-          status: "True"
-
-childComponents:
-- name: "master"
-  ownerRef: "pytorchjob"
-  kind:
-    group: "apps"
-    version: "v1"
-    kind: "ReplicaSet"
-  specDefinition:
-    podTemplateSpecPath: ".spec.pytorchReplicaSpecs.Master.template"
-  podSelector:
-    componentTypeSelector:
-      keyPath: '.metadata.labels["training.kubeflow.org/replica-type"]'
-      value: "master"
-
-- name: "worker"
-  ownerRef: "pytorchjob"
-  kind:
-    group: "apps"
-    version: "v1"
-    kind: "ReplicaSet"
-  specDefinition:
-    podTemplateSpecPath: ".spec.pytorchReplicaSpecs.Worker.template"
-  podSelector:
-    componentTypeSelector:
-      keyPath: '.metadata.labels["training.kubeflow.org/replica-type"]'
-      value: "worker"
-```
-
-### Template: Inference Service (Knative)
-Workload that owns a secondary component (Revision).
-
-```YAML
-rootComponent:
-  name: "service"
-  kind:
-    group: "serving.knative.dev"
-    version: "v1"
-    kind: "Service"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Ready"
-          status: "True"
-
-childComponents:
-- name: "revision"
-  ownerRef: "service"
-  kind:
-    group: "serving.knative.dev"
-    version: "v1"
-    kind: "Revision"
-  specDefinition:
-    podTemplateSpecPath: ".spec.template"
-```
-
-## Minimum requirements for defining a Karta
-
-The minimal Karta must contain a rootComponent with name, full GVK (group, version, kind) and statusDefinition. 
-
-For example:
-```YAML
-rootComponent:
-  name: "minimal"
-  kind:
-    group: "minimal.org"
-    version: "v1"
-    kind: "Minimal"
-  statusDefinition:
-    statusMappings:
-      running:
-      - byConditions:
-        - type: "Running"
-          status: "True"
-```
-
-## Pro Tips
-- Start from the closest template to your workload type.
-
-- Replace the GVK (group, version, kind) with your CRD’s.
-
-- Verify status conditions in the CRD source code or documentation.
-
-- Add child/referenced components only if they matter for scheduling or optimization.
+Use the [authoring tutorial](Authoring%20Your%20First%20Karta.md) for a complete
+Job definition. Use the [catalog](catalog/) for other workload shapes.

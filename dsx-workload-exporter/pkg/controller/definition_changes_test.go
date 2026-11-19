@@ -17,7 +17,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/discovery"
 	inventory "github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/kartadefinitioninventory"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 func TestDefinitionRefreshUsesEffectiveChanges(t *testing.T) {

@@ -28,7 +28,7 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    name: v1alpha1
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: Karta
@@ -157,19 +157,19 @@ spec:
                                     type: string
                                   filters:
                                     description: |-
-                                      Filters are JQ filter expressions to select specific components (expressions are ANDed)
-                                      Example: '(.spec.containers[0].resources.limits["nvidia.com/gpu"] // 0) > 0'
-                                      JQ filters are evaluated against individual pod objects, not the root resource spec
+                                      Filters are CEL filter expressions to select specific components (expressions are ANDed)
+                                      Example: 'object.metadata.labels["role"] == "worker"'
+                                      CEL filters are evaluated against individual pod objects, not the root resource spec
                                     items:
                                       type: string
                                     type: array
                                     x-kubernetes-list-type: set
-                                  groupByKeyPaths:
+                                  groupByExpressions:
                                     description: |-
-                                      GroupByKeyPaths are JQ paths to values used for grouping (e.g., owner name, replica key)
+                                      GroupByExpressions are CEL paths to values used for grouping (e.g., owner name, replica key)
                                       If empty, grouping is done via owner reference traversal
                                       Every path must return a single, non-empty value - otherwise grouping will fail
-                                      JQ paths are evaluated against individual pod objects, not the root resource spec
+                                      CEL paths are evaluated against individual pod objects, not the root resource spec
                                     items:
                                       type: string
                                     type: array
@@ -234,11 +234,51 @@ spec:
                         ComponentDefinition defines a single component in the workload hierarchy.
                         Components represent logical units of computation that can be optimized independently.
                       properties:
-                        instanceIdPath:
-                          description: InstanceIdPath is the JQ path to the instance
-                            id, for components that hold multiple pod definitions
-                            (in array or map)
-                          type: string
+                        instanceIds:
+                          description: InstanceIds reads component instance identifiers.
+                            Writes are not allowed.
+                          minProperties: 1
+                          properties:
+                            read:
+                              description: ReadAccessor reads from the root workload,
+                                or the Pod for a Pod selector.
+                              properties:
+                                expression:
+                                  minLength: 1
+                                  type: string
+                                matchExpression:
+                                  minLength: 1
+                                  type: string
+                              required:
+                              - expression
+                              type: object
+                            write:
+                              description: WriteAccessor selects an RFC 6901 JSON
+                                Pointer in the original workload.
+                              properties:
+                                matchExpression:
+                                  minLength: 1
+                                  type: string
+                                path:
+                                  description: Path is fixed. An empty path selects
+                                    the root object.
+                                  pattern: ^(/([^~/]|~[01])*)*$
+                                  type: string
+                                pathExpression:
+                                  description: PathExpression computes a JSON Pointer
+                                    from object, variables, references, instance and
+                                    index.
+                                  minLength: 1
+                                  type: string
+                              type: object
+                              x-kubernetes-validations:
+                              - message: exactly one of path or pathExpression is
+                                  required
+                                rule: has(self.path) != has(self.pathExpression)
+                          type: object
+                          x-kubernetes-validations:
+                          - message: instanceIds must be read-only
+                            rule: has(self.read) && !has(self.write)
                         kind:
                           description: Kind specifies the Kubernetes GroupVersionKind
                             for this component
@@ -260,6 +300,7 @@ spec:
                         name:
                           description: Name is the unique identifier for this component
                             within the Karta
+                          minLength: 1
                           type: string
                         ownerRef:
                           description: OwnerRef references the parent component in
@@ -280,35 +321,76 @@ spec:
                                 instances with potentially different specs/behavior, while ReplicaSelector
                                 creates replicas of an identical sub-structure.
                               properties:
-                                idPath:
+                                read:
                                   description: |-
-                                    IdPath is the JQ path to the component instance identifier on the pod
-                                    JQ path is evaluated against individual pod objects, not the root resource spec
-                                  type: string
+                                    Read extracts the component instance identifier on the pod
+                                    CEL read expression is evaluated against individual pod objects, not the root resource spec
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
                               required:
-                              - idPath
+                              - read
                               type: object
                             componentTypeSelector:
                               description: |-
                                 ComponentTypeSelector determines whether a pod belongs to this component type
-                                by matching a pod label or annotation value via a JQ path.
+                                by reading a Pod label or annotation.
                                 This is the primary mechanism for pod-to-component membership.
                                 For example, LWS "leader" uses worker-index="0" to identify leader pods,
                                 and LWS "worker" checks for the existence of the leader-name annotation.
                               properties:
-                                keyPath:
+                                read:
                                   description: |-
-                                    KeyPath is the JQ path to the identifying key/label on the pod
-                                    JQ path is evaluated against individual pod objects, not the root resource spec
-                                  type: string
+                                    Read extracts the identifying key/label on the pod
+                                    CEL read expression is evaluated against individual pod objects, not the root resource spec
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
                                 value:
                                   description: Value is the expected value for the
                                     key (optional - if nil, only key existence is
                                     checked)
                                   type: string
                               required:
-                              - keyPath
+                              - read
                               type: object
+                            fromReferences:
+                              description: FromReferences adds eligible referenced
+                                objects as Pod membership targets.
+                              items:
+                                description: PodReference names a reference used to
+                                  find this component's Pods.
+                                properties:
+                                  matchExpression:
+                                    description: MatchExpression evaluates the root
+                                      object and each resolved target.
+                                    minLength: 1
+                                    type: string
+                                  name:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
                             replicaSelector:
                               description: |-
                                 ReplicaSelector identifies which replica index or group the pod belongs to.
@@ -318,31 +400,157 @@ spec:
                                 context from their ancestor (parent), so ReplicaSelector should only be defined at
                                 the level where replicas are created, not repeated in descendants.
                               properties:
-                                keyPath:
+                                read:
                                   description: |-
-                                    KeyPath is the JQ path to the replica identifier on the pod.
+                                    Read extracts the replica identifier on the pod.
                                     The evaluated result should be the replica index or group identifier (e.g., "0", "1").
-                                  type: string
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
                               required:
-                              - keyPath
+                              - read
                               type: object
                           type: object
+                          x-kubernetes-validations:
+                          - message: fromReferences requires a componentTypeSelector
+                            rule: '!has(self.fromReferences) || has(self.componentTypeSelector)'
                         scaleDefinition:
                           description: ScaleDefinition defines how to extract scaling
                             information from this component
                           properties:
-                            maxReplicasPath:
-                              description: MaxReplicasPath is the JQ path to the maximum
+                            maxReplicas:
+                              description: MaxReplicas reads and writes the maximum
                                 replica count
-                              type: string
-                            minReplicasPath:
-                              description: MinReplicasPath is the JQ path to the minimum
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
+                            minReplicas:
+                              description: MinReplicas reads and writes the minimum
                                 replica count
-                              type: string
-                            replicasPath:
-                              description: ReplicasPath is the JQ path to the current
-                                replica count
-                              type: string
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
+                            replicas:
+                              description: Replicas reads and writes the current replica
+                                count
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
                           type: object
                         specDefinition:
                           description: SpecDefinition defines how to extract pod specifications
@@ -353,64 +561,595 @@ spec:
                                 FragmentedPodSpecDefinition defines how to extract individual pod spec fields
                                 when they are scattered across different paths in the component
                               properties:
-                                annotationsPath:
-                                  description: AnnotationsPath is the JQ path to pod
-                                    annotations
-                                  type: string
-                                containerPath:
+                                annotations:
+                                  description: Annotations reads and writes pod annotations
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                container:
                                   description: |-
-                                    ContainesPath is the JQ path to a single container specifications
+                                    Container reads and writes a single container specification.
                                     Used when the component has only one container
-                                  type: string
-                                containersPath:
-                                  description: ContainersPath is the JQ path to containers
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                containers:
+                                  description: Containers reads and writes containers
                                     specifications
-                                  type: string
-                                imagePath:
-                                  description: ImagePath is the JQ path to the container
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                image:
+                                  description: Image reads and writes the container
                                     image
-                                  type: string
-                                labelsPath:
-                                  description: LabelsPath is the JQ path to pod labels
-                                  type: string
-                                nodeAffinityPath:
-                                  description: NodeAffinityPath is the JQ path to
-                                    node affinity rules
-                                  type: string
-                                podAffinityPath:
-                                  description: PodAffinityPath is the JQ path to pod
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                labels:
+                                  description: Labels reads and writes pod labels
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                nodeAffinity:
+                                  description: NodeAffinity reads and writes node
                                     affinity rules
-                                  type: string
-                                priorityClassNamePath:
-                                  description: PriorityClassNamePath is the JQ path
-                                    to the priority class name
-                                  type: string
-                                resourceClaimsPath:
-                                  description: ResourceClaimsPath is the JQ path to
-                                    DRA resource claims
-                                  type: string
-                                resourcesPath:
-                                  description: ResourcesPath is the JQ path to resource
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                podAffinity:
+                                  description: PodAffinity reads and writes pod affinity
+                                    rules
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                priorityClassName:
+                                  description: PriorityClassName reads and writes
+                                    the priority class name
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                resourceClaims:
+                                  description: ResourceClaims reads and writes DRA
+                                    resource claims
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                resources:
+                                  description: Resources reads and writes resource
                                     requirements
-                                  type: string
-                                schedulerNamePath:
-                                  description: SchedulerNamePath is the JQ path to
-                                    the scheduler name
-                                  type: string
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
+                                schedulerName:
+                                  description: SchedulerName reads and writes the
+                                    scheduler name
+                                  minProperties: 1
+                                  properties:
+                                    read:
+                                      description: ReadAccessor reads from the root
+                                        workload, or the Pod for a Pod selector.
+                                      properties:
+                                        expression:
+                                          minLength: 1
+                                          type: string
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                      required:
+                                      - expression
+                                      type: object
+                                    write:
+                                      description: WriteAccessor selects an RFC 6901
+                                        JSON Pointer in the original workload.
+                                      properties:
+                                        matchExpression:
+                                          minLength: 1
+                                          type: string
+                                        path:
+                                          description: Path is fixed. An empty path
+                                            selects the root object.
+                                          pattern: ^(/([^~/]|~[01])*)*$
+                                          type: string
+                                        pathExpression:
+                                          description: PathExpression computes a JSON
+                                            Pointer from object, variables, references,
+                                            instance and index.
+                                          minLength: 1
+                                          type: string
+                                      type: object
+                                      x-kubernetes-validations:
+                                      - message: exactly one of path or pathExpression
+                                          is required
+                                        rule: has(self.path) != has(self.pathExpression)
+                                  type: object
                               type: object
-                            metadataPath:
+                            metadata:
                               description: |-
-                                MetadataPath is the JQ path to the component metadata
-                                May be used only with PodSpecPath, in cases where pod spec and metadata are separated
-                              type: string
-                            podSpecPath:
-                              description: PodSpecPath is the JQ path to a complete
-                                PodSpec object
-                              type: string
-                            podTemplateSpecPath:
-                              description: PodTemplateSpecPath is the JQ path to a
-                                complete PodTemplateSpec object
-                              type: string
+                                Metadata reads and writes the component metadata
+                                May be used only with PodSpec, in cases where pod spec and metadata are separated
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
+                            podSpec:
+                              description: PodSpec reads and writes a complete PodSpec
+                                object
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
+                            podTemplateSpec:
+                              description: PodTemplateSpec reads and writes a complete
+                                PodTemplateSpec object
+                              minProperties: 1
+                              properties:
+                                read:
+                                  description: ReadAccessor reads from the root workload,
+                                    or the Pod for a Pod selector.
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
+                                write:
+                                  description: WriteAccessor selects an RFC 6901 JSON
+                                    Pointer in the original workload.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
+                              type: object
                           type: object
                         statusDefinition:
                           description: |-
@@ -426,10 +1165,18 @@ spec:
                                   description: MessageFieldName is the field name
                                     for the condition text message
                                   type: string
-                                path:
-                                  description: Path is the JQ path to the conditions
-                                    array
-                                  type: string
+                                read:
+                                  description: Read extracts the conditions array
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
                                 reasonFieldName:
                                   default: reason
                                   description: ReasonFieldName is the field name for
@@ -446,18 +1193,26 @@ spec:
                                     the condition type
                                   type: string
                               required:
-                              - path
+                              - read
                               type: object
                             phaseDefinition:
                               description: PhaseDefinition defines how to extract
                                 a simple phase/state string
                               properties:
-                                path:
-                                  description: Path is the JQ path to the phase/state
-                                    field
-                                  type: string
+                                read:
+                                  description: Read extracts the phase/state field
+                                  properties:
+                                    expression:
+                                      minLength: 1
+                                      type: string
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - expression
+                                  type: object
                               required:
-                              - path
+                              - read
                               type: object
                             statusMappings:
                               description: StatusMappings define how to map extracted
@@ -500,21 +1255,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -561,21 +1311,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -622,21 +1367,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -683,21 +1423,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -744,21 +1479,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -805,21 +1535,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -866,21 +1591,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -927,21 +1647,16 @@ spec:
                                         type: array
                                         x-kubernetes-list-type: atomic
                                       byExpression:
-                                        description: ByExpression is a JQ expression
+                                        description: ByExpression is a CEL expression
                                           that matches against the object for status
                                           matching
                                         properties:
-                                          expectedResult:
-                                            description: ExpectedResult is the expected
-                                              result value in string format from the
-                                              expression evaluation
-                                            type: string
                                           expression:
-                                            description: Expression is the JQ expression
+                                            description: Expression is the CEL expression
                                               to evaluate
+                                            minLength: 1
                                             type: string
                                         required:
-                                        - expectedResult
                                         - expression
                                         type: object
                                       byPhase:
@@ -969,19 +1684,36 @@ spec:
                                 description: SuspendAction is a single field assignment
                                   applied during a suspend or resume operation.
                                 properties:
-                                  path:
-                                    description: |-
-                                      Path is a JQ expression that selects the target field (e.g. ".spec.suspend").
-                                      Only read/navigation expressions are permitted; assignment operators are not.
-                                    type: string
                                   value:
                                     description: Value is the JSON-encoded value to
                                       assign at the path (e.g. "true", "0", `"paused"`,
                                       "null").
                                     type: string
+                                  write:
+                                    description: Write locates the field to change.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
                                 required:
-                                - path
                                 - value
+                                - write
                                 type: object
                               minItems: 1
                               type: array
@@ -994,19 +1726,36 @@ spec:
                                 description: SuspendAction is a single field assignment
                                   applied during a suspend or resume operation.
                                 properties:
-                                  path:
-                                    description: |-
-                                      Path is a JQ expression that selects the target field (e.g. ".spec.suspend").
-                                      Only read/navigation expressions are permitted; assignment operators are not.
-                                    type: string
                                   value:
                                     description: Value is the JSON-encoded value to
                                       assign at the path (e.g. "true", "0", `"paused"`,
                                       "null").
                                     type: string
+                                  write:
+                                    description: Write locates the field to change.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
                                 required:
-                                - path
                                 - value
+                                - write
                                 type: object
                               minItems: 1
                               type: array
@@ -1022,15 +1771,194 @@ spec:
                     x-kubernetes-list-map-keys:
                     - name
                     x-kubernetes-list-type: map
+                  references:
+                    description: References declares value sources and optional Pod
+                      membership targets.
+                    items:
+                      description: "Reference declares another resource (or set of
+                        resources) whose values are\nexposed to every component's
+                        expressions as references.<name>.\nExactly one of Lookup or
+                        List is set:\n\n\tLookup -> references.<name> is a single
+                        object (absent when not found)\n\tList   -> references.<name>
+                        is a list (possibly empty)\n\nA namespaced reference always
+                        resolves in the workload's own namespace; there is\ndeliberately
+                        no namespace field."
+                      properties:
+                        apiVersion:
+                          description: APIVersion identifies the referenced resource
+                            API.
+                          minLength: 1
+                          type: string
+                        kind:
+                          description: Kind identifies the referenced resource kind.
+                          minLength: 1
+                          type: string
+                        list:
+                          description: List fetches a set of objects by a structured
+                            label selector.
+                          minProperties: 1
+                          properties:
+                            matchExpressions:
+                              description: MatchExpressions selects resources by label
+                                selector requirements.
+                              items:
+                                description: |-
+                                  LabelSelectorRequirement mirrors the Kubernetes selector requirement, except its
+                                  values may be sourced from the root object.
+                                properties:
+                                  key:
+                                    description: Key is the label key the requirement
+                                      applies to.
+                                    minLength: 1
+                                    type: string
+                                  operator:
+                                    description: Operator is the requirement's relationship
+                                      to its values.
+                                    enum:
+                                    - In
+                                    - NotIn
+                                    - Exists
+                                    - DoesNotExist
+                                    type: string
+                                  values:
+                                    description: Values are required for In/NotIn
+                                      and must be empty for Exists/DoesNotExist.
+                                    items:
+                                      description: |-
+                                        LabelValue is a single label value: either a literal (Value) or a CEL expression
+                                        evaluated against the root object (Expression). Exactly one is set.
+                                      maxProperties: 1
+                                      minProperties: 1
+                                      properties:
+                                        expression:
+                                          description: Expression is a CEL expression
+                                            against the root object resolving the
+                                            value.
+                                          minLength: 1
+                                          type: string
+                                        value:
+                                          description: Value is a literal label value.
+                                          type: string
+                                      type: object
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                                x-kubernetes-validations:
+                                - message: selector values must match the operator
+                                  rule: 'self.operator in [''In'', ''NotIn''] ? (has(self.values)
+                                    && size(self.values) > 0) : (!has(self.values)
+                                    || size(self.values) == 0)'
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                description: |-
+                                  LabelValue is a single label value: either a literal (Value) or a CEL expression
+                                  evaluated against the root object (Expression). Exactly one is set.
+                                maxProperties: 1
+                                minProperties: 1
+                                properties:
+                                  expression:
+                                    description: Expression is a CEL expression against
+                                      the root object resolving the value.
+                                    minLength: 1
+                                    type: string
+                                  value:
+                                    description: Value is a literal label value.
+                                    type: string
+                                type: object
+                              description: MatchLabels selects resources whose labels
+                                equal each resolved value.
+                              minProperties: 1
+                              type: object
+                          type: object
+                        lookup:
+                          description: Lookup fetches a single object by name.
+                          properties:
+                            nameExpression:
+                              description: |-
+                                NameExpression is a CEL expression against the root object resolving the
+                                referenced resource's name.
+                              minLength: 1
+                              type: string
+                          required:
+                          - nameExpression
+                          type: object
+                        matchExpression:
+                          description: MatchExpression enables this reference when
+                            true, using the root object.
+                          minLength: 1
+                          type: string
+                        name:
+                          description: Name is the variable name the reference is
+                            exposed under, as references.<name>.
+                          minLength: 1
+                          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                      x-kubernetes-validations:
+                      - message: exactly one of lookup or list must be set
+                        rule: has(self.lookup) != has(self.list)
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   rootComponent:
                     description: RootComponent defines the top-level component of
                       the workload hierarchy
                     properties:
-                      instanceIdPath:
-                        description: InstanceIdPath is the JQ path to the instance
-                          id, for components that hold multiple pod definitions (in
-                          array or map)
-                        type: string
+                      instanceIds:
+                        description: InstanceIds reads component instance identifiers.
+                          Writes are not allowed.
+                        minProperties: 1
+                        properties:
+                          read:
+                            description: ReadAccessor reads from the root workload,
+                              or the Pod for a Pod selector.
+                            properties:
+                              expression:
+                                minLength: 1
+                                type: string
+                              matchExpression:
+                                minLength: 1
+                                type: string
+                            required:
+                            - expression
+                            type: object
+                          write:
+                            description: WriteAccessor selects an RFC 6901 JSON Pointer
+                              in the original workload.
+                            properties:
+                              matchExpression:
+                                minLength: 1
+                                type: string
+                              path:
+                                description: Path is fixed. An empty path selects
+                                  the root object.
+                                pattern: ^(/([^~/]|~[01])*)*$
+                                type: string
+                              pathExpression:
+                                description: PathExpression computes a JSON Pointer
+                                  from object, variables, references, instance and
+                                  index.
+                                minLength: 1
+                                type: string
+                            type: object
+                            x-kubernetes-validations:
+                            - message: exactly one of path or pathExpression is required
+                              rule: has(self.path) != has(self.pathExpression)
+                        type: object
+                        x-kubernetes-validations:
+                        - message: instanceIds must be read-only
+                          rule: has(self.read) && !has(self.write)
                       kind:
                         description: Kind specifies the Kubernetes GroupVersionKind
                           for this component
@@ -1052,6 +1980,7 @@ spec:
                       name:
                         description: Name is the unique identifier for this component
                           within the Karta
+                        minLength: 1
                         type: string
                       ownerRef:
                         description: OwnerRef references the parent component in the
@@ -1072,34 +2001,75 @@ spec:
                               instances with potentially different specs/behavior, while ReplicaSelector
                               creates replicas of an identical sub-structure.
                             properties:
-                              idPath:
+                              read:
                                 description: |-
-                                  IdPath is the JQ path to the component instance identifier on the pod
-                                  JQ path is evaluated against individual pod objects, not the root resource spec
-                                type: string
+                                  Read extracts the component instance identifier on the pod
+                                  CEL read expression is evaluated against individual pod objects, not the root resource spec
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
                             required:
-                            - idPath
+                            - read
                             type: object
                           componentTypeSelector:
                             description: |-
                               ComponentTypeSelector determines whether a pod belongs to this component type
-                              by matching a pod label or annotation value via a JQ path.
+                              by reading a Pod label or annotation.
                               This is the primary mechanism for pod-to-component membership.
                               For example, LWS "leader" uses worker-index="0" to identify leader pods,
                               and LWS "worker" checks for the existence of the leader-name annotation.
                             properties:
-                              keyPath:
+                              read:
                                 description: |-
-                                  KeyPath is the JQ path to the identifying key/label on the pod
-                                  JQ path is evaluated against individual pod objects, not the root resource spec
-                                type: string
+                                  Read extracts the identifying key/label on the pod
+                                  CEL read expression is evaluated against individual pod objects, not the root resource spec
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
                               value:
                                 description: Value is the expected value for the key
                                   (optional - if nil, only key existence is checked)
                                 type: string
                             required:
-                            - keyPath
+                            - read
                             type: object
+                          fromReferences:
+                            description: FromReferences adds eligible referenced objects
+                              as Pod membership targets.
+                            items:
+                              description: PodReference names a reference used to
+                                find this component's Pods.
+                              properties:
+                                matchExpression:
+                                  description: MatchExpression evaluates the root
+                                    object and each resolved target.
+                                  minLength: 1
+                                  type: string
+                                name:
+                                  minLength: 1
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            minItems: 1
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
                           replicaSelector:
                             description: |-
                               ReplicaSelector identifies which replica index or group the pod belongs to.
@@ -1109,31 +2079,157 @@ spec:
                               context from their ancestor (parent), so ReplicaSelector should only be defined at
                               the level where replicas are created, not repeated in descendants.
                             properties:
-                              keyPath:
+                              read:
                                 description: |-
-                                  KeyPath is the JQ path to the replica identifier on the pod.
+                                  Read extracts the replica identifier on the pod.
                                   The evaluated result should be the replica index or group identifier (e.g., "0", "1").
-                                type: string
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
                             required:
-                            - keyPath
+                            - read
                             type: object
                         type: object
+                        x-kubernetes-validations:
+                        - message: fromReferences requires a componentTypeSelector
+                          rule: '!has(self.fromReferences) || has(self.componentTypeSelector)'
                       scaleDefinition:
                         description: ScaleDefinition defines how to extract scaling
                           information from this component
                         properties:
-                          maxReplicasPath:
-                            description: MaxReplicasPath is the JQ path to the maximum
+                          maxReplicas:
+                            description: MaxReplicas reads and writes the maximum
                               replica count
-                            type: string
-                          minReplicasPath:
-                            description: MinReplicasPath is the JQ path to the minimum
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
+                          minReplicas:
+                            description: MinReplicas reads and writes the minimum
                               replica count
-                            type: string
-                          replicasPath:
-                            description: ReplicasPath is the JQ path to the current
-                              replica count
-                            type: string
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
+                          replicas:
+                            description: Replicas reads and writes the current replica
+                              count
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
                         type: object
                       specDefinition:
                         description: SpecDefinition defines how to extract pod specifications
@@ -1144,64 +2240,594 @@ spec:
                               FragmentedPodSpecDefinition defines how to extract individual pod spec fields
                               when they are scattered across different paths in the component
                             properties:
-                              annotationsPath:
-                                description: AnnotationsPath is the JQ path to pod
-                                  annotations
-                                type: string
-                              containerPath:
+                              annotations:
+                                description: Annotations reads and writes pod annotations
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              container:
                                 description: |-
-                                  ContainesPath is the JQ path to a single container specifications
+                                  Container reads and writes a single container specification.
                                   Used when the component has only one container
-                                type: string
-                              containersPath:
-                                description: ContainersPath is the JQ path to containers
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              containers:
+                                description: Containers reads and writes containers
                                   specifications
-                                type: string
-                              imagePath:
-                                description: ImagePath is the JQ path to the container
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              image:
+                                description: Image reads and writes the container
                                   image
-                                type: string
-                              labelsPath:
-                                description: LabelsPath is the JQ path to pod labels
-                                type: string
-                              nodeAffinityPath:
-                                description: NodeAffinityPath is the JQ path to node
-                                  affinity rules
-                                type: string
-                              podAffinityPath:
-                                description: PodAffinityPath is the JQ path to pod
-                                  affinity rules
-                                type: string
-                              priorityClassNamePath:
-                                description: PriorityClassNamePath is the JQ path
-                                  to the priority class name
-                                type: string
-                              resourceClaimsPath:
-                                description: ResourceClaimsPath is the JQ path to
-                                  DRA resource claims
-                                type: string
-                              resourcesPath:
-                                description: ResourcesPath is the JQ path to resource
-                                  requirements
-                                type: string
-                              schedulerNamePath:
-                                description: SchedulerNamePath is the JQ path to the
-                                  scheduler name
-                                type: string
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              labels:
+                                description: Labels reads and writes pod labels
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              nodeAffinity:
+                                description: NodeAffinity reads and writes node affinity
+                                  rules
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              podAffinity:
+                                description: PodAffinity reads and writes pod affinity
+                                  rules
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              priorityClassName:
+                                description: PriorityClassName reads and writes the
+                                  priority class name
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              resourceClaims:
+                                description: ResourceClaims reads and writes DRA resource
+                                  claims
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              resources:
+                                description: Resources reads and writes resource requirements
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
+                              schedulerName:
+                                description: SchedulerName reads and writes the scheduler
+                                  name
+                                minProperties: 1
+                                properties:
+                                  read:
+                                    description: ReadAccessor reads from the root
+                                      workload, or the Pod for a Pod selector.
+                                    properties:
+                                      expression:
+                                        minLength: 1
+                                        type: string
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                    required:
+                                    - expression
+                                    type: object
+                                  write:
+                                    description: WriteAccessor selects an RFC 6901
+                                      JSON Pointer in the original workload.
+                                    properties:
+                                      matchExpression:
+                                        minLength: 1
+                                        type: string
+                                      path:
+                                        description: Path is fixed. An empty path
+                                          selects the root object.
+                                        pattern: ^(/([^~/]|~[01])*)*$
+                                        type: string
+                                      pathExpression:
+                                        description: PathExpression computes a JSON
+                                          Pointer from object, variables, references,
+                                          instance and index.
+                                        minLength: 1
+                                        type: string
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: exactly one of path or pathExpression
+                                        is required
+                                      rule: has(self.path) != has(self.pathExpression)
+                                type: object
                             type: object
-                          metadataPath:
+                          metadata:
                             description: |-
-                              MetadataPath is the JQ path to the component metadata
-                              May be used only with PodSpecPath, in cases where pod spec and metadata are separated
-                            type: string
-                          podSpecPath:
-                            description: PodSpecPath is the JQ path to a complete
-                              PodSpec object
-                            type: string
-                          podTemplateSpecPath:
-                            description: PodTemplateSpecPath is the JQ path to a complete
+                              Metadata reads and writes the component metadata
+                              May be used only with PodSpec, in cases where pod spec and metadata are separated
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
+                          podSpec:
+                            description: PodSpec reads and writes a complete PodSpec
+                              object
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
+                          podTemplateSpec:
+                            description: PodTemplateSpec reads and writes a complete
                               PodTemplateSpec object
-                            type: string
+                            minProperties: 1
+                            properties:
+                              read:
+                                description: ReadAccessor reads from the root workload,
+                                  or the Pod for a Pod selector.
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
+                              write:
+                                description: WriteAccessor selects an RFC 6901 JSON
+                                  Pointer in the original workload.
+                                properties:
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    description: Path is fixed. An empty path selects
+                                      the root object.
+                                    pattern: ^(/([^~/]|~[01])*)*$
+                                    type: string
+                                  pathExpression:
+                                    description: PathExpression computes a JSON Pointer
+                                      from object, variables, references, instance
+                                      and index.
+                                    minLength: 1
+                                    type: string
+                                type: object
+                                x-kubernetes-validations:
+                                - message: exactly one of path or pathExpression is
+                                    required
+                                  rule: has(self.path) != has(self.pathExpression)
+                            type: object
                         type: object
                       statusDefinition:
                         description: |-
@@ -1217,10 +2843,18 @@ spec:
                                 description: MessageFieldName is the field name for
                                   the condition text message
                                 type: string
-                              path:
-                                description: Path is the JQ path to the conditions
-                                  array
-                                type: string
+                              read:
+                                description: Read extracts the conditions array
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
                               reasonFieldName:
                                 default: reason
                                 description: ReasonFieldName is the field name for
@@ -1237,18 +2871,26 @@ spec:
                                   condition type
                                 type: string
                             required:
-                            - path
+                            - read
                             type: object
                           phaseDefinition:
                             description: PhaseDefinition defines how to extract a
                               simple phase/state string
                             properties:
-                              path:
-                                description: Path is the JQ path to the phase/state
-                                  field
-                                type: string
+                              read:
+                                description: Read extracts the phase/state field
+                                properties:
+                                  expression:
+                                    minLength: 1
+                                    type: string
+                                  matchExpression:
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - expression
+                                type: object
                             required:
-                            - path
+                            - read
                             type: object
                           statusMappings:
                             description: StatusMappings define how to map extracted
@@ -1289,21 +2931,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1348,21 +2985,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1407,21 +3039,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1466,21 +3093,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1525,21 +3147,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1584,21 +3201,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1643,21 +3255,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1702,21 +3309,16 @@ spec:
                                       type: array
                                       x-kubernetes-list-type: atomic
                                     byExpression:
-                                      description: ByExpression is a JQ expression
+                                      description: ByExpression is a CEL expression
                                         that matches against the object for status
                                         matching
                                       properties:
-                                        expectedResult:
-                                          description: ExpectedResult is the expected
-                                            result value in string format from the
-                                            expression evaluation
-                                          type: string
                                         expression:
-                                          description: Expression is the JQ expression
+                                          description: Expression is the CEL expression
                                             to evaluate
+                                          minLength: 1
                                           type: string
                                       required:
-                                      - expectedResult
                                       - expression
                                       type: object
                                     byPhase:
@@ -1744,19 +3346,36 @@ spec:
                               description: SuspendAction is a single field assignment
                                 applied during a suspend or resume operation.
                               properties:
-                                path:
-                                  description: |-
-                                    Path is a JQ expression that selects the target field (e.g. ".spec.suspend").
-                                    Only read/navigation expressions are permitted; assignment operators are not.
-                                  type: string
                                 value:
                                   description: Value is the JSON-encoded value to
                                     assign at the path (e.g. "true", "0", `"paused"`,
                                     "null").
                                   type: string
+                                write:
+                                  description: Write locates the field to change.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
                               required:
-                              - path
                               - value
+                              - write
                               type: object
                             minItems: 1
                             type: array
@@ -1769,19 +3388,36 @@ spec:
                               description: SuspendAction is a single field assignment
                                 applied during a suspend or resume operation.
                               properties:
-                                path:
-                                  description: |-
-                                    Path is a JQ expression that selects the target field (e.g. ".spec.suspend").
-                                    Only read/navigation expressions are permitted; assignment operators are not.
-                                  type: string
                                 value:
                                   description: Value is the JSON-encoded value to
                                     assign at the path (e.g. "true", "0", `"paused"`,
                                     "null").
                                   type: string
+                                write:
+                                  description: Write locates the field to change.
+                                  properties:
+                                    matchExpression:
+                                      minLength: 1
+                                      type: string
+                                    path:
+                                      description: Path is fixed. An empty path selects
+                                        the root object.
+                                      pattern: ^(/([^~/]|~[01])*)*$
+                                      type: string
+                                    pathExpression:
+                                      description: PathExpression computes a JSON
+                                        Pointer from object, variables, references,
+                                        instance and index.
+                                      minLength: 1
+                                      type: string
+                                  type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of path or pathExpression
+                                      is required
+                                    rule: has(self.path) != has(self.pathExpression)
                               required:
-                              - path
                               - value
+                              - write
                               type: object
                             minItems: 1
                             type: array
@@ -1796,6 +3432,27 @@ spec:
                 required:
                 - rootComponent
                 type: object
+              variables:
+                description: Variables are named CEL expressions evaluated lazily
+                  when used.
+                items:
+                  description: Variable is a named expression available through variables.<name>.
+                  properties:
+                    expression:
+                      minLength: 1
+                      type: string
+                    name:
+                      minLength: 1
+                      pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                      type: string
+                  required:
+                  - expression
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - structureDefinition
             type: object

@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -21,6 +22,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/workload"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 // collectAllTypes lists the top-level workloads of every covered type. A type
@@ -34,13 +36,20 @@ func collectAllTypes(ctx context.Context, look lookup, opts *getOptions) ([]work
 	if err != nil {
 		return nil, warnings, err
 	}
-	listed, listWarnings, err := listKinds(ctx, look, opts, versions, kinds, mappings)
+	allOptions := *opts
+	allOptions.selector = ""
+	listed, listWarnings, err := listKinds(ctx, look, &allOptions, versions, kinds, mappings)
 	warnings = append(warnings, listWarnings...)
 	if err != nil {
 		return nil, warnings, err
 	}
+	results, membershipWarnings, err := observeMembership(ctx, look, listed, len(warnings) == 0)
+	warnings = append(warnings, membershipWarnings...)
+	if err != nil {
+		return nil, warnings, err
+	}
 	views, viewWarnings := topLevelViews(ctx, look, opts, versions, listed)
-	return views, append(warnings, viewWarnings...), nil
+	return foldReferenceViews(views, listed, results), append(warnings, viewWarnings...), nil
 }
 
 // failedGroups returns the API groups live discovery cannot read, whose kinds
@@ -216,6 +225,10 @@ func topLevelViews(
 	listed []*listedKind,
 ) ([]workload.View, []string) {
 	walker := workload.NewOwnerWalker(look.metadata, look.mapper)
+	selector, selectorErr := labels.Parse(opts.selector)
+	if selectorErr != nil {
+		return nil, []string{selectorErr.Error()}
+	}
 	covered := func(gk schema.GroupKind) bool {
 		_, ok := versions[gk]
 		return ok
@@ -229,12 +242,15 @@ func topLevelViews(
 	for _, kind := range listed {
 		for i := range kind.objects {
 			object := &kind.objects[i]
+			if !selector.Matches(labels.Set(object.GetLabels())) {
+				continue
+			}
 			// Walking first drops nested objects before the costlier resolve.
 			top, walkErr := walker.TopLevel(ctx, object, covered)
 			if !top {
 				continue
 			}
-			view, err := workload.Resolve(ctx, object, kind.def)
+			view, err := workload.Resolve(ctx, object, kind.def, resource.WithReferenceReader(workload.NewReferenceReader(look.dyn, look.mapper)))
 			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("could not resolve %s/%s: %v", kind.gk.Kind, object.GetName(), err))
 				continue

@@ -20,11 +20,11 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
-var GVR = schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha1", Resource: "kartas"}
+var GVR = schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha2", Resource: "kartas"}
 
 type Warning struct {
 	Reason  string

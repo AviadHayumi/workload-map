@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: jobset-x-k8s-io-jobset-v1alpha2
 spec:
@@ -14,7 +14,8 @@ spec:
         kind: JobSet
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -22,12 +23,10 @@ spec:
         statusMappings:
           initializing:
             - byExpression:
-                expression: (.status.replicatedJobsStatus // []) | any(.active > 0 and (.ready // 0) == 0) and all(.failed == 0)
-                expectedResult: "true"
+                expression: object.?status.?replicatedJobsStatus.orValue([]).exists(j, j.?active.orValue(0) > 0 && j.?ready.orValue(0) == 0) && object.?status.?replicatedJobsStatus.orValue([]).all(j, j.?failed.orValue(0) == 0)
           running:
             - byExpression:
-                expression: (.status.replicatedJobsStatus // []) | any(.active > 0 or .ready > 0) and all((.failed // 0) == 0)
-                expectedResult: "true"
+                expression: object.?status.?replicatedJobsStatus.orValue([]).exists(j, j.?active.orValue(0) > 0 || j.?ready.orValue(0) > 0) && object.?status.?replicatedJobsStatus.orValue([]).all(j, j.?failed.orValue(0) == 0)
           completed:
             - byConditions:
                 - type: Completed
@@ -42,10 +41,12 @@ spec:
                   status: "True"
       suspendDefinition:
         suspendActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "true"
         resumeActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "false"
     childComponents:
       - name: replicatedjob
@@ -55,18 +56,27 @@ spec:
           kind: Job
         ownerRef: jobset
         specDefinition:
-          podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
+          podTemplateSpec:
+            read:
+              expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"template"][?"spec"][?"template"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/replicatedJobs/" + string(index) + "/template/spec/template"'
         scaleDefinition:
-          replicasPath: .spec.replicatedJobs[] | .replicas * .template.spec.parallelism
-        instanceIdPath: .spec.replicatedJobs[].name
+          replicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(j, j.replicas * j.template.spec.parallelism)
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"jobset.sigs.k8s.io/replicatedjob-name"].orValue(dyn(null))
   optimizationInstructions:
     gangScheduling:
       podGroups:
         - name: job
           members:
             - componentName: replicatedjob
-              groupByKeyPaths:
-                - .metadata.labels["jobset.sigs.k8s.io/replicatedjob-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"jobset.sigs.k8s.io/replicatedjob-name"].orValue(dyn(null))

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: apps-nvidia-com-nimcache-v1alpha1
 spec:
@@ -14,14 +14,20 @@ spec:
         kind: NIMCache
       specDefinition:
         fragmentedPodSpecDefinition:
-          resourcesPath: '{requests: .spec.resources}'
+          resources:
+            read:
+              expression: '{"requests": ([dyn(object[?"spec"][?"resources"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0]}'
       scaleDefinition:
-        replicasPath: "1"
+        replicas:
+          read:
+            expression: "1"
       statusDefinition:
         phaseDefinition:
-          path: .status.state
+          read:
+            expression: object[?"status"][?"state"].orValue(dyn(null))
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message

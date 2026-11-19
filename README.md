@@ -1,4 +1,11 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 NVIDIA Corporation -->
+
 # Workload-Map (formerly Karta)
+
+This branch is a local CEL proof of concept. Its `run.ai/v1alpha2` API and SDK
+are not released through `@latest` or the Homebrew package. Use the checkout
+and commands in the [PoC guide](docs/design/cel-expressions/POC.md).
 
 | Name | What it is |
 |---|---|
@@ -45,7 +52,7 @@ This doesn't scale. Every new workload type means new integration code - schedul
 
 ## The Solution
 
-Karta (*a map to navigate resources*) introduces a CRD that maps the structure of any workload type into a standard schema. Using JQ-based path expressions, a Karta declaratively defines how to locate pod specifications, scaling parameters, and status fields within any workload hierarchy. Define it once, and any controller can use it to:
+Karta (*a map to navigate resources*) introduces a CRD that maps the structure of any workload type into a standard schema. Using CEL read expressions and explicit write paths, a Karta declaratively defines how to locate pod specifications, scaling parameters, and status fields within any workload hierarchy. Define it once, and any controller can use it to:
 
 - **Extract** pod templates, replica counts, status, and metadata
 - **Update** pod specs, labels, and annotations across all instances
@@ -54,16 +61,16 @@ Karta (*a map to navigate resources*) introduces a CRD that maps the structure o
 In addition to the CRD, Karta provides a **Go package** that performs the core processing logic: query evaluation to dynamically interpret custom resource schemas, resource extraction that traverses workload hierarchies to identify and group pods, and optimization instruction processors that apply strategies such as gang scheduling (admitting all the pods of a distributed workload together, or none of them) to ensure coordinated placement of pods for distributed workloads.
 
 ```
-┌──────────────────────────────────────────────────┐
-│                   Your Platform                  │
-│  (scheduler, controller, dashboard, CLI, etc.)   │
-├──────────────────────────────────────────────────┤
-│              Karta Component API                 │
-│    Extract pods · Update specs · Read status     │
-├────────────┬────────────┬────────────┬───────────┤
-│ Karta:     │ Karta:     │ Karta:     │ Karta:    │
-│ JobSet     │ RayCluster │ PyTorchJob │ YourCRD   │
-└────────────┴────────────┴────────────┴───────────┘
++--------------------------------------------------+
+|                   Your Platform                  |
+|  (scheduler, controller, dashboard, CLI, etc.)   |
++--------------------------------------------------+
+|              Karta Component API                 |
+|    Extract pods . Update specs . Read status     |
++------------+------------+------------+-----------+
+| Karta:     | Karta:     | Karta:     | Karta:    |
+| JobSet     | RayCluster | PyTorchJob | YourCRD   |
++------------+------------+------------+-----------+
 ```
 
 ## From YAML to Workload Tree
@@ -103,7 +110,7 @@ With the pre-built [LeaderWorkerSet Karta definition](docs/catalog/leaderworkers
 
 ![Workload tree derived from the LeaderWorkerSet: demo (Running, 4 pods, 32 GPUs, gang scheduled per group) with two groups, each 2/2 ready with a leader pod and a worker pod at 8 GPUs each, resolved to their nodes](docs/assets/lws-workload-tree.svg)
 
-The structure in this view comes from Karta path expressions: the group, leader, and worker components, their replica counts, the per-pod GPU counts, and the workload status mapped from LeaderWorkerSet conditions to a common vocabulary. The gang semantics come from the same definition's gang-scheduling instructions, which declare each group's pods as one gang. None of it is LeaderWorkerSet-specific code. Point the same code at a RayCluster or a JobSet with their Karta definitions and the view keeps working. [KAI Scheduler](https://github.com/kai-scheduler/KAI-Scheduler) consumes the gang instructions today through its Karta-based pod grouper (the KAI component that groups a workload's pods for scheduling) to admit each gang all-or-nothing, and any scheduler with a gang primitive can translate them the same way.
+The structure in this view comes from Karta expressions: the group, leader, and worker components, their replica counts, the per-pod GPU counts, and the workload status mapped from LeaderWorkerSet conditions to a common vocabulary. The gang semantics come from the same definition's gang-scheduling instructions, which declare each group's pods as one gang. None of it is LeaderWorkerSet-specific code. Point the same code at a RayCluster or a JobSet with their Karta definitions and the view keeps working. [KAI Scheduler](https://github.com/kai-scheduler/KAI-Scheduler) consumes the gang instructions today through its Karta-based pod grouper (the KAI component that groups a workload's pods for scheduling) to admit each gang all-or-nothing, and any scheduler with a gang primitive can translate them the same way.
 
 ## Quick Start
 
@@ -168,14 +175,20 @@ from a clone with make.
 ### Install the CRD
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/dsx-ai-factory/workload-map/main/charts/karta/crds/run.ai_kartas.yaml
+kubectl apply -f charts/karta/crds/run.ai_kartas.yaml
 ```
 
 ### Use the Go library
 
+Run the local example against the SDK in this checkout:
+
 ```bash
-go get github.com/dsx-ai-factory/workload-map/karta/sdk@latest
+cd docs/examples/quickstart
+go run . --print-mutated
 ```
+
+For a separate application, use a local module replacement or pin the PoC
+commit. See the [PoC guide](docs/design/cel-expressions/POC.md).
 
 The library lives in the `karta/sdk/` module. Releases up to v0.2.x published it as
 `github.com/dsx-ai-factory/workload-map`. To move to the new path, require
@@ -191,8 +204,10 @@ Job, see [Authoring Your First Karta](docs/Authoring%20Your%20First%20Karta.md).
 Here's a Karta for a JobSet - a distributed training workload with master and worker groups:
 
 ```yaml
-apiVersion: run.ai/v1alpha1
 kind: Karta
+apiVersion: run.ai/v1alpha2
+metadata:
+  name: jobset-x-k8s-io-jobset-v1alpha2
 spec:
   structureDefinition:
     rootComponent:
@@ -203,35 +218,72 @@ spec:
         kind: JobSet
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
+          messageFieldName: message
+          reasonFieldName: reason
         statusMappings:
+          initializing:
+            - byExpression:
+                expression: object.?status.?replicatedJobsStatus.orValue([]).exists(j, j.?active.orValue(0) > 0 && j.?ready.orValue(0) == 0) && object.?status.?replicatedJobsStatus.orValue([]).all(j, j.?failed.orValue(0) == 0)
           running:
-          - byExpression:
-              expression: "(.status.replicatedJobsStatus // []) | any(.ready > 0 and .active > 0) and all(.failed == 0)"
-              expectedResult: "true"
+            - byExpression:
+                expression: object.?status.?replicatedJobsStatus.orValue([]).exists(j, j.?active.orValue(0) > 0 || j.?ready.orValue(0) > 0) && object.?status.?replicatedJobsStatus.orValue([]).all(j, j.?failed.orValue(0) == 0)
           completed:
-          - byConditions:
-            - type: Completed
-              status: "True"
+            - byConditions:
+                - type: Completed
+                  status: "True"
           failed:
-          - byConditions:
-            - type: Failed
-              status: "True"
-
+            - byConditions:
+                - type: Failed
+                  status: "True"
+          suspended:
+            - byConditions:
+                - type: Suspended
+                  status: "True"
+      suspendDefinition:
+        suspendActions:
+          - write:
+              path: /spec/suspend
+            value: "true"
+        resumeActions:
+          - write:
+              path: /spec/suspend
+            value: "false"
     childComponents:
-    - name: replicatedjob
-      kind:
-        group: batch
-        version: v1
-        kind: Job
-      ownerRef: jobset
-      specDefinition:
-        podTemplateSpecPath: .spec.replicatedJobs[].template.spec.template
-      scaleDefinition:
-        replicasPath: .spec.replicatedJobs[] | .replicas * .template.spec.parallelism
-      instanceIdPath: .spec.replicatedJobs[].name  # Instances: "master", "worker"
+      - name: replicatedjob
+        kind:
+          group: batch
+          version: v1
+          kind: Job
+        ownerRef: jobset
+        specDefinition:
+          podTemplateSpec:
+            read:
+              expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"template"][?"spec"][?"template"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/replicatedJobs/" + string(index) + "/template/spec/template"'
+        scaleDefinition:
+          replicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(j, j.replicas * j.template.spec.parallelism)
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"replicatedJobs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))
+        podSelector:
+          componentInstanceSelector:
+            read:
+              expression: object[?"metadata"][?"labels"][?"jobset.sigs.k8s.io/replicatedjob-name"].orValue(dyn(null))
+  optimizationInstructions:
+    gangScheduling:
+      podGroups:
+        - name: job
+          members:
+            - componentName: replicatedjob
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"jobset.sigs.k8s.io/replicatedjob-name"].orValue(dyn(null))
 ```
 
 ### Extract workload information
@@ -264,26 +316,38 @@ status, _ := rootComponent.GetStatus(ctx)
 
 ### Update workload specs
 
-The same paths defined in `specDefinition` are used for both extraction and updates:
+Reads and writes are separate. The definition chooses a writable JSON Pointer.
+The caller supplies a raw JSON Merge Patch for that location. This example adds
+a scheduler and label to the JobSet instance named `worker`:
 
 ```go
-// Prepare updates per instance
-updates := map[string]resource.FragmentedPodSpec{
-    "master": {
-        SchedulerName: "my-custom-scheduler",
-        Labels: map[string]string{"my-label": "true"},
-    },
-    "worker": {
-        SchedulerName: "my-custom-scheduler",
-    },
+import "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
+
+editor, err := tree.Open(ctx, karta, jobSetObject)
+if err != nil {
+    return err
 }
-
-// Apply updates - modifies the underlying unstructured object
-err := component.UpdateFragmentedPodSpec(ctx, updates)
-
-// Get the updated object to apply back to the cluster
-updatedObject, _ := factory.GetObject()
+err = editor.Mutate(ctx, tree.Write{
+    Component: "replicatedjob",
+    Instance:  "worker",
+    Field:     tree.PodTemplateSpec,
+    Value: map[string]any{
+        "metadata": map[string]any{
+            "labels": map[string]any{"example.com/managed": "true"},
+        },
+        "spec": map[string]any{"schedulerName": "my-custom-scheduler"},
+    },
+})
+if err != nil {
+    return err
+}
+updatedObject, err := editor.GetResource()
 ```
+
+The patch preserves existing containers and fields it does not mention.
+Arrays replace whole arrays. Null map members delete fields. The editor rejects
+a top-level null patch. A failed batch leaves the object unchanged. The SDK
+returns a private object; the application decides whether to send it to Kubernetes.
 
 ## Pre-built Karta Definitions
 
@@ -342,7 +406,7 @@ See [ADOPTERS.md](ADOPTERS.md) for the full list of adopters. If you use Karta, 
 - [Roadmap](ROADMAP.md) - Where Karta is headed, in Now / Next / Later horizons
 - [Changelog](CHANGELOG.md) - Notable changes per release
 - [CLI Guide](docs/CLI%20Guide.md) - Installing `kli`, shell completion, and the install make targets
-- [Technical Guide](docs/Technical%20Guide.md) - Full Karta spec, path syntax (jq), validation rules
+- [Technical Guide](docs/Technical%20Guide.md) - Karta fields, CEL scopes, read/write accessors and validation
 - [Webhook Certificates](docs/Webhook%20Certificates.md) - Webhook cert modes (auto self-signed or manual) and how to wire cert-manager
 - [FIPS 140-3](docs/FIPS.md) - Running the operator with Go's FIPS 140-3 crypto module
 - [Dependency Updates](docs/Dependency%20Updates.md) - How Renovate keeps dependencies current and how to test a configuration change

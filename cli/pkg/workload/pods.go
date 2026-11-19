@@ -72,12 +72,22 @@ func (a *PodAttributor) Filter(
 // ListPods reads every pod in namespace once, left undecoded for Filter to
 // narrow. An empty namespace lists cluster-wide.
 func ListPods(ctx context.Context, dyn dynamic.Interface, namespace string) ([]unstructured.Unstructured, error) {
-	// ResourceVersion 0 serves the list from the apiserver's watch cache rather
-	// than etcd, which a describe read can afford to have a moment stale.
-	list, err := dyn.Resource(podsGVR).Namespace(namespace).
-		List(ctx, metav1.ListOptions{ResourceVersion: "0"})
-	if err != nil {
-		return nil, err
+	options := metav1.ListOptions{ResourceVersion: "0", Limit: 500}
+	var pods []unstructured.Unstructured
+	seen := map[string]bool{}
+	for {
+		page, err := dyn.Resource(podsGVR).Namespace(namespace).List(ctx, options)
+		if err != nil {
+			return nil, err
+		}
+		pods = append(pods, page.Items...)
+		options.Continue = page.GetContinue()
+		if options.Continue == "" {
+			return pods, nil
+		}
+		if seen[options.Continue] {
+			return nil, fmt.Errorf("pod list repeated a continuation token")
+		}
+		seen[options.Continue] = true
 	}
-	return list.Items, nil
 }

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: serving-kserve-io-llminferenceservice-v1alpha2
 spec:
@@ -14,7 +14,8 @@ spec:
         kind: LLMInferenceService
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -22,22 +23,18 @@ spec:
         statusMappings:
           initializing:
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "Unknown") and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False") | not)
-                expectedResult: "true"
+                expression: object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "Ready" && c.?status.orValue("") == "Unknown") && !(object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "PresetsCombined" && c.?status.orValue("") == "False"))
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "False" and (.reason | IN("Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady")))
-                expectedResult: "true"
+                expression: object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "Ready" && c.?status.orValue("") == "False" && (c.?reason.orValue("") in ["Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady"]))
           running:
             - byConditions:
                 - type: Ready
                   status: "True"
           failed:
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "False" and (.reason | IN("Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady", "Stopped") | not))
-                expectedResult: "true"
+                expression: object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "Ready" && c.?status.orValue("") == "False" && !(c.?reason.orValue("") in ["Progressing", "MinimumReplicasUnavailable", "WaitingForGateway", "GatewaysNotReady", "HTTPRoutesNotReady", "InferencePoolNotReady", "HPAProgressing", "ScaledObjectProgressing", "AllGroupsReady", "Stopped"]))
             - byExpression:
-                expression: any(.status.conditions[]?; .type == "Ready" and .status == "Unknown") and (any(.status.conditions[]?; .type == "PresetsCombined" and .status == "False" and .reason != "Stopped"))
-                expectedResult: "true"
+                expression: object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "Ready" && c.?status.orValue("") == "Unknown") && (object.?status.?conditions.orValue([]).exists(c, c.?type.orValue("") == "PresetsCombined" && c.?status.orValue("") == "False" && c.?reason.orValue("") != "Stopped"))
           suspended:
             - byConditions:
                 - type: Ready
@@ -55,14 +52,39 @@ spec:
           kind: Deployment
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: (select(.spec.worker == null) | .spec.template)
+          podSpec:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"template"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/template
         scaleDefinition:
-          replicasPath: (select(.spec.worker == null) | .spec.replicas)
-          minReplicasPath: (select(.spec.worker == null) | .spec.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.worker == null) | .spec.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload
       - name: prefill
         kind:
@@ -71,14 +93,39 @@ spec:
           kind: Deployment
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: (select(.spec.prefill.worker == null) | .spec.prefill.template)
+          podSpec:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"prefill"][?"template"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/prefill/template
         scaleDefinition:
-          replicasPath: (select(.spec.prefill.worker == null) | .spec.prefill.replicas)
-          minReplicasPath: (select(.spec.prefill.worker == null) | .spec.prefill.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.prefill.worker == null) | .spec.prefill.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"prefill"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/prefill/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/prefill/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) == null
+              path: /spec/prefill/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload-prefill
       - name: worker
         kind:
@@ -87,14 +134,37 @@ spec:
           kind: LeaderWorkerSet
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: .spec.worker
+          podSpec:
+            read:
+              expression: object[?"spec"][?"worker"].orValue(dyn(null))
+            write:
+              path: /spec/worker
         scaleDefinition:
-          replicasPath: (select(.spec.worker != null) | .spec.replicas)
-          minReplicasPath: (select(.spec.worker != null) | .spec.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.worker != null) | .spec.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload-worker
       - name: leader
         kind:
@@ -103,14 +173,39 @@ spec:
           kind: LeaderWorkerSet
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: (select(.spec.worker != null) | .spec.template)
+          podSpec:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"template"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/template
         scaleDefinition:
-          replicasPath: (select(.spec.worker != null) | .spec.replicas)
-          minReplicasPath: (select(.spec.worker != null) | .spec.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.worker != null) | .spec.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload-leader
       - name: prefill-leader
         kind:
@@ -119,14 +214,39 @@ spec:
           kind: LeaderWorkerSet
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: (select(.spec.prefill.worker != null) | .spec.prefill.template)
+          podSpec:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"template"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/template
         scaleDefinition:
-          replicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.replicas)
-          minReplicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload-leader-prefill
       - name: prefill-worker
         kind:
@@ -135,14 +255,37 @@ spec:
           kind: LeaderWorkerSet
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: .spec.prefill.worker
+          podSpec:
+            read:
+              expression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null))
+            write:
+              path: /spec/prefill/worker
         scaleDefinition:
-          replicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.replicas)
-          minReplicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.scaling.minReplicas)
-          maxReplicasPath: (select(.spec.prefill.worker != null) | .spec.prefill.scaling.maxReplicas)
+          replicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"replicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/replicas
+          minReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"minReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/scaling/minReplicas
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              expression: object[?"spec"][?"prefill"][?"scaling"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              matchExpression: object[?"spec"][?"prefill"][?"worker"].orValue(dyn(null)) != null
+              path: /spec/prefill/scaling/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-workload-worker-prefill
       - name: router-scheduler
         kind:
@@ -151,12 +294,21 @@ spec:
           kind: Deployment
         ownerRef: llminferenceservice
         specDefinition:
-          podSpecPath: .spec.router.scheduler.template
+          podSpec:
+            read:
+              expression: object[?"spec"][?"router"][?"scheduler"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/router/scheduler/template
         scaleDefinition:
-          replicasPath: .spec.router.scheduler.replicas
+          replicas:
+            read:
+              expression: object[?"spec"][?"router"][?"scheduler"][?"replicas"].orValue(dyn(null))
+            write:
+              path: /spec/router/scheduler/replicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["app.kubernetes.io/component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))
             value: llminferenceservice-router-scheduler
     additionalChildKinds:
       - group: leaderworkerset.x-k8s.io
@@ -177,27 +329,27 @@ spec:
         - name: service
           members:
             - componentName: main
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
             - componentName: prefill
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
             - componentName: worker
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
-                - .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] // "0"
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue("0")
             - componentName: leader
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
-                - .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] // "0"
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue("0")
             - componentName: prefill-leader
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
-                - .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] // "0"
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue("0")
             - componentName: prefill-worker
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
-                - .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"] // "0"
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue("0")
             - componentName: router-scheduler
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))

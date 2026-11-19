@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: argoproj-io-rollout-v1alpha1
 spec:
@@ -13,14 +13,24 @@ spec:
         version: v1alpha1
         kind: Rollout
       specDefinition:
-        podTemplateSpecPath: .spec.template
+        podTemplateSpec:
+          read:
+            expression: object[?"spec"][?"template"].orValue(dyn(null))
+          write:
+            path: /spec/template
       scaleDefinition:
-        replicasPath: .spec.replicas
+        replicas:
+          read:
+            expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+          write:
+            path: /spec/replicas
       statusDefinition:
         phaseDefinition:
-          path: .status.phase
+          read:
+            expression: object[?"status"][?"phase"].orValue(dyn(null))
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -28,28 +38,26 @@ spec:
         statusMappings:
           initializing:
             - byExpression:
-                expression: ((.status.phase // "") != "Healthy" or .status.observedGeneration != (.metadata.generation | tostring) or (.spec.paused // false)) and ((.status.phase // "") != "Degraded" or .status.observedGeneration != (.metadata.generation | tostring)) and (((.spec.paused // false) | not) or (.status.phase // "") == "Degraded")
-                expectedResult: "true"
+                expression: (object[?"status"][?"phase"].orValue("") != "Healthy" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0)) || object[?"spec"][?"paused"].orValue(false)) && (object[?"status"][?"phase"].orValue("") != "Degraded" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0))) && (!(object[?"spec"][?"paused"].orValue(false)) || object[?"status"][?"phase"].orValue("") == "Degraded")
           running:
             - byPhase: Healthy
               byExpression:
-                expression: .status.observedGeneration == (.metadata.generation | tostring) and ((.spec.paused // false) | not)
-                expectedResult: "true"
+                expression: object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0)) && !(object[?"spec"][?"paused"].orValue(false))
           degraded:
             - byPhase: Degraded
               byExpression:
-                expression: .status.observedGeneration == (.metadata.generation | tostring)
-                expectedResult: "true"
+                expression: object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0))
           suspended:
             - byExpression:
-                expression: (.spec.paused // false) and (.status.phase // "") != "Degraded"
-                expectedResult: "true"
+                expression: object[?"spec"][?"paused"].orValue(false) && object[?"status"][?"phase"].orValue("") != "Degraded"
       suspendDefinition:
         suspendActions:
-          - path: .spec.paused
+          - write:
+              path: /spec/paused
             value: "true"
         resumeActions:
-          - path: .spec.paused
+          - write:
+              path: /spec/paused
             value: "false"
     childComponents:
       - name: replicaset

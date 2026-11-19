@@ -91,7 +91,7 @@ var _ = Describe("exporter construction", func() {
 					<-r.Context().Done()
 					return
 				}
-				fmt.Fprint(w, `{"apiVersion":"run.ai/v1alpha1","kind":"KartaList","metadata":{"resourceVersion":"1"},"items":[]}`)
+				fmt.Fprint(w, `{"apiVersion":"run.ai/v1alpha2","kind":"KartaList","metadata":{"resourceVersion":"1"},"items":[]}`)
 			}))
 			defer server.Close()
 			client := &rest.Config{Host: server.URL}

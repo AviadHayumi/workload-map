@@ -27,6 +27,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/generator"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/workload"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 const (
@@ -56,9 +57,9 @@ all resolve.
 
 --all-types lists the top-level workloads of every covered type, with a TYPE column.
 
-The phase comes from the workload spec, so no pods are listed. -o wide adds the ORIGIN
-of the resolving definition; the component breakdown, requested GPUs and a NODES column
-arrive with the describe command.`
+The phase comes from the workload. --all-types also reads Pods and declared references
+when needed to group dependencies under their parent. -o wide adds the ORIGIN of the
+resolving definition. Use describe for components, resource requests and nodes.`
 
 	getExample = `  # All JobSets in the current namespace
   kli get jobset
@@ -536,7 +537,7 @@ func collect(
 
 	for i := range objects {
 		object := &objects[i]
-		view, err := workload.Resolve(ctx, object, def)
+		view, err := workload.Resolve(ctx, object, def, resource.WithReferenceReader(workload.NewReferenceReader(dyn, mapper)))
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("could not resolve %s/%s: %v",
 				gvk.Kind, object.GetName(), err))

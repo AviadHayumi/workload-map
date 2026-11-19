@@ -26,7 +26,7 @@ import (
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/generator"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 var (
@@ -67,9 +67,9 @@ func kartaListServer(name string, gvk v1alpha1.GroupVersionKind) *httptest.Serve
 // field the output reads instead of depending on the catalog.
 func kartaServer(karta *v1alpha1.Karta) *httptest.Server {
 	GinkgoHelper()
-	karta.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"}
+	karta.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}
 	body, err := json.Marshal(map[string]any{
-		"apiVersion": "run.ai/v1alpha1",
+		"apiVersion": "run.ai/v1alpha2",
 		"kind":       "KartaList",
 		"metadata":   map[string]any{"resourceVersion": "1"},
 		"items":      []*v1alpha1.Karta{karta},
@@ -204,11 +204,11 @@ var _ = Describe("kli definitions", func() {
 			kartas := decodeKartas(stdout)
 			Expect(kartas).NotTo(BeEmpty())
 			for _, karta := range kartas {
-				Expect(karta.APIVersion).To(Equal("run.ai/v1alpha1"))
+				Expect(karta.APIVersion).To(Equal("run.ai/v1alpha2"))
 				Expect(karta.Kind).To(Equal("Karta"))
 			}
 			Expect(stdout).NotTo(ContainSubstring(`"origin"`))
-			Expect(stdout).NotTo(ContainSubstring(`"components"`))
+			Expect(stdout).NotTo(ContainSubstring(`"components":`))
 		})
 
 		It("agrees with json on the same definitions", func() {

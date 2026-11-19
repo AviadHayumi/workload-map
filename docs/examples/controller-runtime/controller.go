@@ -21,8 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
 
 // Annotation keys written back to every reconciled workload. The controller
@@ -71,8 +73,9 @@ func parseGVKs(raw string) ([]schema.GroupVersionKind, error) {
 // struct serves every GVK; only the GVK field differs between instances.
 type WorkloadReconciler struct {
 	client.Client
-	Recorder events.EventRecorder
-	GVK      schema.GroupVersionKind
+	Recorder        events.EventRecorder
+	ReferenceReader references.ResourceReader
+	GVK             schema.GroupVersionKind
 }
 
 // Reconcile reacts to every change of a watched workload (and to changes of the
@@ -108,7 +111,7 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 	previousStatus := obj.GetAnnotations()[annotationStatus]
 
 	// Step 2: the single Karta entry point for all read and write operations.
-	factory := resource.NewComponentFactoryFromObject(karta, obj)
+	factory := resource.NewComponentFactoryFromObject(karta, obj, resource.WithReferenceReader(r.ReferenceReader))
 	components, err := allComponents(factory)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -123,19 +126,12 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 
 	// Step 4: inject the managed-by label into every pod-bearing component
 	// through Karta. Karta routes each update to the right path in the workload.
-	labelChanged, err := injectPodTemplateLabels(ctx, components)
+	mutated, labelChanged, err := injectPodTemplateLabels(ctx, factory, components, r.ReferenceReader)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	if labelChanged {
-		// GetResource hands back the full mutated object (all component updates
-		// applied); continue on it so a single Update persists both the labels
-		// and the annotations below.
-		mutated, err := factory.GetResource()
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("get mutated resource: %w", err)
-		}
-		obj = mutated.(*unstructured.Unstructured)
+		obj = mutated
 		r.Recorder.Eventf(obj, nil, corev1.EventTypeNormal, "PodTemplateLabeled", "InjectLabel",
 			"Injected pod-template label %s=%s via Karta", managedByLabelKey, managedByLabelValue)
 	}
@@ -304,37 +300,44 @@ func applyAnnotations(obj *unstructured.Unstructured, summary map[string]string)
 // every pod-bearing component through Karta, regardless of where the templates
 // live in the underlying CRD. It reports whether any template actually changed
 // so callers can skip a no-op Update.
-func injectPodTemplateLabels(ctx context.Context, components []*resource.Component) (bool, error) {
-	changed := false
+func injectPodTemplateLabels(ctx context.Context, factory *resource.ComponentFactory, components []*resource.Component, reader references.ResourceReader) (*unstructured.Unstructured, bool, error) {
+	var writes []tree.Write
 	for _, comp := range components {
 		if !comp.HasPodDefinition() {
 			continue
 		}
-		podTemplateSpecs, err := comp.GetPodTemplateSpec(ctx)
+		templates, err := comp.GetPodTemplateSpec(ctx)
 		if err != nil {
-			return false, fmt.Errorf("get pod template spec for %s: %w", comp.Name(), err)
+			return nil, false, fmt.Errorf("read pod template for %s: %w", comp.Name(), err)
 		}
-		compChanged := false
-		updates := make(map[string]corev1.PodTemplateSpec, len(podTemplateSpecs))
-		for id, pts := range podTemplateSpecs {
-			if pts.Labels[managedByLabelKey] != managedByLabelValue {
-				if pts.Labels == nil {
-					pts.Labels = map[string]string{}
-				}
-				pts.Labels[managedByLabelKey] = managedByLabelValue
-				compChanged = true
+		for instance, template := range templates {
+			if template.Labels[managedByLabelKey] == managedByLabelValue {
+				continue
 			}
-			updates[id] = pts
+			writes = append(writes, tree.Write{Component: comp.Name(), Instance: instance, Field: tree.PodTemplateSpec, Value: map[string]any{
+				"metadata": map[string]any{"labels": map[string]any{managedByLabelKey: managedByLabelValue}},
+			}})
 		}
-		if !compChanged {
-			continue
-		}
-		if err := comp.UpdatePodTemplateSpec(ctx, updates); err != nil {
-			return false, fmt.Errorf("update pod template spec for %s: %w", comp.Name(), err)
-		}
-		changed = true
 	}
-	return changed, nil
+	if len(writes) == 0 {
+		return nil, false, nil
+	}
+	source, err := factory.GetResource()
+	if err != nil {
+		return nil, false, err
+	}
+	editor, err := tree.Open(ctx, factory.GetKarta(), source, resource.WithReferenceReader(reader))
+	if err != nil {
+		return nil, false, err
+	}
+	if err = editor.Mutate(ctx, writes...); err != nil {
+		return nil, false, err
+	}
+	updated, err := editor.GetResource()
+	if err != nil {
+		return nil, false, err
+	}
+	return updated.(*unstructured.Unstructured), true, nil
 }
 
 // kartaForGVK selects the Karta whose root component describes the given GVK.

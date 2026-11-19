@@ -85,7 +85,7 @@ var (
 )
 
 var podGVK = schema.GroupVersionKind{Version: "v1", Kind: "Pod"}
-var kartaGVK = schema.GroupVersionKind{Group: "run.ai", Version: "v1alpha1", Kind: "Karta"}
+var kartaGVK = schema.GroupVersionKind{Group: "run.ai", Version: "v1alpha2", Kind: "Karta"}
 var definitionSource = store.SourceKey{Resource: kartaGVK.GroupVersion().WithResource("kartas")}
 var namespaceGVK = schema.GroupVersionKind{Version: "v1", Kind: "Namespace"}
 

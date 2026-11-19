@@ -13,7 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 

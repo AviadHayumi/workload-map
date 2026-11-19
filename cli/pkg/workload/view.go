@@ -34,8 +34,8 @@ type View struct {
 const undefinedPhase = "Undefined"
 
 // Resolve reads obj through def and returns its view.
-func Resolve(ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition) (*View, error) {
-	factory := resource.NewComponentFactoryFromObject(def.Karta, obj)
+func Resolve(ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, options ...resource.FactoryOption) (*View, error) {
+	factory := resource.NewComponentFactoryFromObject(def.Karta, obj, options...)
 
 	workloadTree, err := tree.Build(ctx, factory)
 	if err != nil {

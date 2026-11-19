@@ -28,7 +28,7 @@ Discuss in the PR description:
 - Changes to `.github/workflows/`.
 
 Never do:
-- Hand-edit `charts/karta/crds/`. These are generated. Edit `karta/sdk/pkg/api/runai/v1alpha1/` and run `make lib-manifests` instead.
+- Hand-edit `charts/karta/crds/`. These are generated. Edit `karta/sdk/pkg/api/runai/v1alpha2/` and run `make lib-manifests` instead.
 - Add a `replace` or `exclude` directive to `karta/sdk/go.mod`. It is the published module; `make modules-check-lib` fails on either.
 - Disable a `golangci-lint` rule to silence a warning. Fix the underlying issue.
 - Include URLs to private or login-gated resources (e.g., company Confluence, Jira, or wikis) in commits, code, or docs.

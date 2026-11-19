@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
@@ -165,7 +165,7 @@ func run(ctx context.Context, ex workloadExample, o opts) error {
 	fmt.Printf("  Karta workload status: %s\n\n", status)
 
 	// ── Step 2: Inspect replica counts ───────────────────────────────────────
-	// Scale values are read from wherever the CRD stores them — a JQ formula
+	// Scale values are read from wherever the CRD stores them — a CEL formula
 	// for LWS, per replicatedJob entry for JobSet — with no per-type branching.
 	fmt.Println("=== Component replica counts ===")
 	eachComponent(wt.Children, func(comp tree.ComponentNode, inst tree.InstanceNode) {
@@ -216,41 +216,44 @@ func run(ctx context.Context, ex workloadExample, o opts) error {
 	fmt.Println()
 
 	// ── Step 4: Inject scheduler + label into all pod-bearing components ─────
-	// A single UpdatePodTemplateSpec call covers any field on the pod template —
-	// not just schedulerName. Karta routes each mutation to the right path in
-	// the underlying CRD without any per-type branching.
+	// Each raw Merge Patch changes only the selected scheduler and label.
+	editor, err := tree.Open(ctx, karta, obj)
+	if err != nil {
+		return fmt.Errorf("open editor: %w", err)
+	}
 	children, err := factory.GetChildComponents()
 	if err != nil {
 		return fmt.Errorf("get child components: %w", err)
 	}
-	fmt.Printf("=== Injecting scheduler %q + label ===\n", o.scheduler)
+	var writes []tree.Write
 	for _, comp := range children {
 		if !comp.HasPodDefinition() {
 			continue
 		}
-		podTemplateSpecs, err := comp.GetPodTemplateSpec(ctx)
+		templates, err := comp.GetPodTemplateSpec(ctx)
 		if err != nil {
-			return fmt.Errorf("get pod template spec for %s: %w", comp.Name(), err)
+			return fmt.Errorf("get pod templates for %s: %w", comp.Name(), err)
 		}
-		updates := make(map[string]corev1.PodTemplateSpec, len(podTemplateSpecs))
-		for id, pts := range podTemplateSpecs {
-			pts.Spec.SchedulerName = o.scheduler
-			if pts.Labels == nil {
-				pts.Labels = make(map[string]string)
-			}
-			pts.Labels["app.kubernetes.io/managed-by"] = "karta"
-			updates[id] = pts
+		for instance := range templates {
+			writes = append(writes, tree.Write{Component: comp.Name(), Instance: instance, Field: tree.PodTemplateSpec, Value: map[string]any{
+				"spec":     map[string]any{"schedulerName": o.scheduler},
+				"metadata": map[string]any{"labels": map[string]any{"app.kubernetes.io/managed-by": "karta"}},
+			}})
 		}
-		if err := comp.UpdatePodTemplateSpec(ctx, updates); err != nil {
-			return fmt.Errorf("update pod template spec for %s: %w", comp.Name(), err)
-		}
-		noun := "instances"
-		if len(updates) == 1 {
-			noun = "instance"
-		}
-		fmt.Printf("  Injected into %q (%d %s)\n", comp.Name(), len(updates), noun)
 	}
-	fmt.Println()
+	if err = editor.Mutate(ctx, writes...); err != nil {
+		return fmt.Errorf("mutate pod templates: %w", err)
+	}
+	updated, err := editor.GetResource()
+	if err != nil {
+		return fmt.Errorf("get updated resource: %w", err)
+	}
+	factory = resource.NewComponentFactoryFromObject(karta, updated)
+	children, err = factory.GetChildComponents()
+	if err != nil {
+		return fmt.Errorf("get updated components: %w", err)
+	}
+	fmt.Printf("Applied scheduler and label to %d pod templates\n", len(writes))
 
 	// ── Step 5: Verify via Karta read-back ───────────────────────────────────
 	// Reading back through Karta confirms both mutations landed at the right
@@ -277,7 +280,7 @@ func run(ctx context.Context, ex workloadExample, o opts) error {
 	// ── Step 5: Retrieve the fully mutated object ─────────────────────────────
 	// GetResource returns the modified unstructured object ready for
 	//   k8sClient.Update(ctx, updated)
-	updated, err := factory.GetResource()
+	updated, err = editor.GetResource()
 	if err != nil {
 		return fmt.Errorf("get updated resource: %w", err)
 	}

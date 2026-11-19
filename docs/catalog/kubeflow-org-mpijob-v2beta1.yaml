@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: kubeflow-org-mpijob-v2beta1
 spec:
+  variables:
+    - name: specMpiReplicaSpecsLauncherReplicas
+      expression: ([dyn(object[?"spec"][?"mpiReplicaSpecs"][?"Launcher"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
+    - name: specMpiReplicaSpecsWorkerReplicas
+      expression: ([dyn(object[?"spec"][?"mpiReplicaSpecs"][?"Worker"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
     rootComponent:
       name: mpijob
@@ -14,7 +19,8 @@ spec:
         kind: MPIJob
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -42,10 +48,12 @@ spec:
                   status: "True"
       suspendDefinition:
         suspendActions:
-          - path: .spec.runPolicy.suspend
+          - write:
+              path: /spec/runPolicy/suspend
             value: "true"
         resumeActions:
-          - path: .spec.runPolicy.suspend
+          - write:
+              path: /spec/runPolicy/suspend
             value: "false"
     childComponents:
       - name: launcher
@@ -55,12 +63,21 @@ spec:
           kind: Pod
         ownerRef: mpijob
         specDefinition:
-          podTemplateSpecPath: .spec.mpiReplicaSpecs.Launcher.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"mpiReplicaSpecs"][?"Launcher"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/mpiReplicaSpecs/Launcher/template
         scaleDefinition:
-          replicasPath: .spec.mpiReplicaSpecs.Launcher.replicas // 1
+          replicas:
+            read:
+              expression: variables.specMpiReplicaSpecsLauncherReplicas
+            write:
+              path: /spec/mpiReplicaSpecs/Launcher/replicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["training.kubeflow.org/job-role"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"training.kubeflow.org/job-role"].orValue(dyn(null))
             value: launcher
       - name: worker
         kind:
@@ -69,12 +86,21 @@ spec:
           kind: Pod
         ownerRef: mpijob
         specDefinition:
-          podTemplateSpecPath: .spec.mpiReplicaSpecs.Worker.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"mpiReplicaSpecs"][?"Worker"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/mpiReplicaSpecs/Worker/template
         scaleDefinition:
-          replicasPath: .spec.mpiReplicaSpecs.Worker.replicas // 1
+          replicas:
+            read:
+              expression: variables.specMpiReplicaSpecsWorkerReplicas
+            write:
+              path: /spec/mpiReplicaSpecs/Worker/replicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["training.kubeflow.org/job-role"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"training.kubeflow.org/job-role"].orValue(dyn(null))
             value: worker
   optimizationInstructions:
     gangScheduling:
@@ -82,8 +108,8 @@ spec:
         - name: job
           members:
             - componentName: launcher
-              groupByKeyPaths:
-                - .metadata.labels["training.kubeflow.org/job-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"training.kubeflow.org/job-name"].orValue(dyn(null))
             - componentName: worker
-              groupByKeyPaths:
-                - .metadata.labels["training.kubeflow.org/job-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"training.kubeflow.org/job-name"].orValue(dyn(null))

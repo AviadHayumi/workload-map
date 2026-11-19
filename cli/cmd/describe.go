@@ -241,7 +241,18 @@ func describeLive(
 		return nil, warnings, fmt.Errorf("attribute pods: %w", err)
 	}
 
-	view, err := workload.ResolveDescribe(ctx, obj, look.definition, owned)
+	reader := workload.NewReferenceReader(look.dyn, look.mapper)
+	describeOptions := []workload.DescribeOption{workload.WithDescribeReader(reader)}
+	assigned, membershipWarnings, err := describeComponentMembership(ctx, look, obj)
+	warnings = append(warnings, membershipWarnings...)
+	if err != nil {
+		return nil, warnings, err
+	}
+	if assigned != nil {
+		describeOptions = append(describeOptions, workload.WithComponentPods(assigned))
+	}
+
+	view, err := workload.ResolveDescribe(ctx, obj, look.definition, owned, describeOptions...)
 	if err != nil {
 		return nil, warnings, fmt.Errorf("describe %s %q: %w", obj.GetKind(), obj.GetName(), err)
 	}

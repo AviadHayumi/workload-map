@@ -20,7 +20,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
@@ -259,8 +259,8 @@ spec:
 		karta := kartaNamed("apps-deployment-v1")
 		karta.Spec.StructureDefinition.RootComponent.PodSelector = &v1alpha1.PodSelector{
 			ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-				KeyPath: `.metadata.labels["role"]`,
-				Value:   ptr.To("serve"),
+				Read:  v1alpha1.ReadAccessor{Expression: `object.?metadata.?labels[?"role"].orValue("")`},
+				Value: ptr.To("serve"),
 			},
 		}
 

@@ -21,9 +21,9 @@ import (
 const pytorchCatalog = "kubeflow-org-pytorchjob-v1.yaml"
 
 // brokenDefinition carries the two defects the issue's acceptance names: a child
-// whose required owner ref is missing, and an unparseable JQ expression. It stays
+// whose required owner ref is missing, and an unparseable CEL expression. It stays
 // inline because the whole point is the defects, which no catalog file has.
-const brokenDefinition = `apiVersion: run.ai/v1alpha1
+const brokenDefinition = `apiVersion: run.ai/v1alpha2
 kind: Karta
 metadata:
   name: example
@@ -46,7 +46,9 @@ spec:
           version: v1
           kind: Pod
         scaleDefinition:
-          replicasPath: '.spec.x['
+          replicas:
+            read:
+              expression: 'object.spec.x['
 `
 
 var _ = Describe("kli validate", func() {
@@ -91,7 +93,7 @@ var _ = Describe("kli validate", func() {
 			Expect(err).To(MatchError(ContainSubstring("2 finding(s)")))
 			Expect(stdout).To(HavePrefix("INVALID: " + path))
 			Expect(stdout).To(ContainSubstring("child component 'runner' has no owner ref"))
-			Expect(stdout).To(ContainSubstring("failed to parse JQ expression '.spec.x['"))
+			Expect(stdout).To(ContainSubstring("components.runner.ScaleDefinition.Replicas.read.expression: invalid CEL expression"))
 		})
 
 		It("puts one finding per line, indented under the header", func() {
@@ -135,7 +137,7 @@ var _ = Describe("kli validate", func() {
 	})
 
 	Describe("input that would otherwise be silently dropped", func() {
-		const unknownField = `apiVersion: run.ai/v1alpha1
+		const unknownField = `apiVersion: run.ai/v1alpha2
 kind: Karta
 metadata:
   name: example
@@ -143,7 +145,7 @@ metadata:
     team: demo
 `
 
-		const duplicateKey = `apiVersion: run.ai/v1alpha1
+		const duplicateKey = `apiVersion: run.ai/v1alpha2
 kind: Karta
 metadata:
   name: example

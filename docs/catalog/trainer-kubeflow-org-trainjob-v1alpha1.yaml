@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha2
+metadata:
+  name: trainer-kubeflow-org-trainjob-v1alpha1
+spec:
+  variables:
+    - name: conditions
+      expression: object.?status.?conditions.orValue([])
+    - name: jobsActive
+      expression: object.?status.?jobsStatus.orValue([]).exists(j, j.?active.orValue(0) > 0 || j.?ready.orValue(0) > 0)
+    - name: isSuspended
+      expression: variables.conditions.exists(c, c.type == "Suspended" && c.status == "True") || (object.?spec.?suspend.orValue(false) == true && !variables.jobsActive)
+    - name: isTerminal
+      expression: variables.conditions.exists(c, (c.type == "Complete" || c.type == "Failed") && c.status == "True")
+  structureDefinition:
+    references:
+      - name: trainingRuntime
+        apiVersion: trainer.kubeflow.org/v1alpha1
+        kind: ClusterTrainingRuntime
+        lookup:
+          nameExpression: object.spec.runtimeRef.name
+    rootComponent:
+      name: trainjob
+      kind:
+        group: trainer.kubeflow.org
+        version: v1alpha1
+        kind: TrainJob
+      specDefinition:
+        fragmentedPodSpecDefinition:
+          resources:
+            read:
+              expression: object.?spec.?trainer.?resourcesPerNode.orValue(references.trainingRuntime.spec.template.spec.replicatedJobs.filter(j, j.?template.?metadata.?labels["trainer.kubeflow.org/trainjob-ancestor-step"].orValue("") == "trainer")[0].template.spec.template.spec.containers.filter(c, c[?"name"].orValue("") == "node")[0][?"resources"].orValue(dyn(null)))
+          image:
+            read:
+              expression: object.?spec.?trainer.?image.orValue(references.trainingRuntime.spec.template.spec.replicatedJobs.filter(j, j.?template.?metadata.?labels["trainer.kubeflow.org/trainjob-ancestor-step"].orValue("") == "trainer")[0].template.spec.template.spec.containers.filter(c, c[?"name"].orValue("") == "node")[0][?"image"].orValue(dyn(null)))
+      scaleDefinition:
+        replicas:
+          read:
+            expression: object.?spec.?trainer.?numNodes.orValue(references.trainingRuntime.?spec.?mlPolicy.?numNodes.orValue(1))
+      statusDefinition:
+        conditionsDefinition:
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
+          typeFieldName: type
+          statusFieldName: status
+          messageFieldName: message
+          reasonFieldName: reason
+        statusMappings:
+          initializing:
+            - byExpression:
+                expression: '!variables.isTerminal && !variables.isSuspended && !variables.jobsActive'
+          running:
+            - byExpression:
+                expression: '!variables.isTerminal && !variables.isSuspended && variables.jobsActive'
+          completed:
+            - byConditions:
+                - type: Complete
+                  status: "True"
+          failed:
+            - byConditions:
+                - type: Failed
+                  status: "True"
+          suspended:
+            - byExpression:
+                expression: variables.isSuspended
+      suspendDefinition:
+        suspendActions:
+          - write:
+              path: /spec/suspend
+            value: "true"
+        resumeActions:
+          - write:
+              path: /spec/suspend
+            value: "false"
+    additionalChildKinds:
+      - group: jobset.x-k8s.io
+        version: v1alpha2
+        kind: JobSet
+  optimizationInstructions:
+    gangScheduling:
+      podGroups:
+        - name: trainjob
+          members:
+            - componentName: trainjob
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"jobset.sigs.k8s.io/jobset-name"].orValue(dyn(null))

@@ -32,7 +32,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/config"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 

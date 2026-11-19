@@ -22,7 +22,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )

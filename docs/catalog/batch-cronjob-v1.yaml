@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: batch-cronjob-v1
 spec:
+  variables:
+    - name: specJobTemplateSpecParallelism
+      expression: ([dyn(object[?"spec"][?"jobTemplate"][?"spec"][?"parallelism"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
     rootComponent:
       name: cronjob
@@ -13,29 +16,36 @@ spec:
         version: v1
         kind: CronJob
       specDefinition:
-        podTemplateSpecPath: .spec.jobTemplate.spec.template
+        podTemplateSpec:
+          read:
+            expression: object[?"spec"][?"jobTemplate"][?"spec"][?"template"].orValue(dyn(null))
+          write:
+            path: /spec/jobTemplate/spec/template
       scaleDefinition:
-        replicasPath: .spec.jobTemplate.spec.parallelism // 1
+        replicas:
+          read:
+            expression: variables.specJobTemplateSpecParallelism
+          write:
+            path: /spec/jobTemplate/spec/parallelism
       statusDefinition:
         statusMappings:
           initializing:
             - byExpression:
-                expression: (.spec.suspend // false) != true and (.status.lastScheduleTime == null)
-                expectedResult: "true"
+                expression: object[?"spec"][?"suspend"].orValue(false) != true && (object[?"status"][?"lastScheduleTime"].orValue(dyn(null)) == null)
           running:
             - byExpression:
-                expression: (.spec.suspend // false) != true and (.status.lastScheduleTime != null)
-                expectedResult: "true"
+                expression: object[?"spec"][?"suspend"].orValue(false) != true && (object[?"status"][?"lastScheduleTime"].orValue(dyn(null)) != null)
           suspended:
             - byExpression:
-                expression: (.spec.suspend // false) == true
-                expectedResult: "true"
+                expression: object[?"spec"][?"suspend"].orValue(false) == true
       suspendDefinition:
         suspendActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "true"
         resumeActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "false"
     childComponents:
       - name: job

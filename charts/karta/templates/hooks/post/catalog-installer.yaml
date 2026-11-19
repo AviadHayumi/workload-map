@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+{{- $fipsMode := include "karta.fipsMode" . -}}
+{{- if .Values.catalogInstaller.enabled }}
+{{- if not (and .Values.operator.enabled .Values.webhook.enabled) }}
+{{- fail "catalogInstaller.enabled requires operator.enabled and webhook.enabled" }}
+{{- end }}
+{{- $name := printf "%s-catalog" (include "karta.fullname" .) | trunc 63 | trimSuffix "-" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: [run.ai]
+    resources: [kartas]
+    verbs: [get, list, create, update]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    resourceNames: [kartas.run.ai]
+    verbs: [get]
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations]
+    resourceNames: [{{ include "karta.webhook.validatingConfigName" . | quote }}]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: catalog-installer
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --install-catalog
+            - --catalog-owner={{ .Release.Namespace }}/{{ .Release.Name }}
+            - --catalog-webhook={{ include "karta.webhook.validatingConfigName" . }}
+          {{- if ne $fipsMode "off" }}
+          env:
+            - name: GODEBUG
+              value: {{ if eq $fipsMode "only" }}"fips140=only,tlsmlkem=0"{{ else }}"fips140={{ $fipsMode }}"{{ end }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}

@@ -180,7 +180,7 @@ func evaluatePodComponent(ctx context.Context, factory *resource.ComponentFactor
 	if instanceID != nil {
 		instance = *instanceID
 	}
-	isRequiredInstanceMissing := component.Definition().InstanceIdPath != nil && instance == ""
+	isRequiredInstanceMissing := component.Definition().InstanceIds != nil && instance == ""
 	if isRequiredInstanceMissing {
 		return "", "", "", ErrMissingComponentInstance
 	}
@@ -188,8 +188,8 @@ func evaluatePodComponent(ctx context.Context, factory *resource.ComponentFactor
 	// A component can inherit the replica selector from an owner component.
 	for {
 		selector := component.GetPodSelector()
-		hasReplicaKeyPath := selector != nil && selector.ReplicaSelector != nil && selector.ReplicaSelector.KeyPath != ""
-		if hasReplicaKeyPath {
+		hasReplicaSelector := selector != nil && selector.ReplicaSelector != nil && selector.ReplicaSelector.Read.Expression != ""
+		if hasReplicaSelector {
 			group, _, err = query.ExtractReplicaKey(ctx, selector.ReplicaSelector)
 			if err != nil {
 				return "", "", "", err

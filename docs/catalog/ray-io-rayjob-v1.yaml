@@ -1,10 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: ray-io-rayjob-v1
 spec:
+  variables:
+    - name: workerGroups
+      expression: ([dyn(object[?"spec"][?"rayClusterSpec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]
+    - name: workerReplicas
+      expression: variables.workerGroups.map(x, dyn(x[?"replicas"].orValue(dyn(null)))).filter(v, v != null && v != false)
+    - name: statusJobStatus
+      expression: ([dyn(object.?status.?jobStatus.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
+    - name: statusJobDeploymentStatus
+      expression: ([dyn(object.?status.?jobDeploymentStatus.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
   structureDefinition:
     rootComponent:
       name: rayjob
@@ -14,9 +23,11 @@ spec:
         kind: RayJob
       statusDefinition:
         phaseDefinition:
-          path: .status.jobStatus
+          read:
+            expression: object[?"status"][?"jobStatus"].orValue(dyn(null))
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -24,8 +35,7 @@ spec:
           initializing:
             - byPhase: PENDING
             - byExpression:
-                expression: .status.jobDeploymentStatus == "Initializing"
-                expectedResult: "true"
+                expression: object[?"status"][?"jobDeploymentStatus"].orValue(dyn(null)) == "Initializing"
           running:
             - byPhase: RUNNING
           completed:
@@ -34,14 +44,15 @@ spec:
             - byPhase: FAILED
           suspended:
             - byExpression:
-                expression: .status.jobDeploymentStatus == "Suspended"
-                expectedResult: "true"
+                expression: object[?"status"][?"jobDeploymentStatus"].orValue(dyn(null)) == "Suspended"
       suspendDefinition:
         suspendActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "true"
         resumeActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "false"
     childComponents:
       - name: head
@@ -51,12 +62,19 @@ spec:
           kind: Pod
         ownerRef: rayjob
         specDefinition:
-          podTemplateSpecPath: .spec.rayClusterSpec.headGroupSpec.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"rayClusterSpec"][?"headGroupSpec"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/rayClusterSpec/headGroupSpec/template
         scaleDefinition:
-          replicasPath: "1"
+          replicas:
+            read:
+              expression: "1"
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["ray.io/node-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/node-type"].orValue(dyn(null))
             value: head
       - name: worker
         kind:
@@ -65,26 +83,46 @@ spec:
           kind: Pod
         ownerRef: rayjob
         specDefinition:
-          podTemplateSpecPath: .spec.rayClusterSpec.workerGroupSpecs[].template
+          podTemplateSpec:
+            read:
+              expression: ([dyn(object[?"spec"][?"rayClusterSpec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"template"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/rayClusterSpec/workerGroupSpecs/" + string(index) + "/template"'
         scaleDefinition:
-          replicasPath: .spec.rayClusterSpec.workerGroupSpecs[].replicas // 1
-          minReplicasPath: .spec.rayClusterSpec.workerGroupSpecs[].minReplicas
-          maxReplicasPath: .spec.rayClusterSpec.workerGroupSpecs[].maxReplicas
-        instanceIdPath: .spec.rayClusterSpec.workerGroupSpecs[].groupName
+          replicas:
+            read:
+              expression: '(variables.workerReplicas.size() > 0 ? variables.workerReplicas : [dyn(1)])'
+            write:
+              pathExpression: '"/spec/rayClusterSpec/workerGroupSpecs/" + string(index) + "/replicas"'
+          minReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"rayClusterSpec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"minReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/rayClusterSpec/workerGroupSpecs/" + string(index) + "/minReplicas"'
+          maxReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"rayClusterSpec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"maxReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/rayClusterSpec/workerGroupSpecs/" + string(index) + "/maxReplicas"'
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"rayClusterSpec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"groupName"].orValue(dyn(null)))
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["ray.io/node-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/node-type"].orValue(dyn(null))
             value: worker
           componentInstanceSelector:
-            idPath: .metadata.labels["ray.io/group"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/group"].orValue(dyn(null))
   optimizationInstructions:
     gangScheduling:
       podGroups:
         - name: job
           members:
             - componentName: head
-              groupByKeyPaths:
-                - .metadata.labels["ray.io/cluster"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"ray.io/cluster"].orValue(dyn(null))
             - componentName: worker
-              groupByKeyPaths:
-                - .metadata.labels["ray.io/cluster"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"ray.io/cluster"].orValue(dyn(null))

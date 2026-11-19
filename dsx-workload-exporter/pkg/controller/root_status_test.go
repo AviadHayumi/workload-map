@@ -15,7 +15,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
@@ -66,7 +66,7 @@ func TestRootDefinitionFailuresDoNotPublishZeroStatus(t *testing.T) {
 	definition, err := catalog.Get(lifetimeDeploymentGVK)
 	require.NoError(t, err)
 	definition.Spec.StructureDefinition.RootComponent.StatusDefinition = &v1alpha1.StatusDefinition{
-		PhaseDefinition: &v1alpha1.PhaseDefinition{Path: `error("status failed")`},
+		PhaseDefinition: &v1alpha1.PhaseDefinition{Read: v1alpha1.ReadAccessor{Expression: `object.status.missing`}},
 	}
 	for _, test := range []struct {
 		name         string

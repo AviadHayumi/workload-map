@@ -16,7 +16,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
@@ -29,7 +29,7 @@ func TestDefinitionsExperimentalOptIn(t *testing.T) {
 	cluster.Name = "experimental-cluster-jobset"
 	cluster.Spec.Experimental = true
 	body, err := json.Marshal(v1alpha1.KartaList{
-		TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "KartaList"},
+		TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "KartaList"},
 		Items:    []v1alpha1.Karta{*cluster},
 	})
 	if err != nil {

@@ -15,7 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
@@ -101,14 +102,37 @@ func (r Resources) scaled(replicas int32) Resources {
 	}
 }
 
+type describeOptions struct {
+	factory       []resource.FactoryOption
+	componentPods map[string][]corev1.Pod
+}
+
+// DescribeOption supplies reference reads or Pods already attributed by the SDK.
+type DescribeOption func(*describeOptions)
+
+func WithDescribeReader(reader references.ResourceReader) DescribeOption {
+	return func(o *describeOptions) { o.factory = append(o.factory, resource.WithReferenceReader(reader)) }
+}
+
+// WithComponentPods preserves each component's ownership proof. An empty entry
+// means no Pods belong to that component; it never falls back to the union.
+func WithComponentPods(pods map[string][]corev1.Pod) DescribeOption {
+	return func(o *describeOptions) { o.componentPods = pods }
+}
+
 // ResolveDescribe reads obj through def, placing pods on the component and
 // instance its selectors name. pods must already be scoped. Passing none yields
 // the same view with every live field empty, which is what file mode renders;
 // marking the view FileMode is the caller's, since only it knows the source.
 func ResolveDescribe(
-	ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, pods []corev1.Pod,
+	ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, pods []corev1.Pod, options ...DescribeOption,
 ) (*DescribeView, error) {
-	factory := resource.NewComponentFactoryFromObject(def.Karta, obj)
+	settings := describeOptions{}
+	for _, option := range options {
+		option(&settings)
+	}
+	componentPods := settings.componentPods
+	factory := resource.NewComponentFactoryFromObject(def.Karta, obj, settings.factory...)
 
 	workloadTree, err := tree.Build(ctx, factory)
 	if err != nil {
@@ -136,12 +160,12 @@ func ResolveDescribe(
 		// The root takes the same pod filter and the same selectorless rule
 		// buildComponent applies to a child, so being the root is never on its
 		// own a licence to claim a pod another component owns.
-		claimed, err := matchComponentType(ctx, defs[root.Name()].PodSelector, pods, isSolePodOwner(defs))
+		claimed, err := componentPodSet(ctx, root.Name(), defs[root.Name()].PodSelector, pods, isSolePodOwner(defs), componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("match pods to root component: %w", err)
 		}
 
-		component, err := buildPodBearingComponent(ctx, root.Name(), kindOf(root.Kind()), instances, claimed, defs)
+		component, err := buildPodBearingComponent(ctx, root.Name(), kindOf(root.Kind()), instances, claimed, defs, componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("build root component: %w", err)
 		}
@@ -149,7 +173,7 @@ func ResolveDescribe(
 	}
 
 	for _, node := range workloadTree.Children {
-		component, err := buildComponent(ctx, node, defs, pods)
+		component, err := buildComponent(ctx, node, defs, pods, componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("build component %q: %w", node.Name, err)
 		}
@@ -182,12 +206,12 @@ func rootInstances(ctx context.Context, root *resource.Component) ([]tree.Instan
 	return instances, nil
 }
 
-// isSolePodOwner reports a definition with a single pod-bearing component, the
-// one case where a component needs no selector to be sure a pod is its own.
+// isSolePodOwner counts components eligible for native ownership. Reference
+// components require separate proof and do not disqualify a sole native owner.
 func isSolePodOwner(defs map[string]v1alpha1.ComponentDefinition) bool {
 	owners := 0
 	for _, def := range defs {
-		if def.SpecDefinition != nil {
+		if def.SpecDefinition != nil && (def.PodSelector == nil || len(def.PodSelector.FromReferences) == 0) {
 			owners++
 		}
 	}
@@ -206,7 +230,7 @@ func indexComponentDefs(karta *v1alpha1.Karta) map[string]v1alpha1.ComponentDefi
 // buildComponent renders one ComponentNode and the subtree under it, choosing
 // between the two kinds of component by whether the node carries pods.
 func buildComponent(
-	ctx context.Context, node tree.ComponentNode, defs map[string]v1alpha1.ComponentDefinition, pods []corev1.Pod,
+	ctx context.Context, node tree.ComponentNode, defs map[string]v1alpha1.ComponentDefinition, pods []corev1.Pod, componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	kind := kindOf(node.Kind)
 	def := defs[node.Name]
@@ -214,16 +238,16 @@ func buildComponent(
 	claimed := pods
 	if node.HasPodDefinition {
 		var err error
-		if claimed, err = matchComponentType(ctx, def.PodSelector, pods, isSolePodOwner(defs)); err != nil {
+		if claimed, err = componentPodSet(ctx, node.Name, def.PodSelector, pods, isSolePodOwner(defs), componentPods); err != nil {
 			return ComponentView{}, fmt.Errorf("match pods to component %q: %w", node.Name, err)
 		}
 	}
 
 	if !isMultiInstance(node.Instances) {
 		if node.HasPodDefinition {
-			return buildPodBearingComponent(ctx, node.Name, kind, node.Instances, claimed, defs)
+			return buildPodBearingComponent(ctx, node.Name, kind, node.Instances, claimed, defs, componentPods)
 		}
-		return buildGroupingComponent(ctx, node.Name, kind, node.Instances, claimed, defs)
+		return buildGroupingComponent(ctx, node.Name, kind, node.Instances, claimed, defs, componentPods)
 	}
 
 	// A grouping component takes this path too: it holds no pods itself, but its
@@ -235,14 +259,26 @@ func buildComponent(
 			return ComponentView{}, fmt.Errorf("match pods to instance of %q: %w", node.Name, err)
 		}
 
+		scopedComponentPods := componentPods
+		if componentPods != nil {
+			scopedComponentPods = make(map[string][]corev1.Pod, len(componentPods))
+			for name, assigned := range componentPods {
+				matched, err := filterByInstance(ctx, def.PodSelector, instance, assigned)
+				if err != nil {
+					return ComponentView{}, fmt.Errorf("scope assigned Pods to %q: %w", node.Name, err)
+				}
+				scopedComponentPods[name] = matched
+			}
+		}
+
 		label := instanceLabel(node.Name, instance)
 		one := []tree.InstanceNode{instance}
 
 		var child ComponentView
 		if node.HasPodDefinition {
-			child, err = buildPodBearingComponent(ctx, label, kind, one, scoped, defs)
+			child, err = buildPodBearingComponent(ctx, label, kind, one, scoped, defs, scopedComponentPods)
 		} else {
-			child, err = buildGroupingComponent(ctx, label, kind, one, scoped, defs)
+			child, err = buildGroupingComponent(ctx, label, kind, one, scoped, defs, scopedComponentPods)
 		}
 		if err != nil {
 			return ComponentView{}, err
@@ -261,11 +297,12 @@ func buildGroupingComponent(
 	instances []tree.InstanceNode,
 	pods []corev1.Pod,
 	defs map[string]v1alpha1.ComponentDefinition,
+	componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	component := ComponentView{Name: name, Kind: kind}
 	for _, instance := range instances {
 		for _, node := range instance.Children {
-			child, err := buildComponent(ctx, node, defs, pods)
+			child, err := buildComponent(ctx, node, defs, pods, componentPods)
 			if err != nil {
 				return ComponentView{}, err
 			}
@@ -296,6 +333,7 @@ func buildPodBearingComponent(
 	instances []tree.InstanceNode,
 	pods []corev1.Pod,
 	defs map[string]v1alpha1.ComponentDefinition,
+	componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	component := ComponentView{Name: name, Kind: kind}
 	component.attach(pods)
@@ -308,7 +346,7 @@ func buildPodBearingComponent(
 		}
 
 		for _, node := range instance.Children {
-			child, err := buildComponent(ctx, node, defs, pods)
+			child, err := buildComponent(ctx, node, defs, pods, componentPods)
 			if err != nil {
 				return ComponentView{}, err
 			}
@@ -620,4 +658,14 @@ func kindOf(gvk *metav1.GroupVersionKind) string {
 		return ""
 	}
 	return gvk.Kind
+}
+
+func componentPodSet(ctx context.Context, name string, selector *v1alpha1.PodSelector, pods []corev1.Pod, sole bool, assigned map[string][]corev1.Pod) ([]corev1.Pod, error) {
+	if assigned != nil {
+		return assigned[name], nil
+	}
+	if selector != nil && len(selector.FromReferences) > 0 {
+		return nil, nil
+	}
+	return matchComponentType(ctx, selector, pods, sole)
 }

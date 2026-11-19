@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 type countingCapturer struct {
@@ -96,9 +96,9 @@ func collectorFixture(t testing.TB, excludeStatuses ...v1alpha1.ResourceStatus) 
 	s := store.New()
 	root := store.ObjectRef{UID: "root", Namespace: "ns", Name: "job", GVK: schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}}
 	rootSource := store.SourceKey{Resource: schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}, Namespace: "ns"}
-	kartaSource := store.SourceKey{Resource: schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha1", Resource: "kartadefinitions"}}
+	kartaSource := store.SourceKey{Resource: schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha2", Resource: "kartadefinitions"}}
 	s.SetSourceHealth(rootSource, store.SourceHealth{GVK: root.GVK, Synced: true})
-	s.SetSourceHealth(kartaSource, store.SourceHealth{GVK: schema.GroupVersionKind{Group: "run.ai", Version: "v1alpha1", Kind: "KartaDefinition"}, Synced: true})
+	s.SetSourceHealth(kartaSource, store.SourceHealth{GVK: schema.GroupVersionKind{Group: "run.ai", Version: "v1alpha2", Kind: "KartaDefinition"}, Synced: true})
 	workload := &store.WorkloadResult{
 		Record:   store.WorkloadRecord{UID: root.UID, Ref: root, Karta: "job-karta", KartaSource: "cluster", OwnerResolution: store.Resolved, HasStatus: true, Phases: []string{"Running", "Degraded"}, CreatedTimestamp: 50},
 		HasValue: true, Sources: []store.SourceKey{rootSource, kartaSource}, CreationSources: []store.SourceKey{rootSource},

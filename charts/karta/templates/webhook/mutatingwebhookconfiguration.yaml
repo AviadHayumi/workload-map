@@ -20,7 +20,7 @@ webhooks:
     timeoutSeconds: 5
     rules:
       - apiGroups: ["run.ai"]
-        apiVersions: ["v1alpha1"]
+        apiVersions: ["v1alpha2"]
         operations: ["CREATE"]
         resources: ["kartas"]
         scope: "*"
@@ -31,6 +31,6 @@ webhooks:
       service:
         name: {{ include "karta.webhook.serviceName" . }}
         namespace: {{ .Release.Namespace }}
-        path: /mutate-run-ai-v1alpha1-karta
+        path: /mutate-run-ai-v1alpha2-karta
         port: 443
 {{- end -}}

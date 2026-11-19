@@ -12,7 +12,7 @@ this document covers the policy around them.
 Karta follows [Semantic Versioning](https://semver.org/). Releases are tagged
 `vMAJOR.MINOR.PATCH`.
 
-While Karta is pre-1.0 (`0.y.z`), the API (`run.ai/v1alpha1`) and the Go library
+While Karta is pre-1.0 (`0.y.z`), the API (`run.ai/v1alpha2`) and the Go library
 surface may change between minor versions. Breaking changes are called out in the
 release notes. Consumers should pin to a specific released version.
 

@@ -21,7 +21,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	api "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	api "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/instructions"
 )

@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: nvidia-com-dynamographdeployment-v1beta1
 spec:
+  variables:
+    - name: components
+      expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]
   structureDefinition:
     rootComponent:
       name: dynamographdeployment
@@ -14,7 +17,8 @@ spec:
         kind: DynamoGraphDeployment
       statusDefinition:
         phaseDefinition:
-          path: .status.state
+          read:
+            expression: object[?"status"][?"state"].orValue(dyn(null))
         statusMappings:
           initializing:
             - byPhase: initializing
@@ -28,23 +32,88 @@ spec:
         ownerRef: dynamographdeployment
         specDefinition:
           fragmentedPodSpecDefinition:
-            schedulerNamePath: .spec.components[] | .podTemplate.spec.schedulerName
-            labelsPath: .spec.components[] | .podTemplate.metadata.labels
-            annotationsPath: .spec.components[] | .podTemplate.metadata.annotations
-            resourceClaimsPath: .spec.components[] | .podTemplate.spec.resourceClaims
-            podAffinityPath: .spec.components[] | .podTemplate.spec.affinity.podAffinity
-            nodeAffinityPath: .spec.components[] | .podTemplate.spec.affinity.nodeAffinity
-            containerPath: .spec.components[] | .podTemplate.spec.containers[] | select(.name == "main")
-            priorityClassNamePath: .spec.components[] | .podTemplate.spec.priorityClassName
-            imagePath: .spec.components[] | .podTemplate.spec.containers[] | select(.name == "main") | .image
+            schedulerName:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"spec"][?"schedulerName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/spec/schedulerName"'
+            labels:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"metadata"][?"labels"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/metadata/labels"'
+            annotations:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"metadata"][?"annotations"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/metadata/annotations"'
+            resourceClaims:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"spec"][?"resourceClaims"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/spec/resourceClaims"'
+            podAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"spec"][?"affinity"][?"podAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/spec/affinity/podAffinity"'
+            nodeAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"spec"][?"affinity"][?"nodeAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/spec/affinity/nodeAffinity"'
+            container:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, (([dyn(x[?"podTemplate"][?"spec"][?"containers"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].filter(c, c[?"name"].orValue("") == "main") + [null])[0])
+              write:
+                pathExpression: |-
+                  [variables.components[index].podTemplate.spec.containers]
+                    .map(containers,
+                      lists.range(containers.size())
+                        .filter(i, containers[i].?name.orValue("") == "main")
+                    )
+                    .map(matches,
+                      matches.size() == 1
+                        ? "/spec/components/" + string(index)
+                          + "/podTemplate/spec/containers/" + string(matches[0])
+                        : dyn(null)
+                    )[0]
+            priorityClassName:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"podTemplate"][?"spec"][?"priorityClassName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/components/" + string(index) + "/podTemplate/spec/priorityClassName"'
+            image:
+              read:
+                expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, ((([dyn(x[?"podTemplate"][?"spec"][?"containers"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].filter(c, c[?"name"].orValue("") == "main") + [{}])[0])[?"image"].orValue(dyn(null)))
+              write:
+                pathExpression: |-
+                  [variables.components[index].podTemplate.spec.containers]
+                    .map(containers,
+                      lists.range(containers.size())
+                        .filter(i, containers[i].?name.orValue("") == "main")
+                    )
+                    .map(matches,
+                      matches.size() == 1
+                        ? "/spec/components/" + string(index)
+                          + "/podTemplate/spec/containers/" + string(matches[0])
+                          + "/image"
+                        : dyn(null)
+                    )[0]
         scaleDefinition:
-          replicasPath: .spec.components[] | (.replicas // 1) * (.multinode.nodeCount // 1)
-        instanceIdPath: .spec.components[] | .name
+          replicas:
+            read:
+              expression: variables.components.map(x, ([dyn(x.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0] * ([dyn(x.?multinode.?nodeCount.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0])
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"components"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["nvidia.com/dynamo-component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"nvidia.com/dynamo-component"].orValue(dyn(null))
           replicaSelector:
-            keyPath: .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup-replica-index"].orValue(object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue(dyn(null)))
     additionalChildKinds:
       - group: nvidia.com
         version: v1beta1
@@ -70,5 +139,5 @@ spec:
         - name: component
           members:
             - componentName: component
-              groupByKeyPaths:
-                - .metadata.labels["nvidia.com/dynamo-component"] | ascii_downcase
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"nvidia.com/dynamo-component"].orValue(dyn(null)).lowerAscii()
