@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: deployment
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: deployment
+      kind:
+        group: apps
+        version: v1
+        kind: Deployment
+    references:
+    - name: pods
+      apiVersion: v1
+      kind: Pod
+      list:
+        matchLabels:
+          app:
+            expression: object.spec.selector.matchLabels.app
+    childComponents:
+    - name: replicas
+      ownerRef: deployment
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"replicas"'
+          value: replicas

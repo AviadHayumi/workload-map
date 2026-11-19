@@ -7,14 +7,14 @@ import (
 	"context"
 	"fmt"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// +kubebuilder:webhook:path=/mutate-run-ai-v1alpha1-karta,mutating=true,failurePolicy=fail,sideEffects=None,groups=run.ai,resources=kartas,verbs=create,versions=v1alpha1,name=mkarta.run.ai,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-run-ai-v1alpha2-karta,mutating=true,failurePolicy=fail,sideEffects=None,groups=run.ai,resources=kartas,verbs=create,versions=v1alpha2,name=mkarta.run.ai,admissionReviewVersions=v1
 
 type KartaLabeler struct{}
 
@@ -41,7 +41,7 @@ func (w *KartaLabeler) Default(_ context.Context, karta *kartav1alpha1.Karta) er
 	return nil
 }
 
-// +kubebuilder:webhook:path=/validate-run-ai-v1alpha1-karta,mutating=false,failurePolicy=fail,sideEffects=None,groups=run.ai,resources=kartas,verbs=create;update,versions=v1alpha1,name=vkarta.run.ai,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-run-ai-v1alpha2-karta,mutating=false,failurePolicy=fail,sideEffects=None,groups=run.ai,resources=kartas,verbs=create;update,versions=v1alpha2,name=vkarta.run.ai,admissionReviewVersions=v1
 
 type KartaValidator struct {
 	client client.Client

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package v1alpha1
+package v1alpha2
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -35,10 +35,10 @@ var _ = Describe("KartaValidator", func() {
 							StatusMappings: StatusMappings{},
 						},
 						SpecDefinition: &SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.template"),
+							PodTemplateSpec: testRead("object.spec.template"),
 						},
 						ScaleDefinition: &ScaleDefinition{
-							ReplicasPath: ptr.To(".spec.replicas"),
+							Replicas: testRead("object.spec.replicas"),
 						},
 					},
 					ChildComponents: []ComponentDefinition{
@@ -46,10 +46,10 @@ var _ = Describe("KartaValidator", func() {
 							Name:     "worker",
 							OwnerRef: ptr.To("root"),
 							SpecDefinition: &SpecDefinition{
-								PodSpecPath: ptr.To(".spec.template.spec"),
+								PodSpec: testRead("object.spec.template.spec"),
 							},
 							ScaleDefinition: &ScaleDefinition{
-								ReplicasPath: ptr.To(".spec.replicas"),
+								Replicas: testRead("object.spec.replicas"),
 							},
 						},
 					},
@@ -255,12 +255,12 @@ var _ = Describe("KartaValidator", func() {
 		})
 
 		DescribeTable("multiple pod spec definitions",
-			func(podTemplateSpecPath, podSpecPath *string, fragmentedPodSpec *FragmentedPodSpecDefinition) {
+			func(podTemplateSpecPath, podSpecPath *ValueAccessor, fragmentedPodSpec *FragmentedPodSpecDefinition) {
 				component := ComponentDefinition{
 					Name: "test",
 					SpecDefinition: &SpecDefinition{
-						PodTemplateSpecPath:         podTemplateSpecPath,
-						PodSpecPath:                 podSpecPath,
+						PodTemplateSpec:             podTemplateSpecPath,
+						PodSpec:                     podSpecPath,
 						FragmentedPodSpecDefinition: fragmentedPodSpec,
 					},
 				}
@@ -270,29 +270,29 @@ var _ = Describe("KartaValidator", func() {
 				Expect(errs).To(HaveLen(1))
 				Expect(errs).To(ContainElement(MatchError(ContainSubstring("has multiple pod spec definitions"))))
 			},
-			Entry("PodTemplateSpecPath + PodSpecPath",
-				ptr.To(".spec.template"),
-				ptr.To(".spec.template.spec"),
+			Entry("PodTemplateSpec + PodSpec",
+				testRead("object.spec.template"),
+				testRead("object.spec.template.spec"),
 				nil),
-			Entry("PodTemplateSpecPath + FragmentedPodSpec",
-				ptr.To(".spec.template"),
+			Entry("PodTemplateSpec + FragmentedPodSpec",
+				testRead("object.spec.template"),
 				nil,
-				&FragmentedPodSpecDefinition{ContainersPath: ptr.To(".spec.containers")}),
-			Entry("PodSpecPath + FragmentedPodSpec",
+				&FragmentedPodSpecDefinition{Containers: testRead("object.spec.containers")}),
+			Entry("PodSpec + FragmentedPodSpec",
 				nil,
-				ptr.To(".spec.template.spec"),
-				&FragmentedPodSpecDefinition{ContainersPath: ptr.To(".spec.containers")}),
+				testRead("object.spec.template.spec"),
+				&FragmentedPodSpecDefinition{Containers: testRead("object.spec.containers")}),
 			Entry("All three pod spec definitions",
-				ptr.To(".spec.template"),
-				ptr.To(".spec.template.spec"),
-				&FragmentedPodSpecDefinition{ContainersPath: ptr.To(".spec.containers")}),
+				testRead("object.spec.template"),
+				testRead("object.spec.template.spec"),
+				&FragmentedPodSpecDefinition{Containers: testRead("object.spec.containers")}),
 		)
 
 		Context("multi-instance component validation", func() {
 			It("should fail when has instance id path but no instance selector", func() {
 				component := ComponentDefinition{
-					Name:           "test",
-					InstanceIdPath: ptr.To(".metadata.name"),
+					Name:        "test",
+					InstanceIds: testRead("object.metadata.name"),
 				}
 				validator.initialize()
 
@@ -306,7 +306,7 @@ var _ = Describe("KartaValidator", func() {
 					Name: "test",
 					PodSelector: &PodSelector{
 						ComponentInstanceSelector: &ComponentInstanceSelector{
-							IdPath: ".metadata.labels[\"instance-id\"]",
+							Read: ReadAccessor{Expression: "object.metadata.labels[\"instance-id\"]"},
 						},
 					},
 				}
@@ -319,11 +319,11 @@ var _ = Describe("KartaValidator", func() {
 
 			It("should pass when both instance id path and selector are present", func() {
 				component := ComponentDefinition{
-					Name:           "test",
-					InstanceIdPath: ptr.To(".metadata.name"),
+					Name:        "test",
+					InstanceIds: testRead("object.metadata.name"),
 					PodSelector: &PodSelector{
 						ComponentInstanceSelector: &ComponentInstanceSelector{
-							IdPath: ".metadata.labels[\"instance-id\"]",
+							Read: ReadAccessor{Expression: "object.metadata.labels[\"instance-id\"]"},
 						},
 					},
 				}
@@ -363,12 +363,12 @@ var _ = Describe("KartaValidator", func() {
 		})
 	})
 
-	Describe("JQ expressions validation is called", func() {
-		var kartaWithJQPaths *Karta
+	Describe("CEL expressions validation is called", func() {
+		var kartaWithCELPaths *Karta
 
 		BeforeEach(func() {
-			kartaWithJQPaths = &Karta{
-				ObjectMeta: metav1.ObjectMeta{Name: "test-jq"},
+			kartaWithCELPaths = &Karta{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cel"},
 				Spec: KartaSpec{
 					StructureDefinition: StructureDefinition{
 						RootComponent: ComponentDefinition{
@@ -376,10 +376,10 @@ var _ = Describe("KartaValidator", func() {
 							Kind:             &GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
 							StatusDefinition: &StatusDefinition{StatusMappings: StatusMappings{}},
 							SpecDefinition: &SpecDefinition{
-								PodTemplateSpecPath: ptr.To(".spec.template"), // Valid JQ
+								PodTemplateSpec: testRead("object.spec.template"), // Valid CEL
 							},
 							ScaleDefinition: &ScaleDefinition{
-								ReplicasPath: ptr.To(".spec.replicas"), // Valid JQ
+								Replicas: testRead("object.spec.replicas"), // Valid CEL
 							},
 						},
 					},
@@ -387,107 +387,104 @@ var _ = Describe("KartaValidator", func() {
 			}
 		})
 
-		It("should pass with valid JQ expressions", func() {
-			validator = NewKartaValidator(kartaWithJQPaths)
+		It("should pass with valid CEL expressions", func() {
+			validator = NewKartaValidator(kartaWithCELPaths)
 
 			err := validator.Validate()
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should fail with dangerous JQ expressions", func() {
-			kartaWithJQPaths.Spec.StructureDefinition.RootComponent.SpecDefinition.PodTemplateSpecPath = ptr.To("del(.spec.template)")
-			validator = NewKartaValidator(kartaWithJQPaths)
+		It("should fail with dangerous CEL expressions", func() {
+			kartaWithCELPaths.Spec.StructureDefinition.RootComponent.SpecDefinition.PodTemplateSpec = testRead("del(object.spec.template)")
+			validator = NewKartaValidator(kartaWithCELPaths)
 
 			err := validator.Validate()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("del function is not allowed"))
+			Expect(err.Error()).To(ContainSubstring("invalid CEL expression"))
 		})
 
 		Context("ByExpression validation", func() {
 			It("should pass with valid ByExpression", func() {
-				kartaWithJQPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
+				kartaWithCELPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
 					{
 						ByExpression: &ExpressionMatcher{
-							Expression:     ".status.phase == \"Running\"",
-							ExpectedResult: "true",
+							Expression: "object.status.phase == \"Running\"",
 						},
 					},
 				}
-				validator = NewKartaValidator(kartaWithJQPaths)
+				validator = NewKartaValidator(kartaWithCELPaths)
 
 				err := validator.Validate()
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("should fail with dangerous ByExpression using del", func() {
-				kartaWithJQPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
+				kartaWithCELPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
 					{
 						ByExpression: &ExpressionMatcher{
-							Expression:     "del(.status)",
-							ExpectedResult: "true",
+							Expression: "del(.status)",
 						},
 					},
 				}
-				validator = NewKartaValidator(kartaWithJQPaths)
+				validator = NewKartaValidator(kartaWithCELPaths)
 
 				err := validator.Validate()
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("del function is not allowed"))
+				Expect(err.Error()).To(ContainSubstring("invalid CEL expression"))
 			})
 
 			It("should fail with invalid ByExpression syntax", func() {
-				kartaWithJQPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
+				kartaWithCELPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings.Running = []StatusMatcher{
 					{
 						ByExpression: &ExpressionMatcher{
-							Expression:     ".status.phase == ",
-							ExpectedResult: "true",
+							Expression: "object.status.phase == ",
 						},
 					},
 				}
-				validator = NewKartaValidator(kartaWithJQPaths)
+				validator = NewKartaValidator(kartaWithCELPaths)
 
 				err := validator.Validate()
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("should validate ByExpression in multiple status matchers", func() {
-				kartaWithJQPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings = StatusMappings{
+				kartaWithCELPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings = StatusMappings{
 					Initializing: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Pending\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Pending\""}},
 					},
 					Running: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Running\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Running\""}},
 					},
 					Completed: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Succeeded\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Succeeded\""}},
 					},
 					Failed: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Failed\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Failed\""}},
 					},
 				}
-				validator = NewKartaValidator(kartaWithJQPaths)
+				validator = NewKartaValidator(kartaWithCELPaths)
 
 				err := validator.Validate()
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("should fail when one ByExpression in multiple matchers is invalid", func() {
-				kartaWithJQPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings = StatusMappings{
+				kartaWithCELPaths.Spec.StructureDefinition.RootComponent.StatusDefinition.StatusMappings = StatusMappings{
 					Initializing: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Pending\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Pending\""}},
 					},
 					Running: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: "del(.status)", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "del(.status)"}},
 					},
 					Completed: []StatusMatcher{
-						{ByExpression: &ExpressionMatcher{Expression: ".status.phase == \"Succeeded\"", ExpectedResult: "true"}},
+						{ByExpression: &ExpressionMatcher{Expression: "object.status.phase == \"Succeeded\""}},
 					},
 				}
-				validator = NewKartaValidator(kartaWithJQPaths)
+				validator = NewKartaValidator(kartaWithCELPaths)
 
 				err := validator.Validate()
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("del function is not allowed"))
+				Expect(err.Error()).To(ContainSubstring("invalid CEL expression"))
 			})
 		})
 	})
@@ -572,3 +569,7 @@ var _ = Describe("KartaValidator", func() {
 		})
 	})
 })
+
+func testRead(source string) *ValueAccessor {
+	return &ValueAccessor{Read: &ReadAccessor{Expression: source}}
+}

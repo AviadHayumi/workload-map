@@ -32,7 +32,7 @@ type provisionResult struct {
 }
 
 func TestInfrastructureInstallPlan(t *testing.T) {
-	all := "lws jobset kuberay kubeflow knative kserve milvus grove dynamo nim agent-sandbox kueue argo-rollouts openkruise volcano"
+	all := "lws jobset trainer kuberay kubeflow knative kserve milvus grove dynamo nim agent-sandbox kueue argo-rollouts openkruise volcano"
 	cases := []struct {
 		name      string
 		workloads []string
@@ -43,6 +43,7 @@ func TestInfrastructureInstallPlan(t *testing.T) {
 		{name: "default", infra: "cert-manager fake-gpu-operator kai-scheduler", plan: all},
 		{name: "all", workloads: []string{"all"}, infra: "cert-manager fake-gpu-operator kai-scheduler", plan: all},
 		{name: "none", workloads: []string{"none"}, infra: "fake-gpu-operator", plan: "(none)"},
+		{name: "trainer dependency", workloads: []string{"trainer"}, infra: "fake-gpu-operator", plan: "jobset trainer"},
 		{name: "jobset", workloads: []string{"jobset"}, infra: "fake-gpu-operator", plan: "jobset"},
 		{name: "kueue", workloads: []string{"kueue"}, infra: "fake-gpu-operator", plan: "kueue"},
 		{name: "grove", workloads: []string{"grove"}, infra: "fake-gpu-operator kai-scheduler", plan: "grove"},

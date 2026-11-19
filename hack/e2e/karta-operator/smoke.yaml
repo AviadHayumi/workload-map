@@ -5,7 +5,7 @@
 # built-in, so CRDExists is satisfied with nothing installed, and no catalog Karta
 # roots there, so checkUniqueRootGVK cannot reject this as a duplicate.
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: karta-smoke
 spec:
@@ -17,8 +17,16 @@ spec:
         version: v1
         kind: ReplicaSet
       specDefinition:
-        podTemplateSpecPath: .spec.template
+        podTemplateSpec:
+          read:
+            expression: object.spec.template
+          write:
+            path: /spec/template
       scaleDefinition:
-        replicasPath: .spec.replicas // 1
+        replicas:
+          read:
+            expression: object.?spec.?replicas.orValue(1)
+          write:
+            path: /spec/replicas
       statusDefinition:
         statusMappings: {}

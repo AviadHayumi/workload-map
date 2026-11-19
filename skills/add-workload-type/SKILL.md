@@ -18,9 +18,12 @@ license: Apache-2.0
 A Karta definition describes one Kubernetes workload type as a tree of
 components.
 
-Every path is a jq expression. `specDefinition`, `scaleDefinition`, and
-`statusDefinition` paths run against the workload object. `podSelector` and
-`optimizationInstructions` paths run against pod manifests.
+Definitions use `run.ai/v1alpha2` and CEL. Read and write rules are separate.
+Read expressions see the original workload as `object`, plus `variables` and
+`references`. Write rules return JSON Pointers and also see `instance` and `index`.
+Pod selectors and grouping expressions see one Pod as `object`. They cannot read
+workload variables or references. Follow `reference/technical-guide.md` for the
+current field names and runnable examples.
 
 Every rule in the steps is a requirement. The reference files hold the why,
 the examples, and the operator notes.
@@ -40,7 +43,7 @@ In the karta repository, every step applies: the definition becomes a catalog
 entry, so step 8 ships it with an operator install and a recorded flow. Run
 every `go run ./hack/karta-verify` below from the `karta/sdk/` directory, where
 file arguments resolve: a definition under the repository's `docs/catalog/` is
-`../docs/catalog/<file>.yaml`, and any other file needs its path relative to
+`../../docs/catalog/<file>.yaml`, and any other file needs its path relative to
 `karta/sdk/` or an absolute path.
 
 Anywhere else, steps 1 to 7 apply and step 8 is replaced by applying the Karta
@@ -143,9 +146,9 @@ paths, and the status mapping. Skip what the Do not copy table lists for it.
 
 Set exactly one per component:
 
-- `podTemplateSpecPath` for an embedded PodTemplateSpec (a Job's
+- `podTemplateSpec` for an embedded PodTemplateSpec (a Job's
   `.spec.template`).
-- `podSpecPath`, with optional `metadataPath`, for a bare PodSpec.
+- `podSpec`, with optional `metadata`, for a bare PodSpec.
 - `fragmentedPodSpecDefinition` for scattered pod fields. List only paths that
   exist. Each must be assignable, since it is written too: a `//` fallback
   writes into whichever branch the read resolved. Model a default plus an
@@ -160,34 +163,42 @@ A component may have no spec definition when it only models ownership or scale.
 Multi-instance:
 
 - A component whose spec or scale paths can return more than one value, or
-  zero, needs `instanceIdPath` plus `componentInstanceSelector`.
+  zero, needs `instanceIds` plus `componentInstanceSelector`.
 - Roles that are optional map keys (`.spec.tfReplicaSpecs`): one
   multi-instance child keyed by the map, never a fixed child per role.
 - `keys_unsorted` passes the validator but fails at runtime. Check an
   `ascii_downcase` id against the real pod label. Karta walks map keys sorted:
-  test with `jq -S . cr.json | jq '<expr>'` or karta-verify.
+  test with karta-verify against the real workload and Pod snapshots.
 
 Detail: Spec definitions, Read-only projections, Multi-instance components in
 `reference/technical-guide.md`.
 
-### 4. Write null-safe jq paths against the correct resource
+### 4. Write CEL reads and explicit write locations
 
-- Absolute paths, starting with `.`.
-- In status expressions, default every field that can be absent to what its
-  absence means to the controller: an `omitempty` counter is 0
-  (`(.status.active // 0)`), never the desired count.
-- Spec and scale paths stay plain (`.spec.parallelism`,
-  `.spec.tasks[].replicas`), even for `omitempty` fields, so they can be
-  written. Never put a default after an iterator. An absent field reads null
-  (`replicas=<none>`, accepted by `--strict`): leave `replicas` out of that
-  prediction and name the controller default in the builder comment. A count
-  derived from several fields stays a read-only formula.
-- No assignment or update operators, `del`, `..`, `range`, `paths`, `recurse`,
-  `walk`, or `repeat`. Read-only navigation and standard builtins only.
-- Test each path with jq against a real manifest before committing it:
-  `kubectl get <resource> -o json | jq '<expr>'`.
+Put workload reads under `read.expression`. Use `read.matchExpression` when the
+field applies only in one mode. A false match returns no value. Use optional
+selection (`object.?status.?readyReplicas.orValue(0)`) for an absent field; do
+not treat false, zero or an empty string as absent.
 
-Detail: Scale definition and jq safety rules in `reference/technical-guide.md`.
+Add `write.path` or `write.pathExpression` only when the source API supports the
+write. Exactly one location is allowed. A computed pointer must escape `~` as
+`~0` and `/` as `~1`. `write.matchExpression` is independent of the read guard.
+The SDK applies raw JSON Merge Patch values at the selected location. Null in a
+map deletes that key, and arrays replace. A write cannot contain top-level null.
+
+Multi-instance reads return maps keyed by the same stable IDs as `instanceIds`.
+Writes see that ID as `instance` and its sorted index as `index`. Instance IDs
+are read-only. Test zero, one and several instances and ambiguous matches.
+
+References are read-only. Declare a lookup or a structured label-selector list.
+Use a root-only eligibility expression to skip inactive dependencies before any
+query. A Pod reference is additional ownership evidence only when explicitly
+named in `podSelector.fromReferences`. Shared runtimes and clusters remain
+value-only references. Test UID chains and competing claims before enabling
+membership; labels alone do not prove ownership.
+
+Run karta-verify and the catalog tests. CEL, local loading and the admission
+webhook share the same definition validator.
 
 ### 5. Map real conditions or phases to Karta statuses
 
@@ -201,9 +212,9 @@ Matchers:
 - `byConditions` with a `conditionsDefinition`: all conditions in one entry
   must hold, and each needs a `status` or a `reason`. It matches only a
   condition that exists; for "not yet written or not True", use `byExpression`
-  over `.status.conditions // []`.
+  over `object.?status.?conditions.orValue([])`.
 - `byPhase` with a `phaseDefinition`.
-- `byExpression` (jq plus an expected result string) for state in status
+- `byExpression` (a boolean CEL expression) for state in status
   fields, such as a controller that reports only counters.
 - Rules under one status are OR'd; one matcher setting several kinds ANDs
   them. Map only the statuses the workload reports.
@@ -211,18 +222,18 @@ Matchers:
 One status per frame:
 
 - Every settled rule requires a field only the controller writes, such as
-  `(.status.observedGeneration // 0) > 0`.
+  `object.?status.?observedGeneration.orValue(0) > 0`.
 - Check every pair that should be exclusive (Running and Suspended, Running and
   Degraded): guard on a field the controller changes between them. When
   suspending changes neither phase nor conditions, AND
-  `(.spec.suspend // false) | not` into `Running` and `Initializing`.
+  `!object.?spec.?suspend.orValue(false)` into `Running` and `Initializing`.
 - A phase derived from a spec field: let `Suspended` also match the field with
   an empty phase, and AND the field's negation into `Initializing`.
 - A flag read before the phase switch, with the controller's own Suspending and
   Resuming phases: a frame with the flag set and a phase it will suspend from
   maps to `Suspending`, the paused phase with the flag cleared to `Resuming`.
   Mirror both in the flow with an `AnyOf` helper (add it when missing).
-- A rule that negates a phase list (`IN(...) | not`) also matches the empty
+- A rule that negates a phase list (`!values.exists(value, value == phase)`) also matches the empty
   phase; say so in the builder comment.
 - A condition set once and never cleared: AND the absence of every later
   condition into its rule, and keep the condition itself required. Do not add
@@ -303,14 +314,14 @@ In-flight phases:
 
 Scale and suspend:
 
-- No count in the spec: no `scaleDefinition`. Never write `replicasPath: 1`;
+- No count in the spec: no `scaleDefinition`. Never write `replicas: 1`;
   `replicas=<none>` is not a warning. Leave out an implied count and a
   status-only count the same way.
 - Bounds on how many child objects run go on that child with no
-  `replicasPath`. Never put bounds in one unit next to a `replicasPath` in
+  `replicas`. Never put bounds in one unit next to a `replicas` in
   another.
 - Search the CRD for min and max bounds (an autoscaling or elastic policy); a
-  per-role gang minimum goes in `minReplicasPath`.
+  per-role gang minimum goes in `minReplicas`.
 - A suspend action `value` is JSON-encoded (`'"on"'`, `"null"`). Say in the
   builder comment what the controller stops. A hold honored only before start
   is still a suspend, recorded with a manifest created held.
@@ -341,7 +352,7 @@ and rerun. Confirm by hand what it cannot check:
   gang a role with the role whose running pod creates it. A creator with no
   `scaleDefinition` takes its children's count (`CalculateSubtreeScale`); name
   that in the builder comment.
-- An `idPath` that reads the pod spec gets a comment saying when it returns
+- An `read.expression` that reads the pod spec gets a comment saying when it returns
   null.
 - Replica counts describe the right tree level, and siblings agree.
 
@@ -363,7 +374,7 @@ pod label code are stand-ins; every run on them counts as unverified.
   and container names, from the CR's own numbers, never from an existing
   definition. Keys are `name`, `name[instanceId]`, `owner/child`. Never list
   the root; a root-only definition predicts `status:` alone, and root read
-  paths are checked with jq. Predict the one status the frame should read; an
+  expressions are checked with karta-verify. Predict the one status the frame should read; an
   extra status is an overlap to fix in step 5, never a prediction to widen.
 - Run from the repository root with absolute paths:
 
@@ -383,20 +394,19 @@ pod label code are stand-ins; every run on them counts as unverified.
   the expected zero in the summary.
 - A `fragmentedPodSpecDefinition` with no container path goes on the
   component whose pods it describes, even when the root is not extracted. Check
-  its paths with jq, run without `--strict`, and predict
+  its expressions with karta-verify, run without `--strict`, and predict
   `podSpec: true` with no `containers`. Expect one `no containers` warning per
-  such child and no other; never point `containerPath` at the role spec to
+  such child and no other; never point `container` at the role spec to
   silence it.
 - Run against a CR in another state (completed or failed) when one exists.
 - Multi-instance: run against a CR whose array has two entries (a hand-written
   scratch CR is fine).
 - Run against a CR that omits each optional role, with `--strict` unless a
   no-container child exists.
-- Pod selectors: evaluate every `podSelector` path and `groupByKeyPaths` entry
-  with jq on a real pod
-  (`kubectl get pod -l <owner label> -o json | jq '.items[] | <path>'`, or the
+- Pod selectors: evaluate every `podSelector` path and `groupByExpressions` entry
+  with karta-verify on a real Pod (or the
   pod saved in step 1). The `componentTypeSelector` must match, and the
-  `idPath` must return an instance id karta-verify printed. With no selectors,
+  `read.expression` must return an instance id karta-verify printed. With no selectors,
   check the owner chain; the component `ownerRef` names the `controller=true`
   owner.
 
@@ -640,7 +650,7 @@ Reading fixtures in `reference/recorded-flow.md`):
   set before the action. Trace pod claims to the code and check them on the
   hand-applied pod.
 - `kubectl apply -f` one testdata manifest and wait until it settles. Check
-  selectors and `groupByKeyPaths` (or the owner chain) with jq on its pod.
+  selectors and `groupByExpressions` (or the owner chain) with karta-verify on its Pod.
   Save its CR as a second step 7 input, then delete it.
 - Last, tear down: `make e2e-down CLUSTER_NAME=<name>`. With `KUBECONFIG`
   exported it leaves the kubeconfig file and

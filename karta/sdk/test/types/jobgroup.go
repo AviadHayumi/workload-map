@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // JobGroup represents a JobSet-like job with array of replicated jobs
@@ -67,7 +67,7 @@ func JobGroupKarta() *v1alpha1.Karta {
 					},
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:            ".status.conditions",
+							Read:            v1alpha1.ReadAccessor{Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`},
 							TypeFieldName:   "type",
 							StatusFieldName: "status",
 						},
@@ -87,22 +87,22 @@ func JobGroupKarta() *v1alpha1.Karta {
 				},
 				ChildComponents: []v1alpha1.ComponentDefinition{
 					{
-						Name:           "job",
-						OwnerRef:       ptr.To("jobgroup"),
-						InstanceIdPath: ptr.To(".spec.replicatedJobs[].name"),
+						Name:        "job",
+						OwnerRef:    ptr.To("jobgroup"),
+						InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodSpecPath:  ptr.To(".spec.replicatedJobs[].spec"),
-							MetadataPath: ptr.To(".spec.replicatedJobs[].metadata"),
+							PodSpec:  &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"spec"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/spec"`}},
+							Metadata: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"metadata"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/metadata"`}},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath: ptr.To(".spec.replicatedJobs[].replicas"),
+							Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"replicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/replicas"`}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: ".metadata.labels.job-name",
+								Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"job-name"].orValue(dyn(null))`},
 							},
 							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-								IdPath: ".metadata.labels.job-name",
+								Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"job-name"].orValue(dyn(null))`},
 							},
 						},
 					},

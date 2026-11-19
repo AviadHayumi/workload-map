@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
 
@@ -113,7 +113,7 @@ var _ = Describe("List", func() {
 
 		Expect(entries).NotTo(BeEmpty())
 		for _, k := range entries {
-			Expect(k.APIVersion).To(Equal("run.ai/v1alpha1"), k.Name)
+			Expect(k.APIVersion).To(Equal("run.ai/v1alpha2"), k.Name)
 			Expect(k.Kind).To(Equal("Karta"), k.Name)
 			Expect(v1alpha1.NewKartaValidator(k).Validate()).To(Succeed(), k.Name)
 		}

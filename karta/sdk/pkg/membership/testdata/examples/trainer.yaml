@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: trainjob
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: trainjob
+      kind:
+        group: trainer.kubeflow.org
+        version: v1alpha1
+        kind: TrainJob
+    references:
+    - name: trainingRuntime
+      apiVersion: trainer.kubeflow.org/v1alpha1
+      kind: ClusterTrainingRuntime
+      lookup:
+        nameExpression: object.spec.runtimeRef.name
+    childComponents:
+    - name: trainer
+      ownerRef: trainjob
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"trainer"'
+          value: trainer

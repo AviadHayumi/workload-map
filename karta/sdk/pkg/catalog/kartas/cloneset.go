@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha2 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // CloneSet returns the built-in Karta for the OpenKruise apps.kruise.io/v1alpha1
@@ -44,42 +44,68 @@ import (
 // Unrecorded branches: InPlaceIfPossible and InPlaceOnly update strategies,
 // lifecycle hooks, and PVC templates. OnDelete update strategy is rejected
 // by the webhook.
-func CloneSet() *v1alpha1.Karta {
-	return &v1alpha1.Karta{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"},
-		ObjectMeta: metav1.ObjectMeta{Name: "apps-kruise-io-cloneset-v1alpha1"},
-		Spec: v1alpha1.KartaSpec{
-			StructureDefinition: v1alpha1.StructureDefinition{
-				RootComponent: v1alpha1.ComponentDefinition{
-					Name: "cloneset",
-					Kind: &v1alpha1.GroupVersionKind{Group: "apps.kruise.io", Version: "v1alpha1", Kind: "CloneSet"},
-					ScaleDefinition: &v1alpha1.ScaleDefinition{
-						ReplicasPath: ptr.To(".spec.replicas"),
-					},
-					SpecDefinition: &v1alpha1.SpecDefinition{
-						PodTemplateSpecPath: ptr.To(".spec.template"),
-					},
-					StatusDefinition: &v1alpha1.StatusDefinition{
-						StatusMappings: v1alpha1.StatusMappings{
-							Running: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `(.status.observedGeneration // 0) > 0 and (.status.observedGeneration // 0) == (.metadata.generation // 0) and (.status.replicas // 0) == (.spec.replicas // 1) and (.status.readyReplicas // 0) == (.spec.replicas // 1) and (.status.availableReplicas // 0) == (.spec.replicas // 1) and ((.spec.updateStrategy.paused // false) or (.status.updatedReplicas // 0) >= (.status.expectedUpdatedReplicas // 0))`,
-								ExpectedResult: "true",
-							}}},
-							Initializing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     `(.status.observedGeneration // 0) > 0 and ((.status.observedGeneration // 0) != (.metadata.generation // 0) or (.status.replicas // 0) != (.spec.replicas // 1) or (.status.readyReplicas // 0) != (.spec.replicas // 1) or (.status.availableReplicas // 0) != (.spec.replicas // 1) or (((.spec.updateStrategy.paused // false) | not) and (.status.updatedReplicas // 0) < (.status.expectedUpdatedReplicas // 0)))`,
-								ExpectedResult: "true",
-							}}},
+
+func CloneSet() *v1alpha2.Karta {
+	return &v1alpha2.Karta{TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}, ObjectMeta: metav1.ObjectMeta{Name: "apps-kruise-io-cloneset-v1alpha1"}, Spec: v1alpha2.KartaSpec{
+		StructureDefinition: v1alpha2.StructureDefinition{
+			RootComponent: v1alpha2.ComponentDefinition{
+				Name: "cloneset",
+				Kind: &v1alpha2.GroupVersionKind{
+					Group:   "apps.kruise.io",
+					Version: "v1alpha1",
+					Kind:    "CloneSet",
+				},
+				SpecDefinition: &v1alpha2.SpecDefinition{
+					PodTemplateSpec: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `object[?"spec"][?"template"].orValue(dyn(null))`,
+						},
+						Write: &v1alpha2.WriteAccessor{
+							Path: ptr.To("/spec/template"),
 						},
 					},
 				},
-				ChildComponents: []v1alpha1.ComponentDefinition{
-					{
-						Name:     "pod",
-						Kind:     &v1alpha1.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
-						OwnerRef: ptr.To("cloneset"),
+				ScaleDefinition: &v1alpha2.ScaleDefinition{
+					Replicas: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`,
+						},
+						Write: &v1alpha2.WriteAccessor{
+							Path: ptr.To("/spec/replicas"),
+						},
+					},
+				},
+				StatusDefinition: &v1alpha2.StatusDefinition{
+					StatusMappings: v1alpha2.StatusMappings{
+						Initializing: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"status"][?"observedGeneration"].orValue(0) > 0 && (object[?"status"][?"observedGeneration"].orValue(0) != object[?"metadata"][?"generation"].orValue(0) || object[?"status"][?"replicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || object[?"status"][?"readyReplicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || object[?"status"][?"availableReplicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || (!(object[?"spec"][?"updateStrategy"][?"paused"].orValue(false)) && object[?"status"][?"updatedReplicas"].orValue(0) < object[?"status"][?"expectedUpdatedReplicas"].orValue(0)))`,
+								},
+							},
+						},
+						Running: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"status"][?"observedGeneration"].orValue(0) > 0 && object[?"status"][?"observedGeneration"].orValue(0) == object[?"metadata"][?"generation"].orValue(0) && object[?"status"][?"replicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"readyReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"availableReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && (object[?"spec"][?"updateStrategy"][?"paused"].orValue(false) || object[?"status"][?"updatedReplicas"].orValue(0) >= object[?"status"][?"expectedUpdatedReplicas"].orValue(0))`,
+								},
+							},
+						},
 					},
 				},
 			},
+			ChildComponents: []v1alpha2.ComponentDefinition{
+				{
+					Name: "pod",
+					Kind: &v1alpha2.GroupVersionKind{
+						Group:   "",
+						Version: "v1",
+						Kind:    "Pod",
+					},
+					OwnerRef: ptr.To("cloneset"),
+				},
+			},
 		},
-	}
+		Instructions: v1alpha2.OptimizationInstructions{},
+	}}
 }

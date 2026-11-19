@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha2 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // Rollout maps the Argo Rollouts progressive delivery controller
@@ -49,74 +49,116 @@ import (
 // (status.abort is a status patch the recorder cannot apply), promote
 // (also a status patch); live writes through the SDK (only direct patches
 // demonstrated).
-func Rollout() *v1alpha1.Karta {
-	return &v1alpha1.Karta{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"},
-		ObjectMeta: metav1.ObjectMeta{Name: "argoproj-io-rollout-v1alpha1"},
-		Spec: v1alpha1.KartaSpec{
-			StructureDefinition: v1alpha1.StructureDefinition{
-				RootComponent: v1alpha1.ComponentDefinition{
-					Name: "rollout",
-					Kind: &v1alpha1.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Rollout"},
-					ScaleDefinition: &v1alpha1.ScaleDefinition{
-						ReplicasPath: ptr.To(".spec.replicas"),
-					},
-					SpecDefinition: &v1alpha1.SpecDefinition{
-						PodTemplateSpecPath: ptr.To(".spec.template"),
-					},
-					SuspendDefinition: &v1alpha1.SuspendDefinition{
-						SuspendActions: []v1alpha1.SuspendAction{{Path: ".spec.paused", Value: "true"}},
-						ResumeActions:  []v1alpha1.SuspendAction{{Path: ".spec.paused", Value: "false"}},
-					},
-					StatusDefinition: &v1alpha1.StatusDefinition{
-						PhaseDefinition: &v1alpha1.PhaseDefinition{
-							Path: ".status.phase",
+
+func Rollout() *v1alpha2.Karta {
+	return &v1alpha2.Karta{TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}, ObjectMeta: metav1.ObjectMeta{Name: "argoproj-io-rollout-v1alpha1"}, Spec: v1alpha2.KartaSpec{
+		StructureDefinition: v1alpha2.StructureDefinition{
+			RootComponent: v1alpha2.ComponentDefinition{
+				Name: "rollout",
+				Kind: &v1alpha2.GroupVersionKind{
+					Group:   "argoproj.io",
+					Version: "v1alpha1",
+					Kind:    "Rollout",
+				},
+				SpecDefinition: &v1alpha2.SpecDefinition{
+					PodTemplateSpec: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `object[?"spec"][?"template"].orValue(dyn(null))`,
 						},
-						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:             ".status.conditions",
-							TypeFieldName:    "type",
-							StatusFieldName:  "status",
-							MessageFieldName: ptr.To("message"),
-							ReasonFieldName:  ptr.To("reason"),
-						},
-						StatusMappings: v1alpha1.StatusMappings{
-							Running: []v1alpha1.StatusMatcher{{
-								ByPhase: "Healthy",
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.status.observedGeneration == (.metadata.generation | tostring) and ((.spec.paused // false) | not)`,
-									ExpectedResult: "true",
-								},
-							}},
-							Degraded: []v1alpha1.StatusMatcher{{
-								ByPhase: "Degraded",
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.status.observedGeneration == (.metadata.generation | tostring)`,
-									ExpectedResult: "true",
-								},
-							}},
-							Suspended: []v1alpha1.StatusMatcher{{
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `(.spec.paused // false) and (.status.phase // "") != "Degraded"`,
-									ExpectedResult: "true",
-								},
-							}},
-							Initializing: []v1alpha1.StatusMatcher{{
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `((.status.phase // "") != "Healthy" or .status.observedGeneration != (.metadata.generation | tostring) or (.spec.paused // false)) and ((.status.phase // "") != "Degraded" or .status.observedGeneration != (.metadata.generation | tostring)) and (((.spec.paused // false) | not) or (.status.phase // "") == "Degraded")`,
-									ExpectedResult: "true",
-								},
-							}},
+						Write: &v1alpha2.WriteAccessor{
+							Path: ptr.To("/spec/template"),
 						},
 					},
 				},
-				ChildComponents: []v1alpha1.ComponentDefinition{
-					{
-						Name:     "replicaset",
-						Kind:     &v1alpha1.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"},
-						OwnerRef: ptr.To("rollout"),
+				ScaleDefinition: &v1alpha2.ScaleDefinition{
+					Replicas: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`,
+						},
+						Write: &v1alpha2.WriteAccessor{
+							Path: ptr.To("/spec/replicas"),
+						},
+					},
+				},
+				StatusDefinition: &v1alpha2.StatusDefinition{
+					PhaseDefinition: &v1alpha2.PhaseDefinition{
+						Read: v1alpha2.ReadAccessor{
+							Expression: `object[?"status"][?"phase"].orValue(dyn(null))`,
+						},
+					},
+					ConditionsDefinition: &v1alpha2.ConditionsDefinition{
+						Read: v1alpha2.ReadAccessor{
+							Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`,
+						},
+						TypeFieldName:    "type",
+						StatusFieldName:  "status",
+						MessageFieldName: ptr.To("message"),
+						ReasonFieldName:  ptr.To("reason"),
+					},
+					StatusMappings: v1alpha2.StatusMappings{
+						Initializing: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `(object[?"status"][?"phase"].orValue("") != "Healthy" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0)) || object[?"spec"][?"paused"].orValue(false)) && (object[?"status"][?"phase"].orValue("") != "Degraded" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0))) && (!(object[?"spec"][?"paused"].orValue(false)) || object[?"status"][?"phase"].orValue("") == "Degraded")`,
+								},
+							},
+						},
+						Running: []v1alpha2.StatusMatcher{
+							{
+								ByPhase: "Healthy",
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0)) && !(object[?"spec"][?"paused"].orValue(false))`,
+								},
+							},
+						},
+						Degraded: []v1alpha2.StatusMatcher{
+							{
+								ByPhase: "Degraded",
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0))`,
+								},
+							},
+						},
+						Suspended: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"spec"][?"paused"].orValue(false) && object[?"status"][?"phase"].orValue("") != "Degraded"`,
+								},
+							},
+						},
+					},
+				},
+				SuspendDefinition: &v1alpha2.SuspendDefinition{
+					SuspendActions: []v1alpha2.SuspendAction{
+						{
+							Write: v1alpha2.WriteAccessor{
+								Path: ptr.To("/spec/paused"),
+							},
+							Value: "true",
+						},
+					},
+					ResumeActions: []v1alpha2.SuspendAction{
+						{
+							Write: v1alpha2.WriteAccessor{
+								Path: ptr.To("/spec/paused"),
+							},
+							Value: "false",
+						},
 					},
 				},
 			},
+			ChildComponents: []v1alpha2.ComponentDefinition{
+				{
+					Name: "replicaset",
+					Kind: &v1alpha2.GroupVersionKind{
+						Group:   "apps",
+						Version: "v1",
+						Kind:    "ReplicaSet",
+					},
+					OwnerRef: ptr.To("rollout"),
+				},
+			},
 		},
-	}
+		Instructions: v1alpha2.OptimizationInstructions{},
+	}}
 }

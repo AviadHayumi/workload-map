@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 var _ = Describe("StructureSummary", func() {
@@ -30,7 +30,7 @@ var _ = Describe("StructureSummary", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{},
@@ -73,14 +73,14 @@ var _ = Describe("StructureSummary", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 									},
 								},
 								{
 									Name:     "master",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodSpecPath: ptr.To(".spec.master.podSpec"),
+										PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"podSpec"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/podSpec`)}},
 									},
 								},
 							},
@@ -125,7 +125,7 @@ var _ = Describe("StructureSummary", func() {
 									OwnerRef: ptr.To("job-group"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
 										FragmentedPodSpecDefinition: &v1alpha1.FragmentedPodSpecDefinition{
-											ContainersPath: ptr.To(".spec.containers"),
+											Containers: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"containers"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/containers`)}},
 										},
 									},
 								},
@@ -133,7 +133,7 @@ var _ = Describe("StructureSummary", func() {
 									Name:     "coordinator",
 									OwnerRef: ptr.To("cluster"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.coordinator.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"coordinator"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/coordinator/template`)}},
 									},
 								},
 							},
@@ -170,14 +170,14 @@ var _ = Describe("StructureSummary", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 									},
 								},
 								{
 									Name:     "master",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 								},
 							},
@@ -237,14 +237,14 @@ var _ = Describe("StructureSummary", func() {
 									Name:     "pre-fill",
 									OwnerRef: ptr.To("cluster"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.pre.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"pre"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/pre/template`)}},
 									},
 								},
 								{
 									Name:     "decode",
 									OwnerRef: ptr.To("cluster"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.decode.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"decode"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/decode/template`)}},
 									},
 								},
 							},
@@ -299,7 +299,7 @@ var _ = Describe("StructureSummary", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 									},
 								},
 							},
@@ -314,7 +314,7 @@ var _ = Describe("StructureSummary", func() {
 											{
 												ComponentName: "worker",
 												Filters: []string{
-													`.metadata.labels.version == "v1"`,
+													`object[?"metadata"][?"labels"][?"version"].orValue(dyn(null)) == "v1"`,
 												},
 											},
 										},
@@ -333,7 +333,7 @@ var _ = Describe("StructureSummary", func() {
 											{
 												ComponentName: "worker",
 												Filters: []string{
-													`.metadata.labels.version == "v2"`,
+													`object[?"metadata"][?"labels"][?"version"].orValue(dyn(null)) == "v2"`,
 												},
 											},
 										},
@@ -373,7 +373,7 @@ var _ = Describe("StructureSummary", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 						},
@@ -461,7 +461,7 @@ var _ = Describe("StructureSummary", func() {
 								Name:     "worker",
 								OwnerRef: ptr.To("job"),
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath: ptr.To(".spec.replicas"),
+									Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
 								},
 							},
 						},

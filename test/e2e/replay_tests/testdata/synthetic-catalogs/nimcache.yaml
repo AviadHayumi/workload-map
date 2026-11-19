@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Synthetic source-shaped object for offline SDK parity. Not an operator recording.
+kartaFile: docs/catalog/apps-nvidia-com-nimcache-v1alpha1.yaml
+workload:
+  apiVersion: apps.nvidia.com/v1alpha1
+  kind: NIMCache
+  metadata:
+    name: synthetic-nimcache
+    namespace: example
+    uid: synthetic-nimcache
+  spec:
+    resources:
+      cpu: '2'
+      memory: 4Gi
+  status:
+    state: InProgress

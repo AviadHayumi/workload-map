@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package v1alpha1
+package v1alpha2
 
 type GangSchedulingInstruction struct {
 	// PodGroups defines the alpha grouping format.
@@ -37,20 +37,20 @@ type PodGroupMemberDefinition struct {
 	// +kubebuilder:validation:Required
 	ComponentName string `json:"componentName"`
 
-	// GroupByKeyPaths are JQ paths to values used for grouping (e.g., owner name, replica key)
+	// GroupByExpressions are CEL paths to values used for grouping (e.g., owner name, replica key)
 	// If empty, grouping is done via owner reference traversal
 	// Every path must return a single, non-empty value - otherwise grouping will fail
-	// JQ paths are evaluated against individual pod objects, not the root resource spec
+	// CEL paths are evaluated against individual pod objects, not the root resource spec
 	// +kubebuilder:validation:Optional
 	// +listType=set
-	GroupByKeyPaths []string `json:"groupByKeyPaths,omitempty" jq:"validate"`
+	GroupByExpressions []string `json:"groupByExpressions,omitempty"`
 
-	// Filters are JQ filter expressions to select specific components (expressions are ANDed)
-	// Example: '(.spec.containers[0].resources.limits["nvidia.com/gpu"] // 0) > 0'
-	// JQ filters are evaluated against individual pod objects, not the root resource spec
+	// Filters are CEL filter expressions to select specific components (expressions are ANDed)
+	// Example: 'object.metadata.labels["role"] == "worker"'
+	// CEL filters are evaluated against individual pod objects, not the root resource spec
 	// +kubebuilder:validation:Optional
 	// +listType=set
-	Filters []string `json:"filters,omitempty" jq:"validate"`
+	Filters []string `json:"filters,omitempty"`
 }
 
 // PodGroupComponentsMapping defines how to create a pod group from a set of components.

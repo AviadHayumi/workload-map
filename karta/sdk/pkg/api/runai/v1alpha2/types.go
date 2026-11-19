@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package v1alpha1
+package v1alpha2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +25,12 @@ type Karta struct {
 }
 
 type KartaSpec struct {
+	// Variables are named CEL expressions evaluated lazily when used.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	Variables []Variable `json:"variables,omitempty"`
+
 	// Experimental marks definitions that consumers must explicitly enable.
 	// +kubebuilder:validation:Optional
 	Experimental bool `json:"experimental,omitempty"`
@@ -40,6 +46,12 @@ type KartaSpec struct {
 
 // StructureDefinition defines the hierarchical structure of components in the workload.
 type StructureDefinition struct {
+	// References declares value sources and optional Pod membership targets.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	References []Reference `json:"references,omitempty"`
+
 	// RootComponent defines the top-level component of the workload hierarchy
 	// +kubebuilder:validation:Required
 	RootComponent ComponentDefinition `json:"rootComponent"`

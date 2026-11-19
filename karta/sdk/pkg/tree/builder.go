@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
@@ -145,6 +145,7 @@ func cloneComponentNodes(nodes []ComponentNode) []ComponentNode {
 	out := make([]ComponentNode, len(nodes))
 	for i := range nodes {
 		out[i] = nodes[i]
+		out[i].Kind = clonePointer(nodes[i].Kind)
 		out[i].Instances = cloneInstanceNodes(nodes[i].Instances)
 	}
 	return out
@@ -157,6 +158,10 @@ func cloneInstanceNodes(instances []InstanceNode) []InstanceNode {
 	out := make([]InstanceNode, len(instances))
 	for i := range instances {
 		out[i] = instances[i]
+		out[i].InstanceKey = clonePointer(instances[i].InstanceKey)
+		out[i].ReplicaKey = clonePointer(instances[i].ReplicaKey)
+		out[i].Scale = cloneScale(instances[i].Scale)
+		out[i].ExtractedInstance = cloneExtracted(instances[i].ExtractedInstance)
 		out[i].Children = cloneComponentNodes(instances[i].Children)
 	}
 	return out

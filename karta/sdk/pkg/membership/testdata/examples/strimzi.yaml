@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: kafka
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: kafka
+      kind:
+        group: kafka.strimzi.io
+        version: v1
+        kind: Kafka
+    references:
+    - name: nodePools
+      apiVersion: kafka.strimzi.io/v1
+      kind: KafkaNodePool
+      list:
+        matchLabels:
+          strimzi.io/cluster:
+            expression: object.metadata.name
+    childComponents:
+    - name: core
+      ownerRef: kafka
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"core"'
+          value: core
+    - name: nodes
+      ownerRef: kafka
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"nodes"'
+          value: nodes
+        fromReferences:
+        - name: nodePools
+          matchExpression: target.?metadata.?labels[?"strimzi.io/cluster"].orValue("") == object.metadata.name

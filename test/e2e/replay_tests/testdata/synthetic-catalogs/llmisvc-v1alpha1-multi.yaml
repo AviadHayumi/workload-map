@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Synthetic source-shaped object for offline SDK parity. Not an operator recording.
+kartaFile: docs/catalog/serving-kserve-io-llminferenceservice-v1alpha1.yaml
+workload:
+  apiVersion: serving.kserve.io/v1alpha1
+  kind: LLMInferenceService
+  metadata:
+    name: synthetic-llmisvc-v1alpha1-multi
+    namespace: example
+    uid: synthetic-llmisvc-v1alpha1-multi
+  spec:
+    replicas: 2
+    scaling:
+      minReplicas: 1
+      maxReplicas: 4
+    template:
+      schedulerName: default-scheduler
+      priorityClassName: batch
+      containers:
+      - name: leader
+        image: ghcr.io/example/worker:v1
+        resources:
+          requests:
+            cpu: '1'
+            memory: 1Gi
+      affinity:
+        podAffinity: {}
+        nodeAffinity: {}
+      resourceClaims:
+      - name: accelerator
+        resourceClaimTemplateName: example
+    prefill:
+      replicas: 3
+      scaling:
+        minReplicas: 2
+        maxReplicas: 5
+      template:
+        schedulerName: default-scheduler
+        priorityClassName: batch
+        containers:
+        - name: prefill-leader
+          image: ghcr.io/example/worker:v1
+          resources:
+            requests:
+              cpu: '1'
+              memory: 1Gi
+        affinity:
+          podAffinity: {}
+          nodeAffinity: {}
+        resourceClaims:
+        - name: accelerator
+          resourceClaimTemplateName: example
+      worker:
+        schedulerName: default-scheduler
+        priorityClassName: batch
+        containers:
+        - name: prefill-worker
+          image: ghcr.io/example/worker:v1
+          resources:
+            requests:
+              cpu: '1'
+              memory: 1Gi
+        affinity:
+          podAffinity: {}
+          nodeAffinity: {}
+        resourceClaims:
+        - name: accelerator
+          resourceClaimTemplateName: example
+    router:
+      scheduler:
+        replicas: 1
+        template:
+          schedulerName: default-scheduler
+          priorityClassName: batch
+          containers:
+          - name: scheduler
+            image: ghcr.io/example/worker:v1
+            resources:
+              requests:
+                cpu: '1'
+                memory: 1Gi
+          affinity:
+            podAffinity: {}
+            nodeAffinity: {}
+          resourceClaims:
+          - name: accelerator
+            resourceClaimTemplateName: example
+    worker:
+      schedulerName: default-scheduler
+      priorityClassName: batch
+      containers:
+      - name: worker
+        image: ghcr.io/example/worker:v1
+        resources:
+          requests:
+            cpu: '1'
+            memory: 1Gi
+      affinity:
+        podAffinity: {}
+        nodeAffinity: {}
+      resourceClaims:
+      - name: accelerator
+        resourceClaimTemplateName: example
+  status:
+    conditions:
+    - type: Ready
+      status: 'True'

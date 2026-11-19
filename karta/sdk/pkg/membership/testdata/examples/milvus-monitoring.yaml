@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Optional extension, not a standalone Karta. Requires matching installed CRDs.
+# Append references to structureDefinition.references and fromReferences to the pulsar component.
+# Input must be the admitted Milvus object with parent chart defaults applied.
+# Missing nested switches use defaults of the exact inspected kube-prometheus-stack chart.
+# Downstream Prometheus-operator UID paths require verification before release support.
+references:
+- name: pulsarPrometheus
+  apiVersion: monitoring.coreos.com/v1
+  kind: Prometheus
+  matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?enabled.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?prometheus.?enabled.orValue(true)
+    && !object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?prometheus.?agentMode.orValue(false)
+  list:
+    matchLabels:
+      app.kubernetes.io/managed-by:
+        value: Helm
+- name: pulsarPrometheusAgent
+  apiVersion: monitoring.coreos.com/v1alpha1
+  kind: PrometheusAgent
+  matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?enabled.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?prometheus.?enabled.orValue(true)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?prometheus.?agentMode.orValue(false)
+  list:
+    matchLabels:
+      app.kubernetes.io/managed-by:
+        value: Helm
+- name: pulsarAlertmanager
+  apiVersion: monitoring.coreos.com/v1
+  kind: Alertmanager
+  matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?enabled.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?alertmanager.?enabled.orValue(true)
+  list:
+    matchLabels:
+      app.kubernetes.io/managed-by:
+        value: Helm
+- name: pulsarThanosRuler
+  apiVersion: monitoring.coreos.com/v1
+  kind: ThanosRuler
+  matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?enabled.orValue(false)
+    && object.?spec.?dependencies.?pulsar.?inCluster.?values[?"kube-prometheus-stack"].?thanosRuler.?enabled.orValue(false)
+  list:
+    matchLabels:
+      app.kubernetes.io/managed-by:
+        value: Helm
+fromReferences:
+- name: pulsarPrometheus
+  matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") == object.metadata.name
+    + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("") == object.metadata.namespace
+    && target.?metadata.?annotations[?"helm.sh/hook"].orValue("") == ""
+- name: pulsarPrometheusAgent
+  matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") == object.metadata.name
+    + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("") == object.metadata.namespace
+    && target.?metadata.?annotations[?"helm.sh/hook"].orValue("") == ""
+- name: pulsarAlertmanager
+  matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") == object.metadata.name
+    + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("") == object.metadata.namespace
+    && target.?metadata.?annotations[?"helm.sh/hook"].orValue("") == ""
+- name: pulsarThanosRuler
+  matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") == object.metadata.name
+    + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("") == object.metadata.namespace
+    && target.?metadata.?annotations[?"helm.sh/hook"].orValue("") == ""

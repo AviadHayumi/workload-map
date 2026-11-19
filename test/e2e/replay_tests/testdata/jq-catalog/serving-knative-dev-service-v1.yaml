@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha1
+metadata:
+  name: serving-knative-dev-service-v1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: knativeservice
+      kind:
+        group: serving.knative.dev
+        version: v1
+        kind: Service
+      statusDefinition:
+        conditionsDefinition:
+          path: .status.conditions
+          typeFieldName: type
+          statusFieldName: status
+          messageFieldName: message
+        statusMappings:
+          initializing:
+            - byConditions:
+                - type: Ready
+                  status: Unknown
+          running:
+            - byConditions:
+                - type: Ready
+                  status: "True"
+          failed:
+            - byConditions:
+                - type: Ready
+                  status: "False"
+    childComponents:
+      - name: revision
+        kind:
+          group: serving.knative.dev
+          version: v1
+          kind: Revision
+        ownerRef: knativeservice
+        specDefinition:
+          podTemplateSpecPath: .spec.template
+        scaleDefinition:
+          minReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/min-scale"] // 1 | tonumber
+          maxReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/max-scale"] | tonumber?
+    additionalChildKinds:
+      - group: apps
+        version: v1
+        kind: Deployment
+  optimizationInstructions:
+    gangScheduling:
+      podGroups:
+        - name: revision
+          members:
+            - componentName: revision
+              groupByKeyPaths:
+                - .metadata.labels["serving.knative.dev/revision"]

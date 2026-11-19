@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"os"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/version"
 	"github.com/dsx-ai-factory/workload-map/operator/pkg"
 
@@ -83,6 +83,10 @@ func run() error {
 
 	kubeConfig := ctrl.GetConfigOrDie()
 	ctx := ctrl.SetupSignalHandler()
+
+	if installCatalog {
+		return runCatalogInstall(ctx, kubeConfig)
+	}
 
 	if webhookOpts.enable && !pkg.ValidCertMode(webhookOpts.certMode) {
 		return fmt.Errorf("invalid --webhook-cert-mode %q (want auto or manual)", webhookOpts.certMode)

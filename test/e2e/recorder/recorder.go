@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // defaultTimeout bounds one flow's Run when Config.Timeout is unset.
@@ -222,6 +222,7 @@ func (f *Flow) buildRecording(obs *observation) *Recording {
 			StaleObservedGeneration: snap.staleObservedGeneration,
 			ResourceVersion:         snap.cr.GetResourceVersion(),
 			Object:                  stripVolatileFields(snap.cr),
+			References:              snap.references,
 		})
 		if snap.action != nil {
 			out.Events = append(out.Events, Event{Kind: EventAction, Action: snap.action})

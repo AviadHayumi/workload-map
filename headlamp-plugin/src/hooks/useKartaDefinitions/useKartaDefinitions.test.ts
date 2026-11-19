@@ -24,7 +24,7 @@ function karta(
   experimental?: boolean
 ): Karta {
   return {
-    apiVersion: 'run.ai/v1alpha1',
+    apiVersion: 'run.ai/v1alpha2',
     kind: 'Karta',
     metadata: { name },
     spec: { experimental, structureDefinition: { rootComponent: { kind } } },

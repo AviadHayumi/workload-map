@@ -16,7 +16,7 @@ function karta(
   experimental?: boolean
 ): Karta {
   return {
-    apiVersion: 'run.ai/v1alpha1',
+    apiVersion: 'run.ai/v1alpha2',
     kind: 'Karta',
     metadata: { name },
     spec: { experimental, structureDefinition: { rootComponent: { kind } } },
@@ -38,7 +38,7 @@ describe('rootGVKKey', () => {
   // The CRD does not require spec, so a Karta applied while the validating
   // webhook is down reaches the plugin without one.
   it('has no key, rather than throwing, when the Karta has no spec at all', () => {
-    const specless = { apiVersion: 'run.ai/v1alpha1', kind: 'Karta', metadata: { name: 'specless' } };
+    const specless = { apiVersion: 'run.ai/v1alpha2', kind: 'Karta', metadata: { name: 'specless' } };
 
     expect(rootGVKKey(specless as Karta)).toBeNull();
   });
@@ -100,7 +100,7 @@ describe('mergeDefinitions', () => {
   });
 
   it('skips a spec-less Karta instead of failing the whole merge', () => {
-    const specless = { apiVersion: 'run.ai/v1alpha1', kind: 'Karta', metadata: { name: 'specless' } };
+    const specless = { apiVersion: 'run.ai/v1alpha2', kind: 'Karta', metadata: { name: 'specless' } };
     const clusterDeployment = karta('cluster-deployment', deploymentGVK);
 
     const merged = mergeDefinitions([], [specless as Karta, clusterDeployment]);

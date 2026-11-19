@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 
 	"k8s.io/utils/ptr"
 )
@@ -78,10 +78,10 @@ func ReactorKarta() *v1alpha1.Karta {
 					},
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						PhaseDefinition: &v1alpha1.PhaseDefinition{
-							Path: ".status.phase",
+							Read: v1alpha1.ReadAccessor{Expression: `object[?"status"][?"phase"].orValue(dyn(null))`},
 						},
 						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:             ".status.conditions",
+							Read:             v1alpha1.ReadAccessor{Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`},
 							TypeFieldName:    "type",
 							StatusFieldName:  "status",
 							ReasonFieldName:  ptr.To("reason"),
@@ -108,29 +108,29 @@ func ReactorKarta() *v1alpha1.Karta {
 				},
 				ChildComponents: []v1alpha1.ComponentDefinition{
 					{
-						Name:           "service",
-						OwnerRef:       ptr.To("reactor"),
-						InstanceIdPath: ptr.To(".spec.services | to_entries[] | .key"),
+						Name:        "service",
+						OwnerRef:    ptr.To("reactor"),
+						InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort()`}},
 						SpecDefinition: &v1alpha1.SpecDefinition{
 							FragmentedPodSpecDefinition: &v1alpha1.FragmentedPodSpecDefinition{
-								LabelsPath:      ptr.To(".spec.services | .[] | .labels"),
-								AnnotationsPath: ptr.To(".spec.services | .[] | .annotations"),
-								ContainersPath:  ptr.To(".spec.services | .[] | .containers"),
-								ContainerPath:   ptr.To(".spec.services | .[] | .mainContainer"),
-								ResourcesPath:   ptr.To(".spec.services | .[] | .resources"),
+								Labels:      &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"labels"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/labels"`}},
+								Annotations: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"annotations"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/annotations"`}},
+								Containers:  &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"containers"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/containers"`}},
+								Container:   &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"mainContainer"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/mainContainer"`}},
+								Resources:   &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"resources"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/resources"`}},
 							},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath:    ptr.To(".spec.services | .[] | .replicas"),
-							MinReplicasPath: ptr.To(".spec.services | .[] | .minReplicas"),
-							MaxReplicasPath: ptr.To(".spec.services | .[] | .maxReplicas"),
+							Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"replicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/replicas"`}},
+							MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"minReplicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/minReplicas"`}},
+							MaxReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"services"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"services"].orValue({})[k][?"maxReplicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/maxReplicas"`}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: ".metadata.labels.service-name",
+								Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"service-name"].orValue(dyn(null))`},
 							},
 							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-								IdPath: ".metadata.labels.service-name",
+								Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"service-name"].orValue(dyn(null))`},
 							},
 						},
 					},

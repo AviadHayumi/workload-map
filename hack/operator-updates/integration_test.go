@@ -124,6 +124,12 @@ func (h scriptHarness) testSuccess(t *testing.T) {
 	jobsetTags := map[string][]string{jobset: {"v1.0.0", "v1.1.0"}}
 	h.runCases(t, []scriptCase{
 		{
+			name: "Trainer v2 checker respects its independent pin", script: "operators/trainer/check-updates.sh",
+			args: []string{"--fail-on-update"}, tags: map[string][]string{"kubeflow/trainer": {"v1.9.0", "v2.3.0"}},
+			pins:     map[string]string{"TRAINER_VERSION": "v2.3.0"},
+			wantRows: map[string]string{"trainer": "CURRENT"}, wantRepos: []string{"kubeflow/trainer"},
+		},
+		{
 			name: "standalone respects environment pin", script: "operators/jobset/check-updates.sh",
 			args: []string{"--fail-on-update"}, tags: jobsetTags,
 			pins:     map[string]string{"JOBSET_VERSION": "v1.1.0"},
@@ -324,18 +330,22 @@ func (h scriptHarness) testInventory(t *testing.T) {
 	t.Run("all components use installer release namespaces", func(t *testing.T) {
 		for _, args := range [][]string{nil, {"all"}} {
 			result := h.run(t, scriptCase{tags: tags, args: args})
-			if result.exitCode != 0 || len(result.repos) != len(prefixes) {
+			if result.exitCode != 0 || len(result.repos) != len(prefixes)+1 {
 				t.Fatalf("exit = %d, queries = %v\n%s", result.exitCode, result.repos, result.output)
 			}
-			if strings.Count(result.output, "NEW ") != len(prefixes) {
+			if strings.Count(result.output, "NEW ") != len(prefixes)+1 {
 				t.Errorf("expected an update for all components\n%s", result.output)
 			}
-			seen := make(map[string]bool)
+			seen := make(map[string]int)
 			for _, repository := range result.repos {
-				if _, exists := prefixes[repository]; !exists || seen[repository] {
+				allowed := 1
+				if repository == "kubeflow/trainer" {
+					allowed = 2
+				}
+				if _, exists := prefixes[repository]; !exists || seen[repository] >= allowed {
 					t.Errorf("unexpected or duplicate repository %s", repository)
 				}
-				seen[repository] = true
+				seen[repository]++
 			}
 		}
 	})

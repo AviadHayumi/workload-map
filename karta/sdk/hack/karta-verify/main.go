@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
@@ -206,7 +206,7 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 		}
 	}
 	for _, name := range noInstances {
-		warnings = append(warnings, fmt.Sprintf("%s produced no instances: instanceIdPath matched nothing", name))
+		warnings = append(warnings, fmt.Sprintf("%s produced no instances: instanceIds read returned no instances", name))
 	}
 	if len(warnings) > 0 {
 		fmt.Println("=== Warnings ===")

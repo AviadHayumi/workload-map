@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package v1alpha1
+package v1alpha2
 
 // Label keys stamped by the operator on every Karta whose root
 // component has a GVK defined.

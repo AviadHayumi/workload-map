@@ -193,3 +193,5 @@ verification:
 
 For new infrastructure, document its selection condition and validation command.
 Run `make check` as required by the contributing guide.
+
+Trainer v2 is a separate operator module. `make e2e-up WORKLOADS="trainer"` also installs its JobSet dependency. The `TRAINER_VERSION` pin is independent of the older `KUBEFLOW_VERSION` training APIs.

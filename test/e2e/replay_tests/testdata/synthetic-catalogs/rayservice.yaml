@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Synthetic source-shaped object for offline SDK parity. Not an operator recording.
+kartaFile: docs/catalog/ray-io-rayservice-v1.yaml
+workload:
+  apiVersion: ray.io/v1
+  kind: RayService
+  metadata:
+    name: synthetic-rayservice
+    namespace: example
+    uid: synthetic-rayservice
+  spec:
+    rayClusterConfig:
+      headGroupSpec:
+        template:
+          metadata:
+            labels:
+              app: example
+            annotations:
+              example.com/source: synthetic
+          spec:
+            schedulerName: default-scheduler
+            priorityClassName: batch
+            containers:
+            - name: ray-head
+              image: ghcr.io/example/worker:v1
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 1Gi
+            affinity:
+              podAffinity: {}
+              nodeAffinity: {}
+            resourceClaims:
+            - name: accelerator
+              resourceClaimTemplateName: example
+      workerGroupSpecs:
+      - groupName: gpu
+        replicas: 2
+        template:
+          metadata:
+            labels:
+              app: example
+            annotations:
+              example.com/source: synthetic
+          spec:
+            schedulerName: default-scheduler
+            priorityClassName: batch
+            containers:
+            - name: ray-worker
+              image: ghcr.io/example/worker:v1
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 1Gi
+            affinity:
+              podAffinity: {}
+              nodeAffinity: {}
+            resourceClaims:
+            - name: accelerator
+              resourceClaimTemplateName: example
+      - groupName: cpu
+        replicas: 1
+        template:
+          metadata:
+            labels:
+              app: example
+            annotations:
+              example.com/source: synthetic
+          spec:
+            schedulerName: default-scheduler
+            priorityClassName: batch
+            containers:
+            - name: ray-worker
+              image: ghcr.io/example/worker:v1
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 1Gi
+            affinity:
+              podAffinity: {}
+              nodeAffinity: {}
+            resourceClaims:
+            - name: accelerator
+              resourceClaimTemplateName: example
+  status:
+    conditions:
+    - type: Ready
+      status: 'True'

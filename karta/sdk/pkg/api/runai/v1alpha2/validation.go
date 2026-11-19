@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-package v1alpha1
+package v1alpha2
 
 import (
 	"errors"
 	"fmt"
-
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq"
 )
 
 var kindsWithoutGroup = map[string]bool{
@@ -29,6 +27,13 @@ func (v *KartaValidator) Validate() error {
 		return errors.New("karta is nil")
 	}
 
+	if v.karta.APIVersion != "" && v.karta.APIVersion != GroupVersion.String() {
+		return fmt.Errorf("unsupported Karta apiVersion %q; expected %s", v.karta.APIVersion, GroupVersion.String())
+	}
+	if v.karta.Kind != "" && v.karta.Kind != "Karta" {
+		return fmt.Errorf("unsupported Karta kind %q; expected Karta", v.karta.Kind)
+	}
+
 	var errs []error
 
 	if initErrs := v.initialize(); initErrs != nil {
@@ -44,9 +49,7 @@ func (v *KartaValidator) Validate() error {
 		errs = append(errs, instructionErrs...)
 	}
 
-	if jqErrs := jq.ValidateJQExpressions(v.karta); jqErrs != nil {
-		errs = append(errs, jqErrs...)
-	}
+	errs = append(errs, v.validateExpressions()...)
 
 	return errors.Join(errs...)
 }
@@ -143,10 +146,10 @@ func (v *KartaValidator) validateComponent(component ComponentDefinition) []erro
 	if component.SpecDefinition != nil {
 		counter := 0
 
-		if component.SpecDefinition.PodTemplateSpecPath != nil {
+		if component.SpecDefinition.PodTemplateSpec != nil {
 			counter++
 		}
-		if component.SpecDefinition.PodSpecPath != nil {
+		if component.SpecDefinition.PodSpec != nil {
 			counter++
 		}
 		if component.SpecDefinition.FragmentedPodSpecDefinition != nil {
@@ -167,13 +170,13 @@ func (v *KartaValidator) validateComponent(component ComponentDefinition) []erro
 }
 
 func validateMultiInstanceComponent(component ComponentDefinition) error {
-	if component.InstanceIdPath != nil &&
+	if component.InstanceIds != nil &&
 		(component.PodSelector == nil || component.PodSelector.ComponentInstanceSelector == nil) {
 		return fmt.Errorf("component '%s' has instance id path but no pod component instance selector", component.Name)
 	}
 
 	if (component.PodSelector != nil && component.PodSelector.ComponentInstanceSelector != nil) &&
-		component.InstanceIdPath == nil {
+		component.InstanceIds == nil {
 		return fmt.Errorf("component '%s' has pod component instance selector but no instance id path", component.Name)
 	}
 

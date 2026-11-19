@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: milvus
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: milvus
+      kind:
+        group: milvus.io
+        version: v1beta1
+        kind: Milvus
+    references:
+    - name: etcdStatefulSets
+      apiVersion: apps/v1
+      kind: StatefulSet
+      matchExpression: '!object.?spec.?dependencies.?etcd.?external.orValue(false)'
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: etcdCronJobs
+      apiVersion: batch/v1
+      kind: CronJob
+      matchExpression: '!object.?spec.?dependencies.?etcd.?external.orValue(false)'
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: minioDeployments
+      apiVersion: apps/v1
+      kind: Deployment
+      matchExpression: '!object.?spec.?dependencies.?storage.?external.orValue(false)'
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: minioStatefulSets
+      apiVersion: apps/v1
+      kind: StatefulSet
+      matchExpression: '!object.?spec.?dependencies.?storage.?external.orValue(false)'
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: pulsarStatefulSets
+      apiVersion: apps/v1
+      kind: StatefulSet
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: pulsarDeployments
+      apiVersion: apps/v1
+      kind: Deployment
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: pulsarJobs
+      apiVersion: batch/v1
+      kind: Job
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: pulsarDaemonSets
+      apiVersion: apps/v1
+      kind: DaemonSet
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "pulsar" && !object.?spec.?dependencies.?pulsar.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: kafkaStatefulSets
+      apiVersion: apps/v1
+      kind: StatefulSet
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "kafka" && !object.?spec.?dependencies.?kafka.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: kafkaDeployments
+      apiVersion: apps/v1
+      kind: Deployment
+      matchExpression: object.?spec.?dependencies.?msgStreamType.orValue("") == "kafka" && !object.?spec.?dependencies.?kafka.?external.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    - name: teiStatefulSets
+      apiVersion: apps/v1
+      kind: StatefulSet
+      matchExpression: object.?spec.?dependencies.?tei.?enabled.orValue(false)
+      list:
+        matchLabels:
+          app.kubernetes.io/managed-by:
+            value: Helm
+    childComponents:
+    - name: core
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"core"'
+          value: core
+    - name: etcd
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"etcd"'
+          value: etcd
+        fromReferences:
+        - name: etcdStatefulSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-etcd" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: etcdCronJobs
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-etcd" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+    - name: minio
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"minio"'
+          value: minio
+        fromReferences:
+        - name: minioDeployments
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-minio" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: minioStatefulSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-minio" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+    - name: pulsar
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"pulsar"'
+          value: pulsar
+        fromReferences:
+        - name: pulsarStatefulSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: pulsarDeployments
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: pulsarJobs
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: pulsarDaemonSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-pulsar" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+    - name: kafka
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"kafka"'
+          value: kafka
+        fromReferences:
+        - name: kafkaStatefulSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-kafka" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+        - name: kafkaDeployments
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-kafka" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""
+    - name: tei
+      ownerRef: milvus
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: '"tei"'
+          value: tei
+        fromReferences:
+        - name: teiStatefulSets
+          matchExpression: target.?metadata.?annotations[?"meta.helm.sh/release-name"].orValue("") ==
+            object.metadata.name + "-tei" && target.?metadata.?annotations[?"meta.helm.sh/release-namespace"].orValue("")
+            == object.metadata.namespace && target.?metadata.?annotations[?"helm.sh/hook"].orValue("")
+            == ""

@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha2 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // KueueWorkload returns the admission, readiness and activity view of a Kueue Workload.
@@ -22,65 +22,119 @@ import (
 // for the Pods, and the Workload does not own those Pods.
 // Suspend deactivates and evicts the Workload. Resume allows admission again;
 // recreating deleted Pods requires their controller. Finished work is not restarted.
-func KueueWorkload() *v1alpha1.Karta {
-	const unfinished = `((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not)`
-	const reserved = `((.status.conditions // []) | any(.type == "QuotaReserved" and .status == "True"))`
-	return &v1alpha1.Karta{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"},
-		ObjectMeta: metav1.ObjectMeta{Name: "kueue-x-k8s-io-workload-v1beta2"},
-		Spec: v1alpha1.KartaSpec{
-			Experimental: true,
-			StructureDefinition: v1alpha1.StructureDefinition{
-				RootComponent: v1alpha1.ComponentDefinition{
-					Name: "workload",
-					Kind: &v1alpha1.GroupVersionKind{Group: "kueue.x-k8s.io", Version: "v1beta2", Kind: "Workload"},
-					SuspendDefinition: &v1alpha1.SuspendDefinition{
-						SuspendActions: []v1alpha1.SuspendAction{{Path: ".spec.active", Value: "false"}},
-						ResumeActions:  []v1alpha1.SuspendAction{{Path: ".spec.active", Value: "true"}},
-					},
-					StatusDefinition: &v1alpha1.StatusDefinition{
-						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:             ".status.conditions // []",
-							TypeFieldName:    "type",
-							StatusFieldName:  "status",
-							ReasonFieldName:  ptr.To("reason"),
-							MessageFieldName: ptr.To("message"),
+
+func KueueWorkload() *v1alpha2.Karta {
+	return &v1alpha2.Karta{TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}, ObjectMeta: metav1.ObjectMeta{Name: "kueue-x-k8s-io-workload-v1beta2"}, Spec: v1alpha2.KartaSpec{
+		Experimental: true,
+		StructureDefinition: v1alpha2.StructureDefinition{
+			RootComponent: v1alpha2.ComponentDefinition{
+				Name: "workload",
+				Kind: &v1alpha2.GroupVersionKind{
+					Group:   "kueue.x-k8s.io",
+					Version: "v1beta2",
+					Kind:    "Workload",
+				},
+				StatusDefinition: &v1alpha2.StatusDefinition{
+					ConditionsDefinition: &v1alpha2.ConditionsDefinition{
+						Read: v1alpha2.ReadAccessor{
+							Expression: `object[?"status"][?"conditions"].orValue([])`,
 						},
-						StatusMappings: v1alpha1.StatusMappings{
-							Initializing: []v1alpha1.StatusMatcher{{
-								ByConditions: []v1alpha1.ExpectedCondition{{Type: "Admitted", Status: ptr.To("False")}},
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.spec.active != false and ` + unfinished,
-									ExpectedResult: "true",
+						TypeFieldName:    "type",
+						StatusFieldName:  "status",
+						MessageFieldName: ptr.To("message"),
+						ReasonFieldName:  ptr.To("reason"),
+					},
+					StatusMappings: v1alpha2.StatusMappings{
+						Initializing: []v1alpha2.StatusMatcher{
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "Admitted",
+										Status: ptr.To("False"),
+									},
 								},
-							}},
-							Running: []v1alpha1.StatusMatcher{{
-								ByConditions: []v1alpha1.ExpectedCondition{
-									{Type: "Admitted", Status: ptr.To("True")},
-									{Type: "PodsReady", Status: ptr.To("True")},
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object.?spec.?active.orValue(dyn(null)) != false && !object.?status.?conditions.orValue([]).exists(c, c.type == "Finished" && c.status == "True")`,
 								},
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.spec.active != false and ((.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not)`,
-									ExpectedResult: "true",
-								},
-							}},
-							Suspended: []v1alpha1.StatusMatcher{{
-								ByExpression: &v1alpha1.ExpressionMatcher{
-									Expression:     `.spec.active == false and ` + unfinished + ` and (` + reserved + ` | not)`,
-									ExpectedResult: "true",
-								},
-							}},
-							Completed: []v1alpha1.StatusMatcher{
-								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Finished", Status: ptr.To("True"), Reason: ptr.To("Succeeded")}}},
 							},
-							Failed: []v1alpha1.StatusMatcher{
-								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Finished", Status: ptr.To("True"), Reason: ptr.To("Failed")}}},
-								{ByConditions: []v1alpha1.ExpectedCondition{{Type: "Finished", Status: ptr.To("True"), Reason: ptr.To("FailedToStart")}}},
+						},
+						Running: []v1alpha2.StatusMatcher{
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "Admitted",
+										Status: ptr.To("True"),
+									},
+									{
+										Type:   "PodsReady",
+										Status: ptr.To("True"),
+									},
+								},
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object.?spec.?active.orValue(dyn(null)) != false && !object.?status.?conditions.orValue([]).exists(c, c.type in ["Finished", "Evicted", "WaitingForReplacementPods"] && c.status == "True")`,
+								},
 							},
+						},
+						Completed: []v1alpha2.StatusMatcher{
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "Finished",
+										Status: ptr.To("True"),
+										Reason: ptr.To("Succeeded"),
+									},
+								},
+							},
+						},
+						Failed: []v1alpha2.StatusMatcher{
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "Finished",
+										Status: ptr.To("True"),
+										Reason: ptr.To("Failed"),
+									},
+								},
+							},
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "Finished",
+										Status: ptr.To("True"),
+										Reason: ptr.To("FailedToStart"),
+									},
+								},
+							},
+						},
+						Suspended: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object.?spec.?active.orValue(dyn(null)) == false && !object.?status.?conditions.orValue([]).exists(c, c.type == "Finished" && c.status == "True") && !object.?status.?conditions.orValue([]).exists(c, c.type == "QuotaReserved" && c.status == "True")`,
+								},
+							},
+						},
+					},
+				},
+				SuspendDefinition: &v1alpha2.SuspendDefinition{
+					SuspendActions: []v1alpha2.SuspendAction{
+						{
+							Write: v1alpha2.WriteAccessor{
+								Path: ptr.To("/spec/active"),
+							},
+							Value: "false",
+						},
+					},
+					ResumeActions: []v1alpha2.SuspendAction{
+						{
+							Write: v1alpha2.WriteAccessor{
+								Path: ptr.To("/spec/active"),
+							},
+							Value: "true",
 						},
 					},
 				},
 			},
 		},
-	}
+		Instructions: v1alpha2.OptimizationInstructions{},
+	}}
 }

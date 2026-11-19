@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // Flow is a workload journey recorded for testing: the workload manifest plus the ordered steps the workload
@@ -19,6 +19,7 @@ type Flow struct {
 	name     string
 	manifest string
 	journey  []journeyStep
+	captures []CapturedReference
 }
 
 // Step is one declared journey step, built with Reaches and refined with Optional, With, and Do.
@@ -107,4 +108,16 @@ func judge(cr *unstructured.Unstructured, states []namedState) []kartav1alpha1.R
 		return []kartav1alpha1.ResourceStatus{kartav1alpha1.UndefinedStatus}
 	}
 	return matched
+}
+
+// CapturedReference identifies an object to capture with each workload state.
+type CapturedReference struct {
+	GVK  kartav1alpha1.GroupVersionKind
+	Name string
+}
+
+// Capturing adds reference objects to each recorded workload event.
+func (f *Flow) Capturing(refs ...CapturedReference) *Flow {
+	f.captures = append(f.captures, refs...)
+	return f
 }

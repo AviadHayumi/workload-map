@@ -11,8 +11,9 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	jsonutil "k8s.io/apimachinery/pkg/util/json"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
@@ -31,7 +32,7 @@ func DecodeDefinition(definitionJSON string) (*v1alpha1.Karta, error) {
 // fields from any Kubernetes resource type survive.
 func DecodeWorkload(workloadJSON string) (*unstructured.Unstructured, error) {
 	var workload map[string]any
-	if err := json.Unmarshal([]byte(workloadJSON), &workload); err != nil {
+	if err := jsonutil.Unmarshal([]byte(workloadJSON), &workload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal workload: %w", err)
 	}
 	return &unstructured.Unstructured{Object: workload}, nil

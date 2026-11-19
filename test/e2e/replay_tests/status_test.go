@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/test/e2e/recorder"
 )
@@ -50,7 +50,7 @@ var _ = Describe("Karta reads the recorded state", func() {
 
 			for r.Next() {
 				state, cr := r.State(), r.Object()
-				root, err := resource.NewComponentFactoryFromObject(karta, cr).GetRootComponent()
+				root, err := resource.NewComponentFactoryFromObject(karta, cr, resource.WithReferenceReader(&recordedReader{objects: r.References()})).GetRootComponent()
 				Expect(err).NotTo(HaveOccurred(), "Karta could not parse the %q CR", state)
 				status, err := root.GetStatus(ctx)
 				Expect(err).NotTo(HaveOccurred(), "Karta could not read the %q CR", state)

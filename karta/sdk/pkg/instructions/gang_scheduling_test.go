@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
@@ -33,7 +33,7 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 						},
@@ -88,12 +88,12 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 									},
 									PodSelector: &v1alpha1.PodSelector{
 										ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-											KeyPath: ".metadata.labels.component",
-											Value:   ptr.To("worker"),
+											Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+											Value: ptr.To("worker"),
 										},
 									},
 								},
@@ -101,12 +101,12 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "master",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 									PodSelector: &v1alpha1.PodSelector{
 										ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-											KeyPath: ".metadata.labels.component",
-											Value:   ptr.To("master"),
+											Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+											Value: ptr.To("master"),
 										},
 									},
 								},
@@ -177,7 +177,7 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "worker-set",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 						},
@@ -190,7 +190,7 @@ var _ = Describe("Gang Scheduling", func() {
 											{
 												ComponentName: "worker-set",
 												Filters: []string{
-													`.metadata.labels.tier == "gpu"`,
+													`object[?"metadata"][?"labels"][?"tier"].orValue(dyn(null)) == "gpu"`,
 												},
 											},
 										},
@@ -201,7 +201,7 @@ var _ = Describe("Gang Scheduling", func() {
 											{
 												ComponentName: "worker-set",
 												Filters: []string{
-													`.metadata.labels.tier == "cpu"`,
+													`object[?"metadata"][?"labels"][?"tier"].orValue(dyn(null)) == "cpu"`,
 												},
 											},
 										},
@@ -266,12 +266,12 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 									},
 									PodSelector: &v1alpha1.PodSelector{
 										ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-											KeyPath: ".metadata.labels.component",
-											Value:   ptr.To("worker"),
+											Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+											Value: ptr.To("worker"),
 										},
 									},
 								},
@@ -286,7 +286,7 @@ var _ = Describe("Gang Scheduling", func() {
 											{
 												ComponentName: "worker",
 												Filters: []string{
-													`.metadata.labels.version == "v2"`, // This won't match
+													`object[?"metadata"][?"labels"][?"version"].orValue(dyn(null)) == "v2"`, // This won't match
 												},
 											},
 										},
@@ -337,7 +337,7 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 						},
@@ -373,11 +373,11 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "worker",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath:    ptr.To(".spec.replicas"),
-									MinReplicasPath: ptr.To(".spec.minReplicas"),
+									Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
+									MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"minReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/minReplicas`)}},
 								},
 							},
 						},
@@ -414,7 +414,7 @@ var _ = Describe("Gang Scheduling", func() {
 								Name:           "pytorch-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath: ptr.To(".spec.replicas"),
+									Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
 								},
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
@@ -422,20 +422,20 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath: ptr.To(".spec.worker.replicas"),
+										Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/replicas`)}},
 									},
 								},
 								{
 									Name:     "master",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath: ptr.To(".spec.master.replicas"),
+										Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/replicas`)}},
 									},
 								},
 							},
@@ -516,19 +516,19 @@ var _ = Describe("Gang Scheduling", func() {
 								Name:           "pytorch-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath: ptr.To(".spec.replicas"),
+									Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
 								},
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
 								{
-									Name:           "worker-array",
-									OwnerRef:       ptr.To("pytorch-job"),
-									InstanceIdPath: ptr.To(".spec.workers[].name"),
+									Name:        "worker-array",
+									OwnerRef:    ptr.To("pytorch-job"),
+									InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"workers"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.workers[].template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"workers"].orValue([])).map(x, x[?"template"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/workers/" + string(index) + "/template"`}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath: ptr.To(".spec.workers[].replicas"),
+										Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"workers"].orValue([])).map(x, x[?"replicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/workers/" + string(index) + "/replicas"`}},
 									},
 								},
 							},
@@ -582,10 +582,10 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("cluster"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath: ptr.To(".spec.replicas"),
+										Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
 									},
 								},
 							},
@@ -627,7 +627,7 @@ var _ = Describe("Gang Scheduling", func() {
 								Name:           "job-group",
 								SpecDefinition: &v1alpha1.SpecDefinition{},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath: ptr.To(".spec.size"),
+									Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"size"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/size`)}},
 								},
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
@@ -635,7 +635,7 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("job-group"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 										// No scale definition
 									},
 								},
@@ -679,11 +679,11 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "worker",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath:    ptr.To(".spec.replicas"),
-									MinReplicasPath: ptr.To(".spec.minReplicas"),
+									Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
+									MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"minReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/minReplicas`)}},
 								},
 							},
 						},
@@ -713,11 +713,11 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "worker",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath:    ptr.To(".spec.replicas"),
-									MinReplicasPath: ptr.To(".spec.minReplicas"),
+									Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
+									MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"minReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/minReplicas`)}},
 								},
 							},
 						},
@@ -757,11 +757,11 @@ var _ = Describe("Gang Scheduling", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "worker",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 								ScaleDefinition: &v1alpha1.ScaleDefinition{
-									ReplicasPath:    ptr.To(".spec.replicas"),
-									MinReplicasPath: ptr.To(".spec.minReplicas"),
+									Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicas`)}},
+									MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"minReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/minReplicas`)}},
 								},
 							},
 						},
@@ -805,14 +805,14 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 									},
 								},
 								{
 									Name:     "master",
 									OwnerRef: ptr.To("pytorch-job"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 								},
 							},
@@ -859,21 +859,21 @@ var _ = Describe("Gang Scheduling", func() {
 									Name:     "worker",
 									OwnerRef: ptr.To("job-group"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 								},
 								{
 									Name:     "master",
 									OwnerRef: ptr.To("job-group"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 									},
 								},
 								{
 									Name:     "storage",
 									OwnerRef: ptr.To("cluster"),
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.storage.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"storage"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/storage/template`)}},
 									},
 								},
 							},
@@ -923,14 +923,14 @@ var _ = Describe("Gang Scheduling", func() {
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
 								{
-									Name:           "job",
-									InstanceIdPath: ptr.To(".spec.replicatedJobs[].name"),
+									Name:        "job",
+									InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodSpecPath: ptr.To(".spec.replicatedJobs[].spec"),
+										PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"spec"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/spec"`}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath:    ptr.To(".spec.replicatedJobs[].replicas"),
-										MinReplicasPath: ptr.To(".spec.replicatedJobs[].minReplicas"),
+										Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"replicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/replicas"`}},
+										MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"minReplicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/minReplicas"`}},
 									},
 								},
 							},
@@ -996,14 +996,14 @@ var _ = Describe("Gang Scheduling", func() {
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
 								{
-									Name:           "job",
-									InstanceIdPath: ptr.To(".spec.replicatedJobs | to_entries[] | .key"),
+									Name:        "job",
+									InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicatedJobs"].orValue({}).map(k, k).sort()`}},
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodSpecPath: ptr.To(".spec.replicatedJobs | .[] | .spec"),
+										PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicatedJobs"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"replicatedJobs"].orValue({})[k][?"spec"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + instance.replace("~", "~0").replace("/", "~1") + "/spec"`}},
 									},
 									ScaleDefinition: &v1alpha1.ScaleDefinition{
-										ReplicasPath:    ptr.To(".spec.replicatedJobs | .[] | .replicas"),
-										MinReplicasPath: ptr.To(".spec.replicatedJobs | .[] | .minReplicas"),
+										Replicas:    &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicatedJobs"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"replicatedJobs"].orValue({})[k][?"replicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + instance.replace("~", "~0").replace("/", "~1") + "/replicas"`}},
+										MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicatedJobs"].orValue({}).map(k, k).sort().map(k, object[?"spec"][?"replicatedJobs"].orValue({})[k][?"minReplicas"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + instance.replace("~", "~0").replace("/", "~1") + "/minReplicas"`}},
 									},
 								},
 							},
@@ -1067,10 +1067,10 @@ var _ = Describe("Gang Scheduling", func() {
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
 								{
-									Name:           "job",
-									InstanceIdPath: ptr.To(".spec.replicatedJobs[].name"),
+									Name:        "job",
+									InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodSpecPath: ptr.To(".spec.replicatedJobs[].spec"),
+										PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"spec"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/spec"`}},
 									},
 									// No ScaleDefinition - will use byLeaves method
 								},
@@ -1134,10 +1134,10 @@ var _ = Describe("Gang Scheduling", func() {
 							},
 							ChildComponents: []v1alpha1.ComponentDefinition{
 								{
-									Name:           "job",
-									InstanceIdPath: ptr.To(".spec.replicatedJobs[].name"),
+									Name:        "job",
+									InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodSpecPath: ptr.To(".spec.replicatedJobs[].spec"),
+										PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"replicatedJobs"].orValue([])).map(x, x[?"spec"].orValue(dyn(null)))`}, Write: &v1alpha1.WriteAccessor{PathExpression: `"/spec/replicatedJobs/" + string(index) + "/spec"`}},
 									},
 								},
 							},

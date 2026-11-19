@@ -68,3 +68,13 @@ func TestListCatalog(t *testing.T) {
 		t.Error("expected the built-in catalog to be non-empty")
 	}
 }
+
+func TestDecodeWorkloadPreservesIntegerPrecision(t *testing.T) {
+	workload, err := DecodeWorkload(`{"apiVersion":"v1","kind":"Pod","spec":{"sequence":9007199254740993}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workload.Object["spec"].(map[string]any)["sequence"] != int64(9007199254740993) {
+		t.Fatalf("integer precision lost: %#v", workload.Object)
+	}
+}

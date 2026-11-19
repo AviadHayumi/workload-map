@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: trainer-suspended
+spec:
+  suspend: true
+  runtimeRef:
+    name: karta-busybox
+  trainer:
+    command: ["sh", "-c", "sleep 15"]

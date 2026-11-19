@@ -28,7 +28,7 @@ const deploymentKey = 'apps/v1, Kind=Deployment';
 function definition(resourceVersion?: string): Definition {
   return {
     karta: {
-      apiVersion: 'run.ai/v1alpha1',
+      apiVersion: 'run.ai/v1alpha2',
       kind: 'Karta',
       metadata: { name: 'deployment', resourceVersion },
       spec: { structureDefinition: { rootComponent: { kind: deploymentGVK } } },

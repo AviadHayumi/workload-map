@@ -15,7 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 var _ = Describe("Component", func() {
@@ -48,9 +48,7 @@ var _ = Describe("Component", func() {
 				},
 				PodSelector: &v1alpha1.PodSelector{
 					ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-						KeyPath: ".metadata.labels.role",
-						Value:   stringPtr("worker"),
-					},
+						Value: stringPtr("worker"), Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"role"].orValue(null)`}},
 				},
 			}
 
@@ -87,7 +85,7 @@ var _ = Describe("Component", func() {
 		It("should return pod selector", func() {
 			selector := component.GetPodSelector()
 			Expect(selector).NotTo(BeNil())
-			Expect(selector.ComponentTypeSelector.KeyPath).To(Equal(".metadata.labels.role"))
+			Expect(selector.ComponentTypeSelector.Read.Expression).To(Equal(`object[?"metadata"][?"labels"][?"role"].orValue(null)`))
 			Expect(*selector.ComponentTypeSelector.Value).To(Equal("worker"))
 		})
 
@@ -100,22 +98,22 @@ var _ = Describe("Component", func() {
 	})
 
 	Context("Pod Definition Detection", func() {
-		It("should detect pod definition with PodTemplateSpecPath", func() {
+		It("should detect pod definition with PodTemplateSpec", func() {
 			component := &Component{
 				definition: v1alpha1.ComponentDefinition{
 					SpecDefinition: &v1alpha1.SpecDefinition{
-						PodTemplateSpecPath: stringPtr(".spec.template"),
+						PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(null)`}},
 					},
 				},
 			}
 			Expect(component.HasPodDefinition()).To(BeTrue())
 		})
 
-		It("should detect pod definition with PodSpecPath", func() {
+		It("should detect pod definition with PodSpec", func() {
 			component := &Component{
 				definition: v1alpha1.ComponentDefinition{
 					SpecDefinition: &v1alpha1.SpecDefinition{
-						PodSpecPath: stringPtr(".spec.podSpec"),
+						PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"podSpec"].orValue(null)`}},
 					},
 				},
 			}
@@ -155,19 +153,19 @@ var _ = Describe("Component", func() {
 	})
 
 	Context("Instance ID Logic", func() {
-		It("should return true for HasInstanceIdDefinition when InstanceIdPath is defined", func() {
+		It("should return true for HasInstanceIdDefinition when InstanceIds is defined", func() {
 			component := &Component{
 				definition: v1alpha1.ComponentDefinition{
-					InstanceIdPath: stringPtr(".spec.jobs[].name"),
+					InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object.spec.jobs.map(x, x[?"name"].orValue(null))`}},
 				},
 			}
 			Expect(component.HasInstanceIdDefinition()).To(BeTrue())
 		})
 
-		It("should return false for HasInstanceIdDefinition when InstanceIdPath is not defined", func() {
+		It("should return false for HasInstanceIdDefinition when InstanceIds is not defined", func() {
 			component := &Component{
 				definition: v1alpha1.ComponentDefinition{
-					// No InstanceIdPath
+					// No InstanceIds
 				},
 			}
 			Expect(component.HasInstanceIdDefinition()).To(BeFalse())
@@ -685,409 +683,10 @@ var _ = Describe("Component", func() {
 
 	})
 
-	Context("Update Methods", func() {
-		var component *Component
-
-		BeforeEach(func() {
-			component = &Component{
-				name:       "test-component",
-				definition: v1alpha1.ComponentDefinition{Name: "test-component"},
-				accessor:   mockAccessor,
-			}
-		})
-
-		Context("UpdatePodTemplateSpec", func() {
-			It("should update pod template specs for multi-instance component", func() {
-				instanceIds := []string{"job-1", "job-2"}
-				podTemplateSpecs := map[string]corev1.PodTemplateSpec{
-					"job-1": {ObjectMeta: metav1.ObjectMeta{Name: "template-1"}},
-					"job-2": {ObjectMeta: metav1.ObjectMeta{Name: "template-2"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodTemplateSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []corev1.PodTemplateSpec) error {
-						Expect(specs).To(HaveLen(2))
-						return nil
-					})
-
-				err := component.UpdatePodTemplateSpec(ctx, podTemplateSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should update pod template spec for single-instance component", func() {
-				instanceIds := []string{""}
-				podTemplateSpecs := map[string]corev1.PodTemplateSpec{
-					"": {ObjectMeta: metav1.ObjectMeta{Name: "single-template"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodTemplateSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []corev1.PodTemplateSpec) error {
-						Expect(specs).To(HaveLen(1))
-						return nil
-					})
-
-				err := component.UpdatePodTemplateSpec(ctx, podTemplateSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should propagate GetInstanceIds errors", func() {
-				expectedError := errors.New("instance extraction failed")
-				podTemplateSpecs := map[string]corev1.PodTemplateSpec{
-					"job-1": {ObjectMeta: metav1.ObjectMeta{Name: "template-1"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(nil, expectedError)
-
-				err := component.UpdatePodTemplateSpec(ctx, podTemplateSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(errGetInstanceIds))
-				Expect(err.Error()).To(ContainSubstring(expectedError.Error()))
-			})
-
-			It("should return error when instance IDs count doesn't match map entries", func() {
-				instanceIds := []string{"job-1", "job-2", "job-3"}
-				podTemplateSpecs := map[string]corev1.PodTemplateSpec{
-					"job-1": {ObjectMeta: metav1.ObjectMeta{Name: "template-1"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				err := component.UpdatePodTemplateSpec(ctx, podTemplateSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to unzip"))
-			})
-
-			It("should propagate accessor Update errors", func() {
-				instanceIds := []string{"job-1"}
-				podTemplateSpecs := map[string]corev1.PodTemplateSpec{
-					"job-1": {ObjectMeta: metav1.ObjectMeta{Name: "template-1"}},
-				}
-				expectedError := errors.New("update failed")
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodTemplateSpec(ctx, component.definition, gomock.Any()).
-					Return(expectedError)
-
-				err := component.UpdatePodTemplateSpec(ctx, podTemplateSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(expectedError.Error()))
-			})
-		})
-
-		Context("UpdatePodSpec", func() {
-			It("should update pod specs for multi-instance component", func() {
-				instanceIds := []string{"worker-1", "worker-2"}
-				podSpecs := map[string]corev1.PodSpec{
-					"worker-1": {Containers: []corev1.Container{{Name: "container-1"}}},
-					"worker-2": {Containers: []corev1.Container{{Name: "container-2"}}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []corev1.PodSpec) error {
-						Expect(specs).To(HaveLen(2))
-						return nil
-					})
-
-				err := component.UpdatePodSpec(ctx, podSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should update pod spec for single-instance component", func() {
-				instanceIds := []string{""}
-				podSpecs := map[string]corev1.PodSpec{
-					"": {Containers: []corev1.Container{{Name: "single-container"}}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []corev1.PodSpec) error {
-						Expect(specs).To(HaveLen(1))
-						return nil
-					})
-
-				err := component.UpdatePodSpec(ctx, podSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should propagate GetInstanceIds errors", func() {
-				expectedError := errors.New("instance extraction failed")
-				podSpecs := map[string]corev1.PodSpec{
-					"worker-1": {Containers: []corev1.Container{{Name: "container-1"}}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(nil, expectedError)
-
-				err := component.UpdatePodSpec(ctx, podSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(errGetInstanceIds))
-				Expect(err.Error()).To(ContainSubstring(expectedError.Error()))
-			})
-
-			It("should return error when instance IDs count doesn't match map entries", func() {
-				instanceIds := []string{"worker-1", "worker-2"}
-				podSpecs := map[string]corev1.PodSpec{
-					"worker-1": {Containers: []corev1.Container{{Name: "container-1"}}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				err := component.UpdatePodSpec(ctx, podSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to unzip"))
-			})
-
-			It("should propagate accessor Update errors", func() {
-				instanceIds := []string{"worker-1"}
-				podSpecs := map[string]corev1.PodSpec{
-					"worker-1": {Containers: []corev1.Container{{Name: "container-1"}}},
-				}
-				expectedError := errors.New("update failed")
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodSpec(ctx, component.definition, gomock.Any()).
-					Return(expectedError)
-
-				err := component.UpdatePodSpec(ctx, podSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(expectedError.Error()))
-			})
-		})
-
-		Context("UpdatePodMetadata", func() {
-			It("should update pod metadata for multi-instance component", func() {
-				instanceIds := []string{"meta-1", "meta-2"}
-				podMetadata := map[string]metav1.ObjectMeta{
-					"meta-1": {Name: "pod-1", Labels: map[string]string{"app": "test"}},
-					"meta-2": {Name: "pod-2", Labels: map[string]string{"app": "test"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodMetadata(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, metadata []metav1.ObjectMeta) error {
-						Expect(metadata).To(HaveLen(2))
-						return nil
-					})
-
-				err := component.UpdatePodMetadata(ctx, podMetadata)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should update pod metadata for single-instance component", func() {
-				instanceIds := []string{""}
-				podMetadata := map[string]metav1.ObjectMeta{
-					"": {Name: "single-pod", Labels: map[string]string{"app": "test"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodMetadata(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, metadata []metav1.ObjectMeta) error {
-						Expect(metadata).To(HaveLen(1))
-						return nil
-					})
-
-				err := component.UpdatePodMetadata(ctx, podMetadata)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should propagate GetInstanceIds errors", func() {
-				expectedError := errors.New("instance extraction failed")
-				podMetadata := map[string]metav1.ObjectMeta{
-					"meta-1": {Name: "pod-1", Labels: map[string]string{"app": "test"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(nil, expectedError)
-
-				err := component.UpdatePodMetadata(ctx, podMetadata)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(errGetInstanceIds))
-				Expect(err.Error()).To(ContainSubstring(expectedError.Error()))
-			})
-
-			It("should return error when instance IDs count doesn't match map entries", func() {
-				instanceIds := []string{"meta-1", "meta-2"}
-				podMetadata := map[string]metav1.ObjectMeta{
-					"meta-1": {Name: "pod-1", Labels: map[string]string{"app": "test"}},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				err := component.UpdatePodMetadata(ctx, podMetadata)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to unzip"))
-			})
-
-			It("should propagate accessor Update errors", func() {
-				instanceIds := []string{"meta-1"}
-				podMetadata := map[string]metav1.ObjectMeta{
-					"meta-1": {Name: "pod-1", Labels: map[string]string{"app": "test"}},
-				}
-				expectedError := errors.New("update failed")
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdatePodMetadata(ctx, component.definition, gomock.Any()).
-					Return(expectedError)
-
-				err := component.UpdatePodMetadata(ctx, podMetadata)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(expectedError.Error()))
-			})
-		})
-
-		Context("UpdateFragmentedPodSpec", func() {
-			It("should update fragmented pod specs for multi-instance component", func() {
-				instanceIds := []string{"frag-1", "frag-2"}
-				fragmentedPodSpecs := map[string]FragmentedPodSpec{
-					"frag-1": {SchedulerName: "scheduler-1", Image: "image-1"},
-					"frag-2": {SchedulerName: "scheduler-2", Image: "image-2"},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdateFragmentedPodSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []FragmentedPodSpec) error {
-						Expect(specs).To(HaveLen(2))
-						return nil
-					})
-
-				err := component.UpdateFragmentedPodSpec(ctx, fragmentedPodSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should update fragmented pod spec for single-instance component", func() {
-				instanceIds := []string{""}
-				fragmentedPodSpecs := map[string]FragmentedPodSpec{
-					"": {SchedulerName: "single-scheduler", Image: "single-image"},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdateFragmentedPodSpec(ctx, component.definition, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, def v1alpha1.ComponentDefinition, specs []FragmentedPodSpec) error {
-						Expect(specs).To(HaveLen(1))
-						return nil
-					})
-
-				err := component.UpdateFragmentedPodSpec(ctx, fragmentedPodSpecs)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("should propagate GetInstanceIds errors", func() {
-				expectedError := errors.New("instance extraction failed")
-				fragmentedPodSpecs := map[string]FragmentedPodSpec{
-					"frag-1": {SchedulerName: "scheduler-1", Image: "image-1"},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(nil, expectedError)
-
-				err := component.UpdateFragmentedPodSpec(ctx, fragmentedPodSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(errGetInstanceIds))
-				Expect(err.Error()).To(ContainSubstring(expectedError.Error()))
-			})
-
-			It("should return error when instance IDs count doesn't match map entries", func() {
-				instanceIds := []string{"frag-1", "frag-2"}
-				fragmentedPodSpecs := map[string]FragmentedPodSpec{
-					"frag-1": {SchedulerName: "scheduler-1", Image: "image-1"},
-				}
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				err := component.UpdateFragmentedPodSpec(ctx, fragmentedPodSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to unzip"))
-			})
-
-			It("should propagate accessor Update errors", func() {
-				instanceIds := []string{"frag-1"}
-				fragmentedPodSpecs := map[string]FragmentedPodSpec{
-					"frag-1": {SchedulerName: "scheduler-1", Image: "image-1"},
-				}
-				expectedError := errors.New("update failed")
-
-				mockAccessor.EXPECT().
-					ExtractInstanceIds(ctx, component.definition).
-					Return(instanceIds, nil)
-
-				mockAccessor.EXPECT().
-					UpdateFragmentedPodSpec(ctx, component.definition, gomock.Any()).
-					Return(expectedError)
-
-				err := component.UpdateFragmentedPodSpec(ctx, fragmentedPodSpecs)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(expectedError.Error()))
-			})
-		})
-	})
-
 	Context("Suspend and Resume", func() {
 		var component *Component
 
-		suspendDef := v1alpha1.SuspendDefinition{
-			SuspendActions: []v1alpha1.SuspendAction{{Path: ".spec.suspend", Value: "true"}},
-			ResumeActions:  []v1alpha1.SuspendAction{{Path: ".spec.suspend", Value: "false"}},
-		}
+		suspendDef := v1alpha1.SuspendDefinition{SuspendActions: []v1alpha1.SuspendAction{{Write: v1alpha1.WriteAccessor{Path: ptr.To("/spec/suspend")}, Value: "true"}}, ResumeActions: []v1alpha1.SuspendAction{{Write: v1alpha1.WriteAccessor{Path: ptr.To("/spec/suspend")}, Value: "false"}}}
 
 		BeforeEach(func() {
 			component = &Component{

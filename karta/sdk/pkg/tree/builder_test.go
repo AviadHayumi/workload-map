@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/test/types"
 )
@@ -76,7 +76,7 @@ var _ = Describe("Build", func() {
 	Describe("multi-instance component", func() {
 		It("creates one InstanceNode per spec-defined instance", func() {
 			// Reactor (Dynamo-like) enumerates its services from the spec via
-			// InstanceIdPath: api, worker, cache.
+			// InstanceIds: api, worker, cache.
 			karta := types.ReactorKarta()
 			factory := resource.NewComponentFactoryFromObject(karta, types.NewReactorObject())
 			tree, err := Build(ctx, factory)
@@ -251,10 +251,10 @@ func bareJobKarta() *v1alpha1.Karta {
 						StatusMappings: v1alpha1.StatusMappings{},
 					},
 					SpecDefinition: &v1alpha1.SpecDefinition{
-						PodTemplateSpecPath: ptr.To(".spec.template"),
+						PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(null)`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To("/spec/template")}},
 					},
 					ScaleDefinition: &v1alpha1.ScaleDefinition{
-						ReplicasPath: ptr.To(".spec.parallelism // 1"),
+						Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `([dyn(object[?"spec"][?"parallelism"].orValue(null))].filter(v, v != null && v != false) + [1])[0]`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To("/spec/parallelism")}},
 					},
 				},
 			},
@@ -285,9 +285,7 @@ func replicaGroupKarta() *v1alpha1.Karta {
 						Name:     "group",
 						OwnerRef: ptr.To("lws"),
 						PodSelector: &v1alpha1.PodSelector{
-							ReplicaSelector: &v1alpha1.ReplicaSelector{
-								KeyPath: ".metadata.labels.group",
-							},
+							ReplicaSelector: &v1alpha1.ReplicaSelector{Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"group"].orValue(null)`}},
 						},
 					},
 				},
