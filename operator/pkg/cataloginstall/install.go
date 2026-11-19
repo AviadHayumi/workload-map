@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -62,21 +63,14 @@ func WaitReady(ctx context.Context, c client.Client, webhookName string, probe *
 				continue
 			}
 			for _, rule := range hook.Rules {
-				hasGroup, hasVersion, hasResource, hasCreate, hasUpdate := false, false, false, false, false
-				for _, g := range rule.APIGroups {
-					hasGroup = hasGroup || g == "run.ai"
+				if !slices.Contains(rule.APIGroups, "run.ai") || !slices.Contains(rule.APIVersions, "v1alpha2") || !slices.Contains(rule.Resources, "kartas") {
+					continue
 				}
-				for _, v := range rule.APIVersions {
-					hasVersion = hasVersion || v == "v1alpha2"
+				if slices.Contains(rule.Operations, admissionv1.OperationAll) ||
+					(slices.Contains(rule.Operations, admissionv1.Create) && slices.Contains(rule.Operations, admissionv1.Update)) {
+					ready = true
+					break
 				}
-				for _, r := range rule.Resources {
-					hasResource = hasResource || r == "kartas"
-				}
-				for _, op := range rule.Operations {
-					hasCreate = hasCreate || op == admissionv1.Create || op == admissionv1.OperationAll
-					hasUpdate = hasUpdate || op == admissionv1.Update || op == admissionv1.OperationAll
-				}
-				ready = ready || hasGroup && hasVersion && hasResource && hasCreate && hasUpdate
 			}
 		}
 		if !ready {

@@ -111,11 +111,25 @@ func TestPartialInstallRetry(t *testing.T) {
 func TestAdmissionReadiness(t *testing.T) {
 	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "kartas.run.ai"}, Spec: extv1.CustomResourceDefinitionSpec{Versions: []extv1.CustomResourceDefinitionVersion{{Name: "v1alpha2", Served: true}}}, Status: extv1.CustomResourceDefinitionStatus{Conditions: []extv1.CustomResourceDefinitionCondition{{Type: extv1.Established, Status: extv1.ConditionTrue}}}}
 	webhook := &admissionv1.ValidatingWebhookConfiguration{ObjectMeta: metav1.ObjectMeta{Name: "validation"}, Webhooks: []admissionv1.ValidatingWebhook{{Name: "vkarta.run.ai", FailurePolicy: ptr.To(admissionv1.Fail), ClientConfig: admissionv1.WebhookClientConfig{CABundle: []byte("test"), Service: &admissionv1.ServiceReference{Path: ptr.To("/validate-run-ai-v1alpha2-karta")}}, Rules: []admissionv1.RuleWithOperations{{Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update}, Rule: admissionv1.Rule{APIGroups: []string{"run.ai"}, APIVersions: []string{"v1alpha2"}, Resources: []string{"kartas"}}}}}}}
-	for _, ready := range []bool{true, false} {
-		t.Run(map[bool]string{true: "ready", false: "wrong API version"}[ready], func(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		version    string
+		operations [][]admissionv1.OperationType // one list per rule
+		ready      bool
+	}{
+		{"ready", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.Create, admissionv1.Update}}, true},
+		{"all operations", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.OperationAll}}, true},
+		{"operations in separate rules", "v1alpha2", [][]admissionv1.OperationType{{admissionv1.Create}, {admissionv1.Update}}, false},
+		{"wrong API version", "v1alpha1", [][]admissionv1.OperationType{{admissionv1.Create, admissionv1.Update}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			hook := webhook.DeepCopy()
-			if !ready {
-				hook.Webhooks[0].Rules[0].APIVersions = []string{"v1alpha1"}
+			rule := hook.Webhooks[0].Rules[0]
+			rule.APIVersions = []string{tc.version}
+			hook.Webhooks[0].Rules = nil
+			for _, ops := range tc.operations {
+				rule.Operations = ops
+				hook.Webhooks[0].Rules = append(hook.Webhooks[0].Rules, rule)
 			}
 			base := testClient(t, crd, hook)
 			dryRuns := 0
@@ -133,10 +147,10 @@ func TestAdmissionReadiness(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
 			defer cancel()
 			err := WaitReady(ctx, c, "validation", kartas.Deployment())
-			if ready && (err != nil || dryRuns != 1) {
+			if tc.ready && (err != nil || dryRuns != 1) {
 				t.Fatalf("ready err=%v dryRuns=%d", err, dryRuns)
 			}
-			if !ready && (err == nil || dryRuns != 0) {
+			if !tc.ready && (err == nil || dryRuns != 0) {
 				t.Fatalf("unready err=%v dryRuns=%d", err, dryRuns)
 			}
 		})
