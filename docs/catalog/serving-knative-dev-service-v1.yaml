@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: serving-knative-dev-service-v1
 spec:
+  variables:
+    - name: minScale
+      expression: ([dyn(object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/min-scale"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
     rootComponent:
       name: knativeservice
@@ -14,7 +17,8 @@ spec:
         kind: Service
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -39,10 +43,19 @@ spec:
           kind: Revision
         ownerRef: knativeservice
         specDefinition:
-          podTemplateSpecPath: .spec.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/template
         scaleDefinition:
-          minReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/min-scale"] // 1 | tonumber
-          maxReplicasPath: .spec.template.metadata.annotations["autoscaling.knative.dev/max-scale"] | tonumber?
+          minReplicas:
+            read:
+              expression: 'object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/min-scale"].orValue(dyn(null)) == null ? 1 : int(object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/min-scale"].orValue(dyn(null)))'
+          maxReplicas:
+            read:
+              matchExpression: object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/max-scale"].orValue(dyn(null)) != null
+              expression: 'object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/max-scale"].orValue(dyn(null)) == null ? dyn(null) : int(object[?"spec"][?"template"][?"metadata"][?"annotations"][?"autoscaling.knative.dev/max-scale"].orValue(dyn(null)))'
     additionalChildKinds:
       - group: apps
         version: v1
@@ -53,5 +66,5 @@ spec:
         - name: revision
           members:
             - componentName: revision
-              groupByKeyPaths:
-                - .metadata.labels["serving.knative.dev/revision"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"serving.knative.dev/revision"].orValue(dyn(null))

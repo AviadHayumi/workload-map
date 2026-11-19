@@ -19,7 +19,7 @@ import (
 	yamlv3 "go.yaml.in/yaml/v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
 
@@ -58,7 +58,10 @@ var definitions = []func() *v1alpha1.Karta{
 	kartas.GrovePodCliqueSet,
 	kartas.Sandbox,
 	kartas.KueueWorkload,
+	kartas.Rollout,
+	kartas.CloneSet,
 	kartas.VcJob,
+	kartas.TrainJob,
 }
 
 // Catalog is an immutable set of built-in Kartas indexed by their root component GVK.

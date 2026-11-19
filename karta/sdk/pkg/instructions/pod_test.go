@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
@@ -35,7 +35,7 @@ var _ = Describe("Pod Utils", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 							},
 						},
@@ -65,11 +65,11 @@ var _ = Describe("Pod Utils", func() {
 							RootComponent: v1alpha1.ComponentDefinition{
 								Name: "simple-job",
 								SpecDefinition: &v1alpha1.SpecDefinition{
-									PodTemplateSpecPath: ptr.To(".spec.template"),
+									PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/template`)}},
 								},
 								PodSelector: &v1alpha1.PodSelector{
 									ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-										KeyPath: ".non-existing",
+										Read: v1alpha1.ReadAccessor{Expression: `object[?"non-existing"].orValue(dyn(null))`},
 									},
 								},
 							},
@@ -111,24 +111,24 @@ var _ = Describe("Pod Utils", func() {
 									{
 										Name: "worker",
 										SpecDefinition: &v1alpha1.SpecDefinition{
-											PodTemplateSpecPath: ptr.To(".spec.replicaSpecs.Worker.template"),
+											PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicaSpecs"][?"Worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicaSpecs/Worker/template`)}},
 										},
 										PodSelector: &v1alpha1.PodSelector{
 											ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-												KeyPath: ".metadata.labels.component",
-												Value:   ptr.To("worker"),
+												Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+												Value: ptr.To("worker"),
 											},
 										},
 									},
 									{
 										Name: "master",
 										SpecDefinition: &v1alpha1.SpecDefinition{
-											PodTemplateSpecPath: ptr.To(".spec.replicaSpecs.Master.template"),
+											PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicaSpecs"][?"Master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicaSpecs/Master/template`)}},
 										},
 										PodSelector: &v1alpha1.PodSelector{
 											ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-												KeyPath: ".metadata.labels.component",
-												Value:   ptr.To("master"),
+												Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+												Value: ptr.To("master"),
 											},
 										},
 									},
@@ -190,24 +190,24 @@ var _ = Describe("Pod Utils", func() {
 								{
 									Name: "worker",
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.replicaSpecs.Worker.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicaSpecs"][?"Worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicaSpecs/Worker/template`)}},
 									},
 									PodSelector: &v1alpha1.PodSelector{
 										ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-											KeyPath: ".metadata.labels.component",
-											Value:   ptr.To("worker"),
+											Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+											Value: ptr.To("worker"),
 										},
 									},
 								},
 								{
 									Name: "master",
 									SpecDefinition: &v1alpha1.SpecDefinition{
-										PodTemplateSpecPath: ptr.To(".spec.replicaSpecs.Master.template"),
+										PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"replicaSpecs"][?"Master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/replicaSpecs/Master/template`)}},
 									},
 									PodSelector: &v1alpha1.PodSelector{
 										ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-											KeyPath: ".metadata.labels.component",
-											Value:   ptr.To("master"),
+											Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+											Value: ptr.To("master"),
 										},
 									},
 								},
@@ -292,8 +292,8 @@ var _ = Describe("Pod Utils", func() {
 								Name: "simple-job",
 								PodSelector: &v1alpha1.PodSelector{
 									ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-										KeyPath: ".metadata.labels.app",
-										Value:   ptr.To("simple-job"),
+										Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"app"].orValue(dyn(null))`},
+										Value: ptr.To("simple-job"),
 									},
 								},
 							},
@@ -324,15 +324,15 @@ var _ = Describe("Pod Utils", func() {
 					Spec: v1alpha1.KartaSpec{
 						StructureDefinition: v1alpha1.StructureDefinition{
 							RootComponent: v1alpha1.ComponentDefinition{
-								Name:           "worker",
-								InstanceIdPath: ptr.To(".spec.groups[].name"),
+								Name:        "worker",
+								InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"groups"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 								PodSelector: &v1alpha1.PodSelector{
 									ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-										KeyPath: ".metadata.labels.component",
-										Value:   ptr.To("worker"),
+										Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+										Value: ptr.To("worker"),
 									},
 									ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-										IdPath: ".metadata.labels.group",
+										Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"group"].orValue(dyn(null))`},
 									},
 								},
 							},
@@ -386,15 +386,15 @@ var _ = Describe("Pod Utils", func() {
 					Spec: v1alpha1.KartaSpec{
 						StructureDefinition: v1alpha1.StructureDefinition{
 							RootComponent: v1alpha1.ComponentDefinition{
-								Name:           "worker",
-								InstanceIdPath: ptr.To(".spec.groups[].name"),
+								Name:        "worker",
+								InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"groups"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 								PodSelector: &v1alpha1.PodSelector{
 									ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-										KeyPath: ".metadata.labels.component",
-										Value:   ptr.To("worker"),
+										Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+										Value: ptr.To("worker"),
 									},
 									ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-										IdPath: ".metadata.labels.group",
+										Read: v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"group"].orValue(dyn(null))`},
 									},
 								},
 							},
@@ -432,8 +432,8 @@ var _ = Describe("Pod Utils", func() {
 					Spec: v1alpha1.KartaSpec{
 						StructureDefinition: v1alpha1.StructureDefinition{
 							RootComponent: v1alpha1.ComponentDefinition{
-								Name:           "worker",
-								InstanceIdPath: ptr.To(".spec.groups[].name"),
+								Name:        "worker",
+								InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"groups"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 							},
 						},
 					},
@@ -459,12 +459,12 @@ var _ = Describe("Pod Utils", func() {
 					Spec: v1alpha1.KartaSpec{
 						StructureDefinition: v1alpha1.StructureDefinition{
 							RootComponent: v1alpha1.ComponentDefinition{
-								Name:           "worker",
-								InstanceIdPath: ptr.To(".spec.groups[].name"),
+								Name:        "worker",
+								InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"groups"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 								PodSelector: &v1alpha1.PodSelector{
 									ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-										KeyPath: ".metadata.labels.component",
-										Value:   ptr.To("worker"),
+										Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))`},
+										Value: ptr.To("worker"),
 									},
 									// No ComponentInstanceSelector
 								},
@@ -493,8 +493,8 @@ var _ = Describe("Pod Utils", func() {
 					Spec: v1alpha1.KartaSpec{
 						StructureDefinition: v1alpha1.StructureDefinition{
 							RootComponent: v1alpha1.ComponentDefinition{
-								Name:           "worker",
-								InstanceIdPath: ptr.To(".spec.groups[].name"),
+								Name:        "worker",
+								InstanceIds: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `(object[?"spec"][?"groups"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))`}},
 								// No PodSelector
 							},
 						},

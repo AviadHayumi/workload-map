@@ -26,7 +26,7 @@ Where the facts come from when no cluster or user is at hand:
   checks. That order is what keeps the mapped statuses apart, which is why it
   goes into the mapping comments.
 
-A real CR matters because a jq path can be structurally valid and still point
+A real CR matters because a CEL read can compile and still point
 at a field no real object carries. Only step 7 shows that.
 
 Pinning examples:

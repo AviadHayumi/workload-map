@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // PyFlow represents a PyTorch-like training job with hardcoded component fields
@@ -69,7 +69,7 @@ func PyFlowKarta() *v1alpha1.Karta {
 					},
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:            ".status.conditions",
+							Read:            v1alpha1.ReadAccessor{Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`},
 							TypeFieldName:   "type",
 							StatusFieldName: "status",
 						},
@@ -102,15 +102,15 @@ func PyFlowKarta() *v1alpha1.Karta {
 						Name:     "master",
 						OwnerRef: ptr.To("pyflow"),
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.master.template"),
+							PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/template`)}},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath: ptr.To(".spec.master.replicas"),
+							Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"master"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/master/replicas`)}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: ".metadata.labels.role",
-								Value:   ptr.To("master"),
+								Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"role"].orValue(dyn(null))`},
+								Value: ptr.To("master"),
 							},
 						},
 					},
@@ -118,16 +118,16 @@ func PyFlowKarta() *v1alpha1.Karta {
 						Name:     "worker",
 						OwnerRef: ptr.To("pyflow"),
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.worker.template"),
+							PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/template`)}},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							MinReplicasPath: ptr.To(".spec.worker.minReplicas"),
-							MaxReplicasPath: ptr.To(".spec.worker.maxReplicas"),
+							MinReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"minReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/minReplicas`)}},
+							MaxReplicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"worker"][?"maxReplicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/worker/maxReplicas`)}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: ".metadata.labels.role",
-								Value:   ptr.To("worker"),
+								Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"role"].orValue(dyn(null))`},
+								Value: ptr.To("worker"),
 							},
 						},
 					},
@@ -146,8 +146,8 @@ func SuspendablePyFlowKarta() *v1alpha1.Karta {
 	root := &karta.Spec.StructureDefinition.RootComponent
 
 	root.SuspendDefinition = &v1alpha1.SuspendDefinition{
-		SuspendActions: []v1alpha1.SuspendAction{{Path: ".spec.suspend", Value: "true"}},
-		ResumeActions:  []v1alpha1.SuspendAction{{Path: ".spec.suspend", Value: "false"}},
+		SuspendActions: []v1alpha1.SuspendAction{{Write: v1alpha1.WriteAccessor{Path: ptr.To(`/spec/suspend`)}, Value: "true"}},
+		ResumeActions:  []v1alpha1.SuspendAction{{Write: v1alpha1.WriteAccessor{Path: ptr.To(`/spec/suspend`)}, Value: "false"}},
 	}
 
 	root.StatusDefinition.StatusMappings.Suspended = []v1alpha1.StatusMatcher{

@@ -1,0 +1,100 @@
+{
+  "serverVersion": "v1.34.0",
+  "jobs": [
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "train",
+        "namespace": "cel-groups-bgpct",
+        "uid": "3b8f3027-a2db-41ac-a64a-981004981163"
+      },
+      "spec": {
+        "parallelism": 2
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "evaluate",
+        "namespace": "cel-groups-bgpct",
+        "uid": "2b02f0c5-05c5-4356-9213-0889baf5080f"
+      },
+      "spec": {
+        "parallelism": 1
+      }
+    }
+  ],
+  "pods": [
+    {
+      "metadata": {
+        "name": "evaluate-5rscw",
+        "namespace": "cel-groups-bgpct",
+        "uid": "927e6a2d-a39e-4fa9-9419-fbcf3a500c87",
+        "ownerReferences": [
+          {
+            "apiVersion": "batch/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Job",
+            "name": "evaluate",
+            "uid": "2b02f0c5-05c5-4356-9213-0889baf5080f"
+          }
+        ],
+        "labels": {
+          "batch.kubernetes.io/controller-uid": "2b02f0c5-05c5-4356-9213-0889baf5080f",
+          "batch.kubernetes.io/job-name": "evaluate",
+          "controller-uid": "2b02f0c5-05c5-4356-9213-0889baf5080f",
+          "job-name": "evaluate"
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "train-24895",
+        "namespace": "cel-groups-bgpct",
+        "uid": "a0711842-6921-4540-930d-bc88a10188bc",
+        "ownerReferences": [
+          {
+            "apiVersion": "batch/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Job",
+            "name": "train",
+            "uid": "3b8f3027-a2db-41ac-a64a-981004981163"
+          }
+        ],
+        "labels": {
+          "batch.kubernetes.io/controller-uid": "3b8f3027-a2db-41ac-a64a-981004981163",
+          "batch.kubernetes.io/job-name": "train",
+          "controller-uid": "3b8f3027-a2db-41ac-a64a-981004981163",
+          "job-name": "train"
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "train-gjs6m",
+        "namespace": "cel-groups-bgpct",
+        "uid": "9b3b6083-6aa5-4ed1-8473-5ece850942f1",
+        "ownerReferences": [
+          {
+            "apiVersion": "batch/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Job",
+            "name": "train",
+            "uid": "3b8f3027-a2db-41ac-a64a-981004981163"
+          }
+        ],
+        "labels": {
+          "batch.kubernetes.io/controller-uid": "3b8f3027-a2db-41ac-a64a-981004981163",
+          "batch.kubernetes.io/job-name": "train",
+          "controller-uid": "3b8f3027-a2db-41ac-a64a-981004981163",
+          "job-name": "train"
+        }
+      }
+    }
+  ]
+}

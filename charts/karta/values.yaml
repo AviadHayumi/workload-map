@@ -285,3 +285,8 @@ crdUpgrader:
       cpu: 200m
       memory: 128Mi
       ephemeral-storage: 2Gi
+
+# Install this release's CEL definitions after the CRD and admission are ready.
+# Custom definitions claiming a bundled workload type cause the hook to fail.
+catalogInstaller:
+  enabled: false

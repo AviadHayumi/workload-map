@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
 )
@@ -65,12 +65,12 @@ func serverConfigGetter(server *httptest.Server) genericclioptions.RESTClientGet
 func kartaListJSON(names ...string) string {
 	items := make([]string, 0, len(names))
 	for _, name := range names {
-		items = append(items, fmt.Sprintf(`{"apiVersion":"run.ai/v1alpha1","kind":"Karta",`+
+		items = append(items, fmt.Sprintf(`{"apiVersion":"run.ai/v1alpha2","kind":"Karta",`+
 			`"metadata":{"name":%q},`+
 			`"spec":{"structureDefinition":{"rootComponent":{"name":"root",`+
 			`"kind":{"group":"apps","version":"v1","kind":"Deployment"}}}}}`, name))
 	}
-	body := `{"apiVersion":"run.ai/v1alpha1","kind":"KartaList","metadata":{"resourceVersion":"1"},"items":[`
+	body := `{"apiVersion":"run.ai/v1alpha2","kind":"KartaList","metadata":{"resourceVersion":"1"},"items":[`
 	for i, item := range items {
 		if i > 0 {
 			body += ","
@@ -195,7 +195,7 @@ var _ = Describe("Load", func() {
 			cluster.Name = "experimental-deployment"
 			cluster.Spec.Experimental = true
 			body, err := json.Marshal(v1alpha1.KartaList{
-				TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "KartaList"},
+				TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "KartaList"},
 				Items:    []v1alpha1.Karta{*cluster},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -252,7 +252,7 @@ var _ = Describe("Load", func() {
 		resolver, warnings := Load(ctx, serverConfigGetter(server), false)
 
 		Expect(warnings).To(BeEmpty())
-		Expect(requestPaths).To(Equal([]string{"/apis/run.ai/v1alpha1/kartas"}))
+		Expect(requestPaths).To(Equal([]string{"/apis/run.ai/v1alpha2/kartas"}))
 
 		def, err := resolver.Resolve(deploymentGVK)
 		Expect(err).NotTo(HaveOccurred())
@@ -319,7 +319,7 @@ func clusterKartas() ([]runtime.Object, []*v1alpha1.Karta) {
 	served := metav1.Date(2026, 1, 15, 10, 0, 0, 0, time.Local)
 	objects := make([]runtime.Object, 0, len(stamped))
 	for i, karta := range stamped {
-		karta.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"}
+		karta.TypeMeta = metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}
 		karta.UID = types.UID(fmt.Sprintf("4c9f4b6e-9f2e-4b2f-9d3a-%012d", i))
 		karta.ResourceVersion = strconv.Itoa(4711 + i)
 		karta.Generation = 3
@@ -348,7 +348,7 @@ var _ = Describe("listWithClient", func() {
 
 	It("silently skips excluded experimental definitions before decoding their spec", func() {
 		experimental := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "run.ai/v1alpha1", "kind": "Karta",
+			"apiVersion": "run.ai/v1alpha2", "kind": "Karta",
 			"metadata": map[string]any{"name": "experimental"},
 			"spec":     map[string]any{"experimental": true, "structureDefinition": "future-schema"},
 		}}
@@ -377,7 +377,7 @@ var _ = Describe("listWithClient", func() {
 		// A field whose type this build does not expect, as CRD schema skew
 		// against a newer operator would produce.
 		skewed := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "run.ai/v1alpha1", "kind": "Karta",
+			"apiVersion": "run.ai/v1alpha2", "kind": "Karta",
 			"metadata": map[string]any{"name": "skewed"},
 			"spec": map[string]any{"structureDefinition": map[string]any{
 				"rootComponent": map[string]any{
@@ -423,4 +423,30 @@ var _ = Describe("listWithClient", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(kartas).To(BeEmpty())
 	})
+})
+
+var _ = Describe("LoadCatalog", func() {
+	DescribeTable("lists the built-in catalog alone, honoring the experimental opt-in",
+		func(enabled bool) {
+			want := catalog.List()
+			if !enabled {
+				want = slices.DeleteFunc(want, func(karta *v1alpha1.Karta) bool { return karta.Spec.Experimental })
+			}
+
+			list := LoadCatalog(enabled).List()
+			Expect(list).To(HaveLen(len(want)))
+			for _, def := range list {
+				Expect(def.Origin).To(Equal(OriginCatalog))
+			}
+
+			_, err := LoadCatalog(enabled).ByName(kartas.KueueWorkload().Name)
+			if enabled {
+				Expect(err).NotTo(HaveOccurred())
+			} else {
+				Expect(err).To(MatchError(ErrNameNotFound))
+			}
+		},
+		Entry("default", false),
+		Entry("enabled", true),
+	)
 })

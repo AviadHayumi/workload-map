@@ -19,7 +19,7 @@ export interface Definition {
 // KartaCR is the kartas.run.ai CRD, cluster-scoped per
 // charts/karta/crds/run.ai_kartas.yaml.
 export const KartaCR = K8s.crd.makeCustomResourceClass({
-  apiInfo: [{ group: 'run.ai', version: 'v1alpha1' }],
+  apiInfo: [{ group: 'run.ai', version: 'v1alpha2' }],
   kind: 'Karta',
   pluralName: 'kartas',
   singularName: 'karta',

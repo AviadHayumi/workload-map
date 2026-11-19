@@ -1,10 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: apps-statefulset-v1
 spec:
+  variables:
+    - name: specReplicas
+      expression: ([dyn(object[?"spec"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
+    - name: statusObservedGeneration
+      expression: ([dyn(object.?status.?observedGeneration.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: metadataGeneration
+      expression: ([dyn(object.?metadata.?generation.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: statusReadyReplicas
+      expression: ([dyn(object.?status.?readyReplicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: specReplicasOne
+      expression: ([dyn(object.?spec.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
+    - name: statusUpdatedReplicas
+      expression: ([dyn(object.?status.?updatedReplicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: statusCurrentRevision
+      expression: ([dyn(object.?status.?currentRevision.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
+    - name: statusUpdateRevision
+      expression: ([dyn(object.?status.?updateRevision.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
   structureDefinition:
     rootComponent:
       name: statefulset
@@ -13,24 +30,28 @@ spec:
         version: v1
         kind: StatefulSet
       specDefinition:
-        podTemplateSpecPath: .spec.template
+        podTemplateSpec:
+          read:
+            expression: object[?"spec"][?"template"].orValue(dyn(null))
+          write:
+            path: /spec/template
       scaleDefinition:
-        replicasPath: .spec.replicas // 1
+        replicas:
+          read:
+            expression: variables.specReplicas
+          write:
+            path: /spec/replicas
       statusDefinition:
         statusMappings:
           initializing:
             - byExpression:
-                expression: .status.observedGeneration == .metadata.generation and (.status.replicas // 0) > (.spec.replicas // 1)
-                expectedResult: "true"
+                expression: object[?"status"][?"observedGeneration"].orValue(dyn(null)) == object[?"metadata"][?"generation"].orValue(dyn(null)) && object[?"status"][?"replicas"].orValue(0) > object[?"spec"][?"replicas"].orValue(1)
             - byExpression:
-                expression: (.spec.replicas // 1) > 0 and ((.status.observedGeneration // 0) != (.metadata.generation // 0) or (.status.readyReplicas // 0) == 0 or (.status.updatedReplicas // 0) != (.spec.replicas // 1) or (.status.currentRevision != .status.updateRevision))
-                expectedResult: "true"
+                expression: object[?"spec"][?"replicas"].orValue(1) > 0 && (object[?"status"][?"observedGeneration"].orValue(0) != object[?"metadata"][?"generation"].orValue(0) || object[?"status"][?"readyReplicas"].orValue(0) == 0 || object[?"status"][?"updatedReplicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || (object[?"status"][?"currentRevision"].orValue(dyn(null)) != object[?"status"][?"updateRevision"].orValue(dyn(null))))
           running:
             - byExpression:
-                expression: (.status.observedGeneration // 0) == (.metadata.generation // 0) and (.status.replicas // 0) == (.spec.replicas // 1) and (.status.readyReplicas // 0) == (.spec.replicas // 1) and (.status.updatedReplicas // 0) == (.spec.replicas // 1) and (.status.currentRevision == .status.updateRevision)
-                expectedResult: "true"
+                expression: object[?"status"][?"observedGeneration"].orValue(0) == object[?"metadata"][?"generation"].orValue(0) && object[?"status"][?"replicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"readyReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"updatedReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && (object[?"status"][?"currentRevision"].orValue(dyn(null)) == object[?"status"][?"updateRevision"].orValue(dyn(null)))
           degraded:
             - byExpression:
-                expression: (.status.readyReplicas // 0) > 0 and (.status.readyReplicas // 0) < (.spec.replicas // 1) and (.status.updatedReplicas // 0) == (.spec.replicas // 1) and (.status.currentRevision == .status.updateRevision) and (.status.observedGeneration // 0) == (.metadata.generation // 0)
-                expectedResult: "true"
+                expression: object[?"status"][?"readyReplicas"].orValue(0) > 0 && object[?"status"][?"readyReplicas"].orValue(0) < object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"updatedReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && (object[?"status"][?"currentRevision"].orValue(dyn(null)) == object[?"status"][?"updateRevision"].orValue(dyn(null))) && object[?"status"][?"observedGeneration"].orValue(0) == object[?"metadata"][?"generation"].orValue(0)
   optimizationInstructions: {}

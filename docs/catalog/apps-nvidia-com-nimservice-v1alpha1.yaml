@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: apps-nvidia-com-nimservice-v1alpha1
 spec:
+  variables:
+    - name: specReplicas
+      expression: ([dyn(object[?"spec"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
+    - name: statusState
+      expression: ([dyn(object.?status.?state.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
   structureDefinition:
     rootComponent:
       name: nimservice
@@ -14,19 +19,49 @@ spec:
         kind: NIMService
       specDefinition:
         fragmentedPodSpecDefinition:
-          schedulerNamePath: .spec.schedulerName
-          labelsPath: .spec.labels
-          annotationsPath: .spec.annotations
-          resourcesPath: .spec.resources
-          podAffinityPath: .spec.affinity.podAffinity
-          nodeAffinityPath: .spec.affinity.nodeAffinity
+          schedulerName:
+            read:
+              expression: object[?"spec"][?"schedulerName"].orValue(dyn(null))
+            write:
+              path: /spec/schedulerName
+          labels:
+            read:
+              expression: object[?"spec"][?"labels"].orValue(dyn(null))
+            write:
+              path: /spec/labels
+          annotations:
+            read:
+              expression: object[?"spec"][?"annotations"].orValue(dyn(null))
+            write:
+              path: /spec/annotations
+          resources:
+            read:
+              expression: object[?"spec"][?"resources"].orValue(dyn(null))
+            write:
+              path: /spec/resources
+          podAffinity:
+            read:
+              expression: object[?"spec"][?"affinity"][?"podAffinity"].orValue(dyn(null))
+            write:
+              path: /spec/affinity/podAffinity
+          nodeAffinity:
+            read:
+              expression: object[?"spec"][?"affinity"][?"nodeAffinity"].orValue(dyn(null))
+            write:
+              path: /spec/affinity/nodeAffinity
       scaleDefinition:
-        replicasPath: .spec.replicas // 1
+        replicas:
+          read:
+            expression: variables.specReplicas
+          write:
+            path: /spec/replicas
       statusDefinition:
         phaseDefinition:
-          path: .status.state
+          read:
+            expression: object[?"status"][?"state"].orValue(dyn(null))
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -44,5 +79,5 @@ spec:
         - name: service
           members:
             - componentName: nimservice
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/name"].orValue(dyn(null))

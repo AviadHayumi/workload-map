@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: batch-volcano-sh-job-v1alpha1
 spec:
@@ -14,13 +14,13 @@ spec:
         kind: Job
       statusDefinition:
         phaseDefinition:
-          path: .status.state.phase
+          read:
+            expression: object[?"status"][?"state"][?"phase"].orValue(dyn(null))
         statusMappings:
           initializing:
             - byPhase: Pending
             - byExpression:
-                expression: .status.state.phase == "Restarting" and (.status.retryCount // 0) < (.spec.maxRetry // 3)
-                expectedResult: "true"
+                expression: object[?"status"][?"state"][?"phase"].orValue(dyn(null)) == "Restarting" && object[?"status"][?"retryCount"].orValue(0) < object[?"spec"][?"maxRetry"].orValue(3)
           running:
             - byPhase: Running
           completed:
@@ -31,8 +31,7 @@ spec:
             - byPhase: Terminated
             - byPhase: Failed
             - byExpression:
-                expression: .status.state.phase == "Restarting" and (.status.retryCount // 0) >= (.spec.maxRetry // 3)
-                expectedResult: "true"
+                expression: object[?"status"][?"state"][?"phase"].orValue(dyn(null)) == "Restarting" && object[?"status"][?"retryCount"].orValue(0) >= object[?"spec"][?"maxRetry"].orValue(3)
           suspended:
             - byPhase: Aborted
           suspending:
@@ -45,19 +44,34 @@ spec:
           kind: Pod
         ownerRef: vcjob
         specDefinition:
-          podTemplateSpecPath: .spec.tasks[].template
+          podTemplateSpec:
+            read:
+              expression: (object[?"spec"][?"tasks"].orValue([])).map(x, x[?"template"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/tasks/" + string(index) + "/template"'
         scaleDefinition:
-          replicasPath: .spec.tasks[].replicas
-          minReplicasPath: .spec.tasks[].minAvailable
-        instanceIdPath: .spec.tasks[].name
+          replicas:
+            read:
+              expression: (object[?"spec"][?"tasks"].orValue([])).map(x, x[?"replicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/tasks/" + string(index) + "/replicas"'
+          minReplicas:
+            read:
+              expression: (object[?"spec"][?"tasks"].orValue([])).map(x, x[?"minAvailable"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/tasks/" + string(index) + "/minAvailable"'
+        instanceIds:
+          read:
+            expression: (object[?"spec"][?"tasks"].orValue([])).map(x, x[?"name"].orValue(dyn(null)))
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["volcano.sh/task-spec"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"volcano.sh/task-spec"].orValue(dyn(null))
   optimizationInstructions:
     gangScheduling:
       podGroups:
         - name: job
           members:
             - componentName: task
-              groupByKeyPaths:
-                - .metadata.labels["volcano.sh/job-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"volcano.sh/job-name"].orValue(dyn(null))

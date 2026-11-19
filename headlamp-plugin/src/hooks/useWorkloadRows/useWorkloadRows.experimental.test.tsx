@@ -71,7 +71,7 @@ vi.mock('./KindFetcher/KindFetcher', () => ({
 
 function definition(name: string, group: string, experimental = false): Karta {
   return {
-    apiVersion: 'run.ai/v1alpha1',
+    apiVersion: 'run.ai/v1alpha2',
     kind: 'Karta',
     metadata: { name },
     spec: {

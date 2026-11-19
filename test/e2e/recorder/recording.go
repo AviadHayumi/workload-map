@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // schemaVersion is bumped on incompatible format changes; v1 is the event stream (STATE and ACTION events).
@@ -58,13 +58,14 @@ const (
 // strongest of them. StaleObservedGeneration marks a frame captured before the controller observed the spec:
 // recorded, but outside the order-checked walk.
 type Event struct {
-	Kind                    string          `json:"kind"`
-	State                   string          `json:"state,omitempty"`
-	Phases                  []string        `json:"phases,omitempty"`
-	StaleObservedGeneration bool            `json:"staleObservedGeneration,omitempty"`
-	ResourceVersion         string          `json:"resourceVersion,omitempty"`
-	Object                  map[string]any  `json:"object,omitempty"`
-	Action                  *RecordedAction `json:"action,omitempty"`
+	Kind                    string           `json:"kind"`
+	State                   string           `json:"state,omitempty"`
+	Phases                  []string         `json:"phases,omitempty"`
+	StaleObservedGeneration bool             `json:"staleObservedGeneration,omitempty"`
+	ResourceVersion         string           `json:"resourceVersion,omitempty"`
+	Object                  map[string]any   `json:"object,omitempty"`
+	Action                  *RecordedAction  `json:"action,omitempty"`
+	References              []map[string]any `json:"references,omitempty"`
 }
 
 // RecordedAction is a mutation performed between states.
@@ -185,3 +186,13 @@ func (r *Reader) Object() *unstructured.Unstructured {
 }
 
 func (r *Reader) Recording() Recording { return r.rec }
+
+// References returns detached objects captured with the current state.
+func (r *Reader) References() []*unstructured.Unstructured {
+	refs := r.stateEvents[r.pos].References
+	out := make([]*unstructured.Unstructured, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, (&unstructured.Unstructured{Object: ref}).DeepCopy())
+	}
+	return out
+}

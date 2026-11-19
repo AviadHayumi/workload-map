@@ -32,7 +32,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/config"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
@@ -73,6 +73,72 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Controller publication lifecycle", func() {
+	It("refreshes workload status when only referenced objects change", func(ctx SpecContext) {
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "reference-status-"}}
+		Expect(api.Create(ctx, ns)).To(Succeed())
+		root := deployment(ctx, ns.Name, "workload")
+		definition, err := catalog.Get(deployGVK)
+		Expect(err).NotTo(HaveOccurred())
+		definition.Name = "reference-" + ns.Name
+		definition.Spec.StructureDefinition.References = []v1alpha1.Reference{
+			{Name: "settings", APIVersion: "v1", Kind: "ConfigMap", Lookup: &v1alpha1.LookupReference{NameExpression: "object.metadata.name"}},
+			{Name: "backends", APIVersion: "v1", Kind: "ConfigMap", List: &v1alpha1.ListReference{MatchLabels: map[string]v1alpha1.LabelValue{"role": {Value: ptr.To("backend")}}}},
+			{Name: "team", APIVersion: "v1", Kind: "Namespace", Lookup: &v1alpha1.LookupReference{NameExpression: "object.metadata.namespace"}},
+		}
+		definition.Spec.StructureDefinition.RootComponent.StatusDefinition = &v1alpha1.StatusDefinition{
+			StatusMappings: v1alpha1.StatusMappings{Running: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
+				Expression: `"settings" in references && references.settings.data.enabled == "yes" && references.backends.size() == 1 && references.team.metadata.name == object.metadata.namespace`,
+			}}}},
+		}
+		Expect(api.Create(ctx, definition)).To(Succeed())
+		DeferCleanup(func() { deleteObjects(context.Background(), definition) })
+		cfg := config.DefaultConfig()
+		cfg.NamespaceSelector = nil
+		cfg.KartaDefinitionSource.Catalog.Enabled = false
+		cfg.KartaDefinitionSource.Cluster.Include = []string{definition.Name}
+		components, err := bootstrap.New(cfg, kubeConfig)
+		Expect(err).NotTo(HaveOccurred())
+		runCtx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- app.RunController(runCtx, components) }()
+		DeferCleanup(func() {
+			cancel()
+			Eventually(done, 10*time.Second).Should(Receive(Succeed()))
+		})
+		settings := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: root.Name, Namespace: ns.Name, Labels: map[string]string{"role": "backend"}}, Data: map[string]string{"enabled": "yes"}}
+		other := settings.DeepCopy()
+		other.Namespace = "default"
+		other.Name = ns.Name
+		Expect(api.Create(ctx, other)).To(Succeed())
+		DeferCleanup(func() { deleteObjects(context.Background(), other) })
+		checkPhase := func(running bool) {
+			Eventually(func(g Gomega) {
+				view := components.Store.Capture()
+				result := expectWorkload(g, view, root)
+				g.Expect(result.Record.Karta).To(Equal(definition.Name))
+				g.Expect(result.Record.HasStatus).To(BeTrue())
+				if running {
+					g.Expect(result.Record.Phases).To(ContainElement("Running"))
+				} else {
+					g.Expect(result.Record.Phases).To(Equal([]string{"Undefined"}))
+				}
+				g.Expect(workloadResult(view, settings.UID)).To(BeNil())
+				g.Expect(workloadResult(view, other.UID)).To(BeNil())
+			}).Should(Succeed())
+		}
+		checkPhase(false)
+		Expect(api.Create(ctx, settings)).To(Succeed())
+		checkPhase(true)
+		settings.Labels = nil
+		Expect(api.Update(ctx, settings)).To(Succeed())
+		checkPhase(false)
+		settings.Labels = map[string]string{"role": "backend"}
+		Expect(api.Update(ctx, settings)).To(Succeed())
+		checkPhase(true)
+		deleteObjects(ctx, settings)
+		checkPhase(false)
+	})
+
 	It("keeps standalone Pods visible across Pod definition changes", func(ctx SpecContext) {
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "exporter-pod-"}}
 		Expect(api.Create(ctx, ns)).To(Succeed())

@@ -21,7 +21,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelevaluator"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/labelresolver"
 	"github.com/dsx-ai-factory/workload-map/dsx-workload-exporter/pkg/store"
-	api "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	api "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/instructions"
 )
@@ -266,7 +266,8 @@ var _ = Describe("Pod workload association", func() {
 		Expect(errors.Is(err, ErrInvalidPodAssociation)).To(BeTrue(), "expected ErrInvalidPodAssociation, got %v", err)
 		fallback := *r.state.deps.Publications.Pod(pod.GetUID())
 		Expect(r.state.applyWatchEvent(targetWatch, target, false)).To(Succeed())
-		err = r.state.publishPod(path, refOf(pod), selection, fallback, false, missing)
+		observed := &referenceReader{state: r.state, root: refOf(pod), selection: selection}
+		err = r.state.publishPod(path, observed, fallback, false, missing)
 		Expect(errors.Is(err, discovery.ErrStale)).To(BeTrue(), "expected ErrStale, got %v", err)
 		drainRootLifetimeQueues(GinkgoTB(), r)
 		_, snapshot, _, err := r.resolvePodAssociation(ctx, pod, pod, workload)
@@ -276,7 +277,7 @@ var _ = Describe("Pod workload association", func() {
 		target.SetResourceVersion("2")
 		target.SetOwnerReferences(nil)
 		Expect(r.state.applyWatchEvent(targetWatch, target, false)).To(Succeed())
-		err = r.state.publishPod(path, refOf(pod), selection, previous, false, snapshot)
+		err = r.state.publishPod(path, observed, previous, false, snapshot)
 		Expect(errors.Is(err, discovery.ErrStale)).To(BeTrue(), "expected ErrStale, got %v", err)
 		r.state.deps.Labels = associationLabelResolver(`object.missing`)
 		drainRootLifetimeQueues(GinkgoTB(), r)

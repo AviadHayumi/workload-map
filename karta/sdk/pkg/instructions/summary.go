@@ -9,7 +9,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // StructureSummary provides a pre-computed summary of Karta structure
@@ -172,7 +172,7 @@ func (s *StructureSummary) sortEffectiveComponentCandidatesByPriority(candidates
 	sortedCandidates := make([]effectiveComponentCandidate, len(candidates))
 	copy(sortedCandidates, candidates)
 
-	sort.Slice(sortedCandidates, func(i, j int) bool {
+	sort.SliceStable(sortedCandidates, func(i, j int) bool {
 		// Priority: Direct component mentions first, everything else after
 		iIsDirect := sortedCandidates[i].effectiveComponent == originalComponent
 		jIsDirect := sortedCandidates[j].effectiveComponent == originalComponent
@@ -194,11 +194,14 @@ func (s *StructureSummary) getAllComponents() []v1alpha1.ComponentDefinition {
 
 // hasPodDefinition returns true if the component has any pod-related definition
 func hasPodDefinition(component v1alpha1.ComponentDefinition) bool {
+	if component.PodSelector != nil && len(component.PodSelector.FromReferences) > 0 {
+		return true
+	}
 	if component.SpecDefinition == nil {
 		return false
 	}
 
-	return component.SpecDefinition.PodTemplateSpecPath != nil ||
-		component.SpecDefinition.PodSpecPath != nil ||
+	return component.SpecDefinition.PodTemplateSpec != nil ||
+		component.SpecDefinition.PodSpec != nil ||
 		component.SpecDefinition.FragmentedPodSpecDefinition != nil
 }

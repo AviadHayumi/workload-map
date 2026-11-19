@@ -2,6 +2,7 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 import { DateLabel, type TableColumn } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import Button from '@mui/material/Button';
 import { WorkloadRow } from '../../hooks/useWorkloadRows/workloadRow.types';
 import {
   KARTA_PHASES,
@@ -30,15 +31,18 @@ matchesAnySelected.autoRemove = (selected?: string[]) => !selected?.length;
 
 // includeCluster is false for a single cluster, so the Cluster column is
 // absent rather than present and identical on every row.
-export function buildWorkloadColumns(includeCluster: boolean): TableColumn<WorkloadRow>[] {
+export function buildWorkloadColumns(includeCluster: boolean, inspect?: (id: string) => void): TableColumn<WorkloadRow>[] {
   const columns: TableColumn<WorkloadRow>[] = [
     {
       id: 'workload',
       header: 'Workload',
       accessorFn: row => row.name,
       Filter: WorkloadNameFilter,
-      // Plain text until the detail page lands: a link built now points at
-      // nothing.
+      Cell: ({ row }) => inspect && row.original.readRoot ? (
+        <Button size="small" sx={{ textTransform: 'none' }} onClick={() => inspect(row.original.id)}>
+          {row.original.name}
+        </Button>
+      ) : row.original.name,
       gridTemplate: 'auto',
     },
     {

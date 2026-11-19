@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: agents-x-k8s-io-sandbox-v1beta1
 spec:
@@ -14,7 +14,8 @@ spec:
         kind: Sandbox
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -27,39 +28,36 @@ spec:
                 - type: Suspended
                   status: "False"
               byExpression:
-                expression: (.spec.operatingMode // "Running") != "Suspended"
-                expectedResult: "true"
+                expression: object[?"spec"][?"operatingMode"].orValue("Running") != "Suspended"
           running:
             - byConditions:
                 - type: Ready
                   status: "True"
               byExpression:
-                expression: (.spec.operatingMode // "Running") != "Suspended" and ([(.status.conditions // [])[] | select(.type == "Suspended" and .status == "True")] | length) == 0
-                expectedResult: "true"
+                expression: object[?"spec"][?"operatingMode"].orValue("Running") != "Suspended" && !object.?status.?conditions.orValue([]).exists(c, c.type == "Suspended" && c.status == "True")
           suspended:
             - byConditions:
                 - type: Suspended
                   status: "True"
               byExpression:
-                expression: .spec.operatingMode == "Suspended"
-                expectedResult: "true"
+                expression: object[?"spec"][?"operatingMode"].orValue(dyn(null)) == "Suspended"
           suspending:
             - byExpression:
-                expression: .spec.operatingMode == "Suspended" and ([(.status.conditions // [])[] | select(.type == "Suspended" and .status == "True")] | length) == 0
-                expectedResult: "true"
+                expression: object[?"spec"][?"operatingMode"].orValue(dyn(null)) == "Suspended" && !object.?status.?conditions.orValue([]).exists(c, c.type == "Suspended" && c.status == "True")
           resuming:
             - byConditions:
                 - type: Suspended
                   status: "True"
               byExpression:
-                expression: (.spec.operatingMode // "Running") != "Suspended"
-                expectedResult: "true"
+                expression: object[?"spec"][?"operatingMode"].orValue("Running") != "Suspended"
       suspendDefinition:
         suspendActions:
-          - path: .spec.operatingMode
+          - write:
+              path: /spec/operatingMode
             value: '"Suspended"'
         resumeActions:
-          - path: .spec.operatingMode
+          - write:
+              path: /spec/operatingMode
             value: '"Running"'
     childComponents:
       - name: agent
@@ -69,10 +67,15 @@ spec:
           kind: Pod
         ownerRef: sandbox
         specDefinition:
-          podTemplateSpecPath: .spec.podTemplate
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"podTemplate"].orValue(dyn(null))
+            write:
+              path: /spec/podTemplate
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["agents.x-k8s.io/sandbox-name-hash"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"agents.x-k8s.io/sandbox-name-hash"].orValue(dyn(null))
       - name: companion
         kind:
           group: ""
@@ -81,15 +84,16 @@ spec:
         ownerRef: sandbox
         podSelector:
           componentTypeSelector:
-            keyPath: select(.metadata.labels["agents.x-k8s.io/sandbox-name-hash"] == null) | [.metadata.ownerReferences[]? | select(.kind == "Sandbox" and (.apiVersion | startswith("agents.x-k8s.io/"))) | .uid][0]
+            read:
+              expression: 'object.?metadata.?labels[?"agents.x-k8s.io/sandbox-name-hash"].orValue(dyn(null)) == null ? (object.?metadata.?ownerReferences.orValue([]).filter(r, r.kind == "Sandbox" && r.apiVersion.startsWith("agents.x-k8s.io/")).map(r, r.uid) + [null])[0] : null'
   optimizationInstructions:
     gangScheduling:
       podGroups:
         - name: sandbox
           members:
             - componentName: agent
-              groupByKeyPaths:
-                - '[.metadata.ownerReferences[]? | select(.kind == "Sandbox" and (.apiVersion | startswith("agents.x-k8s.io/"))) | .uid][0]'
+              groupByExpressions:
+                - (object.?metadata.?ownerReferences.orValue([]).filter(r, r.kind == "Sandbox" && r.apiVersion.startsWith("agents.x-k8s.io/")).map(r, r.uid) + [null])[0]
             - componentName: companion
-              groupByKeyPaths:
-                - '[.metadata.ownerReferences[]? | select(.kind == "Sandbox" and (.apiVersion | startswith("agents.x-k8s.io/"))) | .uid][0]'
+              groupByExpressions:
+                - (object.?metadata.?ownerReferences.orValue([]).filter(r, r.kind == "Sandbox" && r.apiVersion.startsWith("agents.x-k8s.io/")).map(r, r.uid) + [null])[0]

@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: nvidia-com-dynamographdeployment-v1alpha1
 spec:
+  variables:
+    - name: services
+      expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0]
+    - name: statusState
+      expression: ([dyn(object.?status.?state.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
   structureDefinition:
     rootComponent:
       name: dynamographdeployment
@@ -14,7 +19,8 @@ spec:
         kind: DynamoGraphDeployment
       statusDefinition:
         phaseDefinition:
-          path: .status.state
+          read:
+            expression: object[?"status"][?"state"].orValue(dyn(null))
         statusMappings:
           initializing:
             - byPhase: initializing
@@ -28,26 +34,76 @@ spec:
         ownerRef: dynamographdeployment
         specDefinition:
           fragmentedPodSpecDefinition:
-            schedulerNamePath: .spec.services | .[] | .extraPodSpec.schedulerName
-            labelsPath: .spec.services | .[] | .labels
-            annotationsPath: .spec.services | .[] | .annotations
-            resourcesPath: .spec.services | .[] | .resources
-            resourceClaimsPath: .spec.services | .[] | .extraPodSpec.resourceClaims
-            podAffinityPath: .spec.services | .[] | .extraPodSpec.affinity.podAffinity
-            nodeAffinityPath: .spec.services | .[] | .extraPodSpec.affinity.nodeAffinity
-            containerPath: .spec.services | .[] | .extraPodSpec.mainContainer
-            priorityClassNamePath: .spec.services | .[] | .extraPodSpec.priorityClassName
-            imagePath: .spec.services | .[] | .extraPodSpec.mainContainer.image
+            schedulerName:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"schedulerName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/schedulerName"'
+            labels:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"labels"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/labels"'
+            annotations:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"annotations"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/annotations"'
+            resources:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"resources"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/resources"'
+            resourceClaims:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"resourceClaims"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/resourceClaims"'
+            podAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"affinity"][?"podAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/affinity/podAffinity"'
+            nodeAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"affinity"][?"nodeAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/affinity/nodeAffinity"'
+            container:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"mainContainer"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/mainContainer"'
+            priorityClassName:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"priorityClassName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/priorityClassName"'
+            image:
+              read:
+                expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"extraPodSpec"][?"mainContainer"][?"image"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/services/" + instance.replace("~", "~0").replace("/", "~1") + "/extraPodSpec/mainContainer/image"'
         scaleDefinition:
-          replicasPath: .spec.services[] | (.replicas // 1) * (.multinode.nodeCount // 1)
-          minReplicasPath: .spec.services | .[] | .autoscaling.minReplicas
-          maxReplicasPath: .spec.services | .[] | .autoscaling.maxReplicas
-        instanceIdPath: .spec.services | to_entries[] | .key
+          replicas:
+            read:
+              expression: variables.services.map(k, string(k)).sort().map(k, ([dyn(variables.services[k].?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0] * ([dyn(variables.services[k].?multinode.?nodeCount.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0])
+          minReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"autoscaling"][?"minReplicas"].orValue(dyn(null)))
+          maxReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort().map(k, object.spec.services[k][?"autoscaling"][?"maxReplicas"].orValue(dyn(null)))
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"services"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, k).sort()
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["nvidia.com/dynamo-component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"nvidia.com/dynamo-component"].orValue(dyn(null))
           replicaSelector:
-            keyPath: .metadata.labels["grove.io/podcliquescalinggroup-replica-index"] // .metadata.labels["leaderworkerset.sigs.k8s.io/group-index"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup-replica-index"].orValue(object[?"metadata"][?"labels"][?"leaderworkerset.sigs.k8s.io/group-index"].orValue(dyn(null)))
     additionalChildKinds:
       - group: nvidia.com
         version: v1alpha1
@@ -73,5 +129,5 @@ spec:
         - name: service
           members:
             - componentName: service
-              groupByKeyPaths:
-                - .metadata.labels["nvidia.com/dynamo-component"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"nvidia.com/dynamo-component"].orValue(dyn(null))

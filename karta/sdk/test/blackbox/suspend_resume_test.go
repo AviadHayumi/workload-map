@@ -10,14 +10,16 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/jq/execution"
+	"k8s.io/utils/ptr"
+
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/cel"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/test/types"
 )
 
 // These tests exercise the full suspend/resume path end-to-end:
-// types.SuspendablePyFlowKarta → ComponentFactory → Accessor (real JQ runner) → Component.
+// types.SuspendablePyFlowKarta → ComponentFactory → Accessor (real CEL runner) → Component.
 // No mocks are used so every layer is covered.
 var _ = Describe("Suspend and Resume (integration)", func() {
 	var (
@@ -28,11 +30,12 @@ var _ = Describe("Suspend and Resume (integration)", func() {
 		component *resource.Component
 	)
 
-	// sharedSetup wires a real accessor and component to the same JQ runner so
+	// sharedSetup wires a real accessor and component to the same CEL runner so
 	// that mutations applied through component.Suspend/Resume are visible via
 	// accessor.GetObject().
 	sharedSetup := func(k *v1alpha1.Karta, obj *types.PyFlow, name string) (*resource.Accessor, *resource.Component) {
-		runner := execution.NewDefaultRunner(obj)
+		runner, err := cel.NewRunner(obj)
+		Expect(err).NotTo(HaveOccurred())
 		a := resource.NewAccessor(runner)
 		factory := resource.NewComponentFactory(k, a)
 		comp, err := factory.GetComponent(name)
@@ -131,12 +134,12 @@ var _ = Describe("Suspend and Resume (integration)", func() {
 		It("should apply all suspend actions in sequence", func() {
 			karta.Spec.StructureDefinition.RootComponent.SuspendDefinition = &v1alpha1.SuspendDefinition{
 				SuspendActions: []v1alpha1.SuspendAction{
-					{Path: ".spec.suspend", Value: "true"},
-					{Path: `.metadata.annotations["suspended-by"]`, Value: `"karta"`},
+					{Write: v1alpha1.WriteAccessor{Path: ptr.To("/spec/suspend")}, Value: "true"},
+					{Write: v1alpha1.WriteAccessor{Path: ptr.To("/metadata/annotations/suspended-by")}, Value: `"karta"`},
 				},
 				ResumeActions: []v1alpha1.SuspendAction{
-					{Path: ".spec.suspend", Value: "false"},
-					{Path: `.metadata.annotations["suspended-by"]`, Value: "null"},
+					{Write: v1alpha1.WriteAccessor{Path: ptr.To("/spec/suspend")}, Value: "false"},
+					{Write: v1alpha1.WriteAccessor{Path: ptr.To("/metadata/annotations/suspended-by")}, Value: "null"},
 				},
 			}
 			accessor, component = sharedSetup(karta, pyflow, "pyflow")
@@ -148,6 +151,11 @@ var _ = Describe("Suspend and Resume (integration)", func() {
 			Expect(obj["spec"].(map[string]any)["suspend"]).To(BeTrue())
 			annotations := obj["metadata"].(map[string]any)["annotations"].(map[string]any)
 			Expect(annotations["suspended-by"]).To(Equal("karta"))
+			Expect(component.Resume(ctx)).To(Succeed())
+			obj, err = accessor.GetObject()
+			Expect(err).NotTo(HaveOccurred())
+			annotations = obj["metadata"].(map[string]any)["annotations"].(map[string]any)
+			Expect(annotations).To(HaveKeyWithValue("suspended-by", BeNil()))
 		})
 	})
 

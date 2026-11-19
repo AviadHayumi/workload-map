@@ -4,8 +4,8 @@
 # Troubleshooting catalog
 
 Match the error text to a row and apply the fix. Messages come from the
-validator (`karta/sdk/pkg/api/runai/v1alpha1/validation.go`), the jq validator
-(`karta/sdk/pkg/jq/validation.go`), the Go accessor API at runtime, a
+validator (`karta/sdk/pkg/api/runai/v1alpha2/validation.go`), the CEL validator
+(`karta/sdk/pkg/cel/evaluator.go`), the Go accessor API at runtime, a
 `karta/sdk/hack/karta-verify` run against a CR, or the e2e scripts and recorder. The
 prose version is `docs/Troubleshooting.md`.
 
@@ -15,37 +15,38 @@ The validator joins several errors at once, so fix every named component.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `root component must have full kind (group, version, kind)` | Root is missing group, version, or kind. | Provide all three under `kind`. Only the core `Pod` kind may omit the group. |
+| `root component must have full kind (group, version, kind)` | Root is missing group, version, or kind. | Provide all three under `kind`. Use an empty group for core API kinds. |
 | `root component must have status definition` | Root has no `statusDefinition`. | Add a `statusDefinition` to the root. It is required. |
 | `root component cannot have owner ref` | An `ownerRef` is set on the root. | Remove it. Only child components have owners. |
 | `child component '<name>' has no owner ref` | A child is missing `ownerRef`, or it is empty. | Set `ownerRef` to the parent component `name`. |
 | `child component '<name>' has owner ref to non-existing component '<owner>'` | `ownerRef` names a component that does not exist. | Correct it to an existing `name`. Watch for typos and renames. |
 | `component name <name> is not unique` | Two components share a `name`. | Make every `name` unique. |
 | `component name is empty` | A component has no `name`. | Add a non-empty `name`. |
-| `component '<name>' has multiple pod spec definitions` | More than one of `podTemplateSpecPath`, `podSpecPath`, `fragmentedPodSpecDefinition` is set. | Keep exactly one. They are mutually exclusive. |
-| `component '<name>' has instance id path but no pod component instance selector` | `instanceIdPath` is set without a `componentInstanceSelector`. | Add a `componentInstanceSelector`, or remove `instanceIdPath`. |
-| `component '<name>' has pod component instance selector but no instance id path` | A `componentInstanceSelector` is set without `instanceIdPath`. | Add `instanceIdPath`, or remove the instance selector. |
+| `component '<name>' has multiple pod spec definitions` | More than one of `podTemplateSpec`, `podSpec`, `fragmentedPodSpecDefinition` is set. | Keep exactly one. They are mutually exclusive. |
+| `component '<name>' has instance id path but no pod component instance selector` | `instanceIds.read.expression` is set without a `componentInstanceSelector`. | Add a `componentInstanceSelector`, or remove `instanceIds.read.expression`. |
+| `component '<name>' has pod component instance selector but no instance id path` | A `componentInstanceSelector` is set without `instanceIds.read.expression`. | Add `instanceIds.read.expression`, or remove the instance selector. |
 | `ownership cycle detected involving component <name>` | Owner refs form a loop instead of reaching the root. | Break the cycle. Every owner chain must terminate at the root. |
 | `pod-group member component '<name>' is not defined (should be a root or child component)` | A gang-scheduling member names a missing component. | Make each `componentName` match a defined component. |
 | `karta is nil` | The validator got no definition. | Ensure the file parsed and loaded before validation. |
 
-## jq path errors
+## CEL accessor errors
 
-Each message names the exact expression, so search the definition for it.
+Use the named component and accessor to find the failing expression. CEL errors
+do not include the workload or reference contents.
 
 | Message | Cause | Fix |
-|---|---|---|
-| `failed to parse JQ expression '<expr>' at '<path>': ...` | The expression is not valid jq. | Fix syntax: unbalanced brackets or quotes, a missing leading `.`, or wrong quote style in `["key"]`. |
-| `failed to compile JQ expression '<expr>': ...` | Parses but will not compile, for example an unknown function. | Use only standard jq builtins; check names and arity. |
-| `JQ execution error for expression '<expr>': ...` | Compiled but failed at runtime, often a null traversal. | Make it null-safe with `//`, for example `(.status.active // 0)`. |
-| `JQ expression '<expr>' at '<path>' failed validation: modifying operator '<op>' is not allowed` | Uses an assignment or update operator. | Paths read state only. Rewrite to read, not write. |
-| `... failed validation: del function is not allowed` | Uses `del`. | Read, do not modify. |
-| `... failed validation: recursive descent operator '..' is not allowed` | Uses `..`. | Spell out the absolute path instead. |
-| `... failed validation: function '<name>' may produce excessive output and is not allowed` | Uses `range`, `paths`, `recurse`, `walk`, or `repeat`. | Address the fields directly with a bounded expression. |
+| --- | --- | --- |
+| `invalid CEL expression for this scope` | Invalid syntax or an identifier unavailable in this scope. | Use `object` for the current input. Pod expressions cannot use `variables` or `references`; only write expressions receive `instance` and `index`. |
+| `CEL predicate must return a boolean` | A match, filter or status expression returns another type. | Return a boolean comparison. Remove the old `expectedResult` field. |
+| `CEL evaluation failed` | A missing field, wrong type or invalid operation. | Test the expression against the actual object. Use optional access and a schema-appropriate default. |
+| `CEL evaluation cost limit exceeded` | The expression exceeds the evaluation budget. | Bound collections and simplify repeated work. |
+| `exactly one of path or pathExpression is required` | A write has no destination or has both forms. | Provide one fixed JSON Pointer or one CEL expression returning a pointer. |
+| `read accessor does not match the workload` | Its `read.matchExpression` returned false. | Treat `resource.ErrValueNotFound` as an absent field. Whole-workload extraction already skips it. |
+| An undefined variable or dependency cycle | Shared expressions have a bad name or circular dependency. | Correct the variable names and remove the cycle. |
 
-Tip: reproduce what Karta evaluates with
-`kubectl get <resource> -o json | jq '<expr>'`, or use the jq playground at
-play.jqlang.org.
+A read fallback does not select a write destination. Check `write.path` or
+`write.pathExpression` separately. Use the local verification tool or SDK tests;
+a jq command does not execute CEL.
 
 ## Accessor errors at runtime
 
@@ -54,22 +55,21 @@ Raised by the Go Component API when reading a definition.
 | Error type | Example | Cause | Fix |
 |---|---|---|---|
 | `DefinitionNotFoundError` | `component <name> does not have suspendDefinition` | Code asked for a part the component does not define. | Add the missing definition, or guard the call with `errors.As` against `DefinitionNotFoundError`. |
-| `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id matches no instance from `instanceIdPath`. | Confirm the `componentInstanceSelector` reads the same id the `instanceIdPath` produces. |
-| tree build error | `instance ids count (1) does not match results count (N)` | A fragmented or scale path iterates an array on a component with no `instanceIdPath`, so N results meet one implicit instance. Also raised when the instance path and the fragmented paths disagree on their `select(...)` filter. | Add `instanceIdPath` and a `componentInstanceSelector`, or make every path share the same `select(...)` so the counts align. Test with a CR that has two array entries; one entry hides the bug. |
+| `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id matches no instance from `instanceIds.read.expression`. | Confirm the `componentInstanceSelector` reads the same id the `instanceIds.read.expression` produces. |
+| tree build error | `instance ids count (1) does not match results count (N)` | A fragmented or scale path iterates an array on a component with no `instanceIds.read.expression`, so N results meet one implicit instance. Also raised when the instance and value expressions filter different items. | Add `instanceIds.read.expression` and a `componentInstanceSelector`, or make every expression use the same ordered collection so the counts align. Test with a CR that has two array entries; one entry hides the bug. |
 
 ## karta-verify output
 
 | Message | Cause | Fix |
 |---|---|---|
 | `extracted a pod spec with no containers`, with `replicas=<none>` on the same line | A fixed child for a role the CR omits (TFJob PS or Evaluator, PyTorchJob Worker). Or, expected, a `fragmentedPodSpecDefinition` child with no container path and no `scaleDefinition`. | For an omitted role, model the roles as one multi-instance child keyed by the map (step 3 in `SKILL.md`). For the fragmented child, run without `--strict` (step 7). |
-| `extracted a pod spec with no containers`, with a replica count | The spec path points at the wrong level, or a `fragmentedPodSpecDefinition` has no `containersPath`. | Check the path with jq against the CR. For a fragmented spec with no container field, run without `--strict` (step 7). |
+| `extracted a pod spec with no containers`, with a replica count | The spec path points at the wrong level, or a `fragmentedPodSpecDefinition` has no `containers`. | Check the CEL expression against the CR through the SDK. For a fragmented spec with no container field, run without `--strict` (step 7). |
 | `status: Running,Initializing` (two or more statuses) | Two rules match the same object, often one on a condition the controller never clears. | Make the rules exclusive (step 5 in `SKILL.md`). Do not widen the prediction. |
-| `predicted but not extracted` for the root key | The read side does not extract the root's scale and spec paths. | Never list the root. Predict `status:` alone for a root-only definition and check root read paths with jq. |
-| `replicas=<none>` with no warning | The spec carries no count, an `omitempty` field is absent, or the component has bounds only. | Expected. Leave `replicas` out of that prediction. Do not write `replicasPath: 1`. |
+| `predicted but not extracted` for the root key | The read side does not extract the root's scale and spec paths. | Never list the root. Predict `status:` alone for a root-only definition and check root accessors through the Component API. |
+| `replicas=<none>` with no warning | The spec carries no count, an `omitempty` field is absent, or the component has bounds only. | Expected. Leave `replicas` out of that prediction. Do not invent a constant replica count. |
 | Unresolved status warning on the CR with no status | No rule matches, as intended. | Predict `status: [Undefined]` and run without `--strict`. |
 | Zero instances warning under `--strict` | The CR references its items (`pipelineRef`, a template reference) instead of defining them inline. | Run without `--strict` and state the expected zero in the summary. |
 | Every failure exits 1 | `go run` turns every non-zero exit into 1. | Build with `go build -o <scratch>/verify ./hack/karta-verify`, run `<scratch>/verify` unpiped, and read `$?`: 2 mismatch, 3 warnings. |
-| `function not defined` at runtime | `keys_unsorted`, which passes the validator. | Use `keys`. |
 | `skipped: no instances extracted` | The component extracted nothing from this CR. | Fix the read side first. |
 
 ## Recorder and e2e
@@ -142,25 +142,20 @@ These pass validation but behave incorrectly. Check them first when a definition
   map. Map only the statuses the workload reports.
 - `byConditions` with `status: "False"` for a condition the controller has not
   written yet. The matcher only sees conditions that exist, so the early frame
-  reads `Undefined`. Use `byExpression` over `.status.conditions // []` and test
+  reads `Undefined`. Use `byExpression` over `object.?status.?conditions.orValue([])` and test
   for the absence of a `True` entry.
 - `Running` and `Suspended` both matching on a suspended frame. A controller
   that keeps the phase at Running while `.spec.suspend` is true needs a
   not-suspended expression ANDed into the `Running` and `Initializing` matchers.
 - A multi-instance component that works on a one-element CR. A missing
-  `instanceIdPath` is invisible until the array has two entries. See the
+  `instanceIds.read.expression` is invisible until the array has two entries. See the
   runtime error above.
 - A recording filed under the Kubernetes version (`recorded_data/<op>/v1.34.0/`)
   instead of the operator version. `Fixture.Operator` does not equal the
   directory name under `hack/e2e/operators/`, so `operatorVersion()` found no
   entry in `.installed-versions-<cluster>` and fell back to the server version.
-- A non-assignable jq path in a `fragmentedPodSpecDefinition`. These paths are
-  used to mutate the pod spec, not only to read it, so each must be a path jq can
-  assign through. A `//` fallback such as
-  `.spec.templates[].affinity // .spec.affinity` reads correctly and passes every
-  validator, then a write lands in whichever branch the read resolved, possibly
-  the wrong layer; a fallback to a literal fails on write with
-  `invalid path against: ...`. Use an assignable path
-  (navigation, iteration, or `select(...)`); for override semantics, model the
-  varying items as a multi-instance component with `instanceIdPath` and target
-  one layer.
+- A read projection accidentally exposed as writable. A computed total or merged
+  fallback may have no safe write location. Omit `write` until the intended layer
+  is explicit. When writes are supported, test the pointer and preserve fields
+  that the typed SDK view does not contain. Raw Merge Patch maps preserve
+  unmentioned fields; replacing an array replaces every entry.

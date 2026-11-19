@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: kueue-x-k8s-io-workload-v1beta2
 spec:
@@ -15,7 +15,8 @@ spec:
         kind: Workload
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions // []
+          read:
+            expression: object[?"status"][?"conditions"].orValue([])
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -26,8 +27,7 @@ spec:
                 - type: Admitted
                   status: "False"
               byExpression:
-                expression: .spec.active != false and ((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not)
-                expectedResult: "true"
+                expression: object.?spec.?active.orValue(dyn(null)) != false && !object.?status.?conditions.orValue([]).exists(c, c.type == "Finished" && c.status == "True")
           running:
             - byConditions:
                 - type: Admitted
@@ -35,8 +35,7 @@ spec:
                 - type: PodsReady
                   status: "True"
               byExpression:
-                expression: .spec.active != false and ((.status.conditions // []) | any((.type == "Finished" or .type == "Evicted" or .type == "WaitingForReplacementPods") and .status == "True") | not)
-                expectedResult: "true"
+                expression: object.?spec.?active.orValue(dyn(null)) != false && !object.?status.?conditions.orValue([]).exists(c, c.type in ["Finished", "Evicted", "WaitingForReplacementPods"] && c.status == "True")
           completed:
             - byConditions:
                 - type: Finished
@@ -53,13 +52,14 @@ spec:
                   reason: FailedToStart
           suspended:
             - byExpression:
-                expression: .spec.active == false and ((.status.conditions // []) | any(.type == "Finished" and .status == "True") | not) and (((.status.conditions // []) | any(.type == "QuotaReserved" and .status == "True")) | not)
-                expectedResult: "true"
+                expression: object.?spec.?active.orValue(dyn(null)) == false && !object.?status.?conditions.orValue([]).exists(c, c.type == "Finished" && c.status == "True") && !object.?status.?conditions.orValue([]).exists(c, c.type == "QuotaReserved" && c.status == "True")
       suspendDefinition:
         suspendActions:
-          - path: .spec.active
+          - write:
+              path: /spec/active
             value: "false"
         resumeActions:
-          - path: .spec.active
+          - write:
+              path: /spec/active
             value: "true"
   optimizationInstructions: {}

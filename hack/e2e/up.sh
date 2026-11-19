@@ -36,11 +36,12 @@ export CLUSTER_NAME IMAGE REPO_ROOT KARTA_WEBHOOK_MODE
 # Workload operators selectable on the command line, in canonical install order:
 # a dependency always appears before its dependents (knative before kserve,
 # grove before dynamo).
-ALL_WORKLOADS=(lws jobset kuberay kubeflow knative kserve milvus grove dynamo nim agent-sandbox kueue volcano)
+ALL_WORKLOADS=(lws jobset trainer kuberay kubeflow knative kserve milvus grove dynamo nim agent-sandbox kueue argo-rollouts openkruise volcano)
 
 # deps_of <workload> prints the workload operators that must be installed first.
 deps_of() {
   case "$1" in
+    trainer) echo "jobset" ;;
     kserve) echo "knative" ;;
     dynamo) echo "grove" ;;
   esac
@@ -54,6 +55,7 @@ version_of() {
     kai-scheduler) echo "${KAI_SCHEDULER_VERSION}" ;;
     lws) echo "${LWS_VERSION}" ;;
     jobset) echo "${JOBSET_VERSION}" ;;
+    trainer) echo "${TRAINER_VERSION}" ;;
     kuberay) echo "${KUBERAY_VERSION}" ;;
     kubeflow) echo "${KUBEFLOW_VERSION}+mpi${MPI_OPERATOR_VERSION}" ;;
     knative) echo "${KNATIVE_VERSION}" ;;
@@ -64,6 +66,8 @@ version_of() {
     nim) echo "${NIM_OPERATOR_VERSION}" ;;
     agent-sandbox) echo "${AGENT_SANDBOX_VERSION}" ;;
     kueue) echo "${KUEUE_VERSION}" ;;
+    argo-rollouts) echo "${ARGO_ROLLOUTS_VERSION}" ;;
+    openkruise) echo "${OPENKRUISE_VERSION}" ;;
     volcano) echo "${VOLCANO_VERSION}" ;;
     *) echo "?" ;;
   esac

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Synthetic source-shaped object for offline SDK parity. Not an operator recording.
+kartaFile: docs/catalog/nvidia-com-dynamographdeployment-v1beta1.yaml
+workload:
+  apiVersion: nvidia.com/v1beta1
+  kind: DynamoGraphDeployment
+  metadata:
+    name: synthetic-dynamo-v1beta1
+    namespace: example
+    uid: synthetic-dynamo-v1beta1
+  spec:
+    components:
+    - name: Frontend
+      replicas: 2
+      podTemplate:
+        metadata:
+          labels:
+            app: example
+          annotations:
+            example.com/source: synthetic
+        spec:
+          schedulerName: default-scheduler
+          priorityClassName: batch
+          containers:
+          - name: main
+            image: ghcr.io/example/worker:v1
+            resources:
+              requests:
+                cpu: '1'
+                memory: 1Gi
+          affinity:
+            podAffinity: {}
+            nodeAffinity: {}
+          resourceClaims:
+          - name: accelerator
+            resourceClaimTemplateName: example
+    - name: Worker
+      replicas: 3
+      multinode:
+        nodeCount: 2
+      podTemplate:
+        metadata:
+          labels:
+            app: example
+          annotations:
+            example.com/source: synthetic
+        spec:
+          schedulerName: default-scheduler
+          priorityClassName: batch
+          containers:
+          - name: main
+            image: ghcr.io/example/worker:v1
+            resources:
+              requests:
+                cpu: '1'
+                memory: 1Gi
+          affinity:
+            podAffinity: {}
+            nodeAffinity: {}
+          resourceClaims:
+          - name: accelerator
+            resourceClaimTemplateName: example
+  status:
+    state: successful

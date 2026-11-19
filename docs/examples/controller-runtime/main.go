@@ -27,7 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	"github.com/dsx-ai-factory/workload-map/docs/examples/controller-runtime/ctrlreader"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // defaultWatchGVKs is the out-of-the-box workload set. Override with --watch-gvk
@@ -78,9 +79,10 @@ func main() {
 
 	for _, gvk := range gvks {
 		reconciler := &WorkloadReconciler{
-			Client:   mgr.GetClient(),
-			Recorder: mgr.GetEventRecorder("generic-controller"),
-			GVK:      gvk,
+			Client:          mgr.GetClient(),
+			ReferenceReader: ctrlreader.New(mgr.GetAPIReader(), mgr.GetRESTMapper()),
+			Recorder:        mgr.GetEventRecorder("generic-controller"),
+			GVK:             gvk,
 		}
 		if err := reconciler.SetupWithManager(mgr); err != nil {
 			logger.Error(err, "set up reconciler", "gvk", gvk.String())

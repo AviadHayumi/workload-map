@@ -736,3 +736,26 @@ func TestDescribeEmptyDefinitionSetEmitsNoPayload(t *testing.T) {
 		t.Errorf("unexpected message: %s", errOut)
 	}
 }
+
+func TestDescribeFileTrainerSuppliedRuntime(t *testing.T) {
+	noCluster(t)
+	load := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join("..", "..", "hack", "e2e", "operators", "trainer", name+".yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	job := writeManifest(t, load("smoke"))
+	snapshot := writeManifest(t, "trainingRuntime:\n  object:\n    "+strings.ReplaceAll(load("runtime"), "\n", "\n    "))
+	out, errOut, code := runDescribeCmd(t, "-f", job, "--references", snapshot, "-o", "json")
+	var view struct{ Resources struct{ CPUMillis int64 } }
+	if code != 0 || json.Unmarshal([]byte(out), &view) != nil || view.Resources.CPUMillis != 10 {
+		t.Fatalf("expected the runtime's CPU request, got exit %d\n%s\n%s", code, out, errOut)
+	}
+	_, errOut, code = runDescribeCmd(t, "-f", job, "--references", snapshot, "--no-references")
+	if code != ExitUsage || !strings.Contains(errOut, "--references") {
+		t.Fatalf("conflicting flags: exit %d: %s", code, errOut)
+	}
+}

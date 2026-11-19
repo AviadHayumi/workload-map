@@ -3,7 +3,7 @@
 
 package otel
 
-import "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+import v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 
 const (
 	MetricPodWorkloadInfo          = "dsx_workload_pod_info"

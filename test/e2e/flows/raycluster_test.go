@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/test/e2e/recorder"
 )
 
@@ -38,6 +38,19 @@ var _ = Describe("RayCluster", Ordered, Label("kuberay", "raycluster"), func() {
 
 	It("suspended", func(ctx SpecContext) {
 		out, err := recorder.NewFlow(rec, "suspended", "testdata/raycluster/suspended.yaml").Through(recorder.Reaches(kartav1alpha1.SuspendedStatus)).Run(ctx)
+		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
+		Expect(err).To(Succeed())
+	})
+
+	It("suspended-from-running", func(ctx SpecContext) {
+		// KubeRay keeps status.state ready while it deletes the head pod, so those frames read
+		// Running, and reports suspended once the pod is gone. The last step is gated on that
+		// status.state: the suspended mapping also accepts an absent state, so spec.suspend=true
+		// alone must not be able to end the recording.
+		out, err := recorder.NewFlow(rec, "suspended-from-running", "testdata/raycluster/suspended-from-running.yaml").Through(
+			recorder.Reaches(kartav1alpha1.RunningStatus).Do(Suspend()),
+			recorder.Reaches(kartav1alpha1.SuspendedStatus).With(PhaseEq("suspended", "status", "state")),
+		).Run(ctx)
 		Expect(rec.Save(fx, out)).Error().NotTo(HaveOccurred())
 		Expect(err).To(Succeed())
 	})

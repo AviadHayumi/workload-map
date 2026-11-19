@@ -10,6 +10,7 @@ import { listCatalog } from '../../lib/karta/kartaUtil';
 export interface UseKartaDefinitionsResult {
   definitions: Definition[];
   installed: boolean;
+  referencesEnabled: boolean;
   crdMissing: boolean;
   // Whether definitions are usable at all. The catalog alone satisfies that:
   // cluster CRs refine it, so waiting on them would block what is already
@@ -24,7 +25,8 @@ export interface UseKartaDefinitionsResult {
 // clusters each defining Deployment would collapse into one entry, leaving a
 // workload liable to be read through the other cluster's definition.
 export function useKartaDefinitions(cluster: string, attempt = 0): UseKartaDefinitionsResult {
-  const enableExperimental = useKartaConfig()?.enableExperimental === true;
+  const config = useKartaConfig();
+  const enableExperimental = config?.enableExperimental === true;
   const [catalog, setCatalog] = useState<Karta[]>([]);
   const [catalogError, setCatalogError] = useState<Error | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -75,6 +77,7 @@ export function useKartaDefinitions(cluster: string, attempt = 0): UseKartaDefin
   return {
     definitions: mergeDefinitions(catalog, clusterDefinitions, enableExperimental),
     installed,
+    referencesEnabled: config?.referencesEnabled !== false,
     crdMissing,
     loading: catalogLoading,
     error: catalogError ?? (clusterError && !crdMissing ? clusterError : null),

@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 const errGetInstanceIds = "failed to get instance ids"
@@ -21,6 +21,13 @@ type Component struct {
 	name       string
 	definition v1alpha1.ComponentDefinition
 	accessor   ComponentAccessor
+	factory    *ComponentFactory
+}
+
+type Suspendable interface {
+	IsSuspendable() bool
+	Suspend(context.Context) error
+	Resume(context.Context) error
 }
 
 type FragmentedPodSpec struct {
@@ -97,7 +104,7 @@ func (c *Component) Definition() v1alpha1.ComponentDefinition {
 
 // GetPodTemplateSpec extracts pod template specs mapped by instance id
 func (c *Component) GetPodTemplateSpec(ctx context.Context) (map[string]corev1.PodTemplateSpec, error) {
-	podTemplateSpecs, err := c.accessor.ExtractPodTemplateSpec(ctx, c.definition)
+	podTemplateSpecs, err := c.currentAccessor().ExtractPodTemplateSpec(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -115,7 +122,7 @@ func (c *Component) GetPodTemplateSpec(ctx context.Context) (map[string]corev1.P
 
 // GetFragmentedPodSpec extracts fragmented pod specs mapped by instance id
 func (c *Component) GetFragmentedPodSpec(ctx context.Context) (map[string]FragmentedPodSpec, error) {
-	fragmentedPodSpecs, err := c.accessor.ExtractFragmentedPodSpec(ctx, c.definition)
+	fragmentedPodSpecs, err := c.currentAccessor().ExtractFragmentedPodSpec(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -133,7 +140,7 @@ func (c *Component) GetFragmentedPodSpec(ctx context.Context) (map[string]Fragme
 
 // GetPodSpec extracts pod specs mapped by instance id
 func (c *Component) GetPodSpec(ctx context.Context) (map[string]corev1.PodSpec, error) {
-	podSpecs, err := c.accessor.ExtractPodSpec(ctx, c.definition)
+	podSpecs, err := c.currentAccessor().ExtractPodSpec(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -151,7 +158,7 @@ func (c *Component) GetPodSpec(ctx context.Context) (map[string]corev1.PodSpec, 
 
 // GetPodMetadata extracts pod metadata mapped by instance id
 func (c *Component) GetPodMetadata(ctx context.Context) (map[string]metav1.ObjectMeta, error) {
-	podMetadata, err := c.accessor.ExtractPodMetadata(ctx, c.definition)
+	podMetadata, err := c.currentAccessor().ExtractPodMetadata(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -167,45 +174,9 @@ func (c *Component) GetPodMetadata(ctx context.Context) (map[string]metav1.Objec
 	return zipWithInstanceIds(instanceIds, podMetadata)
 }
 
-func (c *Component) UpdatePodTemplateSpec(ctx context.Context, instanceIdToPodTemplateSpec map[string]corev1.PodTemplateSpec) error {
-	_, podTemplateSpecs, err := unzipWithInstanceIds(ctx, c, instanceIdToPodTemplateSpec)
-	if err != nil {
-		return fmt.Errorf("failed to unzip given pod template specs and instance ids: %w", err)
-	}
-
-	return c.accessor.UpdatePodTemplateSpec(ctx, c.definition, podTemplateSpecs)
-}
-
-func (c *Component) UpdatePodSpec(ctx context.Context, instanceIdToPodSpec map[string]corev1.PodSpec) error {
-	_, podSpecs, err := unzipWithInstanceIds(ctx, c, instanceIdToPodSpec)
-	if err != nil {
-		return fmt.Errorf("failed to unzip given pod specs and instance ids: %w", err)
-	}
-
-	return c.accessor.UpdatePodSpec(ctx, c.definition, podSpecs)
-}
-
-func (c *Component) UpdatePodMetadata(ctx context.Context, instanceIdToPodMetadata map[string]metav1.ObjectMeta) error {
-	_, podMetadata, err := unzipWithInstanceIds(ctx, c, instanceIdToPodMetadata)
-	if err != nil {
-		return fmt.Errorf("failed to unzip given pod metadata and instance ids: %w", err)
-	}
-
-	return c.accessor.UpdatePodMetadata(ctx, c.definition, podMetadata)
-}
-
-func (c *Component) UpdateFragmentedPodSpec(ctx context.Context, instanceIdToFragmentedPodSpec map[string]FragmentedPodSpec) error {
-	_, fragmentedPodSpecs, err := unzipWithInstanceIds(ctx, c, instanceIdToFragmentedPodSpec)
-	if err != nil {
-		return fmt.Errorf("failed to unzip given fragmented pod specs and instance ids: %w", err)
-	}
-
-	return c.accessor.UpdateFragmentedPodSpec(ctx, c.definition, fragmentedPodSpecs)
-}
-
 // GetScale extracts scale data mapped by instance id
 func (c *Component) GetScale(ctx context.Context) (map[string]Scale, error) {
-	scales, err := c.accessor.ExtractScale(ctx, c.definition)
+	scales, err := c.currentAccessor().ExtractScale(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -224,7 +195,7 @@ func (c *Component) GetScale(ctx context.Context) (map[string]Scale, error) {
 // GetStatus extracts status information from the component
 // Note: Status is typically defined only on the root component, not on instances
 func (c *Component) GetStatus(ctx context.Context) (*Status, error) {
-	status, err := c.accessor.ExtractStatus(ctx, c.definition)
+	status, err := c.currentAccessor().ExtractStatus(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil, nil
@@ -243,27 +214,27 @@ func (c *Component) GetExtractedInstances(ctx context.Context) (map[string]Extra
 	}
 
 	podTemplateSpecs, err := c.GetPodTemplateSpec(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrValueNotFound) {
 		return nil, fmt.Errorf("failed to get pod template specs: %w", err)
 	}
 
 	podSpecs, err := c.GetPodSpec(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrValueNotFound) {
 		return nil, fmt.Errorf("failed to get pod specs: %w", err)
 	}
 
 	fragmentedPodSpecs, err := c.GetFragmentedPodSpec(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrValueNotFound) {
 		return nil, fmt.Errorf("failed to get fragmented pod specs: %w", err)
 	}
 
 	metadata, err := c.GetPodMetadata(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrValueNotFound) {
 		return nil, fmt.Errorf("failed to get pod metadata: %w", err)
 	}
 
 	scales, err := c.GetScale(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrValueNotFound) {
 		return nil, fmt.Errorf("failed to get scales: %w", err)
 	}
 
@@ -312,9 +283,14 @@ func (c *Component) HasSuspendDefinition() bool {
 	return c.definition.SuspendDefinition != nil
 }
 
-// Suspend applies the component's SuspendActions in sequence against the manifest.
+func (c *Component) IsSuspendable() bool { return c.HasSuspendDefinition() }
+
+// Suspend applies the component's suspend actions atomically.
 // It is a no-op if the component has no SuspendDefinition.
 func (c *Component) Suspend(ctx context.Context) error {
+	if c.factory != nil && c.factory.settings != nil {
+		return c.factory.applyActions(ctx, c.definition, true)
+	}
 	if err := c.accessor.ApplySuspendActions(ctx, c.definition); err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil
@@ -324,9 +300,12 @@ func (c *Component) Suspend(ctx context.Context) error {
 	return nil
 }
 
-// Resume applies the component's ResumeActions in sequence against the manifest.
+// Resume applies the component's resume actions atomically.
 // It is a no-op if the component has no SuspendDefinition.
 func (c *Component) Resume(ctx context.Context) error {
+	if c.factory != nil && c.factory.settings != nil {
+		return c.factory.applyActions(ctx, c.definition, false)
+	}
 	if err := c.accessor.ApplyResumeActions(ctx, c.definition); err != nil {
 		if isDefinitionNotFoundError(err) {
 			return nil
@@ -338,13 +317,16 @@ func (c *Component) Resume(ctx context.Context) error {
 
 // HasPodDefinition returns true if this component defines pods
 func (c *Component) HasPodDefinition() bool {
+	if selector := c.definition.PodSelector; selector != nil && len(selector.FromReferences) > 0 {
+		return true
+	}
 	spec := c.definition.SpecDefinition
 	if spec == nil {
 		return false
 	}
 
-	return spec.PodTemplateSpecPath != nil ||
-		spec.PodSpecPath != nil ||
+	return spec.PodTemplateSpec != nil ||
+		spec.PodSpec != nil ||
 		spec.FragmentedPodSpecDefinition != nil
 }
 
@@ -355,12 +337,12 @@ func (c *Component) GetPodSelector() *v1alpha1.PodSelector {
 
 // HasInstanceIdDefinition returns true if this component possibily has multiple instances
 func (c *Component) HasInstanceIdDefinition() bool {
-	return c.definition.InstanceIdPath != nil
+	return c.definition.InstanceIds != nil && c.definition.InstanceIds.Read != nil
 }
 
 // GetInstanceIds extracts instance identifiers for this component
 func (c *Component) GetInstanceIds(ctx context.Context) ([]string, error) {
-	instanceIds, err := c.accessor.ExtractInstanceIds(ctx, c.definition)
+	instanceIds, err := c.currentAccessor().ExtractInstanceIds(ctx, c.definition)
 	if err != nil {
 		if isDefinitionNotFoundError(err) {
 			// If no definition was given, assume there is a single instance with empty id
@@ -386,25 +368,14 @@ func zipWithInstanceIds[T any](instanceIds []string, results []T) (map[string]T,
 	return zipped, nil
 }
 
-// unzipWithInstanceIds converts a map of instance ID to value into an ordered slice
-func unzipWithInstanceIds[T any](ctx context.Context, c *Component, valueMap map[string]T) ([]string, []T, error) {
-	instanceIds, err := c.GetInstanceIds(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", errGetInstanceIds, err)
-	}
-
-	results := make([]T, 0, len(instanceIds))
-	for _, instanceId := range instanceIds {
-		value, ok := valueMap[instanceId]
-		if !ok {
-			return nil, nil, fmt.Errorf("value not found for instance id: %s", instanceId)
-		}
-		results = append(results, value)
-	}
-	return instanceIds, results, nil
-}
-
 func isDefinitionNotFoundError(err error) bool {
 	var defNotFoundErr DefinitionNotFoundError
 	return errors.As(err, &defNotFoundErr)
+}
+
+func (c *Component) currentAccessor() ComponentAccessor {
+	if c.factory != nil {
+		return c.factory.accessor
+	}
+	return c.accessor
 }

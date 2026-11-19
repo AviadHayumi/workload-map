@@ -10,16 +10,20 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
@@ -41,11 +45,15 @@ type component struct {
 	MaxReplicas *int32   `json:"maxReplicas,omitempty"`
 	PodSpec     *bool    `json:"podSpec,omitempty"`
 	Containers  []string `json:"containers,omitempty"`
+	Images      []string `json:"images,omitempty"`
 }
 
 func main() {
 	var kartaPath, workloadPath, predictPath, dumpPath string
-	var strict bool
+	var strict, noReferences bool
+	var refsPath string
+	flag.StringVar(&refsPath, "references", "", "path to reference results keyed by declaration name")
+	flag.BoolVar(&noReferences, "no-references", false, "evaluate with references disabled")
 	flag.StringVar(&kartaPath, "karta", "", "path to the Karta definition (required)")
 	flag.StringVar(&workloadPath, "workload", "", "path to a real workload manifest; without it, validation only")
 	flag.StringVar(&predictPath, "predict", "", "path to a predictions file to check the extraction against")
@@ -66,7 +74,7 @@ func main() {
 
 	// Refused rather than ignored, so a dropped --workload cannot exit 0.
 	if workloadPath == "" {
-		for flagName, set := range map[string]bool{"--predict": predictPath != "", "--dump": dumpPath != "", "--strict": strict} {
+		for flagName, set := range map[string]bool{"--predict": predictPath != "", "--dump": dumpPath != "", "--strict": strict, "--references": refsPath != "", "--no-references": noReferences} {
 			if set {
 				fmt.Fprintf(os.Stderr, "error: %s requires --workload\n", flagName)
 				os.Exit(1)
@@ -74,14 +82,19 @@ func main() {
 		}
 	}
 
-	code, err := run(context.Background(), kartaPath, workloadPath, predictPath, dumpPath, strict)
+	if noReferences && refsPath != "" {
+		fmt.Fprintln(os.Stderr, "error: --references and --no-references cannot be combined")
+		os.Exit(1)
+	}
+
+	code, err := run(context.Background(), kartaPath, workloadPath, predictPath, dumpPath, strict, refsPath, !noReferences)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nerror: %v\n", err)
 	}
 	os.Exit(code)
 }
 
-func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath string, strict bool) (int, error) {
+func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath string, strict bool, refsPath string, refsEnabled bool) (int, error) {
 	kartaYAML, err := os.ReadFile(kartaPath)
 	if err != nil {
 		return 1, fmt.Errorf("read Karta definition: %w", err)
@@ -99,7 +112,7 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 
 	if workloadPath == "" {
 		fmt.Printf("No --workload given, so the definition was not run against a real object.\n" +
-			"It is structurally valid; whether its jq paths resolve is still unproven.\n")
+			"It is structurally valid; supply a workload to evaluate its CEL expressions.\n")
 		return 0, nil
 	}
 
@@ -107,13 +120,27 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 	if err != nil {
 		return 1, fmt.Errorf("read workload: %w", err)
 	}
-	var rawObj map[string]any
-	if err := yaml.Unmarshal(workloadYAML, &rawObj); err != nil {
+	workloadJSON, err := yaml.YAMLToJSON(workloadYAML)
+	if err != nil {
 		return 1, fmt.Errorf("parse workload: %w", err)
 	}
-	obj := &unstructured.Unstructured{Object: rawObj}
-
-	wt, err := tree.Build(ctx, resource.NewComponentFactoryFromObject(karta, obj))
+	obj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(workloadJSON, obj); err != nil {
+		return 1, fmt.Errorf("decode workload: %w", err)
+	}
+	options := []resource.FactoryOption{resource.WithReferencesEnabled(refsEnabled)}
+	if refsEnabled && refsPath != "" {
+		data, err := os.ReadFile(refsPath)
+		if err != nil {
+			return 1, fmt.Errorf("read references: %w", err)
+		}
+		supplied, err := references.DecodeSnapshot(data)
+		if err != nil {
+			return 1, err
+		}
+		options = append(options, resource.WithReferences(supplied))
+	}
+	wt, err := tree.Build(ctx, resource.NewComponentFactoryFromObject(karta, obj, options...))
 	if err != nil {
 		return 1, fmt.Errorf("build workload tree against %s: %w", workloadPath, err)
 	}
@@ -124,7 +151,7 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 	}
 	// Collected during the walk, not from wt.Children, to catch nested components.
 	// A node with no instances contributes no rows, so nothing else reports it.
-	var noInstances []string
+	var noInstances, emptyPods []string
 	var walk func(prefix string, nodes []tree.ComponentNode)
 	walk = func(prefix string, nodes []tree.ComponentNode) {
 		for _, node := range nodes {
@@ -145,25 +172,33 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 				}
 				extracted := false
 				if e := inst.ExtractedInstance; e != nil {
+					var containers []corev1.Container
 					switch {
 					case e.PodTemplateSpec != nil:
 						extracted = true
-						for _, ctr := range e.PodTemplateSpec.Spec.Containers {
-							c.Containers = append(c.Containers, ctr.Name)
-						}
+						containers = e.PodTemplateSpec.Spec.Containers
 					case e.PodSpec != nil:
 						extracted = true
-						for _, ctr := range e.PodSpec.Containers {
-							c.Containers = append(c.Containers, ctr.Name)
-						}
+						containers = e.PodSpec.Containers
 					case e.FragmentedPodSpec != nil:
 						extracted = true
-						for _, ctr := range e.FragmentedPodSpec.Containers {
-							c.Containers = append(c.Containers, ctr.Name)
+						fragment := e.FragmentedPodSpec
+						containers = slices.Clone(fragment.Containers)
+						if fragment.Container != nil {
+							containers = append(containers, *fragment.Container)
 						}
-						if ctr := e.FragmentedPodSpec.Container; ctr != nil {
-							c.Containers = append(c.Containers, ctr.Name)
+						if fragment.Image != "" {
+							c.Images = append(c.Images, fragment.Image)
 						}
+					}
+					for _, ctr := range containers {
+						c.Containers = append(c.Containers, ctr.Name)
+						if ctr.Image != "" {
+							c.Images = append(c.Images, ctr.Image)
+						}
+					}
+					if extracted && e.FragmentedPodSpec == nil && len(containers) == 0 {
+						emptyPods = append(emptyPods, key)
 					}
 				}
 				if node.HasPodDefinition {
@@ -173,6 +208,9 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 				walk(key+"/", inst.Children)
 			}
 		}
+	}
+	if wt.Root.HasPodDefinition || karta.Spec.StructureDefinition.RootComponent.ScaleDefinition != nil {
+		walk("", []tree.ComponentNode{*wt.Root})
 	}
 	walk("", wt.Children)
 
@@ -187,9 +225,9 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 	}
 	fmt.Printf("  status: %s\n", status)
 	for _, c := range observed.Components {
-		fmt.Printf("  %-34s replicas=%-8s min=%-6s max=%-6s podSpec=%-9s containers=%s\n",
+		fmt.Printf("  %-34s replicas=%-8s min=%-6s max=%-6s podSpec=%-9s containers=%s images=%s\n",
 			c.Key, formatInt(c.Replicas), formatInt(c.MinReplicas), formatInt(c.MaxReplicas),
-			formatBool(c.PodSpec), formatList(c.Containers))
+			formatBool(c.PodSpec), formatList(c.Containers), formatList(c.Images))
 	}
 	fmt.Println()
 
@@ -201,12 +239,12 @@ func run(ctx context.Context, kartaPath, workloadPath, predictPath, dumpPath str
 		if c.PodSpec != nil && !*c.PodSpec {
 			warnings = append(warnings, fmt.Sprintf("%s declares a specDefinition but extracted no pod spec: the spec path missed", c.Key))
 		}
-		if c.PodSpec != nil && *c.PodSpec && len(c.Containers) == 0 {
-			warnings = append(warnings, fmt.Sprintf("%s extracted a pod spec with no containers", c.Key))
-		}
+	}
+	for _, key := range emptyPods {
+		warnings = append(warnings, fmt.Sprintf("%s extracted a pod spec with no containers", key))
 	}
 	for _, name := range noInstances {
-		warnings = append(warnings, fmt.Sprintf("%s produced no instances: instanceIdPath matched nothing", name))
+		warnings = append(warnings, fmt.Sprintf("%s produced no instances: instanceIds read returned no instances", name))
 	}
 	if len(warnings) > 0 {
 		fmt.Println("=== Warnings ===")
@@ -298,12 +336,18 @@ func compare(predicted, observed observation) []string {
 		if want.PodSpec != nil && (got.PodSpec == nil || *got.PodSpec != *want.PodSpec) {
 			mismatches = append(mismatches, fmt.Sprintf("%s podSpec: predicted %s, extracted %s", want.Key, formatBool(want.PodSpec), formatBool(got.PodSpec)))
 		}
-		if want.Containers != nil {
-			wantC, gotC := append([]string(nil), want.Containers...), append([]string(nil), got.Containers...)
-			sort.Strings(wantC)
-			sort.Strings(gotC)
-			if strings.Join(wantC, ",") != strings.Join(gotC, ",") {
-				mismatches = append(mismatches, fmt.Sprintf("%s containers: predicted %s, extracted %s", want.Key, formatList(want.Containers), formatList(got.Containers)))
+		for _, field := range []struct {
+			name      string
+			want, got []string
+		}{{"containers", want.Containers, got.Containers}, {"images", want.Images, got.Images}} {
+			if field.want == nil {
+				continue
+			}
+			wantValues, gotValues := slices.Clone(field.want), slices.Clone(field.got)
+			slices.Sort(wantValues)
+			slices.Sort(gotValues)
+			if !slices.Equal(wantValues, gotValues) {
+				mismatches = append(mismatches, fmt.Sprintf("%s %s: predicted %s, extracted %s", want.Key, field.name, formatList(field.want), formatList(field.got)))
 			}
 		}
 	}
@@ -316,7 +360,7 @@ func countPredicted(p observation) int {
 		n++
 	}
 	for _, c := range p.Components {
-		for _, set := range []bool{c.Replicas != nil, c.MinReplicas != nil, c.MaxReplicas != nil, c.PodSpec != nil, c.Containers != nil} {
+		for _, set := range []bool{c.Replicas != nil, c.MinReplicas != nil, c.MaxReplicas != nil, c.PodSpec != nil, c.Containers != nil, c.Images != nil} {
 			if set {
 				n++
 			}

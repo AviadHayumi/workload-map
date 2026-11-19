@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 NVIDIA Corporation
 
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { useListMock, evaluatePhases, useThrottleMock } = vi.hoisted(() => ({
@@ -28,7 +28,7 @@ const deploymentKey = 'apps/v1, Kind=Deployment';
 function definition(resourceVersion?: string): Definition {
   return {
     karta: {
-      apiVersion: 'run.ai/v1alpha1',
+      apiVersion: 'run.ai/v1alpha2',
       kind: 'Karta',
       metadata: { name: 'deployment', resourceVersion },
       spec: { structureDefinition: { rootComponent: { kind: deploymentGVK } } },
@@ -64,6 +64,34 @@ describe('KindFetcher', () => {
     useListMock.mockReset();
     useThrottleMock.mockReset();
     useThrottleMock.mockImplementation((value: unknown) => value);
+  });
+
+  it('observes references again at the same workload version, and stops reading them when disabled', async () => {
+    vi.useFakeTimers();
+    try {
+      const selected = definition();
+      selected.karta.spec!.structureDefinition!.references = [{ name: 'pods' }];
+      const row = item('1');
+      useListMock.mockReturnValue(listResult([row], null));
+      evaluatePhases.mockResolvedValueOnce(['Running']).mockResolvedValueOnce(['Degraded']).mockResolvedValueOnce(['Unknown']);
+      const props = { definition: selected, cluster: 'selected', plural: 'deployments', namespaced: true,
+        onRows: vi.fn(), onError: vi.fn() };
+      const { rerender, unmount } = render(<KindFetcher {...props} />);
+      await act(async () => {});
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      expect(evaluatePhases).toHaveBeenCalledTimes(2);
+      expect(props.onRows.mock.calls.at(-1)?.[1][0].phases).toEqual(['Degraded']);
+      const oldReader = evaluatePhases.mock.calls[1][2].reader;
+      rerender(<KindFetcher {...props} referencesEnabled={false} />);
+      await act(async () => {});
+      expect(evaluatePhases.mock.calls.at(-1)?.[2].referencesEnabled).toBe(false);
+      await expect(oldReader({})).rejects.toThrow();
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      expect(evaluatePhases).toHaveBeenCalledTimes(3);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Without the cluster, useList spans every selected cluster, and those

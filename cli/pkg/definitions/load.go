@@ -20,11 +20,11 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
-var GVR = schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha1", Resource: "kartas"}
+var GVR = schema.GroupVersionResource{Group: "run.ai", Version: "v1alpha2", Resource: "kartas"}
 
 type Warning struct {
 	Reason  string
@@ -63,13 +63,7 @@ func Load(ctx context.Context, rcg genericclioptions.RESTClientGetter, enableExp
 		cluster = nil
 	}
 
-	builtins := catalog.List()
-	if !enableExperimental {
-		builtins = slices.DeleteFunc(builtins, func(karta *v1alpha1.Karta) bool {
-			return karta.Spec.Experimental
-		})
-	}
-	resolver := New(builtins, cluster)
+	resolver := New(builtins(enableExperimental), cluster)
 	for _, c := range resolver.Collisions() {
 		names := make([]string, 0, len(c.Names))
 		for _, name := range c.Names {
@@ -79,6 +73,21 @@ func Load(ctx context.Context, rcg genericclioptions.RESTClientGetter, enableExp
 			len(c.Names), FormatGVK(c.GVK), strings.Join(names, ", "))
 	}
 	return resolver, l.warnings
+}
+
+// LoadCatalog returns catalog definitions without reading kubeconfig or contacting Kubernetes.
+func LoadCatalog(enableExperimental bool) *Resolver {
+	return New(builtins(enableExperimental), nil)
+}
+
+func builtins(enableExperimental bool) []*v1alpha1.Karta {
+	kartas := catalog.List()
+	if !enableExperimental {
+		kartas = slices.DeleteFunc(kartas, func(karta *v1alpha1.Karta) bool {
+			return karta.Spec.Experimental
+		})
+	}
+	return kartas
 }
 
 // classify turns a cluster read failure into either silence or a warning.

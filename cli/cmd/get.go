@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/generator"
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/workload"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
 const (
@@ -33,11 +35,13 @@ const (
 	flagSelector  = "selector"
 	flagChunkSize = "chunk-size"
 	flagAllTypes  = "all-types"
+	flagSortBy    = "sort-by"
 
 	usagePhase     = "Filter by normalized phase; repeatable, and applied after resolution so it does not reduce API cost. One of "
 	usageSelector  = "Label selector on the workload root, kubectl syntax"
 	usageChunkSize = "API list page size; 0 lists without paging. Bounds per-request pressure, not total memory or time to first row"
 	usageAllTypes  = "List the top-level workloads of every type a Karta definition covers, instead of naming a TYPE"
+	usageSortBy    = "Row order: age is newest first, name is alphabetical. One of "
 
 	// defaultChunkSize follows the kubectl convention for list page size.
 	defaultChunkSize = 500
@@ -53,9 +57,9 @@ all resolve.
 
 --all-types lists the top-level workloads of every covered type, with a TYPE column.
 
-The phase comes from the workload spec, so no pods are listed. -o wide adds the ORIGIN
-of the resolving definition; the component breakdown, requested GPUs and a NODES column
-arrive with the describe command.`
+The phase comes from the workload. --all-types also reads Pods and declared references
+when needed to group dependencies under their parent. -o wide adds the ORIGIN of the
+resolving definition. Use describe for components, resource requests and nodes.`
 
 	getExample = `  # All JobSets in the current namespace
   kli get jobset
@@ -67,7 +71,18 @@ arrive with the describe command.`
   kli get jobset --phase Degraded --phase Failed -l team=nlp -o json
 
   # Every running workload in the namespace, whatever its type
-  kli get --all-types --phase Running`
+  kli get --all-types --phase Running
+
+  # JobSets in alphabetical order
+  kli get jobset --sort-by name`
+)
+
+// sortKey orders the rows of a listing.
+type sortKey string
+
+const (
+	sortByAge  sortKey = "age"
+	sortByName sortKey = "name"
 )
 
 // newDynamicClient is a variable so tests can inject a fake cluster.
@@ -104,13 +119,15 @@ var newMetadataClient = func(rcg genericclioptions.RESTClientGetter) (metadata.I
 
 // getOptions holds the resolved inputs for one run of the get command.
 type getOptions struct {
-	typeToken string
-	name      string
-	phases    []string
-	selector  string
-	chunkSize int64
-	allTypes  bool
-	noHeaders bool
+	typeToken    string
+	name         string
+	phases       []string
+	selector     string
+	chunkSize    int64
+	noReferences bool
+	allTypes     bool
+	noHeaders    bool
+	sortBy       sortKey
 }
 
 // newGetCommand builds the "kli get" command: one row per workload root.
@@ -119,6 +136,7 @@ func newGetCommand() *cobra.Command {
 	var (
 		output *Enum[generator.Output]
 		phase  *EnumSlice[string]
+		sortBy = NewEnum("sort", sortByAge, sortByAge, sortByName)
 	)
 
 	cmd := &cobra.Command{
@@ -150,6 +168,7 @@ func newGetCommand() *cobra.Command {
 		},
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			opts.phases = phase.Get()
+			opts.sortBy = sortBy.Get()
 			return validateOptions(cmd, opts)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -158,11 +177,17 @@ func newGetCommand() *cobra.Command {
 	}
 
 	output = withOutput(cmd, cmd.Flags(), true)
+	cmd.Flags().BoolVar(&opts.noReferences, "no-references", false, "Skip declared reference reads and dependent Pod attribution")
 	phase = withPhase(cmd, cmd.Flags())
 	cmd.Flags().StringVarP(&opts.selector, flagSelector, "l", "", usageSelector)
 	cmd.Flags().Int64Var(&opts.chunkSize, flagChunkSize, defaultChunkSize, usageChunkSize)
 	cmd.Flags().BoolVar(&opts.allTypes, flagAllTypes, false, usageAllTypes)
 	withNoHeaders(cmd.Flags(), &opts.noHeaders)
+	cmd.Flags().Var(sortBy, flagSortBy, usageSortBy+strings.Join(sortBy.Allowed(), ", "))
+	cobra.CheckErr(cmd.RegisterFlagCompletionFunc(flagSortBy,
+		func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+			return sortBy.Allowed(), cobra.ShellCompDirectiveNoFileComp
+		}))
 
 	return cmd
 }
@@ -243,16 +268,7 @@ func runGet(cmd *cobra.Command, opts *getOptions, format generator.Output) (err 
 		return err
 	}
 
-	// Newest first, so a freshly submitted workload is at the top.
-	slices.SortStableFunc(views, func(a, b workload.View) int {
-		if !a.CreatedAt.Equal(b.CreatedAt) {
-			return b.CreatedAt.Compare(a.CreatedAt)
-		}
-		if a.Kind != b.Kind {
-			return strings.Compare(a.Kind, b.Kind)
-		}
-		return strings.Compare(a.Name, b.Name)
-	})
+	sortViews(views, opts.sortBy)
 
 	return generator.RenderWorkloads(cmd.OutOrStdout(), cmd.ErrOrStderr(), views, generator.Options{
 		Output:    format,
@@ -263,6 +279,31 @@ func runGet(cmd *cobra.Command, opts *getOptions, format generator.Output) (err 
 		AllNamespaces: searched == "",
 		TypeOf:        typeOf,
 		NoHeaders:     opts.noHeaders,
+	})
+}
+
+// sortViews orders views by key. Age is newest first, so a freshly submitted
+// workload is at the top, and a missing creation time reads as the oldest and
+// sorts last. Remaining ties fall back to kind, name, namespace and API
+// version, so the order does not depend on the order the cluster listed them.
+func sortViews(views []workload.View, key sortKey) {
+	slices.SortStableFunc(views, func(a, b workload.View) int {
+		switch key {
+		case sortByName:
+			if c := strings.Compare(a.Name, b.Name); c != 0 {
+				return c
+			}
+		default:
+			if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
+				return c
+			}
+		}
+		return cmp.Or(
+			strings.Compare(a.Kind, b.Kind),
+			strings.Compare(a.Name, b.Name),
+			strings.Compare(a.Namespace, b.Namespace),
+			strings.Compare(a.APIVersion, b.APIVersion),
+		)
 	})
 }
 
@@ -498,7 +539,7 @@ func collect(
 
 	for i := range objects {
 		object := &objects[i]
-		view, err := workload.Resolve(ctx, object, def)
+		view, err := workload.Resolve(ctx, object, def, resource.WithReferenceReader(workload.NewReferenceReader(dyn, mapper)), resource.WithReferencesEnabled(!opts.noReferences))
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("could not resolve %s/%s: %v",
 				gvk.Kind, object.GetName(), err))

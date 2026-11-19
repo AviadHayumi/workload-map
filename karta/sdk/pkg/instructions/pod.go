@@ -14,7 +14,11 @@ import (
 func InferPodComponent(ctx context.Context, podQuerier *resource.PodQuerier, summary *StructureSummary) (string, error) {
 	// If there is only one leaf component, the pod must match it
 	if len(summary.leafComponents) == 1 {
-		return summary.leafComponents[0], nil
+		name := summary.leafComponents[0]
+		selector := summary.componentDefinitionsByName[name].PodSelector
+		if selector == nil || len(selector.FromReferences) == 0 {
+			return name, nil
+		}
 	}
 
 	// Only check leaf components (have pod definitions)
@@ -22,7 +26,7 @@ func InferPodComponent(ctx context.Context, podQuerier *resource.PodQuerier, sum
 		leafDefinition := summary.componentDefinitionsByName[componentName]
 
 		// Check if pod matches this component type's selector
-		if leafDefinition.PodSelector != nil {
+		if leafDefinition.PodSelector != nil && len(leafDefinition.PodSelector.FromReferences) == 0 {
 			matches, err := podQuerier.MatchesComponentType(ctx, leafDefinition.PodSelector.ComponentTypeSelector)
 			if err != nil {
 				return "", fmt.Errorf("failed to check if pod matches component %s: %w", componentName, err)

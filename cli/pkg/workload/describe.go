@@ -6,7 +6,6 @@ package workload
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -15,7 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/references"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/tree"
 )
@@ -101,14 +101,48 @@ func (r Resources) scaled(replicas int32) Resources {
 	}
 }
 
+type componentBuilder struct {
+	factory *resource.ComponentFactory
+	defs    map[string]v1alpha1.ComponentDefinition
+	sole    bool
+}
+
+type describeOptions struct {
+	factory       []resource.FactoryOption
+	componentPods map[string][]corev1.Pod
+}
+
+// DescribeOption supplies reference reads or Pods already attributed by the SDK.
+type DescribeOption func(*describeOptions)
+
+// WithDescribeFactoryOptions configures evaluation for live and offline descriptions.
+func WithDescribeFactoryOptions(options ...resource.FactoryOption) DescribeOption {
+	return func(o *describeOptions) { o.factory = append(o.factory, options...) }
+}
+
+func WithDescribeReader(reader references.ResourceReader) DescribeOption {
+	return WithDescribeFactoryOptions(resource.WithReferenceReader(reader))
+}
+
+// WithComponentPods preserves each component's ownership proof. An empty entry
+// means no Pods belong to that component; it never falls back to the union.
+func WithComponentPods(pods map[string][]corev1.Pod) DescribeOption {
+	return func(o *describeOptions) { o.componentPods = pods }
+}
+
 // ResolveDescribe reads obj through def, placing pods on the component and
 // instance its selectors name. pods must already be scoped. Passing none yields
 // the same view with every live field empty, which is what file mode renders;
 // marking the view FileMode is the caller's, since only it knows the source.
 func ResolveDescribe(
-	ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, pods []corev1.Pod,
+	ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, pods []corev1.Pod, options ...DescribeOption,
 ) (*DescribeView, error) {
-	factory := resource.NewComponentFactoryFromObject(def.Karta, obj)
+	settings := describeOptions{}
+	for _, option := range options {
+		option(&settings)
+	}
+	componentPods := settings.componentPods
+	factory := resource.NewComponentFactoryFromObject(def.Karta, obj, settings.factory...)
 
 	workloadTree, err := tree.Build(ctx, factory)
 	if err != nil {
@@ -116,32 +150,24 @@ func ResolveDescribe(
 	}
 
 	view := &DescribeView{
-		View:       viewOf(obj, def, workloadTree),
+		View:       viewOf(obj, def, workloadTree.Status),
 		Components: []ComponentView{},
 	}
 
 	defs := indexComponentDefs(def.Karta)
+	components := componentBuilder{factory: factory, defs: defs, sole: isSolePodOwner(defs)}
 
-	// tree.Build drops the root, but Deployment, StatefulSet, Job and Pod carry
-	// their pod template on it, so the root itself can be pod-bearing.
-	root, err := factory.GetRootComponent()
-	if err != nil {
-		return nil, fmt.Errorf("get root component: %w", err)
-	}
-	if root.HasPodDefinition() {
-		instances, err := rootInstances(ctx, root)
-		if err != nil {
-			return nil, err
-		}
+	root := workloadTree.Root
+	if root.HasPodDefinition {
 		// The root takes the same pod filter and the same selectorless rule
 		// buildComponent applies to a child, so being the root is never on its
 		// own a licence to claim a pod another component owns.
-		claimed, err := matchComponentType(ctx, defs[root.Name()].PodSelector, pods, isSolePodOwner(defs))
+		claimed, err := components.componentPodSet(ctx, root.Name, defs[root.Name].PodSelector, pods, componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("match pods to root component: %w", err)
 		}
 
-		component, err := buildPodBearingComponent(ctx, root.Name(), kindOf(root.Kind()), instances, claimed, defs)
+		component, err := components.buildPodBearingComponent(ctx, root.Name, kindOf(root.Kind), root.Instances, claimed, componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("build root component: %w", err)
 		}
@@ -149,7 +175,7 @@ func ResolveDescribe(
 	}
 
 	for _, node := range workloadTree.Children {
-		component, err := buildComponent(ctx, node, defs, pods)
+		component, err := components.buildComponent(ctx, node, pods, componentPods)
 		if err != nil {
 			return nil, fmt.Errorf("build component %q: %w", node.Name, err)
 		}
@@ -162,32 +188,12 @@ func ResolveDescribe(
 	return view, nil
 }
 
-// rootInstances rebuilds the instance nodes tree.Build discards for the root,
-// so a root-hosted pod template goes through the same path as any component.
-func rootInstances(ctx context.Context, root *resource.Component) ([]tree.InstanceNode, error) {
-	extracted, err := root.GetExtractedInstances(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("extract root instances: %w", err)
-	}
-
-	instances := make([]tree.InstanceNode, 0, len(extracted))
-	for _, id := range slices.Sorted(maps.Keys(extracted)) {
-		instance := extracted[id]
-		node := tree.InstanceNode{Scale: instance.Scale, ExtractedInstance: &instance}
-		if id != "" {
-			node.InstanceKey = &id
-		}
-		instances = append(instances, node)
-	}
-	return instances, nil
-}
-
-// isSolePodOwner reports a definition with a single pod-bearing component, the
-// one case where a component needs no selector to be sure a pod is its own.
+// isSolePodOwner counts components eligible for native ownership. Reference
+// components require separate proof and do not disqualify a sole native owner.
 func isSolePodOwner(defs map[string]v1alpha1.ComponentDefinition) bool {
 	owners := 0
 	for _, def := range defs {
-		if def.SpecDefinition != nil {
+		if def.SpecDefinition != nil && (def.PodSelector == nil || len(def.PodSelector.FromReferences) == 0) {
 			owners++
 		}
 	}
@@ -205,34 +211,46 @@ func indexComponentDefs(karta *v1alpha1.Karta) map[string]v1alpha1.ComponentDefi
 
 // buildComponent renders one ComponentNode and the subtree under it, choosing
 // between the two kinds of component by whether the node carries pods.
-func buildComponent(
-	ctx context.Context, node tree.ComponentNode, defs map[string]v1alpha1.ComponentDefinition, pods []corev1.Pod,
+func (components componentBuilder) buildComponent(
+	ctx context.Context, node tree.ComponentNode, pods []corev1.Pod, componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	kind := kindOf(node.Kind)
-	def := defs[node.Name]
+	def := components.defs[node.Name]
 
 	claimed := pods
 	if node.HasPodDefinition {
 		var err error
-		if claimed, err = matchComponentType(ctx, def.PodSelector, pods, isSolePodOwner(defs)); err != nil {
+		if claimed, err = components.componentPodSet(ctx, node.Name, def.PodSelector, pods, componentPods); err != nil {
 			return ComponentView{}, fmt.Errorf("match pods to component %q: %w", node.Name, err)
 		}
 	}
 
 	if !isMultiInstance(node.Instances) {
 		if node.HasPodDefinition {
-			return buildPodBearingComponent(ctx, node.Name, kind, node.Instances, claimed, defs)
+			return components.buildPodBearingComponent(ctx, node.Name, kind, node.Instances, claimed, componentPods)
 		}
-		return buildGroupingComponent(ctx, node.Name, kind, node.Instances, claimed, defs)
+		return components.buildGroupingComponent(ctx, node.Name, kind, node.Instances, claimed, componentPods)
 	}
 
 	// A grouping component takes this path too: it holds no pods itself, but its
 	// ReplicaSelector still decides which pods its descendants may see.
 	parent := ComponentView{Name: node.Name, Kind: kind}
 	for _, instance := range node.Instances {
-		scoped, err := filterByInstance(ctx, def.PodSelector, instance, claimed)
+		scoped, err := components.filterByInstance(ctx, def.PodSelector, instance, claimed)
 		if err != nil {
 			return ComponentView{}, fmt.Errorf("match pods to instance of %q: %w", node.Name, err)
+		}
+
+		scopedComponentPods := componentPods
+		if componentPods != nil {
+			scopedComponentPods = make(map[string][]corev1.Pod, len(componentPods))
+			for name, assigned := range componentPods {
+				matched, err := components.filterByInstance(ctx, def.PodSelector, instance, assigned)
+				if err != nil {
+					return ComponentView{}, fmt.Errorf("scope assigned Pods to %q: %w", node.Name, err)
+				}
+				scopedComponentPods[name] = matched
+			}
 		}
 
 		label := instanceLabel(node.Name, instance)
@@ -240,9 +258,9 @@ func buildComponent(
 
 		var child ComponentView
 		if node.HasPodDefinition {
-			child, err = buildPodBearingComponent(ctx, label, kind, one, scoped, defs)
+			child, err = components.buildPodBearingComponent(ctx, label, kind, one, scoped, scopedComponentPods)
 		} else {
-			child, err = buildGroupingComponent(ctx, label, kind, one, scoped, defs)
+			child, err = components.buildGroupingComponent(ctx, label, kind, one, scoped, scopedComponentPods)
 		}
 		if err != nil {
 			return ComponentView{}, err
@@ -255,17 +273,17 @@ func buildComponent(
 }
 
 // buildGroupingComponent renders a component that owns no pods, only descendants.
-func buildGroupingComponent(
+func (components componentBuilder) buildGroupingComponent(
 	ctx context.Context,
 	name, kind string,
 	instances []tree.InstanceNode,
 	pods []corev1.Pod,
-	defs map[string]v1alpha1.ComponentDefinition,
+	componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	component := ComponentView{Name: name, Kind: kind}
 	for _, instance := range instances {
 		for _, node := range instance.Children {
-			child, err := buildComponent(ctx, node, defs, pods)
+			child, err := components.buildComponent(ctx, node, pods, componentPods)
 			if err != nil {
 				return ComponentView{}, err
 			}
@@ -290,12 +308,12 @@ func buildGroupingComponent(
 
 // buildPodBearingComponent renders a component that carries pods. pods must
 // already be matched to it: the scale and per-replica request come off the spec.
-func buildPodBearingComponent(
+func (components componentBuilder) buildPodBearingComponent(
 	ctx context.Context,
 	name, kind string,
 	instances []tree.InstanceNode,
 	pods []corev1.Pod,
-	defs map[string]v1alpha1.ComponentDefinition,
+	componentPods map[string][]corev1.Pod,
 ) (ComponentView, error) {
 	component := ComponentView{Name: name, Kind: kind}
 	component.attach(pods)
@@ -308,7 +326,7 @@ func buildPodBearingComponent(
 		}
 
 		for _, node := range instance.Children {
-			child, err := buildComponent(ctx, node, defs, pods)
+			child, err := components.buildComponent(ctx, node, pods, componentPods)
 			if err != nil {
 				return ComponentView{}, err
 			}
@@ -432,14 +450,14 @@ func instanceLabel(componentName string, instance tree.InstanceNode) string {
 }
 
 // matchComponentType keeps the pods a component's ComponentTypeSelector accepts.
-// claimsAll settles the nil-selector case: with nothing to tell components
+// The sole Pod owner settles the nil-selector case: with nothing to tell components
 // apart, claiming every pod is right for the only one that can own them and
 // wrong for a peer that would double-count what a sibling already reported.
-func matchComponentType(
-	ctx context.Context, selector *v1alpha1.PodSelector, pods []corev1.Pod, claimsAll bool,
+func (components componentBuilder) matchComponentType(
+	ctx context.Context, selector *v1alpha1.PodSelector, pods []corev1.Pod,
 ) ([]corev1.Pod, error) {
 	if selector == nil || selector.ComponentTypeSelector == nil {
-		if claimsAll {
+		if components.sole {
 			return pods, nil
 		}
 		// Known gap: a pod no component claims goes unlisted. The view has
@@ -448,7 +466,7 @@ func matchComponentType(
 	}
 	var matched []corev1.Pod
 	for i := range pods {
-		ok, err := resource.NewPodQuerier(&pods[i]).MatchesComponentType(ctx, selector.ComponentTypeSelector)
+		ok, err := components.factory.NewPodQuerier(&pods[i]).MatchesComponentType(ctx, selector.ComponentTypeSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -461,7 +479,7 @@ func matchComponentType(
 
 // filterByInstance narrows a component's pods to one instance, by instance id or
 // replica key. With neither, every pod reaches every instance.
-func filterByInstance(
+func (components componentBuilder) filterByInstance(
 	ctx context.Context, selector *v1alpha1.PodSelector, instance tree.InstanceNode, pods []corev1.Pod,
 ) ([]corev1.Pod, error) {
 	if selector == nil {
@@ -469,7 +487,7 @@ func filterByInstance(
 	}
 	var matched []corev1.Pod
 	for i := range pods {
-		querier := resource.NewPodQuerier(&pods[i])
+		querier := components.factory.NewPodQuerier(&pods[i])
 		if instance.InstanceKey != nil {
 			id, found, err := querier.ExtractInstanceId(ctx, selector.ComponentInstanceSelector)
 			if err != nil {
@@ -620,4 +638,14 @@ func kindOf(gvk *metav1.GroupVersionKind) string {
 		return ""
 	}
 	return gvk.Kind
+}
+
+func (components componentBuilder) componentPodSet(ctx context.Context, name string, selector *v1alpha1.PodSelector, pods []corev1.Pod, assigned map[string][]corev1.Pod) ([]corev1.Pod, error) {
+	if assigned != nil {
+		return assigned[name], nil
+	}
+	if selector != nil && len(selector.FromReferences) > 0 {
+		return nil, nil
+	}
+	return components.matchComponentType(ctx, selector, pods)
 }

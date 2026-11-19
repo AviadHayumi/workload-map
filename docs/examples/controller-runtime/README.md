@@ -164,6 +164,10 @@ kubectl describe leaderworkerset karta-demo-lws | sed -n '/Events:/,$p'
 Normal  StatusChanged  Workload status changed: Running -> Initializing (replicas=4 cpu=200m memory=128Mi gpu=0)
 ```
 
+Workloads with declared references are also checked once a minute. A runtime
+edit can therefore update a TrainJob summary without an edit to the TrainJob.
+Grant the controller read access to the referenced resource first.
+
 ## Change the definition live
 
 The controller also watches Karta objects. Editing the one whose root component

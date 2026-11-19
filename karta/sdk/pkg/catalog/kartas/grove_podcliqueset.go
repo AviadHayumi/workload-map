@@ -7,144 +7,298 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha2 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
-// GrovePodCliqueSet returns the built-in Karta for the Grove PodCliqueSet
-// workload (grove.io/v1alpha1).
-func GrovePodCliqueSet() *v1alpha1.Karta {
-	return &v1alpha1.Karta{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "run.ai/v1alpha1", Kind: "Karta"},
-		ObjectMeta: metav1.ObjectMeta{Name: "grove-io-podcliqueset-v1alpha1"},
-		Spec: v1alpha1.KartaSpec{
-			StructureDefinition: v1alpha1.StructureDefinition{
-				RootComponent: v1alpha1.ComponentDefinition{
-					Name: "podcliqueset",
-					Kind: &v1alpha1.GroupVersionKind{Group: "grove.io", Version: "v1alpha1", Kind: "PodCliqueSet"},
-					// Grove PCS has no aggregate phase field. The reliable signal for
-					// running/initializing is replica counts (availableReplicas vs
-					// spec.replicas). TopologyLevelsUnavailable is the only PCS-level
-					// failure condition (TAS-specific); broader failures surface on
-					// child PodClique/Pod resources.
-					StatusDefinition: &v1alpha1.StatusDefinition{
-						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:             ".status.conditions",
-							TypeFieldName:    "type",
-							StatusFieldName:  "status",
-							ReasonFieldName:  ptr.To("reason"),
-							MessageFieldName: ptr.To("message"),
-						},
-						StatusMappings: v1alpha1.StatusMappings{
-							Failed: []v1alpha1.StatusMatcher{{ByConditions: []v1alpha1.ExpectedCondition{{Type: "TopologyLevelsUnavailable", Status: ptr.To("True")}}}},
-							Running: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								// Matches when all desired replicas are available (including the
-								// vacuous replicas=0 case, same as k8s Deployment Available=True).
-								Expression:     "(.status.availableReplicas // 0) >= (.spec.replicas // 0)",
-								ExpectedResult: "true",
-							}}},
-							Initializing: []v1alpha1.StatusMatcher{{ByExpression: &v1alpha1.ExpressionMatcher{
-								Expression:     "(.spec.replicas // 0) > 0 and (.status.availableReplicas // 0) < (.spec.replicas // 0)",
-								ExpectedResult: "true",
-							}}},
-						},
-					},
+// GrovePodCliqueSet returns the built-in Karta for PodCliqueSet.
+func GrovePodCliqueSet() *v1alpha2.Karta {
+	return &v1alpha2.Karta{TypeMeta: metav1.TypeMeta{APIVersion: "run.ai/v1alpha2", Kind: "Karta"}, ObjectMeta: metav1.ObjectMeta{Name: "grove-io-podcliqueset-v1alpha1"}, Spec: v1alpha2.KartaSpec{
+		Variables: []v1alpha2.Variable{
+			{
+				Name:       "cliques",
+				Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]`,
+			},
+			{
+				Name:       "scalingGroups",
+				Expression: `([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]`,
+			},
+			{
+				Name:       "cliqueReplicas",
+				Expression: "variables.cliques.map(c, c.?spec.?replicas.orValue(dyn(null)) == null ? 1 : dyn(c.spec.replicas))",
+			},
+			{
+				Name:       "scalingGroupReplicas",
+				Expression: "variables.scalingGroups.map(g, g.?replicas.orValue(dyn(null)) == null ? 1 : dyn(g.replicas))",
+			},
+			{
+				Name:       "statusAvailableReplicas",
+				Expression: "([dyn(object.?status.?availableReplicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]",
+			},
+			{
+				Name:       "specReplicas",
+				Expression: "([dyn(object.?spec.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]",
+			},
+			{
+				Name:       "specReplicasForWorkers",
+				Expression: "([dyn(object.?spec.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]",
+			},
+		},
+		StructureDefinition: v1alpha2.StructureDefinition{
+			RootComponent: v1alpha2.ComponentDefinition{
+				Name: "podcliqueset",
+				Kind: &v1alpha2.GroupVersionKind{
+					Group:   "grove.io",
+					Version: "v1alpha1",
+					Kind:    "PodCliqueSet",
 				},
-				ChildComponents: []v1alpha1.ComponentDefinition{
-					// Standalone PodCliques (entries under .spec.template.cliques that are NOT
-					// referenced by any .spec.template.podCliqueScalingGroups[].cliqueNames).
-					// PodCliques inside a scaling group are owned by the PodCliqueScalingGroup,
-					// so they are reached through the `scalinggroup` child below.
-					{
-						Name:     "clique",
-						Kind:     &v1alpha1.GroupVersionKind{Group: "grove.io", Version: "v1alpha1", Kind: "PodClique"},
-						OwnerRef: ptr.To("podcliqueset"),
-						SpecDefinition: &v1alpha1.SpecDefinition{
-							FragmentedPodSpecDefinition: &v1alpha1.FragmentedPodSpecDefinition{
-								SchedulerNamePath:     ptr.To(".spec.template.cliques[].spec.podSpec.schedulerName"),
-								LabelsPath:            ptr.To(".spec.template.cliques[].labels"),
-								AnnotationsPath:       ptr.To(".spec.template.cliques[].annotations"),
-								ContainersPath:        ptr.To(".spec.template.cliques[].spec.podSpec.containers"),
-								ResourceClaimsPath:    ptr.To(".spec.template.cliques[].spec.podSpec.resourceClaims"),
-								PriorityClassNamePath: ptr.To(".spec.template.cliques[].spec.podSpec.priorityClassName"),
-								PodAffinityPath:       ptr.To(".spec.template.cliques[].spec.podSpec.affinity.podAffinity"),
-								NodeAffinityPath:      ptr.To(".spec.template.cliques[].spec.podSpec.affinity.nodeAffinity"),
+				StatusDefinition: &v1alpha2.StatusDefinition{
+					ConditionsDefinition: &v1alpha2.ConditionsDefinition{
+						Read: v1alpha2.ReadAccessor{
+							Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`,
+						},
+						TypeFieldName:    "type",
+						StatusFieldName:  "status",
+						MessageFieldName: ptr.To("message"),
+						ReasonFieldName:  ptr.To("reason"),
+					},
+					StatusMappings: v1alpha2.StatusMappings{
+						Initializing: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"spec"][?"replicas"].orValue(0) > 0 && object[?"status"][?"availableReplicas"].orValue(0) < object[?"spec"][?"replicas"].orValue(0)`,
+								},
 							},
 						},
-						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							// PCS multiplies replicas: total pods = PCS.replicas * clique.replicas
-							ReplicasPath:    ptr.To("(.spec.replicas // 1) * (.spec.template.cliques[].spec.replicas // 1)"),
-							MinReplicasPath: ptr.To(".spec.template.cliques[].spec.autoScalingConfig.minReplicas"),
-							MaxReplicasPath: ptr.To(".spec.template.cliques[].spec.autoScalingConfig.maxReplicas"),
-						},
-						InstanceIdPath: ptr.To(".spec.template.cliques[].name"),
-						PodSelector: &v1alpha1.PodSelector{
-							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-								IdPath: `.metadata.labels["grove.io/podclique"]`,
+						Running: []v1alpha2.StatusMatcher{
+							{
+								ByExpression: &v1alpha2.ExpressionMatcher{
+									Expression: `object[?"status"][?"availableReplicas"].orValue(0) >= object[?"spec"][?"replicas"].orValue(0)`,
+								},
 							},
-							ReplicaSelector: &v1alpha1.ReplicaSelector{
-								KeyPath: `.metadata.labels["grove.io/podcliqueset-replica-index"]`,
+						},
+						Failed: []v1alpha2.StatusMatcher{
+							{
+								ByConditions: []v1alpha2.ExpectedCondition{
+									{
+										Type:   "TopologyLevelsUnavailable",
+										Status: ptr.To("True"),
+									},
+								},
 							},
 						},
 					},
-					// PodCliqueScalingGroups (each entry under .spec.template.podCliqueScalingGroups
-					// becomes a PodCliqueScalingGroup CR per PCS replica).
-					{
-						Name:     "scalinggroup",
-						Kind:     &v1alpha1.GroupVersionKind{Group: "grove.io", Version: "v1alpha1", Kind: "PodCliqueScalingGroup"},
-						OwnerRef: ptr.To("podcliqueset"),
-						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath:    ptr.To("(.spec.replicas // 1) * (.spec.template.podCliqueScalingGroups[].replicas // 1)"),
-							MinReplicasPath: ptr.To(".spec.template.podCliqueScalingGroups[].scaleConfig.minReplicas"),
-							MaxReplicasPath: ptr.To(".spec.template.podCliqueScalingGroups[].scaleConfig.maxReplicas"),
-						},
-						InstanceIdPath: ptr.To(".spec.template.podCliqueScalingGroups[].name"),
-						PodSelector: &v1alpha1.PodSelector{
-							ComponentInstanceSelector: &v1alpha1.ComponentInstanceSelector{
-								IdPath: `.metadata.labels["grove.io/podcliquescalinggroup"]`,
-							},
-							ReplicaSelector: &v1alpha1.ReplicaSelector{
-								KeyPath: `.metadata.labels["grove.io/podcliquescalinggroup-replica-index"]`,
-							},
-						},
-					},
-				},
-				AdditionalChildKinds: []v1alpha1.GroupVersionKind{
-					// PodCliques owned indirectly via PodCliqueScalingGroups also live in the tree.
-					{Group: "grove.io", Version: "v1alpha1", Kind: "PodClique"},
-					// PodCliqueScalingGroup must also appear here (even though it is a childComponent
-					// above) so the external-workload-integrator's top-owner walker recognises it as
-					// part of this workload and continues past it to reach the PCS root. Without this,
-					// scaling-group pods get a top-owner of their own PodClique CR and form a separate workload.
-					{Group: "grove.io", Version: "v1alpha1", Kind: "PodCliqueScalingGroup"},
-					// Gang-scheduling primitive emitted by Grove for each PCS replica.
-					{Group: "scheduler.grove.io", Version: "v1alpha1", Kind: "PodGang"},
 				},
 			},
-			// Each PodCliqueSet replica is a gang: every pod (from standalone cliques and
-			// scaling groups) sharing the same PCS name + replica index must be co-scheduled.
-			Instructions: v1alpha1.OptimizationInstructions{
-				GangScheduling: &v1alpha1.GangSchedulingInstruction{
-					PodGroups: []v1alpha1.PodGroupDefinition{{
+			ChildComponents: []v1alpha2.ComponentDefinition{
+				{
+					Name: "clique",
+					Kind: &v1alpha2.GroupVersionKind{
+						Group:   "grove.io",
+						Version: "v1alpha1",
+						Kind:    "PodClique",
+					},
+					OwnerRef: ptr.To("podcliqueset"),
+					SpecDefinition: &v1alpha2.SpecDefinition{
+						FragmentedPodSpecDefinition: &v1alpha2.FragmentedPodSpecDefinition{
+							SchedulerName: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"schedulerName"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/schedulerName"`,
+								},
+							},
+							Labels: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"labels"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/labels"`,
+								},
+							},
+							Annotations: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"annotations"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/annotations"`,
+								},
+							},
+							ResourceClaims: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"resourceClaims"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/resourceClaims"`,
+								},
+							},
+							PodAffinity: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"affinity"][?"podAffinity"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/affinity/podAffinity"`,
+								},
+							},
+							NodeAffinity: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"affinity"][?"nodeAffinity"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/affinity/nodeAffinity"`,
+								},
+							},
+							Containers: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"containers"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/containers"`,
+								},
+							},
+							PriorityClassName: &v1alpha2.ValueAccessor{
+								Read: &v1alpha2.ReadAccessor{
+									Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"priorityClassName"].orValue(dyn(null)))`,
+								},
+								Write: &v1alpha2.WriteAccessor{
+									PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/podSpec/priorityClassName"`,
+								},
+							},
+						},
+					},
+					ScaleDefinition: &v1alpha2.ScaleDefinition{
+						Replicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: "variables.cliqueReplicas.map(v, variables.specReplicasForWorkers * v)",
+							},
+						},
+						MinReplicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"autoScalingConfig"][?"minReplicas"].orValue(dyn(null)))`,
+							},
+							Write: &v1alpha2.WriteAccessor{
+								PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/autoScalingConfig/minReplicas"`,
+							},
+						},
+						MaxReplicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"autoScalingConfig"][?"maxReplicas"].orValue(dyn(null)))`,
+							},
+							Write: &v1alpha2.WriteAccessor{
+								PathExpression: `"/spec/template/cliques/" + string(index) + "/spec/autoScalingConfig/maxReplicas"`,
+							},
+						},
+					},
+					InstanceIds: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))`,
+						},
+					},
+					PodSelector: &v1alpha2.PodSelector{
+						ComponentInstanceSelector: &v1alpha2.ComponentInstanceSelector{
+							Read: v1alpha2.ReadAccessor{
+								Expression: `object[?"metadata"][?"labels"][?"grove.io/podclique"].orValue(dyn(null))`,
+							},
+						},
+						ReplicaSelector: &v1alpha2.ReplicaSelector{
+							Read: v1alpha2.ReadAccessor{
+								Expression: `object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))`,
+							},
+						},
+					},
+				},
+				{
+					Name: "scalinggroup",
+					Kind: &v1alpha2.GroupVersionKind{
+						Group:   "grove.io",
+						Version: "v1alpha1",
+						Kind:    "PodCliqueScalingGroup",
+					},
+					OwnerRef: ptr.To("podcliqueset"),
+					ScaleDefinition: &v1alpha2.ScaleDefinition{
+						Replicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: "variables.scalingGroupReplicas.map(v, variables.specReplicasForWorkers * v)",
+							},
+						},
+						MinReplicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: `([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"scaleConfig"][?"minReplicas"].orValue(dyn(null)))`,
+							},
+							Write: &v1alpha2.WriteAccessor{
+								PathExpression: `"/spec/template/podCliqueScalingGroups/" + string(index) + "/scaleConfig/minReplicas"`,
+							},
+						},
+						MaxReplicas: &v1alpha2.ValueAccessor{
+							Read: &v1alpha2.ReadAccessor{
+								Expression: `([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"scaleConfig"][?"maxReplicas"].orValue(dyn(null)))`,
+							},
+							Write: &v1alpha2.WriteAccessor{
+								PathExpression: `"/spec/template/podCliqueScalingGroups/" + string(index) + "/scaleConfig/maxReplicas"`,
+							},
+						},
+					},
+					InstanceIds: &v1alpha2.ValueAccessor{
+						Read: &v1alpha2.ReadAccessor{
+							Expression: `([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))`,
+						},
+					},
+					PodSelector: &v1alpha2.PodSelector{
+						ComponentInstanceSelector: &v1alpha2.ComponentInstanceSelector{
+							Read: v1alpha2.ReadAccessor{
+								Expression: `object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup"].orValue(dyn(null))`,
+							},
+						},
+						ReplicaSelector: &v1alpha2.ReplicaSelector{
+							Read: v1alpha2.ReadAccessor{
+								Expression: `object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup-replica-index"].orValue(dyn(null))`,
+							},
+						},
+					},
+				},
+			},
+			AdditionalChildKinds: []v1alpha2.GroupVersionKind{
+				{
+					Group:   "grove.io",
+					Version: "v1alpha1",
+					Kind:    "PodClique",
+				},
+				{
+					Group:   "grove.io",
+					Version: "v1alpha1",
+					Kind:    "PodCliqueScalingGroup",
+				},
+				{
+					Group:   "scheduler.grove.io",
+					Version: "v1alpha1",
+					Kind:    "PodGang",
+				},
+			},
+		},
+		Instructions: v1alpha2.OptimizationInstructions{
+			GangScheduling: &v1alpha2.GangSchedulingInstruction{
+				PodGroups: []v1alpha2.PodGroupDefinition{
+					{
 						Name: "podcliqueset-replica",
-						Members: []v1alpha1.PodGroupMemberDefinition{
+						Members: []v1alpha2.PodGroupMemberDefinition{
 							{
 								ComponentName: "clique",
-								GroupByKeyPaths: []string{
-									`.metadata.labels["app.kubernetes.io/part-of"]`,
-									`.metadata.labels["grove.io/podcliqueset-replica-index"]`,
+								GroupByExpressions: []string{
+									`object[?"metadata"][?"labels"][?"app.kubernetes.io/part-of"].orValue(dyn(null))`,
+									`object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))`,
 								},
 							},
 							{
 								ComponentName: "scalinggroup",
-								GroupByKeyPaths: []string{
-									`.metadata.labels["app.kubernetes.io/part-of"]`,
-									`.metadata.labels["grove.io/podcliqueset-replica-index"]`,
+								GroupByExpressions: []string{
+									`object[?"metadata"][?"labels"][?"app.kubernetes.io/part-of"].orValue(dyn(null))`,
+									`object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))`,
 								},
 							},
 						},
-					}},
+					},
 				},
 			},
 		},
-	}
+	}}
 }

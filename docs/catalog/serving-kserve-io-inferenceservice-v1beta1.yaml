@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: serving-kserve-io-inferenceservice-v1beta1
 spec:
+  variables:
+    - name: containerKeys
+      expression: ([dyn(object[?"spec"][?"predictor"].orValue(dyn(null)))].filter(v, type(v) == map) + [{}])[0].map(k, string(k)).sort().filter(k, type(object.spec.predictor[k]) == map && "storageUri" in object.spec.predictor[k] && object.spec.predictor[k]["storageUri"] != null && object.spec.predictor[k]["storageUri"] != false)
   structureDefinition:
     rootComponent:
       name: inferenceservice
@@ -14,7 +17,8 @@ spec:
         kind: InferenceService
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -44,20 +48,63 @@ spec:
         ownerRef: inferenceservice
         specDefinition:
           fragmentedPodSpecDefinition:
-            schedulerNamePath: .spec.predictor.schedulerName
-            labelsPath: .spec.predictor.labels
-            annotationsPath: .spec.predictor.annotations
-            podAffinityPath: .spec.predictor.affinity.podAffinity
-            nodeAffinityPath: .spec.predictor.affinity.nodeAffinity
-            containersPath: .spec.predictor.containers
-            containerPath: .spec.predictor | ( (.[]?  | select(type =="object" and .storageUri )))
-            priorityClassNamePath: .spec.predictor.priorityClassName
+            schedulerName:
+              read:
+                expression: object[?"spec"][?"predictor"][?"schedulerName"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/schedulerName
+            labels:
+              read:
+                expression: object[?"spec"][?"predictor"][?"labels"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/labels
+            annotations:
+              read:
+                expression: object[?"spec"][?"predictor"][?"annotations"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/annotations
+            podAffinity:
+              read:
+                expression: object[?"spec"][?"predictor"][?"affinity"][?"podAffinity"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/affinity/podAffinity
+            nodeAffinity:
+              read:
+                expression: object[?"spec"][?"predictor"][?"affinity"][?"nodeAffinity"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/affinity/nodeAffinity
+            containers:
+              read:
+                expression: object[?"spec"][?"predictor"][?"containers"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/containers
+            container:
+              read:
+                matchExpression: variables.containerKeys.size() > 0
+                expression: 'variables.containerKeys.size() == 1 ? object.spec.predictor[variables.containerKeys[0]] : variables.containerKeys.map(k, object.spec.predictor[k])'
+              write:
+                matchExpression: variables.containerKeys.size() == 1
+                pathExpression: '"/spec/predictor/" + variables.containerKeys[0].replace("~", "~0").replace("/", "~1")'
+            priorityClassName:
+              read:
+                expression: object[?"spec"][?"predictor"][?"priorityClassName"].orValue(dyn(null))
+              write:
+                path: /spec/predictor/priorityClassName
         scaleDefinition:
-          minReplicasPath: .spec.predictor.minReplicas
-          maxReplicasPath: .spec.predictor.maxReplicas
+          minReplicas:
+            read:
+              expression: object[?"spec"][?"predictor"][?"minReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/predictor/minReplicas
+          maxReplicas:
+            read:
+              expression: object[?"spec"][?"predictor"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/predictor/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))
             value: predictor
       - name: transformer
         kind:
@@ -66,14 +113,31 @@ spec:
           kind: Deployment
         ownerRef: inferenceservice
         specDefinition:
-          podSpecPath: .spec.transformer
-          metadataPath: .spec.transformer
+          podSpec:
+            read:
+              expression: object[?"spec"][?"transformer"].orValue(dyn(null))
+            write:
+              path: /spec/transformer
+          metadata:
+            read:
+              expression: object[?"spec"][?"transformer"].orValue(dyn(null))
+            write:
+              path: /spec/transformer
         scaleDefinition:
-          minReplicasPath: .spec.transformer.minReplicas
-          maxReplicasPath: .spec.transformer.maxReplicas
+          minReplicas:
+            read:
+              expression: object[?"spec"][?"transformer"][?"minReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/transformer/minReplicas
+          maxReplicas:
+            read:
+              expression: object[?"spec"][?"transformer"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/transformer/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["component"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"component"].orValue(dyn(null))
             value: transformer
   optimizationInstructions:
     gangScheduling:
@@ -81,8 +145,8 @@ spec:
         - name: service
           members:
             - componentName: predictor
-              groupByKeyPaths:
-                - .metadata.labels["serving.kserve.io/inferenceservice"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"serving.kserve.io/inferenceservice"].orValue(dyn(null))
             - componentName: transformer
-              groupByKeyPaths:
-                - .metadata.labels["serving.kserve.io/inferenceservice"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"serving.kserve.io/inferenceservice"].orValue(dyn(null))

@@ -5,8 +5,11 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,8 +23,10 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog/kartas"
+	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/cel"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/resource"
 )
 
@@ -259,8 +264,8 @@ spec:
 		karta := kartaNamed("apps-deployment-v1")
 		karta.Spec.StructureDefinition.RootComponent.PodSelector = &v1alpha1.PodSelector{
 			ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-				KeyPath: `.metadata.labels["role"]`,
-				Value:   ptr.To("serve"),
+				Read:  v1alpha1.ReadAccessor{Expression: `object.?metadata.?labels[?"role"].orValue("")`},
+				Value: ptr.To("serve"),
 			},
 		}
 
@@ -639,4 +644,18 @@ func kartaNamed(name string) *v1alpha1.Karta {
 	}
 	Fail("no catalog definition named " + name)
 	return nil
+}
+
+func TestResolveDescribeAppliesBudgetToPodSelector(t *testing.T) {
+	def := kartas.Deployment()
+	root := &def.Spec.StructureDefinition.RootComponent
+	root.StatusDefinition = &v1alpha1.StatusDefinition{}
+	root.ScaleDefinition = nil
+	root.SpecDefinition = &v1alpha1.SpecDefinition{PodSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: "{}"}}}
+	root.PodSelector = &v1alpha1.PodSelector{ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{Read: v1alpha1.ReadAccessor{Expression: `[1,2,3,4,5].map(x,x*x).size()==5 ? "yes":"no"`}, Value: ptr.To("yes")}}
+	object := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]any{"name": "sample"}}}
+	_, err := ResolveDescribe(t.Context(), object, definitions.Definition{Karta: def}, []corev1.Pod{{}}, WithDescribeFactoryOptions(resource.WithEvaluationLimits(35, 0)))
+	if !errors.Is(err, cel.ErrCostLimit) || !strings.Contains(err.Error(), "match pods to root component") {
+		t.Fatalf("expected Pod selector to fail at caller's budget: %v", err)
+	}
 }

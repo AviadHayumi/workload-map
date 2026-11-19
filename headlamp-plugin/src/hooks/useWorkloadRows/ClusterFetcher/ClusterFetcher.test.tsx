@@ -36,7 +36,7 @@ import { ClusterFetcher, ClusterState } from './ClusterFetcher';
 function definition(name: string, group: string, version: string, kind = name): Definition {
   return {
     karta: {
-      apiVersion: 'run.ai/v1alpha1',
+      apiVersion: 'run.ai/v1alpha2',
       kind: 'Karta',
       metadata: { name },
       spec: { structureDefinition: { rootComponent: { kind: { group, version, kind } } } },

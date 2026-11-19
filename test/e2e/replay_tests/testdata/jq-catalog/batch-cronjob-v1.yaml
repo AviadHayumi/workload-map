@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha1
+metadata:
+  name: batch-cronjob-v1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: cronjob
+      kind:
+        group: batch
+        version: v1
+        kind: CronJob
+      specDefinition:
+        podTemplateSpecPath: .spec.jobTemplate.spec.template
+      scaleDefinition:
+        replicasPath: .spec.jobTemplate.spec.parallelism // 1
+      statusDefinition:
+        statusMappings:
+          initializing:
+            - byExpression:
+                expression: (.spec.suspend // false) != true and (.status.lastScheduleTime == null)
+                expectedResult: "true"
+          running:
+            - byExpression:
+                expression: (.spec.suspend // false) != true and (.status.lastScheduleTime != null)
+                expectedResult: "true"
+          suspended:
+            - byExpression:
+                expression: (.spec.suspend // false) == true
+                expectedResult: "true"
+      suspendDefinition:
+        suspendActions:
+          - path: .spec.suspend
+            value: "true"
+        resumeActions:
+          - path: .spec.suspend
+            value: "false"
+    childComponents:
+      - name: job
+        kind:
+          group: batch
+          version: v1
+          kind: Job
+        ownerRef: cronjob
+  optimizationInstructions: {}

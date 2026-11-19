@@ -1,10 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: grove-io-podcliqueset-v1alpha1
 spec:
+  variables:
+    - name: cliques
+      expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]
+    - name: scalingGroups
+      expression: ([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0]
+    - name: cliqueReplicas
+      expression: 'variables.cliques.map(c, c.?spec.?replicas.orValue(dyn(null)) == null ? 1 : dyn(c.spec.replicas))'
+    - name: scalingGroupReplicas
+      expression: 'variables.scalingGroups.map(g, g.?replicas.orValue(dyn(null)) == null ? 1 : dyn(g.replicas))'
+    - name: statusAvailableReplicas
+      expression: ([dyn(object.?status.?availableReplicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: specReplicas
+      expression: ([dyn(object.?spec.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [0])[0]
+    - name: specReplicasForWorkers
+      expression: ([dyn(object.?spec.?replicas.orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
     rootComponent:
       name: podcliqueset
@@ -14,7 +29,8 @@ spec:
         kind: PodCliqueSet
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -22,12 +38,10 @@ spec:
         statusMappings:
           initializing:
             - byExpression:
-                expression: (.spec.replicas // 0) > 0 and (.status.availableReplicas // 0) < (.spec.replicas // 0)
-                expectedResult: "true"
+                expression: object[?"spec"][?"replicas"].orValue(0) > 0 && object[?"status"][?"availableReplicas"].orValue(0) < object[?"spec"][?"replicas"].orValue(0)
           running:
             - byExpression:
-                expression: (.status.availableReplicas // 0) >= (.spec.replicas // 0)
-                expectedResult: "true"
+                expression: object[?"status"][?"availableReplicas"].orValue(0) >= object[?"spec"][?"replicas"].orValue(0)
           failed:
             - byConditions:
                 - type: TopologyLevelsUnavailable
@@ -41,24 +55,70 @@ spec:
         ownerRef: podcliqueset
         specDefinition:
           fragmentedPodSpecDefinition:
-            schedulerNamePath: .spec.template.cliques[].spec.podSpec.schedulerName
-            labelsPath: .spec.template.cliques[].labels
-            annotationsPath: .spec.template.cliques[].annotations
-            resourceClaimsPath: .spec.template.cliques[].spec.podSpec.resourceClaims
-            podAffinityPath: .spec.template.cliques[].spec.podSpec.affinity.podAffinity
-            nodeAffinityPath: .spec.template.cliques[].spec.podSpec.affinity.nodeAffinity
-            containersPath: .spec.template.cliques[].spec.podSpec.containers
-            priorityClassNamePath: .spec.template.cliques[].spec.podSpec.priorityClassName
+            schedulerName:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"schedulerName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/schedulerName"'
+            labels:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"labels"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/labels"'
+            annotations:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"annotations"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/annotations"'
+            resourceClaims:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"resourceClaims"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/resourceClaims"'
+            podAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"affinity"][?"podAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/affinity/podAffinity"'
+            nodeAffinity:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"affinity"][?"nodeAffinity"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/affinity/nodeAffinity"'
+            containers:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"containers"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/containers"'
+            priorityClassName:
+              read:
+                expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"podSpec"][?"priorityClassName"].orValue(dyn(null)))
+              write:
+                pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/podSpec/priorityClassName"'
         scaleDefinition:
-          replicasPath: (.spec.replicas // 1) * (.spec.template.cliques[].spec.replicas // 1)
-          minReplicasPath: .spec.template.cliques[].spec.autoScalingConfig.minReplicas
-          maxReplicasPath: .spec.template.cliques[].spec.autoScalingConfig.maxReplicas
-        instanceIdPath: .spec.template.cliques[].name
+          replicas:
+            read:
+              expression: variables.cliqueReplicas.map(v, variables.specReplicasForWorkers * v)
+          minReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"autoScalingConfig"][?"minReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/autoScalingConfig/minReplicas"'
+          maxReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"spec"][?"autoScalingConfig"][?"maxReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/template/cliques/" + string(index) + "/spec/autoScalingConfig/maxReplicas"'
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"template"][?"cliques"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["grove.io/podclique"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podclique"].orValue(dyn(null))
           replicaSelector:
-            keyPath: .metadata.labels["grove.io/podcliqueset-replica-index"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))
       - name: scalinggroup
         kind:
           group: grove.io
@@ -66,15 +126,29 @@ spec:
           kind: PodCliqueScalingGroup
         ownerRef: podcliqueset
         scaleDefinition:
-          replicasPath: (.spec.replicas // 1) * (.spec.template.podCliqueScalingGroups[].replicas // 1)
-          minReplicasPath: .spec.template.podCliqueScalingGroups[].scaleConfig.minReplicas
-          maxReplicasPath: .spec.template.podCliqueScalingGroups[].scaleConfig.maxReplicas
-        instanceIdPath: .spec.template.podCliqueScalingGroups[].name
+          replicas:
+            read:
+              expression: variables.scalingGroupReplicas.map(v, variables.specReplicasForWorkers * v)
+          minReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"scaleConfig"][?"minReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/template/podCliqueScalingGroups/" + string(index) + "/scaleConfig/minReplicas"'
+          maxReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"scaleConfig"][?"maxReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/template/podCliqueScalingGroups/" + string(index) + "/scaleConfig/maxReplicas"'
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"template"][?"podCliqueScalingGroups"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"name"].orValue(dyn(null)))
         podSelector:
           componentInstanceSelector:
-            idPath: .metadata.labels["grove.io/podcliquescalinggroup"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup"].orValue(dyn(null))
           replicaSelector:
-            keyPath: .metadata.labels["grove.io/podcliquescalinggroup-replica-index"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"grove.io/podcliquescalinggroup-replica-index"].orValue(dyn(null))
     additionalChildKinds:
       - group: grove.io
         version: v1alpha1
@@ -91,10 +165,10 @@ spec:
         - name: podcliqueset-replica
           members:
             - componentName: clique
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/part-of"]
-                - .metadata.labels["grove.io/podcliqueset-replica-index"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/part-of"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))
             - componentName: scalinggroup
-              groupByKeyPaths:
-                - .metadata.labels["app.kubernetes.io/part-of"]
-                - .metadata.labels["grove.io/podcliqueset-replica-index"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"app.kubernetes.io/part-of"].orValue(dyn(null))
+                - object[?"metadata"][?"labels"][?"grove.io/podcliqueset-replica-index"].orValue(dyn(null))

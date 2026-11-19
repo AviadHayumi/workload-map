@@ -5,12 +5,28 @@ Copyright (c) 2026 NVIDIA Corporation
 
 # Karta Headlamp Plugin
 
-A [Headlamp](https://headlamp.dev) plugin scaffold for visualizing Karta
-workload trees: the components, instances, and normalized status of any
-workload described by a Karta definition (`kartas.run.ai`). Currently this
-is a placeholder setup, a `/karta/workloads` route and a WASM engine
-exporting only `kartaVersion`. The real tree visualization and engine
-bindings land in follow-up work.
+The Workloads page lists workloads and evaluates their Karta status in the
+browser. Select a workload name to inspect its mapped root component values,
+including the effective trainer image and replica count of a TrainJob. A status rule can read a Kubernetes object or list declared by the
+definition. Headlamp uses the selected cluster and the current user's access.
+It resolves resources in the workload namespace or at cluster scope according
+to Kubernetes discovery. A denied read marks the row's status unavailable.
+
+References are enabled by default. Turn off "Read Kubernetes references" in
+plugin settings to evaluate definitions with an empty reference map. Definitions
+with references are observed again every 30 seconds so a change to a referenced
+object can update a row even if the workload stays at the same version.
+
+Callers of `rootInstances`, `buildTree`, and `evaluatePhases` can also pass a snapshot. For
+example, `{ references: { trainingRuntime: { object: runtime } } }` lets a
+TrainJob use a ClusterTrainingRuntime already held by the application.
+
+```typescript
+const instances = await rootInstances(trainJobKarta, trainJob, {
+  references: { trainingRuntime: { object: runtime } },
+});
+const trainerImage = instances[''].fragmentedPodSpec?.image;
+```
 
 ## Experimental definitions
 
@@ -28,9 +44,9 @@ directory) is a separate Go module compiled to WebAssembly
 `headlamp.extraDist` entry in `package.json`, which points at
 `../karta-wasm/karta.wasm` and `../karta-wasm/wasm_exec.js`. It lives
 outside `headlamp-plugin/` so it can be reused by other consumers later
-without being tied to this specific plugin. At runtime, `src/lib/engine.ts`
+without being tied to this specific plugin. At runtime, `src/lib/karta/karta.ts`
 fetches `wasm_exec.js` and `karta.wasm` from wherever Headlamp served this
-plugin from and instantiates the module in the browser, see `src/lib/engine.ts`
+plugin from and instantiates the module in the browser, see `src/lib/karta/karta.ts`
 for the details.
 
 ## Development

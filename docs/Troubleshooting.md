@@ -9,7 +9,7 @@ This catalog maps the errors you are most likely to hit when authoring a Karta
 definition to their cause and fix. Errors fall into four groups:
 
 - Structure validation errors, raised by the Karta validator.
-- jq path errors, raised when a path fails to parse, compile, or execute.
+- CEL errors when a read, write path or match expression fails.
 - Accessor errors, raised at runtime when code reads a definition that is
   missing a required part or a pod cannot be matched to an instance.
 - Silent mistakes that pass validation but produce wrong behavior.
@@ -31,42 +31,25 @@ be reported at once; the validator joins them, so fix each named component.
 | `child component '<name>' has owner ref to non-existing component '<owner>'` | `ownerRef` points at a name that is not defined in this Karta. | Correct the `ownerRef` to match an existing component `name`. Watch for typos and renamed components. |
 | `component name <name> is not unique` | Two components share the same `name`. | Give every component a unique `name`. |
 | `component name is empty` | A component has no `name`. | Add a non-empty `name`. |
-| `component '<name>' has multiple pod spec definitions` | A `specDefinition` sets more than one of `podTemplateSpecPath`, `podSpecPath`, or `fragmentedPodSpecDefinition`. | Keep exactly one. These three patterns are mutually exclusive per component. |
-| `component '<name>' has instance id path but no pod component instance selector` | `instanceIdPath` is set, but the component's `podSelector` has no `componentInstanceSelector`. | Add a `componentInstanceSelector` so pods can be matched to instances, or remove `instanceIdPath` if the component is not multi-instance. |
-| `component '<name>' has pod component instance selector but no instance id path` | A `componentInstanceSelector` is set, but the component has no `instanceIdPath`. | Add `instanceIdPath` pointing at where instance names live, or remove the instance selector. |
+| `component '<name>' has multiple pod spec definitions` | A `specDefinition` sets more than one of `podTemplateSpec`, `podSpec`, or `fragmentedPodSpecDefinition`. | Keep exactly one. These three patterns are mutually exclusive per component. |
+| `component '<name>' has instance id path but no pod component instance selector` | `instanceIds` is set, but the component's `podSelector` has no `componentInstanceSelector`. | Add a `componentInstanceSelector` so pods can be matched to instances, or remove `instanceIds` if the component is not multi-instance. |
+| `component '<name>' has pod component instance selector but no instance id path` | A `componentInstanceSelector` is set, but the component has no `instanceIds`. | Add `instanceIds` pointing at where instance names live, or remove the instance selector. |
 | `ownership cycle detected involving component <name>` | Components form a loop through their `ownerRef` chain instead of reaching the root. | Break the cycle. Every child's owner chain must terminate at the root component. |
 | `pod-group member component '<name>' is not defined (should be a root or child component)` | A `gangScheduling` pod-group member names a component that does not exist. | Make each `componentName` match a defined root or child component. |
 | `karta is nil` | The validator was given no definition to validate. | Ensure the definition was parsed and loaded before validation. Usually indicates an empty or unreadable file. |
 
-## jq path errors
+## CEL expression errors
 
-Every path in a Karta is a jq expression. These errors name the exact
-expression that failed, so search your definition for that string.
+| Error | What to check |
+|---|---|
+| `invalid CEL expression for this scope` | Check syntax and input names. Read a workload field as `object.spec.parallelism`. A Pod selector sees the Pod as `object`. |
+| `CEL evaluation failed` | Check field types and presence on the actual object. For an optional Job parallelism, use `object.?spec.?parallelism.orValue(1)`. A match must return a boolean. |
+| `CEL evaluation cost limit exceeded` | Check the sizes of the lists the expression scans. Filter the reference list at the source and avoid nested scans where possible. |
 
-| Error message | Cause | Fix |
-|---|---|---|
-| `failed to parse JQ expression '<expr>': ...` | The expression is not syntactically valid jq. | Fix the syntax. Common causes: unbalanced brackets or quotes, a missing leading `.`, or using `["key"]` with the wrong quote style. |
-| `failed to compile JQ expression '<expr>': ...` | The expression parses but cannot compile, for example it references an unknown function. | Use only standard jq builtins. Re-check function names and argument counts. |
-| `JQ execution error for expression '<expr>': ...` | The expression compiled but failed while running against real data, often a null traversal. | Make the path null-safe. Supply defaults with `//`, for example `(.status.active // 0)` or `.spec.parallelism // 1`. |
-
-Karta also validates every expression statically before running it. The
-validator walks the parsed jq AST and rejects anything that mutates or can
-produce unbounded output: assignment and update operators (`=`, `|=`, `+=`,
-and the rest), the `del` function, the recursive descent operator `..`, and
-unbounded builtins such as `range`, `paths`, `recurse`, `walk`, and `repeat`.
-
-| Error message | Cause | Fix |
-|---|---|---|
-| `JQ expression '<expr>' at '<path>' failed validation: modifying operator '<op>' is not allowed` | The expression uses an assignment or update operator. | Karta paths read state; they never write. Rewrite the expression so it only reads. |
-| `... failed validation: del function is not allowed` | The expression deletes fields. | Same as above: read, do not modify. |
-| `... failed validation: recursive descent operator '..' is not allowed` | The expression uses `..`, which walks the whole document. | Spell out the absolute path to the field instead. |
-| `... failed validation: function '<name>' may produce excessive output and is not allowed` | The expression uses an unbounded builtin (`range`, `paths`, `recurse`, `walk`, `repeat`). | Use a bounded expression that addresses the fields directly. |
-
-Tip: test an expression against a real workload manifest with the `jq` CLI
-before putting it in a definition. `kubectl get <resource> -o json | jq '<expr>'`
-reproduces what Karta evaluates. The official jq playground at
-[play.jqlang.org](https://play.jqlang.org/) works too, without leaving the
-browser.
+A write uses a JSON Pointer such as `/spec/parallelism`. A computed
+`pathExpression` must return a pointer string. A false write match rejects the
+change. Test reads and optional references against saved manifests with the
+[offline verifier](../karta/sdk/hack/karta-verify/README.md).
 
 ## Accessor errors at runtime
 
@@ -76,7 +59,7 @@ that is not present, or when a pod cannot be tied to a component instance.
 | Error type | Example message | Cause | Fix |
 |---|---|---|---|
 | `DefinitionNotFoundError` | `component <name> does not have suspendDefinition` | Code asked for a part (spec, scale, status, pod template, pod metadata, fragmented pod spec, or suspend) that the component does not define. | Add the missing definition to the component, or guard the call. Use `errors.As` against `DefinitionNotFoundError` to treat "not defined" as an expected case rather than a failure. |
-| `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id does not match any instance id produced by the component's `instanceIdPath`. | Confirm the `componentInstanceSelector` reads the same id that `instanceIdPath` produces. A mismatch usually means the selector points at the wrong pod label or the id path extracts a different field. |
+| `InstanceNotFoundError` | `could not match instance id "<id>". existing instance ids [...]` | A pod's extracted instance id does not match any instance id produced by the component's `instanceIds`. | Confirm the `componentInstanceSelector` reads the same id that `instanceIds` produces. A mismatch usually means the selector points at the wrong pod label or the id path extracts a different field. |
 
 ## Silent mistakes (valid but wrong)
 
@@ -89,10 +72,9 @@ are worth checking first when a definition "works" but behaves incorrectly.
   where `KartaValidator` is invoked, so a code path that skips validation sees
   a silently unowned child. Use `ownerRef`, and run the validator when loading
   definitions.
-- Expecting a `referencedComponents` field. The structure has only
-  `rootComponent`, `childComponents`, and `additionalChildKinds`. There is no
-  `referencedComponents`. Model owned resources as child components and list
-  other managed kinds under `additionalChildKinds`.
+- Confusing a reference with ownership. Declare other objects used in reads
+  under `structureDefinition.references`. A lookup alone does not make that
+  object or its Pods a child of the workload.
 - Status conditions that do not match the workload's real API. The definition
   validates, but status never resolves because the controller never sets those
   condition types. Verify condition types and field names against the workload's

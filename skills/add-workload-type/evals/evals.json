@@ -39,7 +39,7 @@
           "kind": "floor"
         },
         {
-          "text": "Status is mapped from the real .status.phase values (Pending, Running, Succeeded, Failed, Error) rather than invented condition types, and every jq path is absolute, status expressions are null-safe, and spec and scale paths are plain",
+          "text": "Status is mapped from the real .status.phase values (Pending, Running, Succeeded, Failed, Error) rather than invented condition types, and CEL reads bind the workload to object and handle missing fields",
           "measured": null,
           "kind": "floor"
         }
@@ -57,8 +57,8 @@
           "kind": "discriminating"
         },
         {
-          "text": "podTemplateSpecPath is declared on the root cronjob component, matching the convention in docs/catalog/batch-cronjob-v1.yaml",
-          "measured": "3/3 vs 2/3",
+          "text": "podTemplateSpec.read.expression is declared on the root cronjob component, matching the convention in docs/catalog/batch-cronjob-v1.yaml",
+          "measured": null,
           "kind": "discriminating"
         },
         {
@@ -72,7 +72,7 @@
           "kind": "floor"
         },
         {
-          "text": "Status is mapped with byExpression over real fields such as .spec.suspend and .status.active, and status expressions are null-safe, spec and scale paths are plain, and every path is evaluated against the workload object",
+          "text": "Status is mapped with byExpression over real fields such as .spec.suspend and .status.active, and status expressions are null-safe, spec and scale read expressions evaluate against the workload object",
           "measured": null,
           "kind": "floor"
         }
@@ -118,7 +118,7 @@
           "kind": "discriminating"
         },
         {
-          "text": "The task roles are modelled as a multi-instance component keyed on .spec.tasks[].name, with instanceIdPath and componentInstanceSelector both present",
+          "text": "The task roles are modelled as a multi-instance component keyed on .spec.tasks[].name, with instanceIds.read.expression and componentInstanceSelector.read.expression both present",
           "measured": null,
           "kind": "discriminating"
         },
@@ -133,7 +133,7 @@
           "kind": "floor"
         },
         {
-          "text": "Replicas are read per task from the plain path .spec.tasks[].replicas, with no default after the iterator, and every jq path is absolute",
+          "text": "The CEL read maps object.spec.tasks to one replica count per task in the same order as the instance IDs",
           "measured": null,
           "kind": "floor"
         }

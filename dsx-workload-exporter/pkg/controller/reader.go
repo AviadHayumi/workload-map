@@ -182,6 +182,8 @@ func failureReason(err error) string {
 		return store.ReasonUnresolvedOwner
 	case errors.Is(err, discovery.ErrInvalidDefinition), errors.Is(err, inventory.ErrInvalidDefinition):
 		return store.ReasonInvalidDefinition
+	case errors.Is(err, discovery.ErrPending), errors.Is(err, discovery.ErrUnavailable):
+		return store.ReasonAPIUnavailable
 	case errors.Is(err, discovery.ErrEvaluation):
 		return store.ReasonEvaluationFailed
 	default:

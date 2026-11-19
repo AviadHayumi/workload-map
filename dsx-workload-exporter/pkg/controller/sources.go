@@ -23,12 +23,15 @@ import (
 )
 
 type resourceWatch struct {
-	key         watchKey
-	gvk         schema.GroupVersionKind
-	full, ready bool
-	err         error
-	objects     map[objectKey]struct{}
-	cancel      context.CancelFunc
+	key           watchKey
+	gvk           schema.GroupVersionKind
+	full, ready   bool
+	referenceOnly bool
+	// Each dependent root reads this collection in its own namespace (empty for cluster scope).
+	dependents map[types.UID]string
+	err        error
+	objects    map[objectKey]struct{}
+	cancel     context.CancelFunc
 }
 type reflectorStore struct {
 	controller *controllerState
@@ -189,12 +192,24 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 	if err != nil {
 		return watchKey{}, r.recordWatchFailure(request, failureRef, err)
 	}
-	if mapping.Scope.Name() == meta.RESTScopeNameRoot || r.config.NamespaceSelector == nil {
+	return r.ensureMappedWatch(ctx, mapping, gvk, namespace, metadataOnly, nil)
+}
+
+func (r *controllerState) ensureMappedWatch(ctx context.Context, mapping *meta.RESTMapping, gvk schema.GroupVersionKind, namespace string, metadataOnly bool, dependent *referenceReader) (watchKey, error) {
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		namespace = ""
+	}
+	targetNamespace := namespace
+	if r.config.NamespaceSelector == nil {
 		namespace = ""
 	}
 	key := watchKey{Resource: mapping.Resource, Namespace: namespace}
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
+	if dependent != nil && (r.roots[dependent.root.UID] == nil || !r.isNamespaceInScope(dependent.root.Namespace) || !r.isDefinitionCurrent(dependent.root, dependent.selection)) {
+		return key, discovery.ErrStale
+	}
+	referenceOnly := dependent != nil
 	for failed := range r.watchFailures {
 		if failed.GVK == gvk && (namespace == "" || failed.Namespace == namespace) {
 			delete(r.watchFailures, failed)
@@ -205,6 +220,16 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		return key, discovery.ErrPending
 	}
 	if existing := r.watches[key]; existing != nil {
+		if dependent != nil {
+			existing.trackReferenceReader(dependent.root.UID, targetNamespace)
+		}
+		if existing.referenceOnly && !referenceOnly {
+			existing.referenceOnly = false
+			for k := range existing.objects {
+				r.enqueueObject(r.objects[k].object)
+			}
+		}
+		referenceOnly = existing.referenceOnly
 		if metadataOnly || existing.full {
 			return key, nil
 		}
@@ -219,10 +244,13 @@ func (r *controllerState) ensureWatch(ctx context.Context, gvk schema.GroupVersi
 		return key, err
 	}
 	watchCtx, cancel := context.WithCancel(ctx)
-	w := &resourceWatch{key: key, gvk: gvk, full: !metadataOnly, objects: map[objectKey]struct{}{}, cancel: cancel}
+	w := &resourceWatch{key: key, gvk: gvk, full: !metadataOnly, referenceOnly: referenceOnly, objects: map[objectKey]struct{}{}, cancel: cancel}
 	if r.watches[key] != nil {
 		r.replacements[key] = w
 	} else {
+		if dependent != nil {
+			w.trackReferenceReader(dependent.root.UID, targetNamespace)
+		}
 		r.watches[key] = w
 		r.sources[key] = cacheSource{gvk: gvk, hasFullObject: !metadataOnly}
 	}
@@ -264,6 +292,9 @@ func (r *controllerState) updateWatchHealth(w *resourceWatch, err error) {
 		return
 	}
 	recovered := w.err != nil && err == nil
+	if failureReason(err) != failureReason(w.err) {
+		r.requeueReferenceReaders(r.watches[w.key], "")
+	}
 	w.err = err
 	if r.watches[w.key] == w {
 		r.sources[w.key] = cacheSource{gvk: w.gvk, hasFullObject: w.full, synced: w.ready, err: err}
@@ -271,13 +302,13 @@ func (r *controllerState) updateWatchHealth(w *resourceWatch, err error) {
 	if r.replacements[w.key] == nil || r.replacements[w.key] == w {
 		r.deps.Publications.SetSourceHealth(w.key, store.SourceHealth{GVK: w.gvk, Synced: w.ready, Error: failureReason(err)})
 	}
-	if recovered {
+	if recovered && !w.referenceOnly {
 		r.enqueueScopeRefresh(w.key.Namespace)
 		for uid := range r.roots {
 			r.workloadQueue.Add(workloadJobKey{RootUID: uid})
 		}
 	}
-	if w.gvk == namespaceGVK {
+	if w.gvk == namespaceGVK && r.config.NamespaceSelector != nil {
 		r.watchSyncQueue.Add("sources")
 	} else if apierrors.IsNotFound(err) {
 		r.watchSyncQueue.AddAfter("sources", mapperResetInterval)
@@ -287,12 +318,13 @@ func (r *controllerState) updateWatchHealth(w *resourceWatch, err error) {
 // retireWatch requires the caller to hold stateMu in write mode.
 func (r *controllerState) retireWatch(w *resourceWatch) {
 	w.cancel()
+	r.requeueReferenceReaders(w, "")
 	delete(r.watches, w.key)
 	for key := range w.objects {
 		entry := r.objects[key]
 		if entry.object != nil && entry.source == w.key {
 			delete(r.objects, key)
-			r.queueObjectChange(entry.object, nil)
+			r.queueWatchChange(w, entry.object, nil)
 		}
 	}
 	delete(r.sources, w.key)
@@ -460,6 +492,8 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 	if previous := r.watches[w.key]; previous != w {
 		previous.cancel()
 		w.objects = previous.objects
+		w.dependents = previous.dependents
+		w.referenceOnly = w.referenceOnly && previous.referenceOnly
 		r.watches[w.key] = w
 		delete(r.replacements, w.key)
 	}
@@ -468,7 +502,7 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 			old := r.objects[key].object
 			delete(r.objects, key)
 			if old != nil {
-				r.queueObjectChange(old, nil)
+				r.queueWatchChange(w, old, nil)
 			}
 		}
 	}
@@ -477,11 +511,16 @@ func (s *reflectorStore) Replace(values []any, _ string) error {
 		old := r.objects[key].object
 		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
-		r.queueObjectChange(old, object)
+		r.queueWatchChange(w, old, object)
+	}
+	if !w.ready {
+		r.requeueReferenceReaders(w, "")
 	}
 	w.ready = true
 	r.updateWatchHealth(w, nil)
-	r.enqueueScopeRefresh(w.key.Namespace)
+	if !w.referenceOnly {
+		r.enqueueScopeRefresh(w.key.Namespace)
+	}
 	return nil
 }
 func prepareWatchSnapshot(values []any, gvk schema.GroupVersionKind, full bool) (map[objectKey]*unstructured.Unstructured, error) {
@@ -525,13 +564,24 @@ func (r *controllerState) applyWatchEvent(w *resourceWatch, value any, deleted b
 		}
 		delete(r.objects, key)
 		delete(w.objects, key)
-		r.queueObjectChange(old, nil)
+		r.queueWatchChange(w, old, nil)
 	} else {
 		r.objects[key] = cachedObject{object: object, source: w.key}
 		w.objects[key] = struct{}{}
-		r.queueObjectChange(old, object)
+		r.queueWatchChange(w, old, object)
 	}
 	return nil
+}
+
+func (r *controllerState) queueWatchChange(w *resourceWatch, old, current *unstructured.Unstructured) {
+	object := current
+	if object == nil {
+		object = old
+	}
+	r.requeueReferenceReaders(w, object.GetNamespace())
+	if !w.referenceOnly {
+		r.queueObjectChange(old, current)
+	}
 }
 
 // queueObjectChange requires stateMu in write mode.

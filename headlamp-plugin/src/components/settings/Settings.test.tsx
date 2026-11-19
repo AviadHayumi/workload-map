@@ -36,3 +36,12 @@ describe('Settings', () => {
     });
   });
 });
+
+it('enables reference reads by default and preserves the other settings when disabling them', () => {
+  const onDataChange = vi.fn();
+  render(<Settings data={{ enableExperimental: true }} onDataChange={onDataChange} />);
+  const toggle = screen.getByRole('checkbox', { name: 'Read Kubernetes references' });
+  expect((toggle as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(toggle);
+  expect(onDataChange).toHaveBeenCalledWith({ enableExperimental: true, referencesEnabled: false });
+});

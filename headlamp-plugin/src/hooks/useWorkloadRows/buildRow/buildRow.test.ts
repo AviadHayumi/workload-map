@@ -10,7 +10,7 @@ const pytorchJobGVK = { group: 'kubeflow.org', version: 'v1', kind: 'PyTorchJob'
 
 function karta(childComponents?: { name: string }[]): Karta {
   return {
-    apiVersion: 'run.ai/v1alpha1',
+    apiVersion: 'run.ai/v1alpha2',
     kind: 'Karta',
     metadata: { name: 'pytorchjob' },
     spec: {
@@ -58,7 +58,7 @@ describe('buildWorkloadRow', () => {
   it('gives the same object distinct ids when listed under two api versions', () => {
     const dynamoGVK = (version: string) => ({ group: 'nvidia.com', version, kind: 'DynamoGraphDeployment' });
     const dynamo = (version: string): Karta => ({
-      apiVersion: 'run.ai/v1alpha1',
+      apiVersion: 'run.ai/v1alpha2',
       kind: 'Karta',
       metadata: { name: `dynamo-${version}` },
       spec: {

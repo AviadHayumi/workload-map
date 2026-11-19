@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: ray-io-raycluster-v1
 spec:
+  variables:
+    - name: statusState
+      expression: ([dyn(object.?status.?state.orValue(dyn(null)))].filter(v, v != null && v != false) + [""])[0]
   structureDefinition:
     rootComponent:
       name: raycluster
@@ -14,7 +17,8 @@ spec:
         kind: RayCluster
       statusDefinition:
         phaseDefinition:
-          path: .status.state
+          read:
+            expression: object[?"status"][?"state"].orValue(dyn(null))
         statusMappings:
           running:
             - byPhase: ready
@@ -22,14 +26,15 @@ spec:
             - byPhase: failed
           suspended:
             - byExpression:
-                expression: .spec.suspend == true and (.status.state == "suspended" or (.status.state | not))
-                expectedResult: "true"
+                expression: object[?"spec"][?"suspend"].orValue(dyn(null)) == true && (object[?"status"][?"state"].orValue(dyn(null)) == "suspended" || (object.?status.?state.orValue(dyn(null)) == null || object.?status.?state.orValue(dyn(null)) == false))
       suspendDefinition:
         suspendActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "true"
         resumeActions:
-          - path: .spec.suspend
+          - write:
+              path: /spec/suspend
             value: "false"
     childComponents:
       - name: head
@@ -39,12 +44,19 @@ spec:
           kind: Pod
         ownerRef: raycluster
         specDefinition:
-          podTemplateSpecPath: .spec.headGroupSpec.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"headGroupSpec"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/headGroupSpec/template
         scaleDefinition:
-          replicasPath: "1"
+          replicas:
+            read:
+              expression: "1"
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["ray.io/node-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/node-type"].orValue(dyn(null))
             value: head
       - name: worker
         kind:
@@ -53,26 +65,46 @@ spec:
           kind: Pod
         ownerRef: raycluster
         specDefinition:
-          podTemplateSpecPath: .spec.workerGroupSpecs[].template
+          podTemplateSpec:
+            read:
+              expression: ([dyn(object[?"spec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"template"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/workerGroupSpecs/" + string(index) + "/template"'
         scaleDefinition:
-          replicasPath: .spec.workerGroupSpecs[].replicas
-          minReplicasPath: .spec.workerGroupSpecs[].minReplicas
-          maxReplicasPath: .spec.workerGroupSpecs[].maxReplicas
-        instanceIdPath: .spec.workerGroupSpecs[].groupName
+          replicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"replicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/workerGroupSpecs/" + string(index) + "/replicas"'
+          minReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"minReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/workerGroupSpecs/" + string(index) + "/minReplicas"'
+          maxReplicas:
+            read:
+              expression: ([dyn(object[?"spec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"maxReplicas"].orValue(dyn(null)))
+            write:
+              pathExpression: '"/spec/workerGroupSpecs/" + string(index) + "/maxReplicas"'
+        instanceIds:
+          read:
+            expression: ([dyn(object[?"spec"][?"workerGroupSpecs"].orValue(dyn(null)))].filter(v, type(v) == list) + [[]])[0].map(x, x[?"groupName"].orValue(dyn(null)))
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["ray.io/node-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/node-type"].orValue(dyn(null))
             value: worker
           componentInstanceSelector:
-            idPath: .metadata.labels["ray.io/group"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"ray.io/group"].orValue(dyn(null))
   optimizationInstructions:
     gangScheduling:
       podGroups:
         - name: cluster
           members:
             - componentName: head
-              groupByKeyPaths:
-                - .metadata.labels["ray.io/cluster"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"ray.io/cluster"].orValue(dyn(null))
             - componentName: worker
-              groupByKeyPaths:
-                - .metadata.labels["ray.io/cluster"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"ray.io/cluster"].orValue(dyn(null))

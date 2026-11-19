@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: sessionjob
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: sessionjob
+      kind:
+        group: flink.apache.org
+        version: v1beta1
+        kind: FlinkSessionJob
+    references:
+    - name: sessionCluster
+      apiVersion: flink.apache.org/v1beta1
+      kind: FlinkDeployment
+      lookup:
+        nameExpression: object.spec.deploymentName
+    childComponents: []

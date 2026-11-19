@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/dsx-ai-factory/workload-map/cli/pkg/definitions"
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/catalog"
 )
 
@@ -22,7 +22,7 @@ const (
 	validateShort = "Check a Karta definition file before applying it"
 
 	validateLong = `Check a Karta definition file before applying it to a cluster: schema shape,
-required fields, and JQ expression validity. Give a path, or "-" to read the definition
+required fields, and CEL expression validity. Give a path, or "-" to read the definition
 from stdin.
 
 Validation is static and fully local, so the command needs no cluster and no kubeconfig.
@@ -58,7 +58,9 @@ func newValidateCommand() *cobra.Command {
 			}
 
 			var karta v1alpha1.Karta
-			if err := yaml.Unmarshal(data, &karta); err != nil {
+			// UnmarshalStrict rejects an unknown field (a misspelled key) and a
+			// duplicate mapping key, both of which plain Unmarshal drops silently.
+			if err := yaml.UnmarshalStrict(data, &karta); err != nil {
 				return usageError(cmd, fmt.Errorf("parse %s: %w", name, err))
 			}
 

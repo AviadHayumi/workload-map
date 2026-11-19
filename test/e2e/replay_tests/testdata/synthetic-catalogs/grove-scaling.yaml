@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Synthetic source-shaped object for offline SDK parity. Not an operator recording.
+kartaFile: docs/catalog/grove-io-podcliqueset-v1alpha1.yaml
+workload:
+  apiVersion: grove.io/v1alpha1
+  kind: PodCliqueSet
+  metadata:
+    name: synthetic-grove-scaling
+    namespace: example
+    uid: synthetic-grove-scaling
+  spec:
+    replicas: 2
+    template:
+      cliques:
+      - name: frontend
+        labels:
+          role: frontend
+        annotations:
+          example.com/source: synthetic
+        spec:
+          replicas: 1
+          autoScalingConfig:
+            minReplicas: 1
+            maxReplicas: 3
+          podSpec:
+            schedulerName: default-scheduler
+            priorityClassName: batch
+            containers:
+            - name: main
+              image: ghcr.io/example/worker:v1
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 1Gi
+            affinity:
+              podAffinity: {}
+              nodeAffinity: {}
+            resourceClaims:
+            - name: accelerator
+              resourceClaimTemplateName: example
+      - name: worker
+        labels:
+          role: worker
+        annotations: {}
+        spec:
+          replicas: 3
+          autoScalingConfig:
+            minReplicas: 2
+            maxReplicas: 6
+          podSpec:
+            schedulerName: default-scheduler
+            priorityClassName: batch
+            containers:
+            - name: main
+              image: ghcr.io/example/worker:v1
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 1Gi
+            affinity:
+              podAffinity: {}
+              nodeAffinity: {}
+            resourceClaims:
+            - name: accelerator
+              resourceClaimTemplateName: example
+      podCliqueScalingGroups:
+      - name: frontend-group
+        replicas: 1
+        cliqueNames:
+        - frontend
+        scaleConfig:
+          minReplicas: 1
+          maxReplicas: 4
+      - name: worker-group
+        replicas: 2
+        cliqueNames:
+        - worker
+        scaleConfig:
+          minReplicas: 2
+          maxReplicas: 5
+  status:
+    availableReplicas: 2
+    conditions: []

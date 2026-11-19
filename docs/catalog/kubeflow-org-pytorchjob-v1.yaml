@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 NVIDIA Corporation
 kind: Karta
-apiVersion: run.ai/v1alpha1
+apiVersion: run.ai/v1alpha2
 metadata:
   name: kubeflow-org-pytorchjob-v1
 spec:
+  variables:
+    - name: specPytorchReplicaSpecsMasterReplicas
+      expression: ([dyn(object[?"spec"][?"pytorchReplicaSpecs"][?"Master"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
+    - name: specPytorchReplicaSpecsWorkerReplicas
+      expression: ([dyn(object[?"spec"][?"pytorchReplicaSpecs"][?"Worker"][?"replicas"].orValue(dyn(null)))].filter(v, v != null && v != false) + [1])[0]
   structureDefinition:
     rootComponent:
       name: pytorchjob
@@ -14,7 +19,8 @@ spec:
         kind: PyTorchJob
       statusDefinition:
         conditionsDefinition:
-          path: .status.conditions
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
           typeFieldName: type
           statusFieldName: status
           messageFieldName: message
@@ -41,10 +47,12 @@ spec:
                   status: "True"
       suspendDefinition:
         suspendActions:
-          - path: .spec.runPolicy.suspend
+          - write:
+              path: /spec/runPolicy/suspend
             value: "true"
         resumeActions:
-          - path: .spec.runPolicy.suspend
+          - write:
+              path: /spec/runPolicy/suspend
             value: "false"
     childComponents:
       - name: master
@@ -54,12 +62,21 @@ spec:
           kind: Pod
         ownerRef: pytorchjob
         specDefinition:
-          podTemplateSpecPath: .spec.pytorchReplicaSpecs.Master.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"pytorchReplicaSpecs"][?"Master"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/pytorchReplicaSpecs/Master/template
         scaleDefinition:
-          replicasPath: .spec.pytorchReplicaSpecs.Master.replicas // 1
+          replicas:
+            read:
+              expression: variables.specPytorchReplicaSpecsMasterReplicas
+            write:
+              path: /spec/pytorchReplicaSpecs/Master/replicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["training.kubeflow.org/replica-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"training.kubeflow.org/replica-type"].orValue(dyn(null))
             value: master
       - name: worker
         kind:
@@ -68,14 +85,31 @@ spec:
           kind: Pod
         ownerRef: pytorchjob
         specDefinition:
-          podTemplateSpecPath: .spec.pytorchReplicaSpecs.Worker.template
+          podTemplateSpec:
+            read:
+              expression: object[?"spec"][?"pytorchReplicaSpecs"][?"Worker"][?"template"].orValue(dyn(null))
+            write:
+              path: /spec/pytorchReplicaSpecs/Worker/template
         scaleDefinition:
-          replicasPath: .spec.pytorchReplicaSpecs.Worker.replicas // 1
-          minReplicasPath: .spec.elasticPolicy.minReplicas
-          maxReplicasPath: .spec.elasticPolicy.maxReplicas
+          replicas:
+            read:
+              expression: variables.specPytorchReplicaSpecsWorkerReplicas
+            write:
+              path: /spec/pytorchReplicaSpecs/Worker/replicas
+          minReplicas:
+            read:
+              expression: object[?"spec"][?"elasticPolicy"][?"minReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/elasticPolicy/minReplicas
+          maxReplicas:
+            read:
+              expression: object[?"spec"][?"elasticPolicy"][?"maxReplicas"].orValue(dyn(null))
+            write:
+              path: /spec/elasticPolicy/maxReplicas
         podSelector:
           componentTypeSelector:
-            keyPath: .metadata.labels["training.kubeflow.org/replica-type"]
+            read:
+              expression: object[?"metadata"][?"labels"][?"training.kubeflow.org/replica-type"].orValue(dyn(null))
             value: worker
   optimizationInstructions:
     gangScheduling:
@@ -83,8 +117,8 @@ spec:
         - name: job
           members:
             - componentName: master
-              groupByKeyPaths:
-                - .metadata.labels["training.kubeflow.org/job-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"training.kubeflow.org/job-name"].orValue(dyn(null))
             - componentName: worker
-              groupByKeyPaths:
-                - .metadata.labels["training.kubeflow.org/job-name"]
+              groupByExpressions:
+                - object[?"metadata"][?"labels"][?"training.kubeflow.org/job-name"].orValue(dyn(null))

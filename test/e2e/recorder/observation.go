@@ -10,16 +10,18 @@ import (
 	"reflect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	watchtools "k8s.io/client-go/tools/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	kartav1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // observation is one watched run of a flow: the workload being driven, the action steps still to act on, and
@@ -28,11 +30,12 @@ type observation struct {
 	flow     *Flow
 	workload *unstructured.Unstructured
 
-	pending   []journeyStep              // action steps not yet reached, in order
-	snapshots []snapshot                 // the distinct CRs kept, in order
-	lastSig   map[string]any             // last kept CR minus volatile fields, for dedup
-	lastSeen  *unstructured.Unstructured // most recent CR, shown in triage on timeout
-	failure   string                     // why the flow did not finish, empty if it did
+	pending    []journeyStep              // action steps not yet reached, in order
+	snapshots  []snapshot                 // the distinct CRs kept, in order
+	lastSig    map[string]any             // last kept CR minus volatile fields, for dedup
+	lastSeen   *unstructured.Unstructured // most recent CR, shown in triage on timeout
+	references []map[string]any
+	failure    string // why the flow did not finish, empty if it did
 }
 
 // snapshot is one recorded CR: the phases read from its own fields (state is the strongest of them), the
@@ -41,6 +44,7 @@ type snapshot struct {
 	state                   kartav1alpha1.ResourceStatus
 	phases                  []kartav1alpha1.ResourceStatus
 	cr                      *unstructured.Unstructured
+	references              []map[string]any
 	action                  *RecordedAction
 	staleObservedGeneration bool // the controller had not observed the spec yet; recorded, but outside the order-checked walk
 }
@@ -117,6 +121,10 @@ func (f *Flow) startWatch(ctx context.Context, workload *unstructured.Unstructur
 // terminal state, or an action failed (the failure itself is in o.failure).
 func (o *observation) record(ctx context.Context, cr *unstructured.Unstructured) (stop bool) {
 	o.lastSeen = cr
+	if err := o.captureReferences(ctx); err != nil {
+		o.failure = err.Error()
+		return true
+	}
 	phases := judge(cr, o.flow.rec.states)
 	state := Strongest(phases)
 	observed := hasObservedCurrentGeneration(cr)
@@ -135,6 +143,9 @@ func (o *observation) record(ctx context.Context, cr *unstructured.Unstructured)
 // fields are stripped).
 func (o *observation) keep(cr *unstructured.Unstructured, phases []kartav1alpha1.ResourceStatus, observed bool) {
 	sig := stripVolatileFields(cr)
+	if len(o.references) > 0 {
+		sig = map[string]any{"workload": sig, "references": o.references}
+	}
 	if o.lastSig != nil && reflect.DeepEqual(o.lastSig, sig) {
 		return
 	}
@@ -143,6 +154,7 @@ func (o *observation) keep(cr *unstructured.Unstructured, phases []kartav1alpha1
 		state:                   Strongest(phases),
 		phases:                  phases,
 		cr:                      cr.DeepCopy(),
+		references:              o.references,
 		staleObservedGeneration: !observed,
 	})
 }
@@ -207,4 +219,33 @@ func (o *observation) states() []kartav1alpha1.ResourceStatus {
 		}
 	}
 	return out
+}
+
+func (o *observation) captureReferences(ctx context.Context) error {
+	if o.flow == nil || len(o.flow.captures) == 0 {
+		return nil
+	}
+	var refs []map[string]any
+	for _, capture := range o.flow.captures {
+		gvk := schema.GroupVersionKind{Group: capture.GVK.Group, Version: capture.GVK.Version, Kind: capture.GVK.Kind}
+		mapping, err := o.flow.client().RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			return fmt.Errorf("map captured reference %s: %w", gvk, err)
+		}
+		object := &unstructured.Unstructured{}
+		object.SetGroupVersionKind(gvk)
+		key := client.ObjectKey{Name: capture.Name}
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			key.Namespace = o.workload.GetNamespace()
+		}
+		if err := o.flow.client().Get(ctx, key, object); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("capture reference %s/%s: %w", gvk.Kind, capture.Name, err)
+		}
+		refs = append(refs, stripVolatileFields(object))
+	}
+	o.references = refs
+	return nil
 }

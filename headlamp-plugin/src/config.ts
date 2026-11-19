@@ -5,6 +5,7 @@ import { ConfigStore } from '@kinvolk/headlamp-plugin/lib';
 
 export interface KartaConfig {
   enableExperimental?: boolean;
+  referencesEnabled?: boolean;
 }
 
 const configStore = new ConfigStore<KartaConfig>('karta');

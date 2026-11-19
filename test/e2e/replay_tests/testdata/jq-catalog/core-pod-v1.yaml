@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha1
+metadata:
+  name: core-pod-v1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: pod
+      kind:
+        group: ""
+        version: v1
+        kind: Pod
+      specDefinition:
+        podTemplateSpecPath: .
+      scaleDefinition:
+        replicasPath: "1"
+      statusDefinition:
+        phaseDefinition:
+          path: .status.phase
+        conditionsDefinition:
+          path: .status.conditions
+          typeFieldName: type
+          statusFieldName: status
+          messageFieldName: message
+          reasonFieldName: reason
+        statusMappings:
+          initializing:
+            - byPhase: Pending
+          running:
+            - byPhase: Running
+          completed:
+            - byPhase: Succeeded
+          failed:
+            - byPhase: Failed
+  optimizationInstructions: {}

@@ -47,7 +47,7 @@ func constructorsFromDefinitions() map[string]bool {
 }
 
 // constructorsFromSource parses pkg/catalog/kartas/*.go (excluding _test.go) and
-// returns every exported top-level func with signature func() *v1alpha1.Karta.
+// returns every exported top-level func with signature func() *v1alpha2.Karta.
 func constructorsFromSource() map[string]bool {
 	_, thisFile, _, ok := runtime.Caller(0)
 	Expect(ok).To(BeTrue(), "cannot locate test file")
@@ -78,7 +78,7 @@ func constructorsFromSource() map[string]bool {
 	return names
 }
 
-// isKartaConstructor reports whether the signature is func() *v1alpha1.Karta.
+// isKartaConstructor reports whether the signature is func() *v1alpha2.Karta.
 func isKartaConstructor(sig *ast.FuncType) bool {
 	if sig.Params != nil && len(sig.Params.List) != 0 {
 		return false
@@ -95,5 +95,5 @@ func isKartaConstructor(sig *ast.FuncType) bool {
 		return false
 	}
 	pkgIdent, ok := sel.X.(*ast.Ident)
-	return ok && pkgIdent.Name == "v1alpha1" && sel.Sel.Name == "Karta"
+	return ok && pkgIdent.Name == "v1alpha2" && sel.Sel.Name == "Karta"
 }

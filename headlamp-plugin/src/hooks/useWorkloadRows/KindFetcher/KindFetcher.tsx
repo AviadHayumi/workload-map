@@ -3,11 +3,12 @@
 
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { useThrottle } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { clusterReader, readObserved } from '../../../lib/karta/clusterReader';
 import { Definition } from '../../../lib/karta/definitions';
 import { gvkKey } from '../../../lib/karta/gvkKey';
 import { Workload } from '../../../lib/karta/karta.types';
-import { evaluatePhases } from '../../../lib/karta/kartaUtil';
+import { evaluatePhases, rootInstances } from '../../../lib/karta/kartaUtil';
 import { buildWorkloadRow } from '../buildRow/buildRow';
 import { WorkloadRow } from '../workloadRow.types';
 
@@ -22,6 +23,7 @@ export interface KindFetcherProps {
   // Narrows the request, not the rows: an unselected namespace is never
   // fetched. undefined means all of them.
   namespaces?: string[];
+  referencesEnabled?: boolean;
   onRows: (key: string, rows: WorkloadRow[]) => void;
   // null reports that the list no longer fails, which clears an earlier error.
   onError: (key: string, error: Error | null) => void;
@@ -32,10 +34,11 @@ const LIST_THROTTLE_MS = 1000;
 interface PhaseCacheEntry {
   resourceVersion: string;
   phases: string[];
+  observation: number;
 }
 
 function workloadCacheKey(workload: Workload): string {
-  return workload.metadata.uid ?? workload.metadata.name;
+  return workload.metadata.uid ?? `${workload.metadata.namespace ?? ''}/${workload.metadata.name}`;
 }
 
 // One per definition: the kinds are known only at runtime, so each needs its
@@ -46,6 +49,7 @@ export function KindFetcher({
   plural,
   namespaced,
   namespaces,
+  referencesEnabled = true,
   onRows,
   onError,
 }: KindFetcherProps) {
@@ -88,7 +92,18 @@ export function KindFetcher({
   const throttled = useThrottle(batch, LIST_THROTTLE_MS) as typeof batch;
   const items = throttled.namespaceKey === namespaceKey ? throttled.items : null;
 
-  // Status is a WASM call, recomputed only when resourceVersion changes.
+  // A reference can change or disappear while the workload version stays the same.
+  const hasReferences = referencesEnabled && !!definition.karta.spec?.structureDefinition?.references?.length;
+  const [observation, setObservation] = useState(0);
+  const evaluating = useRef(false);
+  useEffect(() => {
+    if (!hasReferences) return;
+    const timer = setInterval(() => {
+      if (!evaluating.current) setObservation(n => n + 1);
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [hasReferences]);
+
   const phaseCache = useRef<Map<string, PhaseCacheEntry>>(new Map());
   // The version of the most recently started call per workload: calls can
   // resolve out of order, and a stale one would overwrite a fresh result.
@@ -109,7 +124,7 @@ export function KindFetcher({
     phaseCache.current.clear();
     inFlightVersion.current.clear();
     evaluationErrors.current.clear();
-  }, [definitionVersion]);
+  }, [cluster, definitionVersion, referencesEnabled]);
 
   useEffect(() => {
     // The error does not stop the rows: Headlamp can return the workloads of
@@ -152,6 +167,10 @@ export function KindFetcher({
       roots.map(item => {
         const workload = item.jsonData as Workload;
         const row = buildWorkloadRow(currentDefinition, workload, item.cluster);
+        row.readRoot = signal => readObserved(workload, cluster, plural, namespaced, signal,
+          exact => rootInstances(currentDefinition.karta, exact, {
+            referencesEnabled, reader: clusterReader(cluster, signal),
+          }));
         const cacheKey = workloadCacheKey(workload);
         const cached = phaseCache.current.get(cacheKey);
         if (cached) {
@@ -166,7 +185,7 @@ export function KindFetcher({
     const stale = roots.filter(item => {
       const workload = item.jsonData as Workload;
       const cached = phaseCache.current.get(workloadCacheKey(workload));
-      return !cached || cached.resourceVersion !== (workload.metadata.resourceVersion ?? '');
+      return !cached || cached.observation !== observation || cached.resourceVersion !== (workload.metadata.resourceVersion ?? '');
     });
     if (stale.length === 0) {
       return;
@@ -178,18 +197,23 @@ export function KindFetcher({
     });
 
     let cancelled = false;
+    evaluating.current = true;
+    const controller = new AbortController();
+    const reader = clusterReader(cluster, controller.signal);
     Promise.all(
       stale.map(async item => {
         const workload = item.jsonData as Workload;
         const cacheKey = workloadCacheKey(workload);
         const resourceVersion = workload.metadata.resourceVersion ?? '';
         try {
-          const phases = await evaluatePhases(currentDefinition.karta, workload);
+          const options = { referencesEnabled, reader };
+          const phases = await readObserved(workload, cluster, plural, namespaced, controller.signal,
+            exact => evaluatePhases(currentDefinition.karta, exact, options));
           if (cancelled || inFlightVersion.current.get(cacheKey) !== resourceVersion) {
             // A newer call or definition has started; this result is stale.
             return;
           }
-          phaseCache.current.set(cacheKey, { resourceVersion, phases });
+          phaseCache.current.set(cacheKey, { resourceVersion, phases, observation });
           evaluationErrors.current.delete(cacheKey);
         } catch (evaluationError) {
           // Only a still-current evaluation may speak for the workload: a late
@@ -209,14 +233,17 @@ export function KindFetcher({
       })
     ).then(() => {
       if (!cancelled) {
+        evaluating.current = false;
         onRows(key, buildRows());
       }
     });
 
     return () => {
       cancelled = true;
+      controller.abort();
+      evaluating.current = false;
     };
-  }, [items, error, listLoading, definitionVersion, key, onRows, onError]);
+  }, [items, error, listLoading, definitionVersion, cluster, key, onRows, onError, observation, referencesEnabled, namespaced, plural]);
 
   return null;
 }

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 NVIDIA Corporation
 
 // Package workload resolves a workload object into the view the CLI renders,
-// reading it through its Karta definition without contacting the cluster.
+// reading it through its Karta definition using the reference inputs supplied by its caller.
 package workload
 
 import (
@@ -34,20 +34,20 @@ type View struct {
 const undefinedPhase = "Undefined"
 
 // Resolve reads obj through def and returns its view.
-func Resolve(ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition) (*View, error) {
-	factory := resource.NewComponentFactoryFromObject(def.Karta, obj)
+func Resolve(ctx context.Context, obj *unstructured.Unstructured, def definitions.Definition, options ...resource.FactoryOption) (*View, error) {
+	factory := resource.NewComponentFactoryFromObject(def.Karta, obj, options...)
 
-	workloadTree, err := tree.Build(ctx, factory)
+	status, err := tree.ReadStatus(ctx, factory)
 	if err != nil {
-		return nil, fmt.Errorf("build tree: %w", err)
+		return nil, fmt.Errorf("read status: %w", err)
 	}
 
-	view := viewOf(obj, def, workloadTree)
+	view := viewOf(obj, def, status)
 	return &view, nil
 }
 
 // viewOf reads the identity every rendering of a workload shares.
-func viewOf(obj *unstructured.Unstructured, def definitions.Definition, workloadTree *tree.WorkloadTree) View {
+func viewOf(obj *unstructured.Unstructured, def definitions.Definition, status *tree.WorkloadStatus) View {
 	return View{
 		Name:       obj.GetName(),
 		Namespace:  obj.GetNamespace(),
@@ -56,14 +56,14 @@ func viewOf(obj *unstructured.Unstructured, def definitions.Definition, workload
 		CreatedAt:  obj.GetCreationTimestamp().Time,
 		Definition: def.Karta.Name,
 		Origin:     string(def.Origin),
-		Phases:     phases(workloadTree),
+		Phases:     phases(status),
 	}
 }
 
 // phases folds "no status mapping" and "mapping matched nothing" into one value.
-func phases(t *tree.WorkloadTree) []string {
-	if t.Status == nil || len(t.Status.Phases) == 0 {
+func phases(status *tree.WorkloadStatus) []string {
+	if status == nil || len(status.Phases) == 0 {
 		return []string{undefinedPhase}
 	}
-	return t.Status.Phases
+	return status.Phases
 }

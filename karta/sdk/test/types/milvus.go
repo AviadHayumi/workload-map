@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	"github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 // Milvus is a status-only root with pod-bearing StatefulSet children under
@@ -62,7 +62,7 @@ func MilvusKarta() *v1alpha1.Karta {
 					},
 					StatusDefinition: &v1alpha1.StatusDefinition{
 						ConditionsDefinition: &v1alpha1.ConditionsDefinition{
-							Path:            ".status.conditions",
+							Read:            v1alpha1.ReadAccessor{Expression: `object[?"status"][?"conditions"].orValue(dyn(null))`},
 							TypeFieldName:   "type",
 							StatusFieldName: "status",
 						},
@@ -90,15 +90,15 @@ func MilvusKarta() *v1alpha1.Karta {
 							Kind:    "StatefulSet",
 						},
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.components.queryNode.template"),
+							PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"components"][?"queryNode"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/components/queryNode/template`)}},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath: ptr.To(".spec.components.queryNode.replicas"),
+							Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"components"][?"queryNode"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/components/queryNode/replicas`)}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: `.metadata.labels["app.kubernetes.io/component"]`,
-								Value:   ptr.To("querynode"),
+								Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))`},
+								Value: ptr.To("querynode"),
 							},
 						},
 					},
@@ -111,15 +111,15 @@ func MilvusKarta() *v1alpha1.Karta {
 							Kind:    "StatefulSet",
 						},
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.components.dataNode.template"),
+							PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"components"][?"dataNode"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/components/dataNode/template`)}},
 						},
 						ScaleDefinition: &v1alpha1.ScaleDefinition{
-							ReplicasPath: ptr.To(".spec.components.dataNode.replicas"),
+							Replicas: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"components"][?"dataNode"][?"replicas"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/components/dataNode/replicas`)}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: `.metadata.labels["app.kubernetes.io/component"]`,
-								Value:   ptr.To("datanode"),
+								Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))`},
+								Value: ptr.To("datanode"),
 							},
 						},
 					},
@@ -133,12 +133,12 @@ func MilvusKarta() *v1alpha1.Karta {
 							Kind:    "StatefulSet",
 						},
 						SpecDefinition: &v1alpha1.SpecDefinition{
-							PodTemplateSpecPath: ptr.To(".spec.components.proxy.template"),
+							PodTemplateSpec: &v1alpha1.ValueAccessor{Read: &v1alpha1.ReadAccessor{Expression: `object[?"spec"][?"components"][?"proxy"][?"template"].orValue(dyn(null))`}, Write: &v1alpha1.WriteAccessor{Path: ptr.To(`/spec/components/proxy/template`)}},
 						},
 						PodSelector: &v1alpha1.PodSelector{
 							ComponentTypeSelector: &v1alpha1.ComponentTypeSelector{
-								KeyPath: `.metadata.labels["app.kubernetes.io/component"]`,
-								Value:   ptr.To("proxy"),
+								Read:  v1alpha1.ReadAccessor{Expression: `object[?"metadata"][?"labels"][?"app.kubernetes.io/component"].orValue(dyn(null))`},
+								Value: ptr.To("proxy"),
 							},
 						},
 					},

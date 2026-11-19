@@ -12,6 +12,7 @@ export interface Karta {
   spec?: {
     experimental?: boolean;
     structureDefinition?: {
+      references?: { name: string }[];
       rootComponent?: {
         kind?: GroupVersionKind;
       };
@@ -45,6 +46,14 @@ export interface Scale {
   replicas?: number;
   minReplicas?: number;
   maxReplicas?: number;
+}
+
+export interface ExtractedInstance {
+  fragmentedPodSpec?: { image?: string; [field: string]: unknown };
+  podSpec?: Record<string, unknown>;
+  podTemplateSpec?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  scale?: Scale;
 }
 
 export interface WorkloadStatus {

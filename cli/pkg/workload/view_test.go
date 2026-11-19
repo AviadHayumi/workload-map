@@ -72,6 +72,17 @@ var _ = Describe("Resolve", func() {
 })
 
 var _ = Describe("phase normalization", func() {
+	It("reads Trainer status without fetching the runtime used for its image", func() {
+		view, err := resolveObject([]byte(`
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata: {name: training}
+spec: {runtimeRef: {name: torch}}
+`))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(view.Phases).To(Equal([]string{"Initializing"}))
+	})
+
 	// The Deployment definition maps a Progressing condition with the
 	// NewReplicaSetAvailable reason onto Running.
 	It("reports the phase its definition maps the status onto", func() {

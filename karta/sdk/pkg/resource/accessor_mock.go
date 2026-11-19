@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha2 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
 	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +44,7 @@ func (m *MockComponentReader) EXPECT() *MockComponentReaderMockRecorder {
 }
 
 // ExtractFragmentedPodSpec mocks base method.
-func (m *MockComponentReader) ExtractFragmentedPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]FragmentedPodSpec, error) {
+func (m *MockComponentReader) ExtractFragmentedPodSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]FragmentedPodSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractFragmentedPodSpec", ctx, definition)
 	ret0, _ := ret[0].([]FragmentedPodSpec)
@@ -59,7 +59,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractFragmentedPodSpec(ctx, definit
 }
 
 // ExtractInstanceIds mocks base method.
-func (m *MockComponentReader) ExtractInstanceIds(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]string, error) {
+func (m *MockComponentReader) ExtractInstanceIds(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractInstanceIds", ctx, definition)
 	ret0, _ := ret[0].([]string)
@@ -74,7 +74,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractInstanceIds(ctx, definition an
 }
 
 // ExtractPodMetadata mocks base method.
-func (m *MockComponentReader) ExtractPodMetadata(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v10.ObjectMeta, error) {
+func (m *MockComponentReader) ExtractPodMetadata(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v10.ObjectMeta, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodMetadata", ctx, definition)
 	ret0, _ := ret[0].([]v10.ObjectMeta)
@@ -89,7 +89,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractPodMetadata(ctx, definition an
 }
 
 // ExtractPodSpec mocks base method.
-func (m *MockComponentReader) ExtractPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v1.PodSpec, error) {
+func (m *MockComponentReader) ExtractPodSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v1.PodSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodSpec", ctx, definition)
 	ret0, _ := ret[0].([]v1.PodSpec)
@@ -104,7 +104,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractPodSpec(ctx, definition any) *
 }
 
 // ExtractPodTemplateSpec mocks base method.
-func (m *MockComponentReader) ExtractPodTemplateSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v1.PodTemplateSpec, error) {
+func (m *MockComponentReader) ExtractPodTemplateSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v1.PodTemplateSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodTemplateSpec", ctx, definition)
 	ret0, _ := ret[0].([]v1.PodTemplateSpec)
@@ -119,7 +119,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractPodTemplateSpec(ctx, definitio
 }
 
 // ExtractScale mocks base method.
-func (m *MockComponentReader) ExtractScale(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]Scale, error) {
+func (m *MockComponentReader) ExtractScale(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]Scale, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractScale", ctx, definition)
 	ret0, _ := ret[0].([]Scale)
@@ -134,7 +134,7 @@ func (mr *MockComponentReaderMockRecorder) ExtractScale(ctx, definition any) *go
 }
 
 // ExtractStatus mocks base method.
-func (m *MockComponentReader) ExtractStatus(ctx context.Context, definition v1alpha1.ComponentDefinition) (*Status, error) {
+func (m *MockComponentReader) ExtractStatus(ctx context.Context, definition v1alpha2.ComponentDefinition) (*Status, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractStatus", ctx, definition)
 	ret0, _ := ret[0].(*Status)
@@ -188,87 +188,31 @@ func (m *MockComponentWriter) EXPECT() *MockComponentWriterMockRecorder {
 }
 
 // ApplyResumeActions mocks base method.
-func (m *MockComponentWriter) ApplyResumeActions(ctx context.Context, definition v1alpha1.ComponentDefinition) error {
+func (m *MockComponentWriter) ApplyResumeActions(arg0 context.Context, arg1 v1alpha2.ComponentDefinition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyResumeActions", ctx, definition)
+	ret := m.ctrl.Call(m, "ApplyResumeActions", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyResumeActions indicates an expected call of ApplyResumeActions.
-func (mr *MockComponentWriterMockRecorder) ApplyResumeActions(ctx, definition any) *gomock.Call {
+func (mr *MockComponentWriterMockRecorder) ApplyResumeActions(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyResumeActions", reflect.TypeOf((*MockComponentWriter)(nil).ApplyResumeActions), ctx, definition)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyResumeActions", reflect.TypeOf((*MockComponentWriter)(nil).ApplyResumeActions), arg0, arg1)
 }
 
 // ApplySuspendActions mocks base method.
-func (m *MockComponentWriter) ApplySuspendActions(ctx context.Context, definition v1alpha1.ComponentDefinition) error {
+func (m *MockComponentWriter) ApplySuspendActions(arg0 context.Context, arg1 v1alpha2.ComponentDefinition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplySuspendActions", ctx, definition)
+	ret := m.ctrl.Call(m, "ApplySuspendActions", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplySuspendActions indicates an expected call of ApplySuspendActions.
-func (mr *MockComponentWriterMockRecorder) ApplySuspendActions(ctx, definition any) *gomock.Call {
+func (mr *MockComponentWriterMockRecorder) ApplySuspendActions(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplySuspendActions", reflect.TypeOf((*MockComponentWriter)(nil).ApplySuspendActions), ctx, definition)
-}
-
-// UpdateFragmentedPodSpec mocks base method.
-func (m *MockComponentWriter) UpdateFragmentedPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, fragmentedPodSpecs []FragmentedPodSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateFragmentedPodSpec", ctx, definition, fragmentedPodSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateFragmentedPodSpec indicates an expected call of UpdateFragmentedPodSpec.
-func (mr *MockComponentWriterMockRecorder) UpdateFragmentedPodSpec(ctx, definition, fragmentedPodSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFragmentedPodSpec", reflect.TypeOf((*MockComponentWriter)(nil).UpdateFragmentedPodSpec), ctx, definition, fragmentedPodSpecs)
-}
-
-// UpdatePodMetadata mocks base method.
-func (m *MockComponentWriter) UpdatePodMetadata(ctx context.Context, definition v1alpha1.ComponentDefinition, podMetadata []v10.ObjectMeta) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodMetadata", ctx, definition, podMetadata)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodMetadata indicates an expected call of UpdatePodMetadata.
-func (mr *MockComponentWriterMockRecorder) UpdatePodMetadata(ctx, definition, podMetadata any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodMetadata", reflect.TypeOf((*MockComponentWriter)(nil).UpdatePodMetadata), ctx, definition, podMetadata)
-}
-
-// UpdatePodSpec mocks base method.
-func (m *MockComponentWriter) UpdatePodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, podSpecs []v1.PodSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodSpec", ctx, definition, podSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodSpec indicates an expected call of UpdatePodSpec.
-func (mr *MockComponentWriterMockRecorder) UpdatePodSpec(ctx, definition, podSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodSpec", reflect.TypeOf((*MockComponentWriter)(nil).UpdatePodSpec), ctx, definition, podSpecs)
-}
-
-// UpdatePodTemplateSpec mocks base method.
-func (m *MockComponentWriter) UpdatePodTemplateSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, podTemplateSpecs []v1.PodTemplateSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodTemplateSpec", ctx, definition, podTemplateSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodTemplateSpec indicates an expected call of UpdatePodTemplateSpec.
-func (mr *MockComponentWriterMockRecorder) UpdatePodTemplateSpec(ctx, definition, podTemplateSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodTemplateSpec", reflect.TypeOf((*MockComponentWriter)(nil).UpdatePodTemplateSpec), ctx, definition, podTemplateSpecs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplySuspendActions", reflect.TypeOf((*MockComponentWriter)(nil).ApplySuspendActions), arg0, arg1)
 }
 
 // MockComponentAccessor is a mock of ComponentAccessor interface.
@@ -296,35 +240,35 @@ func (m *MockComponentAccessor) EXPECT() *MockComponentAccessorMockRecorder {
 }
 
 // ApplyResumeActions mocks base method.
-func (m *MockComponentAccessor) ApplyResumeActions(ctx context.Context, definition v1alpha1.ComponentDefinition) error {
+func (m *MockComponentAccessor) ApplyResumeActions(arg0 context.Context, arg1 v1alpha2.ComponentDefinition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyResumeActions", ctx, definition)
+	ret := m.ctrl.Call(m, "ApplyResumeActions", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyResumeActions indicates an expected call of ApplyResumeActions.
-func (mr *MockComponentAccessorMockRecorder) ApplyResumeActions(ctx, definition any) *gomock.Call {
+func (mr *MockComponentAccessorMockRecorder) ApplyResumeActions(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyResumeActions", reflect.TypeOf((*MockComponentAccessor)(nil).ApplyResumeActions), ctx, definition)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyResumeActions", reflect.TypeOf((*MockComponentAccessor)(nil).ApplyResumeActions), arg0, arg1)
 }
 
 // ApplySuspendActions mocks base method.
-func (m *MockComponentAccessor) ApplySuspendActions(ctx context.Context, definition v1alpha1.ComponentDefinition) error {
+func (m *MockComponentAccessor) ApplySuspendActions(arg0 context.Context, arg1 v1alpha2.ComponentDefinition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplySuspendActions", ctx, definition)
+	ret := m.ctrl.Call(m, "ApplySuspendActions", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplySuspendActions indicates an expected call of ApplySuspendActions.
-func (mr *MockComponentAccessorMockRecorder) ApplySuspendActions(ctx, definition any) *gomock.Call {
+func (mr *MockComponentAccessorMockRecorder) ApplySuspendActions(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplySuspendActions", reflect.TypeOf((*MockComponentAccessor)(nil).ApplySuspendActions), ctx, definition)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplySuspendActions", reflect.TypeOf((*MockComponentAccessor)(nil).ApplySuspendActions), arg0, arg1)
 }
 
 // ExtractFragmentedPodSpec mocks base method.
-func (m *MockComponentAccessor) ExtractFragmentedPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]FragmentedPodSpec, error) {
+func (m *MockComponentAccessor) ExtractFragmentedPodSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]FragmentedPodSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractFragmentedPodSpec", ctx, definition)
 	ret0, _ := ret[0].([]FragmentedPodSpec)
@@ -339,7 +283,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractFragmentedPodSpec(ctx, defin
 }
 
 // ExtractInstanceIds mocks base method.
-func (m *MockComponentAccessor) ExtractInstanceIds(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]string, error) {
+func (m *MockComponentAccessor) ExtractInstanceIds(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractInstanceIds", ctx, definition)
 	ret0, _ := ret[0].([]string)
@@ -354,7 +298,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractInstanceIds(ctx, definition 
 }
 
 // ExtractPodMetadata mocks base method.
-func (m *MockComponentAccessor) ExtractPodMetadata(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v10.ObjectMeta, error) {
+func (m *MockComponentAccessor) ExtractPodMetadata(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v10.ObjectMeta, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodMetadata", ctx, definition)
 	ret0, _ := ret[0].([]v10.ObjectMeta)
@@ -369,7 +313,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractPodMetadata(ctx, definition 
 }
 
 // ExtractPodSpec mocks base method.
-func (m *MockComponentAccessor) ExtractPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v1.PodSpec, error) {
+func (m *MockComponentAccessor) ExtractPodSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v1.PodSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodSpec", ctx, definition)
 	ret0, _ := ret[0].([]v1.PodSpec)
@@ -384,7 +328,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractPodSpec(ctx, definition any)
 }
 
 // ExtractPodTemplateSpec mocks base method.
-func (m *MockComponentAccessor) ExtractPodTemplateSpec(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]v1.PodTemplateSpec, error) {
+func (m *MockComponentAccessor) ExtractPodTemplateSpec(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]v1.PodTemplateSpec, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractPodTemplateSpec", ctx, definition)
 	ret0, _ := ret[0].([]v1.PodTemplateSpec)
@@ -399,7 +343,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractPodTemplateSpec(ctx, definit
 }
 
 // ExtractScale mocks base method.
-func (m *MockComponentAccessor) ExtractScale(ctx context.Context, definition v1alpha1.ComponentDefinition) ([]Scale, error) {
+func (m *MockComponentAccessor) ExtractScale(ctx context.Context, definition v1alpha2.ComponentDefinition) ([]Scale, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractScale", ctx, definition)
 	ret0, _ := ret[0].([]Scale)
@@ -414,7 +358,7 @@ func (mr *MockComponentAccessorMockRecorder) ExtractScale(ctx, definition any) *
 }
 
 // ExtractStatus mocks base method.
-func (m *MockComponentAccessor) ExtractStatus(ctx context.Context, definition v1alpha1.ComponentDefinition) (*Status, error) {
+func (m *MockComponentAccessor) ExtractStatus(ctx context.Context, definition v1alpha2.ComponentDefinition) (*Status, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ExtractStatus", ctx, definition)
 	ret0, _ := ret[0].(*Status)
@@ -441,60 +385,4 @@ func (m *MockComponentAccessor) GetObject() (map[string]any, error) {
 func (mr *MockComponentAccessorMockRecorder) GetObject() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetObject", reflect.TypeOf((*MockComponentAccessor)(nil).GetObject))
-}
-
-// UpdateFragmentedPodSpec mocks base method.
-func (m *MockComponentAccessor) UpdateFragmentedPodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, fragmentedPodSpecs []FragmentedPodSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateFragmentedPodSpec", ctx, definition, fragmentedPodSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateFragmentedPodSpec indicates an expected call of UpdateFragmentedPodSpec.
-func (mr *MockComponentAccessorMockRecorder) UpdateFragmentedPodSpec(ctx, definition, fragmentedPodSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFragmentedPodSpec", reflect.TypeOf((*MockComponentAccessor)(nil).UpdateFragmentedPodSpec), ctx, definition, fragmentedPodSpecs)
-}
-
-// UpdatePodMetadata mocks base method.
-func (m *MockComponentAccessor) UpdatePodMetadata(ctx context.Context, definition v1alpha1.ComponentDefinition, podMetadata []v10.ObjectMeta) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodMetadata", ctx, definition, podMetadata)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodMetadata indicates an expected call of UpdatePodMetadata.
-func (mr *MockComponentAccessorMockRecorder) UpdatePodMetadata(ctx, definition, podMetadata any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodMetadata", reflect.TypeOf((*MockComponentAccessor)(nil).UpdatePodMetadata), ctx, definition, podMetadata)
-}
-
-// UpdatePodSpec mocks base method.
-func (m *MockComponentAccessor) UpdatePodSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, podSpecs []v1.PodSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodSpec", ctx, definition, podSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodSpec indicates an expected call of UpdatePodSpec.
-func (mr *MockComponentAccessorMockRecorder) UpdatePodSpec(ctx, definition, podSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodSpec", reflect.TypeOf((*MockComponentAccessor)(nil).UpdatePodSpec), ctx, definition, podSpecs)
-}
-
-// UpdatePodTemplateSpec mocks base method.
-func (m *MockComponentAccessor) UpdatePodTemplateSpec(ctx context.Context, definition v1alpha1.ComponentDefinition, podTemplateSpecs []v1.PodTemplateSpec) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePodTemplateSpec", ctx, definition, podTemplateSpecs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePodTemplateSpec indicates an expected call of UpdatePodTemplateSpec.
-func (mr *MockComponentAccessorMockRecorder) UpdatePodTemplateSpec(ctx, definition, podTemplateSpecs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePodTemplateSpec", reflect.TypeOf((*MockComponentAccessor)(nil).UpdatePodTemplateSpec), ctx, definition, podTemplateSpecs)
 }

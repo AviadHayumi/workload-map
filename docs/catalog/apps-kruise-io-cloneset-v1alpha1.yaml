@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha2
+metadata:
+  name: apps-kruise-io-cloneset-v1alpha1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: cloneset
+      kind:
+        group: apps.kruise.io
+        version: v1alpha1
+        kind: CloneSet
+      specDefinition:
+        podTemplateSpec:
+          read:
+            expression: object[?"spec"][?"template"].orValue(dyn(null))
+          write:
+            path: /spec/template
+      scaleDefinition:
+        replicas:
+          read:
+            expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+          write:
+            path: /spec/replicas
+      statusDefinition:
+        statusMappings:
+          initializing:
+            - byExpression:
+                expression: object[?"status"][?"observedGeneration"].orValue(0) > 0 && (object[?"status"][?"observedGeneration"].orValue(0) != object[?"metadata"][?"generation"].orValue(0) || object[?"status"][?"replicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || object[?"status"][?"readyReplicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || object[?"status"][?"availableReplicas"].orValue(0) != object[?"spec"][?"replicas"].orValue(1) || (!(object[?"spec"][?"updateStrategy"][?"paused"].orValue(false)) && object[?"status"][?"updatedReplicas"].orValue(0) < object[?"status"][?"expectedUpdatedReplicas"].orValue(0)))
+          running:
+            - byExpression:
+                expression: object[?"status"][?"observedGeneration"].orValue(0) > 0 && object[?"status"][?"observedGeneration"].orValue(0) == object[?"metadata"][?"generation"].orValue(0) && object[?"status"][?"replicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"readyReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && object[?"status"][?"availableReplicas"].orValue(0) == object[?"spec"][?"replicas"].orValue(1) && (object[?"spec"][?"updateStrategy"][?"paused"].orValue(false) || object[?"status"][?"updatedReplicas"].orValue(0) >= object[?"status"][?"expectedUpdatedReplicas"].orValue(0))
+    childComponents:
+      - name: pod
+        kind:
+          group: ""
+          version: v1
+          kind: Pod
+        ownerRef: cloneset
+  optimizationInstructions: {}

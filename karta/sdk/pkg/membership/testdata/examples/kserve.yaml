@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+# Membership example for the CEL PoC. Status and value mappings are omitted.
+apiVersion: run.ai/v1alpha2
+kind: Karta
+metadata:
+  name: inferenceservice
+spec:
+  structureDefinition:
+    rootComponent:
+      statusDefinition:
+        statusMappings: {}
+      name: inferenceservice
+      kind:
+        group: serving.kserve.io
+        version: v1beta1
+        kind: InferenceService
+    childComponents:
+    - name: predictor
+      ownerRef: inferenceservice
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: object.?metadata.?labels[?"component"].orValue(null)
+          value: predictor
+    - name: transformer
+      ownerRef: inferenceservice
+      podSelector:
+        componentTypeSelector:
+          read:
+            expression: object.?metadata.?labels[?"component"].orValue(null)
+          value: transformer

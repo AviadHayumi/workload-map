@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 NVIDIA Corporation
+kind: Karta
+apiVersion: run.ai/v1alpha2
+metadata:
+  name: argoproj-io-rollout-v1alpha1
+spec:
+  structureDefinition:
+    rootComponent:
+      name: rollout
+      kind:
+        group: argoproj.io
+        version: v1alpha1
+        kind: Rollout
+      specDefinition:
+        podTemplateSpec:
+          read:
+            expression: object[?"spec"][?"template"].orValue(dyn(null))
+          write:
+            path: /spec/template
+      scaleDefinition:
+        replicas:
+          read:
+            expression: object[?"spec"][?"replicas"].orValue(dyn(null))
+          write:
+            path: /spec/replicas
+      statusDefinition:
+        phaseDefinition:
+          read:
+            expression: object[?"status"][?"phase"].orValue(dyn(null))
+        conditionsDefinition:
+          read:
+            expression: object[?"status"][?"conditions"].orValue(dyn(null))
+          typeFieldName: type
+          statusFieldName: status
+          messageFieldName: message
+          reasonFieldName: reason
+        statusMappings:
+          initializing:
+            - byExpression:
+                expression: (object[?"status"][?"phase"].orValue("") != "Healthy" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0)) || object[?"spec"][?"paused"].orValue(false)) && (object[?"status"][?"phase"].orValue("") != "Degraded" || object[?"status"][?"observedGeneration"].orValue(dyn(null)) != string(object.?metadata.?generation.orValue(0))) && (!(object[?"spec"][?"paused"].orValue(false)) || object[?"status"][?"phase"].orValue("") == "Degraded")
+          running:
+            - byPhase: Healthy
+              byExpression:
+                expression: object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0)) && !(object[?"spec"][?"paused"].orValue(false))
+          degraded:
+            - byPhase: Degraded
+              byExpression:
+                expression: object[?"status"][?"observedGeneration"].orValue(dyn(null)) == string(object.?metadata.?generation.orValue(0))
+          suspended:
+            - byExpression:
+                expression: object[?"spec"][?"paused"].orValue(false) && object[?"status"][?"phase"].orValue("") != "Degraded"
+      suspendDefinition:
+        suspendActions:
+          - write:
+              path: /spec/paused
+            value: "true"
+        resumeActions:
+          - write:
+              path: /spec/paused
+            value: "false"
+    childComponents:
+      - name: replicaset
+        kind:
+          group: apps
+          version: v1
+          kind: ReplicaSet
+        ownerRef: rollout
+  optimizationInstructions: {}

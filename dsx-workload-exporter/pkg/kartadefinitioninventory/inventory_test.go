@@ -33,7 +33,7 @@ import (
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
-	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha1"
+	v1alpha1 "github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/api/runai/v1alpha2"
 )
 
 var (
@@ -354,7 +354,7 @@ var _ = Describe("Inventory", func() {
 			Eventually(inventoryHealth(inventory), eventuallyTimeout, eventuallyInterval).Should(Succeed())
 			resource := client.Resource(kartasGVR)
 			broken := &unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "run.ai/v1alpha1", "kind": "Karta",
+				"apiVersion": "run.ai/v1alpha2", "kind": "Karta",
 				"metadata": map[string]any{"name": "broken"},
 				"spec":     map[string]any{"structureDefinition": "not-an-object"},
 			}}
