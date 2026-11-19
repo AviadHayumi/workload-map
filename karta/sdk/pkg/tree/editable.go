@@ -40,7 +40,7 @@ const (
 	PodAffinity       Field = "fragmented.podAffinity"
 	NodeAffinity      Field = "fragmented.nodeAffinity"
 	Containers        Field = "fragmented.containers"
-	Container         Field = "fragmented.container"
+	Container         Field = "container"
 	PriorityClassName Field = "fragmented.priorityClassName"
 	Image             Field = "fragmented.image"
 	Replicas          Field = "scale.replicas"
