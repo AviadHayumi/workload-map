@@ -184,6 +184,9 @@ func TestExporterInstallationValues(t *testing.T) {
 
 func TestExporterDisabledIsolation(t *testing.T) {
 	baseline := renderExporterChart(t, "", "--set", "exporter.enabled=false")
+	if !bytes.Equal(baseline, renderExporterChart(t, "", "--set", "exporter=null")) {
+		t.Fatal("null exporter changed the disabled manifests")
+	}
 	changed := renderExporterChart(t, `exporter:
   metricsPort: 9090
   resources: {requests: {cpu: 25m}}
@@ -281,17 +284,36 @@ var _ = ginkgo.Describe("chart runtime configuration", func() {
 		ginkgo.Entry("misspelled group", "selectoin", "{}"),
 	)
 
-	ginkgo.DescribeTable("rejects invalid group shapes during Helm rendering",
-		func(override, message string) {
+	ginkgo.DescribeTable("requires each enabled exporter group to be an object",
+		func(parent, group string) {
 			t := ginkgo.GinkgoT()
-			out, err := runExporterChart(t, "", "--set-json", override)
+			field := parent + "." + group
+			out, err := runExporterChart(t, "", "--set-json", field+"=[]")
 			Expect(err).To(HaveOccurred())
-			Expect(string(out)).To(ContainSubstring(message))
+			Expect(string(out)).To(ContainSubstring("schema"))
+			Expect(string(out)).To(MatchRegexp(`(?m)^- .*%s.*object`, group))
+
+			out, err = runExporterChart(t, "", "--set-json", field+"=null")
+			Expect(err).To(HaveOccurred())
+			Expect(string(out)).To(ContainSubstring("schema"))
+			Expect(string(out)).To(MatchRegexp(`(?m)^- .*(missing property '%s'|%s is required)`, group, group))
 		},
-		ginkgo.Entry("worker count in place of a group", "exporter.tuning.workers=3", "exporter.tuning.workers must be a map"),
-		ginkgo.Entry("list in place of a group", "exporter.tuning.apiClient=[]", "exporter.tuning.apiClient must be a map"),
-		ginkgo.Entry("null selection", "exporter.selection=null", "exporter.selection must be a map"),
+		ginkgo.Entry("selection", "exporter", "selection"),
+		ginkgo.Entry("metrics", "exporter", "metrics"),
+		ginkgo.Entry("tuning", "exporter", "tuning"),
+		ginkgo.Entry("worker counts", "exporter.tuning", "workers"),
+		ginkgo.Entry("API client", "exporter.tuning", "apiClient"),
 	)
+
+	ginkgo.It("ignores malformed runtime groups when the exporter is disabled", func() {
+		values := `exporter:
+  selection: null
+  metrics: []
+  tuning: {workers: 3, apiClient: []}
+`
+		out := renderExporterChart(ginkgo.GinkgoT(), values, "--set", "exporter.enabled=false")
+		Expect(string(out)).NotTo(ContainSubstring("dsx-workload-exporter"))
+	})
 
 	ginkgo.DescribeTable("rejects unknown fields when loading the rendered config",
 		func(override, field string) {

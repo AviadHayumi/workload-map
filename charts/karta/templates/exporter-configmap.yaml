@@ -7,16 +7,6 @@
 {{- fail "exporter.kartaDefinitionSource.cluster.enabled must be true or false" }}
 {{- end }}
 {{- $exporter := .Values.exporter }}
-{{- range $name := list "selection" "metrics" "tuning" }}
-  {{- if not (kindIs "map" (index $exporter $name)) }}
-    {{- fail (printf "exporter.%s must be a map" $name) }}
-  {{- end }}
-{{- end }}
-{{- range $name := list "workers" "apiClient" }}
-  {{- if not (kindIs "map" (index $exporter.tuning $name)) }}
-    {{- fail (printf "exporter.tuning.%s must be a map" $name) }}
-  {{- end }}
-{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

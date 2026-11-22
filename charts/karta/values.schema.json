@@ -6,6 +6,28 @@
     "exporter": {
       "type": ["object", "null"],
       "additionalProperties": false,
+      "if": {
+        "$comment": "Use the same truthiness check as the exporter templates.",
+        "required": ["enabled"],
+        "properties": {
+          "enabled": {"not": {"enum": [false, null, 0, "", [], {}]}}
+        }
+      },
+      "then": {
+        "required": ["selection", "metrics", "tuning"],
+        "properties": {
+          "selection": {"type": "object"},
+          "metrics": {"type": "object"},
+          "tuning": {
+            "type": "object",
+            "required": ["workers", "apiClient"],
+            "properties": {
+              "workers": {"type": "object"},
+              "apiClient": {"type": "object"}
+            }
+          }
+        }
+      },
       "properties": {
         "enabled": {},
         "selection": {},
