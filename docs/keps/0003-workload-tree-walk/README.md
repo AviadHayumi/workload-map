@@ -14,8 +14,10 @@
 
 ![A visitor sets the KServe predictor scheduler. Karta stages the mapped field. The caller saves a successful edit. A failed walk discards its edits.](walk.png)
 
-A controller can inspect a workload instance and edit its pod template in the same visit.
-Karta applies the changed fields in memory. The caller saves the workload.
+A controller loads a workload once. It can inspect an instance and edit its pod
+template in the same visit. It can also pass a live Pod to the same workload
+to find its instance or evaluate its scheduling group. Karta stages edits in
+memory. The caller saves the workload.
 See [SDK usage by consumer](#sdk-usage-by-consumer) for reads, edits, actions and live Pod grouping.
 
 ## Motivation
@@ -39,8 +41,9 @@ decides what to edit from the data it sees during the visit, as in Go's
 ## Proposal
 
 `definition.Load(obj)` accepts a Kubernetes `runtime.Object` such as
-`*unstructured.Unstructured`. The returned `Workload` supports reads, edits
-during a walk, targeted edits and named actions.
+`*unstructured.Unstructured`. The returned `Workload` owns all operations on
+that object. The SDK keeps the compiled instructions and the component factory
+behind this interface.
 
 ```go
 type Workload interface {
@@ -48,6 +51,9 @@ type Workload interface {
 	Status(ctx context.Context) (*Status, error)
 	Read(ctx context.Context) (*Snapshot, error)
 	Component(ctx context.Context, name string) (*Component, error)
+	SubtreeScale(ctx context.Context, component string, instanceID *string) (int32, error)
+	LocatePod(ctx context.Context, pod *corev1.Pod) (PodLocation, error)
+	PodGroupFor(ctx context.Context, pod *corev1.Pod) (*PodGroup, error)
 
 	Walk(ctx context.Context, visit func(Node) error) (bool, error)
 	MutatePodTemplates(ctx context.Context, component string, fn PodTemplateMutateFunc, opts ...MutateOption) (bool, error)
@@ -174,34 +180,31 @@ only after both succeed.
 
 ## SDK usage by consumer
 
-Catalog lookup, definition validation and live Pod grouping exist in the SDK
-today. The `karta.Workload` reads, edits and actions use the proposed interface.
-In the KAI Scheduler example, the live Pod's role label identifies a worker.
-The owning `CustomJob` supplies the subgroup minimum of two.
+The examples use the proposed `karta` package. Once a caller loads a workload,
+it uses the same value for reads, live Pod queries, edits and actions.
+In KAI's example, `tree.PodGroupFor(ctx, pod)` takes the role label from the
+Pod and the worker minimum of two from the loaded `CustomJob`.
 
 <details>
 <summary>Validate and load a definition, read status, and calculate scale and CPU</summary>
 
 ### Validate, select and load a definition
 
-`kli validate` and the operator webhook call
-`v1alpha1.NewKartaValidator(def).Validate()` on a Karta manifest. A client can
-list built-ins with `catalog.List()`. When it already has the workload, the
-object's group, version and kind (GVK) identify the built-in definition.
-[CLI validator](../../../cli/cmd/validate.go) and [webhook](../../../operator/pkg/webhook.go)
+Before a workload exists, a CLI or admission webhook can validate a Karta
+manifest with `_, err := karta.Compile(def)`. A CLI can list the built-in
+definitions with `karta.BuiltinDefinitions()`. It receives a copy of each
+definition in group, version and kind (GVK) order. For an object that carries
+its GVK, `karta.LoadBuiltin` selects and loads the matching definition.
+[Current CLI validator](../../../cli/cmd/validate.go), [webhook](../../../operator/pkg/webhook.go) and [built-in catalog](../../../karta/sdk/pkg/catalog/catalog.go)
 
 ```go
 func loadBuiltin(obj *unstructured.Unstructured) (karta.Workload, error) {
-	def, err := catalog.Get(obj.GroupVersionKind())
-	if err != nil {
-		return nil, err
-	}
-	return karta.Load(def, obj)
+	return karta.LoadBuiltin(obj)
 }
 ```
 
 For a JobSet this loads a private copy of that JobSet. An unknown GVK returns
-`catalog.ErrNotFound` through `errors.Is`. Callers with a registered definition
+`karta.ErrBuiltinNotFound` through `errors.Is`. Callers with a registered definition
 can pass it directly to `karta.Load`. For example, NVIDIA Run:ai exposes
 registration of a workload type with an administrator-supplied Karta. The CLI
 resolves a cluster definition ahead of a built-in for the same GVK.
@@ -269,6 +272,18 @@ In Headlamp the corresponding TypeScript call is
 `const tree = await buildTree(definition, workload)`. For the same JobSet,
 `tree.Status?.Phases` contains `"Running"`. This is the existing browser API.
 
+A caller that only needs a subtree's minimum can query the loaded workload
+without supplying a Pod. This returns eight for the `workers` instance.
+Passing nil for the instance ID counts all instances of `replicatedjob`
+and returns nine for this JobSet. A pointer to an empty ID is invalid.
+
+```go
+func jobSetWorkerMinimum(ctx context.Context, tree karta.Workload) (int32, error) {
+	id := "workers"
+	return tree.SubtreeScale(ctx, "replicatedjob", &id)
+}
+```
+
 ### Calculate the CPU request for workers
 
 Nova documents using custom workload resource requirements to choose a cluster
@@ -314,87 +329,110 @@ with `spec.coordinator.replicas: 1` and `spec.worker.replicas: 2`. A worker
 Pod carries `metadata.labels["e2e.example.com/role"]: worker`.
 [Definition lookup](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/hub.go#L81-L111) and [KAI fixture](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/test/e2e/suites/integrations/third_party/karta/customjob_karta.yaml#L22-L49)
 
-KAI pins the SDK under its earlier `github.com/run-ai/karta` module path.
-Here `resource` is Karta's resource package.
-This example uses the same grouping calls on this branch for the fixture's
-worker leaf. KAI's general matcher also searches descendants when a subgroup names a parent.
-[Pinned module](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/go.mod#L31), [subgroup calculation](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L109-L150) and [subtree matching](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/component_matching.go#L12-L47)
+KAI currently calls lower-level SDK packages. With the proposed interface it
+loads the CustomJob once and passes each live Pod to `tree.PodGroupFor(ctx, pod)`.
+Karta evaluates the grouping instructions against the current in-memory workload
+and that Pod. A query never edits either object. KAI still names and writes its
+PodGroup and updates the live Pods.
+[Current KAI grouping calls](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L33-L150)
 
 ```go
-func workerSubgroup(ctx context.Context, def *v1alpha1.Karta, job *unstructured.Unstructured, pod *corev1.Pod) (bool, int32, error) {
-	summary, err := instructions.NewStructureSummary(def)
-	if err != nil {
-		return false, 0, err
-	}
-	factory := resource.NewComponentFactoryFromObject(def, job)
-	worker, err := factory.GetComponent("worker")
-	if err != nil {
-		return false, 0, err
-	}
-	selector := worker.GetPodSelector()
-	if selector == nil || selector.ComponentTypeSelector == nil {
-		return false, 0, fmt.Errorf("worker component has no role selector")
-	}
-	matches, err := resource.NewPodQuerier(pod).MatchesComponentType(ctx, selector.ComponentTypeSelector)
-	if err != nil {
-		return false, 0, err
-	}
-	minimum, err := instructions.CalculateSubtreeScale(ctx, "worker", nil, factory, summary)
-	return matches, minimum, err
+type PodGroup struct {
+	Name         string
+	Keys         []string
+	MinAvailable int32
+	SubGroups    []PodSubGroup
+	Topology     *v1alpha1.TopologyConstraint
+}
+
+type PodSubGroup struct {
+	Component    string
+	MinAvailable int32
+	MatchesPod   bool
+	Topology     *v1alpha1.TopologyConstraint
 }
 ```
 
-With the worker Pod the result is `true, 2, nil`. With a coordinator Pod it is
-`false, 2, nil`. KAI writes the PodGroup with `minSubGroup: 2` and subgroup
-minimums of one coordinator and two workers. It marks the live Pods with their
-group and subgroup. The owning CustomJob receives no write. With a named group
-and no subgroups, KAI calculates the minimum from the root component's subtree.
-[KAI test assertions](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/test/e2e/suites/integrations/third_party/karta/karta_test.go#L123-L151) and [root-scale fallback](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L93-L104)
+```go
+func workerSubgroup(ctx context.Context, tree karta.Workload, pod *corev1.Pod) (bool, int32, error) {
+	group, err := tree.PodGroupFor(ctx, pod)
+	if err != nil {
+		return false, 0, err
+	}
+	if group != nil {
+		for _, sub := range group.SubGroups {
+			if sub.Component == "worker" {
+				return sub.MatchesPod, sub.MinAvailable, nil
+			}
+		}
+	}
+	return false, 0, fmt.Errorf("workload declares no worker subgroup")
+}
+```
+
+| Supplied Pod | Coordinator subgroup | Worker subgroup | Result of `workerSubgroup` |
+| --- | --- | --- | --- |
+| Role label `worker` | Minimum 1, no match | Minimum 2, match | `true, 2, nil` |
+| Role label `coordinator` | Minimum 1, match | Minimum 2, no match | `false, 2, nil` |
+
+For this definition, `Name` is `"customjob"` and `Keys` is `["customjob"]`.
+Karta returns every declared subgroup, its topology constraint if configured,
+and whether this Pod matches the component or a descendant. KAI uses
+`len(group.SubGroups)` for its minimum subgroup count of two. The group-level
+minimum is zero when subgroups carry the counts. A named group without
+subgroups uses the root subtree's minimum. Group-level topology is returned
+in `group.Topology`.
+[KAI fixture assertions](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/test/e2e/suites/integrations/third_party/karta/karta_test.go#L123-L151) and [subtree matching](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/component_matching.go#L12-L47)
+
+With no gang-scheduling instructions, `PodGroupFor` returns `nil, nil` so KAI
+can use its default grouper. A configured group can contain subgroups that all
+return `MatchesPod: false`. A named subgroup with a zero minimum, an invalid
+mapping or a failed expression returns an error. Both live Pod methods take a
+non-nil Pod whose owner the caller has already resolved. They see changes from
+earlier successful edits, even before the caller saves the workload.
+
+KAI's older `podGroups` format uses the same `tree.PodGroupFor(ctx, pod)`
+call. For the quickstart JobSet and a Pod labeled
+`jobset.sigs.k8s.io/replicatedjob-name: workers`, the result has `Name: "job"`,
+`Keys: ["workers"]`, `MinAvailable: 8` and no subgroups. The keys come from
+the Pod in the order declared by the matching group member. The count comes
+from the worker instance on the JobSet. When a member names an ancestor,
+Karta uses that ancestor's whole subtree. If no declared member matches the
+Pod, Karta returns an error. KAI builds the Kubernetes object name from the
+owner UID and the keys.
+[JobSet input](../../examples/quickstart/jobset.yaml), [group mapping](../../catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml) and [KAI legacy grouping](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L153-L212)
 
 ### Attribute a live Pod to a workload instance
 
-The exporter starts with a Pod and its resolved workload owner. For the
-quickstart JobSet, a Pod whose `jobset.sigs.k8s.io/replicatedjob-name` label
-is `workers` belongs to component `replicatedjob`, instance `workers`. The Pod
-supplies the label. The JobSet supplies the valid instance names. These calls
-exist today. The proposed walk starts from the workload in the other direction.
-[Exporter attribution](../../../dsx-workload-exporter/pkg/controller/leaf.go) and [Pod selector](../../catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml)
+The exporter has already found the Pod's owner. It needs the component, the
+instance ID and the replica key for metrics. It passes the live Pod to that
+owner's `Workload`. This also works for definitions without scheduling instructions.
+[Current exporter attribution](../../../dsx-workload-exporter/pkg/controller/leaf.go)
 
 ```go
-func jobSetPodInstance(ctx context.Context, def *v1alpha1.Karta, job *unstructured.Unstructured, pod *corev1.Pod) (string, *string, error) {
-	summary, err := instructions.NewStructureSummary(def)
-	if err != nil {
-		return "", nil, err
-	}
-	query := resource.NewPodQuerier(pod)
-	component, err := instructions.InferPodComponent(ctx, query, summary)
-	if err != nil {
-		return "", nil, err
-	}
-	factory := resource.NewComponentFactoryFromObject(def, job)
-	instance, err := instructions.InferPodComponentInstance(ctx, query, component, factory)
-	return component, instance, err
+type PodLocation struct {
+	Component  string
+	InstanceID string
+	ReplicaKey string
 }
 ```
 
-For metrics the exporter also checks the match. If a component declares
-instance IDs and none matches, it reports an attribution error. For a replica
-group it follows the component's owners to the first replica selector and calls
-`query.ExtractReplicaKey(ctx, selector.ReplicaSelector)`. For a LeaderWorkerSet
-worker with group-index label `"2"`, the parent `group` supplies the selector
-and the live Pod supplies the value `"2"`. [LeaderWorkerSet mapping](../../catalog/leaderworkerset-x-k8s-io-leaderworkerset-v1.yaml)
+```go
+func jobSetPodInstance(ctx context.Context, tree karta.Workload, pod *corev1.Pod) (karta.PodLocation, error) {
+	return tree.LocatePod(ctx, pod)
+}
+```
 
-KAI's older `podGroups` format uses the same Pod and owner inputs to answer
-a scheduling question. The quickstart JobSet and the worker Pod above give
-these results with its catalog definition.
-[JobSet group mapping](../../catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml) and [KAI grouping code](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L153-L199)
-
-| SDK call | Result |
-| --- | --- |
-| `instructions.GetPodGroupingEffectiveComponent(ctx, query, "replicatedjob", summary)` | Member of group `job`, effective component `replicatedjob` |
-| `instructions.InferPodComponentInstance(ctx, query, "replicatedjob", factory)` | A pointer to `"workers"` |
-| `query.ExtractGroupKeys(ctx, member.MemberDefinition.GroupByKeyPaths)` | `["workers"]` from the live Pod's label |
-| `instructions.CalculateSubtreeScale(ctx, member.EffectiveComponent, instance, factory, summary)` | `8` from the workload's worker entry |
+For the quickstart JobSet, a Pod with label
+`jobset.sigs.k8s.io/replicatedjob-name: workers` yields component
+`replicatedjob` and instance `workers`. A single-instance component has an
+empty instance ID. If a definition requires an instance ID and the Pod matches
+none of the owner's IDs, the query fails. A component can inherit the nearest
+replica selector from a parent. A LeaderWorkerSet worker whose group-index
+label is `"2"` yields `ReplicaKey: "2"`. Without a replica selector the key
+is empty. On a failed lookup or selector evaluation, the caller gets a zero
+`PodLocation` and an error.
+[JobSet mapping](../../catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml) and [LeaderWorkerSet mapping](../../catalog/leaderworkerset-x-k8s-io-leaderworkerset-v1.yaml)
 
 </details>
 
@@ -712,6 +750,11 @@ func prepareAndSave(ctx context.Context, tree karta.Workload, c client.Client) e
 
 ## Compatibility and alternatives
 
+This KEP brings the deferred `LocatePod` operation from KEP-0002 into
+`Workload`. Existing SDK callers can keep using the lower-level packages.
+The proposed methods reuse their selectors, grouping rules and scale evaluator.
+KAI and the exporter can adopt the interface independently.
+
 Existing catalog definitions need no migration. Declaring parameterized actions
 requires an additive CRD change. A mutable map per node would make the caller
 learn every workload's layout. The Go pod view covers portable edits. Editing a
@@ -719,6 +762,14 @@ KServe model URI would require its own declared write target.
 
 ## Test plan
 
+An in-memory prototype ran both Pod queries and the subtree scale example
+against the SDK and the KAI, JobSet and LeaderWorkerSet fixtures.
+
+- Run the live Pod queries through the public `Workload`. Check both CustomJob
+  roles, parent subgroup selectors, topology, and a group with no subgroups.
+  Check JobSet group keys and the minimum for one instance and for all instances.
+  Check missing instructions, unmatched group members, an unknown instance ID,
+  and the inherited LeaderWorkerSet replica key. All reads preserve the inputs.
 - Run the core Pod, KServe transformer and KServe predictor cases through the
   public SDK setters and the integrated `Walk`. Compare the complete raw object
   with the input plus the requested edit. A second walk must report no change.
