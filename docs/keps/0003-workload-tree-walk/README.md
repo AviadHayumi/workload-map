@@ -164,26 +164,23 @@ with existing actions and references to undeclared parameters.
 Before any write, Karta checks required arguments, names, types and choices.
 Omitting an optional argument skips its assignment. Zero and false are supplied
 values. An integer accepts signed Go integers. A string or boolean requires its
-corresponding Go type. Each action is atomic and reports whether the object changed.
+corresponding Go type. Each action is atomic and reports whether it changed the object.
+
+Each `Walk` or `ApplyAction` call stages its own changes. If a walk succeeds
+and a later action fails, the walk's edit is still in memory. A controller that
+needs both changes to succeed discards the tree on error and calls `Update`
+only after both succeed.
 [Action definition and caller examples](#discover-and-run-an-action-with-arguments)
 
 ## SDK usage by consumer
 
-The examples use two sets of calls. Catalog lookup, definition validation and
-live Pod grouping exist in the SDK today. The `karta.Workload` calls are the
-proposed front door. The examples use `resource` for Karta's resource package
-and `apiresource` for Kubernetes resource quantities.
+Catalog lookup, definition validation and live Pod grouping exist in the SDK
+today. The `karta.Workload` reads, edits and actions use the proposed interface.
+In the KAI Scheduler example, the live Pod's role label identifies a worker.
+The owning `CustomJob` supplies the subgroup minimum of two.
 
-| Caller and input | What the caller needs |
-| --- | --- |
-| CLI or admission webhook with a Karta definition | [Validate a definition, find a built-in kind or load an object](#validate-select-and-load-a-definition) |
-| Exporter or cluster agent with a workload | [Read its mapped status](#read-workload-health) |
-| CLI or Headlamp with a JobSet | [Display its component tree and scale](#inspect-a-tree-or-one-component) |
-| Placement controller with a candidate workload | [Calculate the workers' CPU request](#calculate-the-cpu-request-for-workers) |
-| KAI Scheduler with a live Pod and its owner | [Match the Pod and calculate a subgroup minimum](#how-kai-scheduler-groups-a-live-pod) |
-| Exporter with a live Pod and its owner | [Attribute metrics to a component and instance](#attribute-a-live-pod-to-a-workload-instance) |
-| Reconciler with a workload to edit | [Walk the instances](#list-the-pod-bearing-instances), [target one directly](#edit-an-instance-you-already-know), or [save several changes together](#edit-workers-and-suspend-the-jobset-in-one-api-update) |
-| CLI or controller with an action name | [Discover arguments and apply the action](#discover-and-run-an-action-with-arguments) |
+<details>
+<summary>Validate and load a definition, read status, and calculate scale and CPU</summary>
 
 ### Validate, select and load a definition
 
@@ -279,6 +276,7 @@ with enough capacity. A Go caller can calculate the CPU requested by the
 `training` container across this JobSet's workers.
 Read one component. Eight worker Pods at eight CPUs each request 64 CPUs for
 that container. This example counts only the named container.
+It imports Kubernetes resource quantities as `apiresource`.
 [Nova supported resources](https://docs.elotl.co/nova/Appendix/api-resources/#custom-resource-objects) and [JobSet input](../../examples/quickstart/jobset.yaml)
 
 ```go
@@ -303,6 +301,11 @@ func workerCPU(ctx context.Context, tree karta.Workload) (apiresource.Quantity, 
 }
 ```
 
+</details>
+
+<details>
+<summary>Group a live Pod in KAI Scheduler or attribute it to an instance in the exporter</summary>
+
 ### How KAI Scheduler groups a live Pod
 
 KAI's pod grouper can fall back to Karta when a workload has no native grouping
@@ -312,9 +315,9 @@ Pod carries `metadata.labels["e2e.example.com/role"]: worker`.
 [Definition lookup](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/hub.go#L81-L111) and [KAI fixture](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/test/e2e/suites/integrations/third_party/karta/customjob_karta.yaml#L22-L49)
 
 KAI pins the SDK under its earlier `github.com/run-ai/karta` module path.
+Here `resource` is Karta's resource package.
 This example uses the same grouping calls on this branch for the fixture's
 worker leaf. KAI's general matcher also searches descendants when a subgroup names a parent.
-The Pod supplies the label used for matching. The CustomJob supplies the count.
 [Pinned module](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/go.mod#L31), [subgroup calculation](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/grouper.go#L109-L150) and [subtree matching](https://github.com/kai-scheduler/KAI-Scheduler/blob/8e0d52c26a117f3f4212a80a15cc82a10b1c1ea1/pkg/podgrouper/podgrouper/plugins/karta/component_matching.go#L12-L47)
 
 ```go
@@ -393,6 +396,11 @@ these results with its catalog definition.
 | `query.ExtractGroupKeys(ctx, member.MemberDefinition.GroupByKeyPaths)` | `["workers"]` from the live Pod's label |
 | `instructions.CalculateSubtreeScale(ctx, member.EffectiveComponent, instance, factory, summary)` | `8` from the workload's worker entry |
 
+</details>
+
+<details>
+<summary>Walk pod templates, bare pod specs, and computed fragments</summary>
+
 ### List the pod-bearing instances
 
 The quickstart JobSet has two replicated jobs, `leader` and `workers`.
@@ -449,6 +457,11 @@ pod view. A snapshot reader can inspect `instance.Fragments.Resources.Requests`
 when both pointers are present. The expression constructs a new object. Editing
 the CPU request to `"2"` must return an error until the definition supplies a writable location.
 The original NIMCache still requests one CPU.
+
+</details>
+
+<details>
+<summary>Edit a named JobSet, KServe, or Dynamo instance and handle rollback</summary>
 
 ### Change one container in one JobSet instance
 
@@ -584,6 +597,11 @@ func assignSmallQueue(ctx context.Context, tree karta.Workload) (bool, error) {
 }
 ```
 
+</details>
+
+<details>
+<summary>Discover action arguments, suspend or resume, and save edits with one update</summary>
+
 ### Suspend a workload that supports it
 
 ```go
@@ -690,6 +708,8 @@ func prepareAndSave(ctx context.Context, tree karta.Workload, c client.Client) e
 }
 ```
 
+</details>
+
 ## Compatibility and alternatives
 
 Existing catalog definitions need no migration. Declaring parameterized actions
@@ -713,9 +733,15 @@ In-memory replay covered 512 workload snapshots from 95 recordings. The
 [candidate writer](https://github.com/AviadHayumi/workload-map/tree/cc64a09742780cfe411be142fe2dddde5fba7431)
 returned the expected whole object for all 893 no-op writes and all 584
 scheduler edits on present, mapped targets. Another 28 reads of optional
-components failed before a write. Four additional cases exposed failures.
-Cover them in the public setters and exercise each edit the pod view exposes
-through the integrated walk before enabling walk writes.
+components failed before a write.
+
+Four cases still block walk writes. The candidate dropped a sibling field,
+silently skipped a KServe edit, edited the wrong JobSet instance, and rounded a
+large integer. Cover these cases in the public setters and exercise each edit
+the pod view exposes through the integrated walk.
+
+<details>
+<summary>Write-back regression inputs and expected results</summary>
 
 | Case | Observed on the candidate | Required outcome |
 | --- | --- | --- |
@@ -723,6 +749,8 @@ through the integrated walk before enabling walk writes.
 | Edit a KServe model container when the predictor filter matches no model | The update returned success and wrote nothing. | Return an error naming the field and leave the predictor intact. |
 | Target `workers` with a test JobSet definition that reverses only the instance IDs | The edit landed on `leader`. The stock mapping uses matching order. | Bind the edit to `workers` by ID or reject the mapping. The leader keeps its original template. |
 | Load an object with `metadata.generation: 9007199254740993`, then set its scheduler | Reading the object already returned `9007199254740992`. The scheduler edit kept the rounded value. | Preserve the exact integer at load, after the edit and in the object returned to the caller. |
+
+</details>
 
 The integrated walk and parameterized actions still need end-to-end coverage.
 The action argument examples ran against a test double.
