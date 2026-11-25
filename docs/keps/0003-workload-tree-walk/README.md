@@ -15,8 +15,7 @@
 ![A visitor sets the KServe predictor scheduler. Karta stages the mapped field. The caller saves a successful edit. A failed walk discards its edits.](walk.png)
 
 A controller can inspect a workload instance and edit its pod template in the same visit.
-Karta applies the changed fields to an in-memory copy of the workload.
-The caller decides when to send that object to Kubernetes.
+Karta applies the changed fields in memory. The caller saves the workload.
 
 ## Motivation
 
@@ -32,16 +31,15 @@ spec:
       storageUri: s3://example/model
 ```
 
-KEP-0002 lets the controller read the tree, then pass a component name and instance
-IDs to a second call. A visitor already has the instance it wants to change.
-The visitor can make the edit there, as it can in Go's
+KEP-0002 lets a controller edit instances it names up front. Here the controller
+decides what to edit from the data it sees during the visit, as in Go's
 [syntax tree walker](https://pkg.go.dev/golang.org/x/tools/go/ast/astutil#Apply).
 
 ## Proposal
 
-Keep `definition.Load(obj)` from KEP-0002. It accepts a Kubernetes `runtime.Object`
-such as `*unstructured.Unstructured` and returns a `Workload`.
-The interface excerpt below shows the methods used for edits.
+`definition.Load(obj)` accepts a Kubernetes `runtime.Object` such as
+`*unstructured.Unstructured`. Its `Workload` gains `Walk` alongside the targeted
+`MutatePodTemplates` call. The excerpt shows the methods used here.
 
 ```go
 type Workload interface {
@@ -75,35 +73,37 @@ func setScheduler(ctx context.Context, tree karta.Workload, c client.Client) err
 }
 ```
 
-The walk visits the root first, then children in definition order. Instances of
-each component are visited in ID order. A node without a pod has a nil `Pod`.
-Full templates, standalone pod specs and fragments all expose the same Go type.
+Walk starts at the root. It visits a component's instances in ID order, then
+its children in definition order. A component with no instances gets one visit
+with an empty ID. `Pod` is nil when the visit has no pod. Otherwise it presents
+a full template, a standalone spec or mapped fragments as a `PodTemplateSpec`.
+Edits through the pointer count only until the callback returns.
+
 For this input Karta adds only `spec.predictor.schedulerName: batch`. The model
 and replica count keep their original values.
 [KServe mapping](../../catalog/serving-kserve-io-inferenceservice-v1beta1.yaml)
 
-Each changed field must map to one writable location for the visited instance.
-An unmapped edit, such as adding predictor tolerations, returns an error naming
-the component, instance and field. Any error or cancellation discards the whole
-walk. A walk with no changes returns `false, nil`.
+Each edit needs one writable location on this instance. Adding predictor
+tolerations, for example, fails with the component, instance and unmapped field.
+Any error or cancellation discards the walk's edits. A no-op returns `false, nil`.
 
 ### Workload actions
 
-`Actions` lists the names the definition supports. Call `ApplyAction` once on the
-workload after a successful walk. Existing suspend and resume declarations supply
-the names `"suspend"` and `"resume"`. Suspending a
+`Actions` and `ApplyAction` replace KEP-0002's `CanSuspend`, `Suspend` and
+`Resume`. `Actions` lists supported names. An action runs once on the workload
+and can run independently of a walk. Existing declarations supply `"suspend"`
+and `"resume"`. Suspending a
 [JobSet](../../catalog/jobset-x-k8s-io-jobset-v1alpha2.yaml) sets `spec.suspend` to
 `true`. Suspending a [Kueue Workload](../../catalog/kueue-x-k8s-io-workload-v1beta2.yaml)
-sets `spec.active` to `false`. An unsupported action fails. Each call is atomic
-in memory. The caller can save both changes in one update after both calls succeed.
+sets `spec.active` to `false`. `ApplyAction` reports whether the object changed.
+An unsupported action fails. Each call is atomic in memory. A caller combining
+a walk and an action saves the object after both succeed.
 
 ## Compatibility and alternatives
 
-Existing Karta definitions and SDK clients continue to work. This changes the
-proposed Go front door only. A mutable map per node would require callers to know
-each workload's fields. Some fragments even come from different parents.
-Workload-specific fields such as the model URI and custom action declarations
-can be proposed separately when a caller needs them.
+Only the proposed Go API changes. A mutable map per node would make the caller
+learn every workload's layout. Editing KServe's model URI or declaring custom
+actions would need a separate proposal.
 
 ## Test plan
 
@@ -118,4 +118,4 @@ can be proposed separately when a caller needs them.
 
 ## History
 
-- 2026-11-25: Proposed. The walk and named actions are proposed SDK interfaces.
+- 2026-11-25: Proposed.
