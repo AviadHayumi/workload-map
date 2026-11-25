@@ -58,3 +58,4 @@ updates, open a new issue if the original is closed.
 
 - [KEP-0001: DSX workload exporter](0001-metrics-exporter/README.md)
 - [KEP-0002: Workload front door for SDK consumers](0002-sdk-workload-front-door/README.md)
+- [KEP-0003: Edit a workload during a tree walk](0003-workload-tree-walk/README.md)
