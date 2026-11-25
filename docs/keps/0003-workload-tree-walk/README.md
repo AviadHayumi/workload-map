@@ -1,12 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 NVIDIA Corporation -->
 
-# KEP-0003: Edit a workload during a tree walk
+# KEP-0003: A Go interface for Kubernetes workloads
 
 - Status: provisional
 - Authors: @AviadHayumi
 - Issue: https://github.com/dsx-ai-factory/workload-map/issues/341
-- Depends on: [Workload front door](../0002-sdk-workload-front-door/README.md)
 - Created: 2026-11-25
 - Last updated: 2026-11-25
 
@@ -34,16 +33,18 @@ spec:
       storageUri: s3://example/model
 ```
 
-KEP-0002 lets a controller edit instances it names up front. Here the controller
-decides what to edit from the data it sees during the visit, as in Go's
-[syntax tree walker](https://pkg.go.dev/golang.org/x/tools/go/ast/astutil#Apply).
+The predictor stores pod fields alongside KServe settings. Today the controller
+must know which fields the definition maps and which SDK setter can write them.
+With a typed pod view, it can inspect the scheduler during a visit and set it
+only when it is empty.
 
 ## Proposal
 
-`definition.Load(obj)` accepts a Kubernetes `runtime.Object` such as
-`*unstructured.Unstructured`. The returned `Workload` owns all operations on
-that object. The SDK keeps the compiled instructions and the component factory
-behind this interface.
+The proposed package is `github.com/dsx-ai-factory/workload-map/karta/sdk/pkg/karta`.
+Call `karta.Load(def, obj)` with a Karta definition and a Kubernetes
+`runtime.Object`, such as `*unstructured.Unstructured`. The returned
+`Workload` holds a private copy of that object and owns its reads, edits and
+actions. The SDK handles the compiled instructions and component factory.
 
 ```go
 type Workload interface {
@@ -73,10 +74,30 @@ type Node struct {
 func (n Node) CanWrite(field string) bool
 ```
 
-`Definition` is the compiled Karta mapping. A `Snapshot` contains the root
-status and the components with their instances. A targeted edit gets an
-instance ID and its pod template in a `func(string, *corev1.PodTemplateSpec) error`
-callback. [Targeted edit and options](#edit-an-instance-you-already-know)
+<details>
+<summary>Loading a workload and reading a snapshot</summary>
+
+For repeated reads, `karta.Compile(def)` validates and indexes a definition
+once. The resulting `Definition` is immutable and can be shared by goroutines.
+Its `Load(obj runtime.Object) (Workload, error)` method checks the object's
+`apiVersion`, `kind` and `metadata.name` or `metadata.generateName`. If the
+definition declares a root kind, the object's group, version and kind must
+match. Use each loaded `Workload` from one goroutine at a time.
+
+| Read | Result |
+| --- | --- |
+| `def.Karta()` | A deep copy of the source `*v1alpha1.Karta`. |
+| `def.Components()` | Root-first `[]ComponentInfo` with the component name, parent, optional kind and declared writable paths. |
+| `tree.Read(ctx)` | A `*Snapshot` with root `Status` and every `Component` in `Components`, root first. An unmapped status is nil. |
+| `snapshot.Get(name)` and `snapshot.Children(name)` | A `(*Component, bool)` lookup and a `[]Component` of direct children. Each component has its definition metadata, status and instances. |
+| `component.Instances` | A slice of `Instance` values ordered by `ID`. A single-instance component has an empty ID. `Present` distinguishes an absent instance. `Pod`, `Scale` and `Fragments` are optional pointers. |
+
+`Status.MatchedStatuses` lists the matches from the status mapping.
+`Scale.Replicas`, `MinReplicas` and `MaxReplicas` are optional `*int32`
+values. Editing a snapshot only changes the caller's copy. To change the
+workload, use `Walk`, `MutatePodTemplates` or `ApplyAction`.
+
+</details>
 
 ```go
 func setScheduler(ctx context.Context, tree karta.Workload, c client.Client) error {
@@ -140,9 +161,9 @@ passes the [whole-object regression cases](#test-plan).
 
 ### Workload actions
 
-`Actions` and `ApplyAction` replace KEP-0002's `CanSuspend`, `Suspend` and
-`Resume`. An action runs once on the workload. `Actions()` lets a caller discover
-the name, accepted arguments and allowed choices before it runs an action.
+An action runs once on the workload. `Actions()` lists the names, parameters
+and allowed choices. A caller picks a name and passes its argument values to
+`ApplyAction`.
 
 ```go
 type ActionName string
@@ -538,7 +559,10 @@ leader's image survive. An already updated worker is a successful no-op.
 
 A queue controller already knows the JobSet instance ID `workers`. It can
 call `MutatePodTemplates` directly and set a priority class in that template.
-The selector is checked before the callback runs.
+By default the call selects every instance of that component. `OnInstances`
+restricts it to the given IDs. Karta checks the selection before the first
+callback. A `PodTemplateMutateFunc` has the signature
+`func(instanceID string, pod *corev1.PodTemplateSpec) error`.
 
 ```go
 func editKnownWorker(ctx context.Context, tree karta.Workload) (bool, error) {
@@ -550,12 +574,14 @@ func editKnownWorker(ctx context.Context, tree karta.Workload) (bool, error) {
 ```
 
 For a typo such as `"wokers"`, the caller can check
-`errors.Is(err, karta.ErrInstanceNotFound)`. For an optional KServe component,
+`errors.Is(err, karta.ErrInstanceNotFound)`. A selected instance that is
+absent returns `ErrComponentAbsent` by default. For an optional KServe component,
 `tree.MutatePodTemplates(ctx, "transformer", edit, karta.SkipAbsent())` skips a
 missing transformer. Here `edit` is the same kind of typed callback as above.
 If an edit has no writable mapping, `var field *karta.FieldError` followed by
-`errors.As(err, &field)` identifies the component, instance and field.
-[Targeted mutation contract](../0002-sdk-workload-front-door/README.md#callback-and-options)
+`errors.As(err, &field)` identifies the `Component`, `Instance` and dotted
+`Field`. `FieldError.Unwrap()` exposes the cause. Any callback error discards
+the entire call's edits and preserves its cause for `errors.Is` and `errors.As`.
 
 ### Add one label to a core Pod or a KServe transformer
 
@@ -750,10 +776,9 @@ func prepareAndSave(ctx context.Context, tree karta.Workload, c client.Client) e
 
 ## Compatibility and alternatives
 
-This KEP brings the deferred `LocatePod` operation from KEP-0002 into
-`Workload`. Existing SDK callers can keep using the lower-level packages.
-The proposed methods reuse their selectors, grouping rules and scale evaluator.
-KAI and the exporter can adopt the interface independently.
+Existing SDK callers can adopt `Workload` independently. Its live Pod queries
+reuse the selectors, grouping rules and scale evaluator that KAI and the
+exporter use today.
 
 Existing catalog definitions need no migration. Declaring parameterized actions
 requires an additive CRD change. A mutable map per node would make the caller
