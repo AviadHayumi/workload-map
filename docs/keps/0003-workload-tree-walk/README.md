@@ -164,14 +164,33 @@ KServe model URI would require its own declared write target.
 
 ## Test plan
 
-- Run the core Pod, KServe transformer and KServe predictor cases against both
-  the walk and corresponding legacy writers. Compare the entire raw object with
-  the input plus the requested edit. A second walk must report no change.
-- Edit one of two JobSet instances and check its sibling. Make a later visit
-  fail and check that the original object survives.
+- Run the core Pod, KServe transformer and KServe predictor cases through the
+  public SDK setters and the integrated `Walk`. Compare the complete raw object
+  with the input plus the requested edit. A second walk must report no change.
+  If a later visit fails, the complete input must survive.
 - Apply `"suspend"` to JobSet and Kueue. Discover the arguments of a declared
   action, pass zero, omit an optional argument, and reject invalid input without
   changing the object.
+
+### Write-back validation
+
+In-memory replay covered 512 workload snapshots from 95 recordings. The
+[candidate writer](https://github.com/AviadHayumi/workload-map/tree/cc64a09742780cfe411be142fe2dddde5fba7431)
+returned the expected whole object for all 893 no-op writes and all 584
+scheduler edits on present, mapped targets. Another 28 reads of optional
+components failed before a write. Four additional cases exposed failures.
+Cover them in the public setters and exercise each edit the pod view exposes
+through the integrated walk before enabling walk writes.
+
+| Case | Observed on the candidate | Required outcome |
+| --- | --- | --- |
+| Change only `tolerationSeconds` from 10 to 20 | A successful update dropped a neighboring extension field. A second test lost an explicit `value: ""`. | Preserve every sibling field or reject the edit and keep the input intact. |
+| Edit a KServe model container when the predictor filter matches no model | The update returned success and wrote nothing. | Return an error naming the field and leave the predictor intact. |
+| Target `workers` with a test JobSet definition that reverses only the instance IDs | The edit landed on `leader`. The stock mapping uses matching order. | Bind the edit to `workers` by ID or reject the mapping. The leader keeps its original template. |
+| Load an object with `metadata.generation: 9007199254740993`, then set its scheduler | Reading the object already returned `9007199254740992`. The scheduler edit kept the rounded value. | Preserve the exact integer at load, after the edit and in the object returned to the caller. |
+
+The integrated walk and parameterized actions still need end-to-end coverage.
+The action argument examples ran against a test double.
 
 ## History
 
